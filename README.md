@@ -54,8 +54,16 @@ pnpm format
 
 ## Project Structure
 
-- `packages/`: Monorepo packages
-  - `common/`: Shared utilities and types
+- `packages/common/`: shared utilities and types. It stays until a later change replaces it.
+- `docs/`: ADRs and RFCs
+
+[ADR 0002](docs/adr/0002-monorepo-layout.md) records the target layout. Of those directories, only `docs/` exists today.
+
+## Architecture decisions
+
+The index is [docs/adr/README.md](docs/adr/README.md).
+[ADR 0001](docs/adr/0001-typescript-first-with-adk-js.md) is the language decision.
+[ADR 0002](docs/adr/0002-monorepo-layout.md) is the layout decision.
 
 ## License
 
