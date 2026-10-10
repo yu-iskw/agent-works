@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { describe, expect, it } from 'vitest';
 
-import { createPostgresAuditLog } from './write.js';
+import { AuditWriteError, createPostgresAuditLog } from './write.js';
 
 import type { AuditLog } from './write.js';
 import type { AuditEvent } from '@agent-works/domain';
@@ -126,6 +126,39 @@ describe('postgres ask reservation', () => {
     expect(first).toEqual({ kind: 'done', reply: produced(502).reply });
     expect(second).toEqual({ kind: 'conflict' });
     expect(runs).toBe(1);
+  });
+
+  it('stops waiting when a reservation has no live owner', async () => {
+    const db = fakeDatabase({
+      openReplays: [{ requestId: eventId, initiatorSubject: 'alice' }],
+    });
+    const log = createPostgresAuditLog(db.sql as unknown as postgres.Sql, 40);
+    let runs = 0;
+    const outcome = await Promise.race([
+      log
+        .run(claim(), () => {
+          runs += 1;
+          return Promise.resolve(produced(200));
+        })
+        .then(
+          (result) => ({ status: 'returned' as const, result }),
+          (error: unknown) => ({ status: 'rejected' as const, error }),
+        ),
+      delay(500).then(() => ({ status: 'waiting' as const })),
+    ]);
+
+    expect(outcome).toEqual({
+      status: 'rejected',
+      error: expect.any(AuditWriteError),
+    });
+    expect(runs).toBe(0);
+    expect(db.replay(eventId)).toEqual({
+      initiator_subject: 'alice',
+      request_digest_sha256: digest,
+      response_status: null,
+      response_body: null,
+    });
+    expect(db.reserved()).toBe(0);
   });
 
   it('runs again after the first execution throws', async () => {
