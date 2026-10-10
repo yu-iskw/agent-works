@@ -151,3 +151,5 @@ TODO.md
 # CodeQL local artifacts
 .codeql_db/
 codeql-results.sarif
+
+e2e/artifacts/

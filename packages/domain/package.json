@@ -1,0 +1,31 @@
+{
+  "name": "@agent-works/domain",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "schemas": "tsc -p tsconfig.json && node dist/schema-cli.js",
+    "bench": "tsc -p tsconfig.json && node dist/bench.js"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "fast-check": "4.10.2",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
