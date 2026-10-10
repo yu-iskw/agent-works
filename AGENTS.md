@@ -101,6 +101,7 @@ When you want durable fixes (not one-off chat advice):
 - **Root:** shared scripts and config
 - **CI:** `.github/workflows/` — `sbom.yml` runs `pnpm lint:security` then generates/scans an SPDX SBOM on PRs/main; `publish.yml` re-runs `pnpm lint:security` before npm publish
 - **Agent/tooling config:** `.cursor/` (Cursor rules), `.claude/` (Claude Code compatibility/hooks), `.codex/` (Codex), `.gemini/` (Gemini CLI). Copilot can also read `.github/copilot-instructions.md` alongside `AGENTS.md`.
+- pstack role models come from `.cursor/rules/pstack-models.mdc`, take precedence over pstack defaults, and subagents must be launched with those models explicitly.
 - **ADRs:** significant decisions in `docs/adr` when you use ADR tooling
 
 ### ADR contract (steerable memory)
