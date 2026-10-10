@@ -37,7 +37,18 @@ type AskOutcome =
 
 const noSourcesAnswer = 'I could not find a source for that.';
 
+type AskSettlement =
+  | { readonly ok: true; readonly reply: ApiReply }
+  | { readonly ok: false; readonly error: unknown };
+
+type AskClaim = {
+  readonly callerSub: string;
+  readonly question: string;
+  readonly done: Promise<AskSettlement>;
+};
+
 export function createAskRoute(deps: AskDeps): Route {
+  const claims = new Map<string, AskClaim>();
   return async (request) => {
     const authenticated = await authenticate(
       deps.verify,
@@ -46,13 +57,48 @@ export function createAskRoute(deps: AskDeps): Route {
     if (authenticated.ok === false) return authenticated.reply;
     const parsed = askRequestSchema.safeParse(parseJson(request.body));
     if (!parsed.success) return { status: 400, body: { error: 'invalid_request' } };
-    const outcome = await decide(deps, authenticated.caller, parsed.data);
-    return record(deps, authenticated.caller, parsed.data, outcome);
+    return answer(claims, deps, authenticated.caller, parsed.data);
   };
 }
 
+async function answer(
+  claims: Map<string, AskClaim>,
+  deps: AskDeps,
+  caller: Caller,
+  request: AskRequest,
+): Promise<ApiReply> {
+  const existing = claims.get(request.requestId);
+  if (existing !== undefined) return replay(existing, caller, request);
+
+  let publish!: (settlement: AskSettlement) => void;
+  const done = new Promise<AskSettlement>((resolve) => {
+    publish = resolve;
+  });
+  claims.set(request.requestId, { callerSub: caller.sub, question: request.question, done });
+  try {
+    const reply = await record(deps, caller, request, await decide(deps, caller, request));
+    publish({ ok: true, reply });
+    if (reply.status !== 200) claims.delete(request.requestId);
+    return reply;
+  } catch (error) {
+    claims.delete(request.requestId);
+    publish({ ok: false, error });
+    throw error;
+  }
+}
+
+async function replay(claim: AskClaim, caller: Caller, request: AskRequest): Promise<ApiReply> {
+  if (claim.callerSub !== caller.sub || claim.question !== request.question) {
+    return { status: 409, body: { error: 'conflict' } };
+  }
+  const settlement = await claim.done;
+  if (!settlement.ok) throw settlement.error;
+  return settlement.reply;
+}
+
 type AuthResult =
-  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
+  | { readonly ok: true; readonly caller: Caller }
+  | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,

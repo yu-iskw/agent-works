@@ -68,12 +68,12 @@ function createKeyCache(options: IapVerifierOptions): KeyCache {
   const clock = options.now ?? Date.now;
   return {
     async keyFor(kid) {
-      const cached = keys.get(kid);
-      if (cached !== undefined) return cached;
       const now = clock();
-      if (fetchedAt !== 0 && now - fetchedAt < refetchMs) throw new Unauthenticated(unknownKey);
-      await refreshKeys(options.jwksUrl, load, keys);
-      fetchedAt = now;
+      const fresh = fetchedAt !== 0 && now - fetchedAt < refetchMs;
+      if (!fresh) {
+        await refreshKeys(options.jwksUrl, load, keys);
+        fetchedAt = now;
+      }
       const found = keys.get(kid);
       if (found === undefined) throw new Unauthenticated(unknownKey);
       return found;
