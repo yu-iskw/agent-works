@@ -1,39 +1,39 @@
 - id: prompt-injection
   kind: threat
   test: sec.prompt-injection-read
-  owner: F1-06
+  owner: G1
 - id: cross-user-leakage
   kind: threat
   test: sec.cross-user-leak
-  owner: F1-03
+  owner: R1
 - id: confused-deputy
   kind: threat
   test: sec.policy-fail-closed
-  owner: F1-02
+  owner: P1
 - id: oauth-token-theft
   kind: threat
   test: sec.token-canary
-  owner: F2-04
+  owner: O1
 - id: unauthorized-write
   kind: threat
   test: sec.approval-replay
-  owner: F2-01
+  owner: B1
 - id: approval-toctou
   kind: threat
   test: sec.approval-mutation
-  owner: F2-01
+  owner: B1
 - id: tool-injection
   kind: threat
   test: sec.prompt-injection-read
-  owner: F1-06
+  owner: G1
 - id: indirect-exfiltration
   kind: threat
   test: sec.prompt-injection-write
-  owner: F2-05
+  owner: S2
 - id: excessive-spend
   kind: threat
   test: agent.step-limit
-  owner: F1-06
+  owner: G1
 - id: untrusted-code
   kind: threat
   test: sec.direct-run-url-blocked
@@ -41,51 +41,51 @@
 - id: identity-staleness
   kind: threat
   test: sec.stale-groups
-  owner: F1-01
+  owner: A2
 - id: registry-supply-chain
   kind: threat
   test: sec.policy-fail-closed
-  owner: F1-02
+  owner: P1
 - id: audit-tampering
   kind: threat
   test: audit.tamper-detected
-  owner: F1-05
+  owner: U1
 - id: user-b-document
   kind: scenario
   test: sec.cross-user-leak
-  owner: F1-03
+  owner: R1
 - id: membership-revoked-mid-task
   kind: scenario
   test: sec.revoked-group
-  owner: F1-03
+  owner: R1
 - id: drive-injection-email
   kind: scenario
   test: sec.prompt-injection-read
-  owner: F1-06
+  owner: G1
 - id: tool-response-as-policy
   kind: scenario
   test: sec.prompt-injection-read
-  owner: F1-06
+  owner: G1
 - id: approval-payload-changed
   kind: scenario
   test: sec.approval-mutation
-  owner: F2-01
+  owner: B1
 - id: duplicate-delivery
   kind: scenario
   test: broker.duplicate-call-id
-  owner: F2-01
+  owner: B1
 - id: approver-removed
   kind: scenario
   test: sec.self-approval
-  owner: F2-02
+  owner: B2
 - id: skill-revoked-mid-task
   kind: scenario
   test: agent.runner-parity
-  owner: F1-06
+  owner: G1
 - id: model-unavailable
   kind: scenario
   test: agent.runner-parity
-  owner: F1-06
+  owner: G1
 - id: untrusted-egress
   kind: scenario
   test: sec.direct-run-url-blocked
@@ -93,40 +93,40 @@
 - id: policy-unavailable
   kind: scenario
   test: sec.policy-fail-closed
-  owner: F1-02
+  owner: P1
 - id: memory-deletion
   kind: scenario
   test: sec.cross-user-leak
-  owner: F1-03
+  owner: R1
 - id: S-01
   kind: invariant
   test: sec.model-claims-approval
-  owner: F1-02
+  owner: P1
 - id: S-02
   kind: invariant
   test: sec.policy-fail-closed
-  owner: F1-02
+  owner: P1
 - id: S-03
   kind: invariant
   test: sec.cross-user-leak
-  owner: F1-03
+  owner: R1
 - id: S-04
   kind: invariant
   test: sec.approval-mutation
-  owner: F2-01
+  owner: B1
 - id: S-05
   kind: invariant
   test: sec.policy-fail-closed
-  owner: F1-02
+  owner: P1
 - id: S-06
   kind: invariant
   test: sec.token-canary
-  owner: F2-04
+  owner: O1
 - id: S-07
   kind: invariant
   test: sec.stale-groups
-  owner: F1-01
+  owner: A2
 - id: S-08
   kind: invariant
   test: sec.cross-user-leak
-  owner: F1-03
+  owner: R1

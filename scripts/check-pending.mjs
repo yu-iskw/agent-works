@@ -51,7 +51,7 @@ export function checkPending({ pending, controls, plans }) {
   return failures;
 }
 
-const ISSUE_PAGE_SIZE = 100;
+const ISSUE_LIST_LIMIT = 1000;
 
 export function resolveRepository(env, originUrl) {
   const fromActions = env.GITHUB_REPOSITORY?.trim() ?? '';
@@ -72,36 +72,45 @@ function ownerRepoFromOrigin(url) {
   return `${parts[0]}/${parts[1]}`;
 }
 
-export function plansFromIssuePages(readPage) {
+export function plansFromIssues(issues) {
   const plans = new Map();
-  let page = 1;
-  for (;;) {
-    const rows = readPage(page);
-    for (const issue of rows) {
-      if (issue.pull_request != null) continue;
-      const match = /^([A-Z0-9]+-\d+):/.exec(issue.title);
-      if (!match) continue;
-      plans.set(match[1], String(issue.state).toUpperCase());
-    }
-    if (rows.length < ISSUE_PAGE_SIZE) break;
-    page += 1;
+  for (const issue of issues) {
+    if (issue.pull_request != null) continue;
+    const match = /^([A-Z]+-?[0-9]+(?:-[0-9]+)?):/.exec(issue.title);
+    if (!match) continue;
+    plans.set(match[1], String(issue.state).toUpperCase());
   }
   return plans;
 }
 
-function fetchIssuePage(repo, page) {
+function issuesFromGitHub(repo) {
   const raw = execFileSync(
     'gh',
-    ['api', `repos/${repo}/issues?state=all&per_page=${ISSUE_PAGE_SIZE}&page=${page}`],
+    [
+      'issue',
+      'list',
+      '--repo',
+      repo,
+      '--state',
+      'all',
+      '--limit',
+      String(ISSUE_LIST_LIMIT),
+      '--json',
+      'title,state',
+    ],
     { encoding: 'utf8' },
   );
-  return JSON.parse(raw);
+  const issues = JSON.parse(raw);
+  if (issues.length >= ISSUE_LIST_LIMIT) {
+    throw new Error(`refusing to read a truncated issue list of ${ISSUE_LIST_LIMIT}`);
+  }
+  return issues;
 }
 
 function plansFromGitHub() {
   const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
   const repo = resolveRepository(process.env, originUrl);
-  return plansFromIssuePages((page) => fetchIssuePage(repo, page));
+  return plansFromIssues(issuesFromGitHub(repo));
 }
 
 function main() {
