@@ -31,7 +31,7 @@ const importXSettings = {
   'import-x/resolver': {
     typescript: {
       alwaysTryTypes: true,
-      project: ['packages/*/tsconfig.json'],
+      project: ['packages/*/tsconfig.json', 'apps/*/tsconfig.json'],
     },
     node: true,
   },
@@ -114,7 +114,7 @@ export default [
     ],
   },
   {
-    files: ['packages/**/*.config.ts'],
+    files: ['packages/**/*.config.ts', 'apps/**/*.config.ts'],
     ignores: ['**/dist/**'],
     languageOptions: {
       parser: tsparser,
@@ -141,7 +141,7 @@ export default [
     },
   },
   {
-    files: ['packages/**/*.ts', 'packages/**/*.tsx'],
+    files: ['packages/**/*.ts', 'packages/**/*.tsx', 'apps/**/*.ts', 'apps/**/*.tsx'],
     ignores: ['**/dist/**', '**/*.config.ts', '**/*.test.ts', '**/*.test.tsx'],
     languageOptions: {
       parser: tsparser,
@@ -167,7 +167,12 @@ export default [
     },
   },
   {
-    files: ['packages/**/*.test.ts', 'packages/**/*.test.tsx'],
+    files: [
+      'packages/**/*.test.ts',
+      'packages/**/*.test.tsx',
+      'apps/**/*.test.ts',
+      'apps/**/*.test.tsx',
+    ],
     ignores: ['**/dist/**'],
     languageOptions: {
       parser: tsparser,

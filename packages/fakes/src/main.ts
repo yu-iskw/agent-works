@@ -1,0 +1,15 @@
+import { createDrive } from './fake-drive.js';
+import { createLlm } from './fake-llm.js';
+import { listen } from './http.js';
+import { createIapProxy } from './iap-proxy.js';
+
+const port = Number(process.env.PORT ?? 8080);
+const role = process.argv[2];
+const upstream = process.env.UPSTREAM_URL;
+
+if (role === 'iap') {
+  if (upstream === undefined || upstream.length === 0) process.exit(1);
+  await listen(createIapProxy(upstream), port);
+} else if (role === 'drive') await listen(createDrive(), port);
+else if (role === 'llm') await listen(createLlm(), port);
+else process.exit(1);

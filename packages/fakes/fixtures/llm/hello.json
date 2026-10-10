@@ -1,0 +1,21 @@
+{
+  "request": {
+    "contents": [
+      {
+        "role": "user",
+        "parts": [{ "text": "Say hello to Alice." }]
+      }
+    ]
+  },
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [{ "text": "Hello, Alice." }]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  }
+}
