@@ -28,8 +28,6 @@ The rollback path has two cases. If C-02 shows that managed Agent Runtime cannot
 
 Later packages depend on one TypeScript `AgentRunner` port.
 
-The change that adds the SDK pins `@google/adk@2.2.0`. A younger release would need a `minimumReleaseAge` exception, and this record does not grant one.
+A younger release than `@google/adk@2.2.0` would need a `minimumReleaseAge` exception, and this record does not grant one.
 
-A sandboxed Python analysis tool, RFC workflow WF-05, stays a tool. It is not the platform language.
-
-Until C-02, Cloud Run is the rollback path for the agent process.
+A sandboxed Python analysis tool, RFC workflow WF-05, stays a tool.
