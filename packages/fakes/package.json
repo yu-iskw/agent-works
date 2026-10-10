@@ -4,10 +4,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/main.js",
-  "types": "dist/index.d.ts",
+  "types": "src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "import": "./dist/index.js"
     }
   },

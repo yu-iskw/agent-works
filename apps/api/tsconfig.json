@@ -9,11 +9,7 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],
-    "paths": {
-      "@agent-works/domain": ["../../packages/domain/src/index.ts"],
-      "@agent-works/fakes": ["../../packages/fakes/src/index.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src"]
 }

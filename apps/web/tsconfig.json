@@ -12,10 +12,7 @@
     "jsx": "react",
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment",
-    "types": ["node"],
-    "paths": {
-      "@agent-works/domain": ["../../packages/domain/src/index.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src", "app"]
 }
