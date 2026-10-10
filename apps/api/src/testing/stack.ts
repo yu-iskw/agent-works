@@ -15,7 +15,7 @@ import type { Server } from 'node:http';
 
 type MemoryAuditLog = AuditLog & { rows(): readonly AuditEvent[] };
 
-function createMemoryAuditLog(): MemoryAuditLog {
+export function createMemoryAuditLog(): MemoryAuditLog {
   const rows: AuditEvent[] = [];
   return {
     append(event) {
