@@ -5,7 +5,13 @@ import { header } from './http.js';
 import type { Handler, Reply, Request } from './http.js';
 import type { KeyObject } from 'node:crypto';
 
+export const fakeIap = {
+  issuer: 'https://fake-iap.local',
+  audience: 'agent-works-dev',
+} as const;
+
 const users = new Set(['alice', 'bob']);
+const contentTypeHeader = 'content-type';
 const hop = new Set(['connection', 'content-length', 'keep-alive', 'transfer-encoding']);
 const dropResponse = new Set([...hop, 'content-encoding']);
 const skip = new Set([
@@ -46,8 +52,8 @@ function signAssertion(key: KeyObject, kid: string, sub: string): string {
   const head = Buffer.from(JSON.stringify({ alg: 'ES256', kid, typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(
     JSON.stringify({
-      iss: 'https://fake-iap.local',
-      aud: 'agent-works-dev',
+      iss: fakeIap.issuer,
+      aud: fakeIap.audience,
       sub,
       email: `${sub}@example.test`,
       iat,
@@ -86,7 +92,7 @@ async function forward(upstream: string, request: Request, assertion: string): P
 async function readUpstream(response: Response): Promise<Reply> {
   const text = await response.text();
   const json =
-    text.length > 0 && (response.headers.get('content-type') ?? '').includes('application/json');
+    text.length > 0 && (response.headers.get(contentTypeHeader) ?? '').includes('application/json');
   return {
     status: response.status,
     body: json ? (JSON.parse(text) as unknown) : text,
@@ -103,6 +109,8 @@ function replyHeaders(response: Response, empty: boolean): Record<string, string
   } else {
     const location = response.headers.get('location');
     if (location !== null) entries.push(['location', location]);
+    const contentType = response.headers.get(contentTypeHeader);
+    if (contentType !== null) entries.push([contentTypeHeader, contentType]);
   }
   return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }
