@@ -1,8 +1,8 @@
-import { createHash, createSign, generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 
 import { header } from './http.js';
 
-import type { Handler } from './http.js';
+import type { Handler, Request } from './http.js';
 import type { KeyObject } from 'node:crypto';
 
 const users = new Set(['alice', 'bob']);
@@ -10,6 +10,10 @@ const skip = new Set([
   'host',
   'content-length',
   'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'upgrade',
+  'expect',
   'x-fake-user',
   'x-goog-iap-jwt-assertion',
 ]);
@@ -52,18 +56,20 @@ function signAssertion(key: KeyObject, kid: string, sub: string): string {
     }),
   ).toString('base64url');
   const input = `${head}.${payload}`;
-  const signer = createSign('SHA256');
-  signer.update(input);
-  signer.end();
-  const signature = signer.sign({ key, dsaEncoding: 'ieee-p1363' }).toString('base64url');
+  const signature = sign('SHA256', Buffer.from(input), { key, dsaEncoding: 'ieee-p1363' }).toString(
+    'base64url',
+  );
   return `${input}.${signature}`;
 }
 
 async function forward(
   upstream: string,
-  request: Parameters<Handler>[0],
+  request: Request,
   assertion: string,
 ): Promise<{ status: number; body: unknown }> {
+  const base = new URL(upstream);
+  const target = new URL(`${request.url.pathname}${request.url.search}`, base);
+  if (target.origin !== base.origin) return { status: 400, body: { error: 'bad path' } };
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
     if (value === undefined || skip.has(name) || name.startsWith('x-goog-authenticated-user')) {
@@ -73,7 +79,7 @@ async function forward(
   }
   headers.set('x-goog-iap-jwt-assertion', assertion);
   const method = request.method;
-  const response = await fetch(new URL(`${request.url.pathname}${request.url.search}`, upstream), {
+  const response = await fetch(target, {
     method,
     headers,
     body: method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(request.body),

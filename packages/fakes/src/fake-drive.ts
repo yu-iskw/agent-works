@@ -36,13 +36,10 @@ function callerSub(assertion: string | undefined): string | undefined {
   const payload = assertion?.split('.')[1];
   if (payload === undefined) return undefined;
   try {
-    return nonEmptySub(JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as unknown);
+    const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (typeof parsed !== 'object' || parsed === null || !('sub' in parsed)) return undefined;
+    return typeof parsed.sub === 'string' && parsed.sub.length > 0 ? parsed.sub : undefined;
   } catch {
     return undefined;
   }
-}
-
-function nonEmptySub(payload: unknown): string | undefined {
-  if (typeof payload !== 'object' || payload === null || !('sub' in payload)) return undefined;
-  return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : undefined;
 }

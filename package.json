@@ -10,7 +10,7 @@
     "build": "pnpm --recursive build",
     "dev:up": "pnpm build && node scripts/dev-stack.mjs up",
     "dev:down": "node scripts/dev-stack.mjs down",
-    "dev:reset": "node scripts/dev-stack.mjs reset",
+    "dev:reset": "pnpm build && node scripts/dev-stack.mjs reset",
     "trunk": "trunk",
     "format": "pnpm format:trunk",
     "format:all": "pnpm format:trunk-all",

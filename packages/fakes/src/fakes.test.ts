@@ -1,4 +1,5 @@
 import { createPublicKey, createVerify } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 
 import { describe, expect, it } from 'vitest';
 
@@ -115,6 +116,80 @@ describe('fakes', () => {
     }
   });
 
+  it('returns 401 and does not call upstream for an unknown user', async () => {
+    let calls = 0;
+    const upstream = await listen(() => {
+      calls += 1;
+      return { status: 200, body: 'seen' };
+    }, 0);
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      const missing = await fetch(`${proxy.url}/echo`);
+      const unknown = await fetch(`${proxy.url}/echo`, { headers: { 'x-fake-user': 'mallory' } });
+      expect(missing.status).toBe(401);
+      expect(unknown.status).toBe(401);
+      expect(calls).toBe(0);
+    } finally {
+      await proxy.close();
+      await upstream.close();
+    }
+  });
+
+  it('replaces a caller supplied assertion', async () => {
+    const upstream = await listen((request) => {
+      return {
+        status: 200,
+        body: {
+          assertion: header(request.headers, assertionHeader) ?? '',
+          fakeUser: header(request.headers, 'x-fake-user') ?? '',
+          googUser: header(request.headers, 'x-goog-authenticated-user-email') ?? '',
+        },
+      };
+    }, 0);
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      const response = await fetch(`${proxy.url}/echo`, {
+        headers: {
+          'x-fake-user': 'alice',
+          [assertionHeader]: 'forged',
+          'x-goog-authenticated-user-email': 'mallory',
+        },
+      });
+      const echoed = echoFields(await response.json());
+      expect(response.status).toBe(200);
+      expect(echoed.assertion).not.toBe('forged');
+      expect(echoed.assertion.split('.')).toHaveLength(3);
+      expect(echoed.fakeUser).toBe('');
+      expect(echoed.googUser).toBe('');
+    } finally {
+      await proxy.close();
+      await upstream.close();
+    }
+  });
+
+  it('stays on the upstream origin', async () => {
+    let trapHits = 0;
+    const trap = await listen(() => {
+      trapHits += 1;
+      return { status: 200, body: 'secret' };
+    }, 0);
+    const upstream = await listen(() => ({ status: 200, body: 'upstream' }), 0);
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      const trapHost = new URL(trap.url).host;
+      const response = await rawGet(proxy.url, `/.//${trapHost}/secret`, {
+        'x-fake-user': 'alice',
+      });
+      expect(response.status).toBe(400);
+      expect(response.body).not.toContain('secret');
+      expect(trapHits).toBe(0);
+    } finally {
+      await proxy.close();
+      await upstream.close();
+      await trap.close();
+    }
+  });
+
   it('returns 599 for an unknown script', async () => {
     const llm = await listen(createLlm(), 0);
     try {
@@ -156,6 +231,47 @@ describe('fakes', () => {
     }
   });
 });
+
+function rawGet(
+  url: string,
+  path: string,
+  headers: Record<string, string>,
+): Promise<{ status: number; body: string }> {
+  const target = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { hostname: target.hostname, port: target.port, path, headers },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => {
+          resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function echoFields(body: unknown): { assertion: string; fakeUser: string; googUser: string } {
+  if (typeof body !== 'object' || body === null) throw new Error('echo');
+  if (!('assertion' in body) || !('fakeUser' in body) || !('googUser' in body)) {
+    throw new Error('echo');
+  }
+  const { assertion, fakeUser, googUser } = body;
+  if (
+    typeof assertion !== 'string' ||
+    typeof fakeUser !== 'string' ||
+    typeof googUser !== 'string'
+  ) {
+    throw new Error('echo');
+  }
+  return { assertion, fakeUser, googUser };
+}
 
 async function assertionFor(proxyUrl: string, user: string): Promise<string> {
   const response = await fetch(`${proxyUrl}/echo`, { headers: { 'x-fake-user': user } });

@@ -4,12 +4,16 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:
 
 const textPlain = 'text/plain; charset=utf-8';
 
-export type Handler = (request: {
+export type Request = {
   method: string;
   url: URL;
   headers: IncomingHttpHeaders;
   body: Buffer;
-}) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>;
+};
+
+export type Handler = (
+  request: Request,
+) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>;
 
 export function header(headers: IncomingHttpHeaders, name: string): string | undefined {
   for (const [key, value] of Object.entries(headers)) {
@@ -79,8 +83,8 @@ function send(response: ServerResponse, status: number, body: string, type: stri
 function readBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
-    request.on('data', (chunk: Buffer | string) => {
-      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
     });
     request.on('end', () => resolve(Buffer.concat(chunks)));
     request.on('error', reject);

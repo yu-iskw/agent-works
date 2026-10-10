@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const green =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAIAAAAphe5+AAAAN0lEQVR4nO3PUQkAAAjE0ItgJAMa2hB+DGGwAG+p6dcFFzhACxygBQ7QAgdogQO0wAFa4AAtOLYDFHAun/eMCwAAAABJRU5ErkJggg==';
@@ -6,7 +6,7 @@ const red =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAIAAAAphe5+AAAAN0lEQVR4nO3PQQkAAAzDwEqp//cETsQeYRCIgEumfV1wgQO0wAFa4AAtcIAWOEALHKAFDtCCYws1LtAu3NMgpwAAAABJRU5ErkJggg==';
 
 const code = process.argv[2] ?? '';
-const output = process.argv[3] ?? '';
+const output = readFileSync(process.argv[3] ?? '', 'utf8');
 const reportedHealthy = output.split('\n').some((line) => line.trim() === '6/6 services healthy');
 const stackPassed = code === '0' && reportedHealthy && (await everyHealthz());
 const scriptPassed = await unknownScript();

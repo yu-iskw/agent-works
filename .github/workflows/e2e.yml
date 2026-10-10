@@ -103,11 +103,15 @@ jobs:
       - name: Stack smoke
         run: |
           set +e
-          output="$(pnpm dev:up --wait 2>&1)"
+          output="$(mktemp)"
+          pnpm dev:up --wait >"$output" 2>&1
           code=$?
           set -e
-          printf '%s\n' "$output"
+          cat "$output"
           node e2e/stack/smoke.mjs "$code" "$output"
+      - name: Compose logs
+        if: failure()
+        run: docker compose -f compose.dev.yml logs --no-color
 
       - name: Upload e2e artifacts
         if: always()
@@ -126,6 +130,10 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
       - name: Download part artifacts
         if: always()
         continue-on-error: true

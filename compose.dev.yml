@@ -14,7 +14,7 @@ x-node: &node
   working_dir: /workspace
   init: true
   volumes:
-    - .:/workspace
+    - .:/workspace:ro
   healthcheck: *node-healthcheck
 
 services:
@@ -33,24 +33,24 @@ services:
     environment:
       UPSTREAM_URL: http://web:8080
     ports:
-      - 8081:8080
+      - 127.0.0.1:8081:8080
   fake-drive:
     <<: *node
     command: node packages/fakes/dist/main.js drive
     ports:
-      - 8082:8080
+      - 127.0.0.1:8082:8080
   fake-llm:
     <<: *node
     command: node packages/fakes/dist/main.js llm
     ports:
-      - 8083:8080
+      - 127.0.0.1:8083:8080
   api:
     <<: *node
     command: node apps/api/dist/server.js
     ports:
-      - 8084:8080
+      - 127.0.0.1:8084:8080
   web:
     <<: *node
     command: node apps/web/dist/server.js
     ports:
-      - 8085:8080
+      - 127.0.0.1:8085:8080

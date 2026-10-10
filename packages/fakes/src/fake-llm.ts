@@ -11,19 +11,15 @@ export function createLlm(): Handler {
     if (request.method !== 'POST' || !request.url.pathname.endsWith(':generateContent')) {
       return { status: 404, body: { error: 'not found' } };
     }
-    return scriptReply(request.body.toString('utf8'));
+    let key = '';
+    try {
+      key = canonicalPayloadSha256(JSON.parse(request.body.toString('utf8')) as unknown);
+    } catch {
+      return { status: 599, body: { error: 'unknown script', key } };
+    }
+    const response = scripts.get(key);
+    return response === undefined
+      ? { status: 599, body: { error: 'unknown script', key } }
+      : { status: 200, body: response };
   };
-}
-
-function scriptReply(text: string): { status: number; body: unknown } {
-  let key = '';
-  try {
-    key = canonicalPayloadSha256(JSON.parse(text) as unknown);
-  } catch {
-    return { status: 599, body: { error: 'unknown script', key } };
-  }
-  const response = scripts.get(key);
-  return response === undefined
-    ? { status: 599, body: { error: 'unknown script', key } }
-    : { status: 200, body: response };
 }

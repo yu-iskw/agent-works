@@ -8,8 +8,14 @@ const role = process.argv[2];
 const upstream = process.env.UPSTREAM_URL;
 
 if (role === 'iap') {
-  if (upstream === undefined || upstream.length === 0) process.exit(1);
+  if (upstream === undefined || upstream.length === 0) {
+    process.stderr.write('UPSTREAM_URL is required\n');
+    process.exit(1);
+  }
   await listen(createIapProxy(upstream), port);
 } else if (role === 'drive') await listen(createDrive(), port);
 else if (role === 'llm') await listen(createLlm(), port);
-else process.exit(1);
+else {
+  process.stderr.write('usage: main.js iap|drive|llm\n');
+  process.exit(1);
+}
