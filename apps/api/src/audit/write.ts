@@ -4,9 +4,7 @@ import type { AuditEvent } from '@agent-works/domain';
 import type postgres from 'postgres';
 
 export type AppendResult =
-  | { readonly kind: 'recorded' }
-  | { readonly kind: 'replay' }
-  | { readonly kind: 'conflict' };
+  { readonly kind: 'recorded' } | { readonly kind: 'replay' } | { readonly kind: 'conflict' };
 
 export interface AuditLog {
   append(event: AuditEvent): Promise<AppendResult>;

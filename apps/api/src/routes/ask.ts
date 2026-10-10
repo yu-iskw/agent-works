@@ -52,8 +52,7 @@ export function createAskRoute(deps: AskDeps): Route {
 }
 
 type AuthResult =
-  | { readonly ok: true; readonly caller: Caller }
-  | { readonly ok: false; readonly reply: ApiReply };
+  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,
