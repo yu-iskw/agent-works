@@ -62,6 +62,36 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
+  it('returns the original answer when the same request id is retried', async () => {
+    const calls = { drive: 0, runner: 0 };
+    const stack = await open(stacks, countingPorts(calls));
+    const requestId = randomUUID();
+    const first = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(generated(requestId, 1));
+    const second = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual(generated(requestId, 1));
+    expect(calls).toEqual({ drive: 1, runner: 1 });
+    expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
+  it('runs the model once when the same request id is posted concurrently', async () => {
+    const calls = { drive: 0, runner: 0 };
+    const stack = await open(stacks, countingPorts(calls));
+    const requestId = randomUUID();
+    const [first, second] = await Promise.all([
+      post(stack.iapUrl, requestId, triageQuestion),
+      post(stack.iapUrl, requestId, triageQuestion),
+    ]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await first.json()).toEqual(generated(requestId, 1));
+    expect(await second.json()).toEqual(generated(requestId, 1));
+    expect(calls).toEqual({ drive: 1, runner: 1 });
+    expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
   it('keeps a single row when the same request id and question are replayed', async () => {
     const stack = await open(stacks);
     const requestId = randomUUID();
@@ -149,6 +179,44 @@ function post(url: string, requestId: string, question: string, user = 'alice'):
     headers: { 'content-type': 'application/json', 'x-fake-user': user },
     body: JSON.stringify({ requestId, question }),
   });
+}
+
+const runbook = {
+  id: 'alice-runbook',
+  title: 'Triage runbook',
+  text: 'Alice triage steps.',
+  uri: 'https://drive.fake.test/d/alice-runbook',
+} as const;
+
+function countingPorts(calls: { drive: number; runner: number }): Parameters<typeof startStack>[0] {
+  return {
+    drive: {
+      retrieve() {
+        calls.drive += 1;
+        return Promise.resolve([runbook]);
+      },
+    },
+    runner: {
+      run() {
+        calls.runner += 1;
+        return Promise.resolve({ answer: `generated-${calls.runner}` });
+      },
+    },
+  };
+}
+
+function generated(requestId: string, generation: number) {
+  return {
+    requestId,
+    answer: `generated-${generation}`,
+    citations: [
+      {
+        sourceObjectId: runbook.id,
+        title: runbook.title,
+        sourceUri: runbook.uri,
+      },
+    ],
+  };
 }
 
 function row(requestId: string, requestDigestSha256: string, outcome: string): AuditEvent {
