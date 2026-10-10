@@ -1,0 +1,7 @@
+ts	phase	decision	why	evidence	result
+2026-10-10T08:40:00Z	how	Read the e2e workflow, the part-artifact merge, and the fakes stack before adding suites	H0-04 has to extend the publisher H0-03 already shipped	.github/workflows/e2e.yml	e2e-artifacts job already uploads e2e-artifacts-<sha>
+2026-10-10T08:50:00Z	design	Keep Node recorders and use Playwright only for the browser smoke	A second final upload would collide, and Chromium on every lane fights the 10 minute budget	e2e/merge-results.mjs	shape B chosen
+2026-10-10T08:52:00Z	owners	Treat a plan id as merged when its GitHub issue is closed	Issues 3, 4, and 5 closed when H0-01, H0-02, and H0-03 merged. Plan ids are not GitHub PR numbers	gh issue list 3-25	checker uses that rule
+2026-10-10T08:55:00Z	deps	Pin @playwright/test at 1.63.0	Published 2026-09-04, so it is older than the 7 day minimum release age, and the package has no install script	package.json	installed with no allowBuilds change
+2026-10-10T08:56:00Z	ci	Rename the contract job to e2e-contract and keep the e2e-part-contract upload	The required check name is e2e-contract. A second job would upload the same artifact name	.github/workflows/e2e.yml	one schema lane
+2026-10-10T08:57:00Z	perf	Trunk e2e wall time is 63 seconds on run 38038015382. The 1.2x ratio does not apply	Trunk has no e2e-web, e2e-security, or pending-owners job. Absolute budgets are 10 minutes and 15 minutes	https://github.com/yu-iskw/agent-works/actions/runs/38038015382	baseline recorded

@@ -154,3 +154,5 @@ TODO.md
 codeql-results.sarif
 
 e2e/artifacts/
+e2e/test-results/
+e2e/playwright-report.json

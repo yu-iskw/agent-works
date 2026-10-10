@@ -9,9 +9,13 @@ try {
 }
 mkdirSync('e2e/artifacts', { recursive: true });
 const tests = [];
-let missing = ['e2e-part-contract', 'e2e-part-stack'].some(
-  (prefix) => !names.some((name) => name.startsWith(prefix)),
-);
+let missing = [
+  'e2e-part-contract',
+  'e2e-part-stack',
+  'e2e-part-web',
+  'e2e-part-security',
+  'e2e-part-pending',
+].some((prefix) => !names.some((name) => name.startsWith(prefix)));
 for (const name of names.filter((entry) => entry.startsWith('e2e-part-')).sort()) {
   const dir = join('parts', name);
   try {
