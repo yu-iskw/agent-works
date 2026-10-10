@@ -47,6 +47,21 @@ describe('canonicalPayloadSha256', () => {
     expect(canonicalPayloadSha256(withProto)).not.toBe(canonicalPayloadSha256(without));
   });
 
+  it('reads array elements by index when the iterator is replaced', () => {
+    const recipients = ['alice@example.com', 'bob@example.com'];
+    const proto: object = {};
+    Object.setPrototypeOf(proto, Array.prototype);
+    Object.defineProperty(proto, Symbol.iterator, {
+      value: function* overridden() {
+        yield 'approver@example.com';
+      },
+    });
+    Object.setPrototypeOf(recipients, proto);
+    expect(canonicalPayloadJson({ recipients })).toBe(
+      '{"recipients":["alice@example.com","bob@example.com"]}',
+    );
+  });
+
   it('rejects values JSON.stringify would coerce', () => {
     expect(() => canonicalPayloadSha256(Number.NaN)).toThrow(NonCanonicalPayload);
     expect(() => canonicalPayloadSha256(-0)).toThrow(NonCanonicalPayload);

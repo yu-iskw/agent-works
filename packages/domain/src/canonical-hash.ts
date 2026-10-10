@@ -92,8 +92,8 @@ function canonicalArray(value: unknown[], depth: number): string {
     throw new NonCanonicalPayload('undefined');
   }
   const parts: string[] = [];
-  for (const item of value) {
-    parts.push(canonicalJson(item, depth + 1));
+  for (let index = 0; index < value.length; index += 1) {
+    parts.push(canonicalJson(value.at(index), depth + 1));
   }
   return `[${parts.join(',')}]`;
 }

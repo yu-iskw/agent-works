@@ -9,11 +9,11 @@ import {
 const PAYLOAD_BYTES = 10 * 1024;
 const FIXED_WRAPPER_BYTES = 10;
 
-export function tenKilobytePayload(): { pad: string } {
+function tenKilobytePayload(): { pad: string } {
   return { pad: 'a'.repeat(PAYLOAD_BYTES - FIXED_WRAPPER_BYTES) };
 }
 
-export function meanCanonicalHashMs(iterations: number): number {
+function meanCanonicalHashMs(iterations: number): number {
   const payload = tenKilobytePayload();
   if (canonicalPayloadJson(payload).length !== PAYLOAD_BYTES) {
     throw new Error('bench payload is not 10 KB');

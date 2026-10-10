@@ -16,7 +16,13 @@ function terminalStays(from: TaskStatus, to: TaskStatus): boolean {
   try {
     transition(task, to);
   } catch (error: unknown) {
-    return error instanceof IllegalTaskTransition && task.status === from;
+    if (error instanceof IllegalTaskTransition && task.status === from) {
+      return true;
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('terminal transition failed');
   }
   return false;
 }

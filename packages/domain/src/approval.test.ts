@@ -17,23 +17,21 @@ const validApproval = {
   executionsUsed: 0,
 };
 
+function without(key: keyof typeof validApproval): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(validApproval).filter(([name]) => name !== key));
+}
+
 describe('approvalSchema', () => {
   it('schema-rejects-missing-tool', () => {
-    const { tool, ...rest } = validApproval;
-    expect(tool).toBe('jira.issue.create@1.0.0');
-    expect(approvalSchema.safeParse(rest).success).toBe(false);
+    expect(approvalSchema.safeParse(without('tool')).success).toBe(false);
   });
 
   it('schema-rejects-missing-target', () => {
-    const { targetResource, ...rest } = validApproval;
-    expect(targetResource).toBe('PROJ');
-    expect(approvalSchema.safeParse(rest).success).toBe(false);
+    expect(approvalSchema.safeParse(without('targetResource')).success).toBe(false);
   });
 
   it('schema-rejects-missing-max-executions', () => {
-    const { maxExecutions, ...rest } = validApproval;
-    expect(maxExecutions).toBe(1);
-    expect(approvalSchema.safeParse(rest).success).toBe(false);
+    expect(approvalSchema.safeParse(without('maxExecutions')).success).toBe(false);
   });
 
   it('rejects a used count above the cap', () => {
