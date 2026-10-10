@@ -54,8 +54,27 @@ pnpm format
 
 ## Project Structure
 
-- `packages/`: Monorepo packages
-  - `common/`: Shared utilities and types
+[ADR 0002](docs/adr/0002-monorepo-layout.md) sets the target layout:
+
+- `apps/web/`: Web frontend
+- `apps/api/`: Backend API
+- `packages/domain/`: Domain types
+- `packages/policy/`: Policy
+- `packages/fakes/`: Fakes
+- `packages/cli/`: CLI
+- `e2e/`: End-to-end tests
+- `infra/`: Cloud definitions
+- `docs/`: ADRs and RFCs
+
+Of these, only `docs/` exists today. The tree still has one package, `packages/common/`, with shared utilities and types. It stays until a later change replaces it.
+
+## Architecture decisions
+
+[docs/adr/README.md](docs/adr/README.md) indexes every architecture decision record.
+[ADR 0001](docs/adr/0001-typescript-first-with-adk-js.md) makes TypeScript the runtime language and calls `@google/adk` through an `AgentRunner` port.
+[ADR 0002](docs/adr/0002-monorepo-layout.md) sets the target layout listed under Project Structure.
+Python in RFC-001 is illustration only.
+Until spike C-02 shows whether managed Agent Runtime can host the agent, Cloud Run is the agent's rollback path.
 
 ## License
 
