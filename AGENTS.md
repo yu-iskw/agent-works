@@ -56,7 +56,7 @@ Split so agents and CI get consistent, low-conflict feedback:
 
 ## Code style
 
-- TypeScript for all application code
+- TypeScript for all application code, per [ADR 0001](docs/adr/0001-typescript-first-with-adk-js.md)
 - Follow ESLint/Prettier as configured (Trunk)
 - Functional patterns where they simplify code
 - **Naming:** `PascalCase` types/classes, `camelCase` values/functions, **kebab-case** filenames (e.g. `user-service.ts`)
@@ -97,12 +97,12 @@ When you want durable fixes (not one-off chat advice):
 
 ## Architecture
 
-- **Packages:** `packages/*` (and `src/` inside a package when used)
+- **Packages:** `packages/*` today. A package may keep its code in `src/`. `packages/common` stays until a later change replaces it. The target layout is [ADR 0002](docs/adr/0002-monorepo-layout.md).
 - **Root:** shared scripts and config
 - **CI:** `.github/workflows/` — `sbom.yml` runs `pnpm lint:security` then generates/scans an SPDX SBOM on PRs/main; `publish.yml` re-runs `pnpm lint:security` before npm publish
 - **Agent/tooling config:** `.cursor/` (Cursor rules), `.claude/` (Claude Code compatibility/hooks), `.codex/` (Codex), `.gemini/` (Gemini CLI). Copilot can also read `.github/copilot-instructions.md` alongside `AGENTS.md`.
 - pstack role models come from `.cursor/rules/pstack-models.mdc`, take precedence over pstack defaults, and subagents must be launched with those models explicitly.
-- **ADRs:** significant decisions in `docs/adr` when you use ADR tooling
+- **ADRs:** significant decisions in `docs/adr`. The index is [docs/adr/README.md](docs/adr/README.md).
 
 ### ADR contract (steerable memory)
 
