@@ -6,12 +6,13 @@ import {
 } from '@agent-works/domain';
 
 import { RunnerError } from '../agent/runner-port.js';
+import { AuditWriteError } from '../audit/write.js';
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { headerValue } from '../http.js';
 import { RetrievalError } from '../retrieval/drive-port.js';
 
 import type { AgentRunner } from '../agent/runner-port.js';
-import type { AppendResult, AuditLog } from '../audit/write.js';
+import type { AuditLog } from '../audit/write.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
@@ -37,17 +38,7 @@ type AskOutcome =
 
 const noSourcesAnswer = 'I could not find a source for that.';
 
-type AskSettlement =
-  { readonly ok: true; readonly reply: ApiReply } | { readonly ok: false; readonly error: unknown };
-
-type AskClaim = {
-  readonly callerSub: string;
-  readonly question: string;
-  readonly done: Promise<AskSettlement>;
-};
-
 export function createAskRoute(deps: AskDeps): Route {
-  const claims = new Map<string, AskClaim>();
   return async (request) => {
     const authenticated = await authenticate(
       deps.verify,
@@ -56,43 +47,34 @@ export function createAskRoute(deps: AskDeps): Route {
     if (authenticated.ok === false) return authenticated.reply;
     const parsed = askRequestSchema.safeParse(parseJson(request.body));
     if (!parsed.success) return { status: 400, body: { error: 'invalid_request' } };
-    return answer(claims, deps, authenticated.caller, parsed.data);
+    return answer(deps, authenticated.caller, parsed.data);
   };
 }
 
-async function answer(
-  claims: Map<string, AskClaim>,
-  deps: AskDeps,
-  caller: Caller,
-  request: AskRequest,
-): Promise<ApiReply> {
-  const existing = claims.get(request.requestId);
-  if (existing !== undefined) return replay(existing, caller, request);
-
-  let publish!: (settlement: AskSettlement) => void;
-  const done = new Promise<AskSettlement>((resolve) => {
-    publish = resolve;
-  });
-  claims.set(request.requestId, { callerSub: caller.sub, question: request.question, done });
+async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promise<ApiReply> {
+  const requestDigestSha256 = canonicalPayloadSha256({ question: request.question });
   try {
-    const reply = await record(deps, caller, request, await decide(deps, caller, request));
-    publish({ ok: true, reply });
-    if (reply.status !== 200) claims.delete(request.requestId);
-    return reply;
+    const result = await deps.audit.run(request.requestId, async () => {
+      const outcome = await decide(deps, caller, request);
+      return {
+        event: auditEventFor(caller, request, outcome, deps.now(), requestDigestSha256),
+        reply: replyFor(outcome, request.requestId),
+      };
+    });
+    switch (result.kind) {
+      case 'done':
+        return result.reply;
+      case 'conflict':
+        return { status: 409, body: { error: 'conflict' } };
+      default: {
+        const unexpected: never = result;
+        return unexpected;
+      }
+    }
   } catch (error) {
-    claims.delete(request.requestId);
-    publish({ ok: false, error });
+    if (error instanceof AuditWriteError) return { status: 503, body: { error: 'audit_failed' } };
     throw error;
   }
-}
-
-async function replay(claim: AskClaim, caller: Caller, request: AskRequest): Promise<ApiReply> {
-  if (claim.callerSub !== caller.sub || claim.question !== request.question) {
-    return { status: 409, body: { error: 'conflict' } };
-  }
-  const settlement = await claim.done;
-  if (!settlement.ok) throw settlement.error;
-  return settlement.reply;
 }
 
 type AuthResult =
@@ -133,38 +115,6 @@ async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promi
   }
 }
 
-async function record(
-  deps: AskDeps,
-  caller: Caller,
-  request: AskRequest,
-  outcome: AskOutcome,
-): Promise<ApiReply> {
-  try {
-    const appended = await deps.audit.append(auditEventFor(caller, request, outcome, deps.now()));
-    return replyAfterAppend(appended, outcome, request.requestId);
-  } catch {
-    return { status: 503, body: { error: 'audit_failed' } };
-  }
-}
-
-function replyAfterAppend(
-  appended: AppendResult,
-  outcome: AskOutcome,
-  requestId: string,
-): ApiReply {
-  switch (appended.kind) {
-    case 'recorded':
-    case 'replay':
-      return replyFor(outcome, requestId);
-    case 'conflict':
-      return { status: 409, body: { error: 'conflict' } };
-    default: {
-      const unexpected: never = appended;
-      return unexpected;
-    }
-  }
-}
-
 function replyFor(outcome: AskOutcome, requestId: string): ApiReply {
   switch (outcome.kind) {
     case 'answered':
@@ -198,6 +148,7 @@ function auditEventFor(
   request: AskRequest,
   outcome: AskOutcome,
   now: Date,
+  requestDigestSha256: string,
 ): AuditEvent {
   return auditEventSchema.parse({
     eventId: request.requestId,
@@ -212,7 +163,7 @@ function auditEventFor(
     tool: 'drive.list',
     policyDecisionId: null,
     approvalId: null,
-    requestDigestSha256: canonicalPayloadSha256({ question: request.question }),
+    requestDigestSha256,
     outcome: outcome.kind,
     externalObjectRef: null,
     prevDigest: null,

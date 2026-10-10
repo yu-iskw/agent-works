@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { RetrievalError } from '../retrieval/drive-port.js';
-import { startStack } from '../testing/stack.js';
+import { createMemoryAuditLog, startStack } from '../testing/stack.js';
 
 import type { Stack } from '../testing/stack.js';
 import type { AuditEvent } from '@agent-works/domain';
@@ -62,7 +62,7 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
-  it('returns the original answer when the same request id is retried', async () => {
+  it('returns 409 when the same request id is retried', async () => {
     const calls = { drive: 0, runner: 0 };
     const stack = await open(stacks, countingPorts(calls));
     const requestId = randomUUID();
@@ -70,13 +70,13 @@ describe('POST /v1/ask', () => {
     expect(first.status).toBe(200);
     expect(await first.json()).toEqual(generated(requestId, 1));
     const second = await post(stack.iapUrl, requestId, triageQuestion);
-    expect(second.status).toBe(200);
-    expect(await second.json()).toEqual(generated(requestId, 1));
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ error: 'conflict' });
     expect(calls).toEqual({ drive: 1, runner: 1 });
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
-  it('runs the model once when the same request id is posted concurrently', async () => {
+  it('returns 409 to a concurrent duplicate and runs the model once', async () => {
     const calls = { drive: 0, runner: 0 };
     const stack = await open(stacks, countingPorts(calls));
     const requestId = randomUUID();
@@ -84,23 +84,59 @@ describe('POST /v1/ask', () => {
       post(stack.iapUrl, requestId, triageQuestion),
       post(stack.iapUrl, requestId, triageQuestion),
     ]);
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    expect(await first.json()).toEqual(generated(requestId, 1));
-    expect(await second.json()).toEqual(generated(requestId, 1));
+    const firstBody: unknown = await first.json();
+    const secondBody: unknown = await second.json();
+    const parsed = [
+      { status: first.status, body: firstBody },
+      { status: second.status, body: secondBody },
+    ].sort((left, right) => left.status - right.status);
+    expect(parsed).toEqual([
+      { status: 200, body: generated(requestId, 1) },
+      { status: 409, body: { error: 'conflict' } },
+    ]);
     expect(calls).toEqual({ drive: 1, runner: 1 });
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
-  it('keeps a single row when the same request id and question are replayed', async () => {
-    const stack = await open(stacks);
+  it('returns 409 from a second route that shares the audit log', async () => {
+    const shared = createMemoryAuditLog();
+    const firstCalls = { drive: 0, runner: 0 };
+    const secondCalls = { drive: 0, runner: 0 };
+    const first = await open(stacks, {
+      audit: shared,
+      ...scriptedPorts(firstCalls, 'from-first-route'),
+    });
+    const second = await open(stacks, {
+      audit: shared,
+      ...scriptedPorts(secondCalls, 'from-second-route'),
+    });
     const requestId = randomUUID();
-    const first = await post(stack.iapUrl, requestId, triageQuestion);
-    const second = await post(stack.iapUrl, requestId, triageQuestion);
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    expect(await second.json()).toEqual(await first.json());
-    expect(stack.audit.rows()).toHaveLength(1);
+    const firstResponse = await post(first.iapUrl, requestId, triageQuestion);
+    expect(firstResponse.status).toBe(200);
+    expect(await firstResponse.json()).toEqual(answered(requestId, 'from-first-route'));
+    const secondResponse = await post(second.iapUrl, requestId, triageQuestion);
+    expect(secondResponse.status).toBe(409);
+    expect(await secondResponse.json()).toEqual({ error: 'conflict' });
+    expect(firstCalls).toEqual({ drive: 1, runner: 1 });
+    expect(secondCalls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
+  it('does not rerun a request id that already has an audit row', async () => {
+    const requestId = randomUUID();
+    const legacy = row(requestId, triageDigest, 'answered');
+    const shared = createMemoryAuditLog([legacy]);
+    const calls = { drive: 0, runner: 0 };
+    const stack = await open(stacks, { audit: shared, ...countingPorts(calls) });
+    const response = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'conflict' });
+    expect(calls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([legacy]);
+    const again = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(again.status).toBe(409);
+    expect(calls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([legacy]);
   });
 
   it('returns 409 and keeps the original row when the same id asks a different question', async () => {
@@ -155,6 +191,27 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([original]);
   });
 
+  it('returns 500 and then the triage answer when retrieve throws', async () => {
+    let calls = 0;
+    const stack = await open(stacks, {
+      drive: {
+        retrieve() {
+          calls += 1;
+          if (calls === 1) return Promise.reject(new Error('boom'));
+          return Promise.resolve([runbook]);
+        },
+      },
+    });
+    const requestId = randomUUID();
+    const first = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(first.status).toBe(500);
+    expect(await first.text()).toBe('error');
+    const second = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual(answered(requestId, triageAnswer));
+    expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
   it('returns 413 when the body exceeds the limit', async () => {
     const stack = await open(stacks);
     const response = await fetch(`${stack.apiUrl}/v1/ask`, {
@@ -202,6 +259,40 @@ function countingPorts(calls: { drive: number; runner: number }): Parameters<typ
         return Promise.resolve({ answer: `generated-${calls.runner}` });
       },
     },
+  };
+}
+
+function scriptedPorts(
+  calls: { drive: number; runner: number },
+  answer: string,
+): Parameters<typeof startStack>[0] {
+  return {
+    drive: {
+      retrieve() {
+        calls.drive += 1;
+        return Promise.resolve([runbook]);
+      },
+    },
+    runner: {
+      run() {
+        calls.runner += 1;
+        return Promise.resolve({ answer });
+      },
+    },
+  };
+}
+
+function answered(requestId: string, answer: string) {
+  return {
+    requestId,
+    answer,
+    citations: [
+      {
+        sourceObjectId: runbook.id,
+        title: runbook.title,
+        sourceUri: runbook.uri,
+      },
+    ],
   };
 }
 
