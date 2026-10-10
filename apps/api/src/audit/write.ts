@@ -107,6 +107,9 @@ function reserveMemory(
   if (decision !== undefined) return Promise.resolve(decision);
   const pending = inflight.get(key.eventId);
   if (pending !== undefined) return waitFor(pending, key);
+  if (rows.some((event) => event.eventId === key.eventId)) {
+    return Promise.resolve({ kind: 'conflict' });
+  }
   let publish!: (record: ReplayRecord | undefined) => void;
   let settled = false;
   const gate = new Promise<ReplayRecord | undefined>((resolve) => {
@@ -183,6 +186,11 @@ async function reservePostgres(sql: postgres.Sql, key: ClaimKey): Promise<Reserv
       await held.release();
       return decision;
     }
+    if (await auditClaimed(conn, key.eventId)) {
+      if (row !== undefined) await deleteOpenReservation(conn, key.eventId);
+      await held.release();
+      return { kind: 'conflict' };
+    }
     if (row === undefined) await insertReservation(conn, key);
     return {
       kind: 'owned',
@@ -232,6 +240,20 @@ function recordFrom(row: ReplayRow | undefined): ReplayRecord | undefined {
     ...identity,
     reply: { status: row.response_status, body: parseJson(row.response_body) },
   };
+}
+
+async function auditClaimed(conn: postgres.Sql, eventId: string): Promise<boolean> {
+  const existing = await conn<{ event_id: string }[]>`
+    select event_id from audit_events where event_id = ${eventId}
+  `;
+  return existing.length > 0;
+}
+
+async function deleteOpenReservation(conn: postgres.Sql, eventId: string): Promise<void> {
+  await conn`
+    delete from ask_replays
+    where request_id = ${eventId} and response_body is null
+  `;
 }
 
 async function insertReservation(conn: postgres.Sql, key: ClaimKey): Promise<void> {
