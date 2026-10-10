@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { RetrievalError } from '../retrieval/drive-port.js';
-import { startStack } from '../testing/stack.js';
+import { createMemoryAuditLog, startStack } from '../testing/stack.js';
 
 import type { Stack } from '../testing/stack.js';
 import type { AuditEvent } from '@agent-works/domain';
@@ -90,6 +90,30 @@ describe('POST /v1/ask', () => {
     expect(await second.json()).toEqual(generated(requestId, 1));
     expect(calls).toEqual({ drive: 1, runner: 1 });
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
+  it('returns the first answer from a second route that shares the audit log', async () => {
+    const shared = createMemoryAuditLog();
+    const firstCalls = { drive: 0, runner: 0 };
+    const secondCalls = { drive: 0, runner: 0 };
+    const first = await open(stacks, {
+      audit: shared,
+      ...scriptedPorts(firstCalls, 'from-first-route'),
+    });
+    const second = await open(stacks, {
+      audit: shared,
+      ...scriptedPorts(secondCalls, 'from-second-route'),
+    });
+    const requestId = randomUUID();
+    const firstResponse = await post(first.iapUrl, requestId, triageQuestion);
+    expect(firstResponse.status).toBe(200);
+    expect(await firstResponse.json()).toEqual(answered(requestId, 'from-first-route'));
+    const secondResponse = await post(second.iapUrl, requestId, triageQuestion);
+    expect(secondResponse.status).toBe(200);
+    expect(await secondResponse.json()).toEqual(answered(requestId, 'from-first-route'));
+    expect(firstCalls).toEqual({ drive: 1, runner: 1 });
+    expect(secondCalls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
   it('keeps a single row when the same request id and question are replayed', async () => {
@@ -202,6 +226,40 @@ function countingPorts(calls: { drive: number; runner: number }): Parameters<typ
         return Promise.resolve({ answer: `generated-${calls.runner}` });
       },
     },
+  };
+}
+
+function scriptedPorts(
+  calls: { drive: number; runner: number },
+  answer: string,
+): Parameters<typeof startStack>[0] {
+  return {
+    drive: {
+      retrieve() {
+        calls.drive += 1;
+        return Promise.resolve([runbook]);
+      },
+    },
+    runner: {
+      run() {
+        calls.runner += 1;
+        return Promise.resolve({ answer });
+      },
+    },
+  };
+}
+
+function answered(requestId: string, answer: string) {
+  return {
+    requestId,
+    answer,
+    citations: [
+      {
+        sourceObjectId: runbook.id,
+        title: runbook.title,
+        sourceUri: runbook.uri,
+      },
+    ],
   };
 }
 
