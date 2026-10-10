@@ -2,7 +2,6 @@ import {
   canonicalPayloadSha256,
   IAP_ASSERTION_HEADER,
   askRequestSchema,
-  askResponseSchema,
   auditEventSchema,
 } from '@agent-works/domain';
 
@@ -55,23 +54,16 @@ export function createAskRoute(deps: AskDeps): Route {
 async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promise<ApiReply> {
   const requestDigestSha256 = canonicalPayloadSha256({ question: request.question });
   try {
-    const attempt: { executed: boolean } = { executed: false };
-    const result = await deps.audit.run(
-      { eventId: request.requestId, initiatorSubject: caller.sub, requestDigestSha256 },
-      async () => {
-        attempt.executed = true;
-        const outcome = await decide(deps, caller, request);
-        return {
-          event: auditEventFor(caller, request, outcome, deps.now(), requestDigestSha256),
-          reply: replyFor(outcome, request.requestId),
-        };
-      },
-    );
+    const result = await deps.audit.run(request.requestId, async () => {
+      const outcome = await decide(deps, caller, request);
+      return {
+        event: auditEventFor(caller, request, outcome, deps.now(), requestDigestSha256),
+        reply: replyFor(outcome, request.requestId),
+      };
+    });
     switch (result.kind) {
       case 'done':
-        if (attempt.executed) return result.reply;
-        if (await citationsStillVisible(deps, caller, request, result.reply)) return result.reply;
-        return { status: 502, body: { error: 'retrieval_failed' } };
+        return result.reply;
       case 'conflict':
         return { status: 409, body: { error: 'conflict' } };
       default: {
@@ -103,32 +95,6 @@ async function authenticate(
     }
     throw error;
   }
-}
-
-async function citationsStillVisible(
-  deps: AskDeps,
-  caller: Caller,
-  request: AskRequest,
-  reply: ApiReply,
-): Promise<boolean> {
-  const cited = citedSourceIds(reply);
-  if (cited === undefined) return false;
-  if (cited.length === 0) return true;
-  try {
-    const sources = await deps.drive.retrieve(caller, request.question);
-    const visible = new Set(sources.map((source) => source.id));
-    return cited.every((id) => visible.has(id));
-  } catch (error) {
-    if (error instanceof RetrievalError) return false;
-    throw error;
-  }
-}
-
-function citedSourceIds(reply: ApiReply): readonly string[] | undefined {
-  if (reply.status !== 200) return undefined;
-  const parsed = askResponseSchema.safeParse(reply.body);
-  if (!parsed.success) return undefined;
-  return parsed.data.citations.map((citation) => citation.sourceObjectId);
 }
 
 async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promise<AskOutcome> {

@@ -11,154 +11,84 @@ import type postgres from 'postgres';
 const digest = 'd10518952801d94803ef1162ec3fefbea9dfe82690ef52065439be6b3d55dd59';
 const eventId = '11111111-1111-4111-8111-111111111111';
 
-type ReplayRow = {
-  initiator_subject: string;
-  request_digest_sha256: string;
-  response_status: number | null;
-  response_body: string | null;
-};
-
-type Snapshot = {
-  replays: Map<string, ReplayRow>;
-  audits: Set<string>;
-};
-
 type Seed = {
   audits?: readonly string[];
-  openReplays?: readonly { requestId: string; initiatorSubject: string }[];
+  reservations?: readonly string[];
 };
 
 describe('postgres ask reservation', () => {
-  it('leaves the pool free while the ask runs', async () => {
+  it('does not hold a pooled connection while the ask runs', async () => {
     const db = fakeDatabase();
-    const log = auditLog(db);
-    let reservedDuringExecute = -1;
-    const result = await log.run(claim(), () => {
-      reservedDuringExecute = db.reserved();
-      return Promise.resolve(produced(200));
-    });
-    expect(reservedDuringExecute).toBe(0);
-    expect(result).toEqual({ kind: 'done', reply: produced(200).reply });
-    expect(db.reserved()).toBe(0);
+    const reply = { status: 200, body: { answer: 'from-this-call' } };
+    const result = await auditLog(db).run(eventId, () => Promise.resolve(produced(reply)));
+    expect(result).toEqual({ kind: 'done', reply });
   });
 
-  it('returns the first reply when two logs share one request id', async () => {
+  it('returns conflict after the same id succeeds', async () => {
     const db = fakeDatabase();
-    const firstLog = auditLog(db);
-    const secondLog = auditLog(db);
+    const log = auditLog(db);
+    const reply = { status: 200, body: { answer: 'once' } };
+    let runs = 0;
+    const first = await log.run(eventId, () => {
+      runs += 1;
+      return Promise.resolve(produced(reply));
+    });
+    const second = await log.run(eventId, () => {
+      runs += 1;
+      return Promise.resolve(produced({ status: 200, body: { answer: 'twice' } }));
+    });
+    expect(first).toEqual({ kind: 'done', reply });
+    expect(second).toEqual({ kind: 'conflict' });
+    expect(runs).toBe(1);
+  });
+
+  it('returns conflict to a duplicate while the first ask is still running', async () => {
+    const db = fakeDatabase();
+    const log = auditLog(db);
+    const reply = { status: 200, body: { answer: 'first' } };
     let runs = 0;
     let release = (): void => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const first = firstLog.run(claim(), async () => {
+    const first = log.run(eventId, async () => {
       runs += 1;
       await gate;
-      return produced(200);
+      return produced(reply);
     });
     await waitUntil(() => runs === 1);
-    const second = secondLog.run(claim(), () => {
+    const second = await log.run(eventId, () => {
       runs += 1;
-      return Promise.resolve(produced(200));
+      return Promise.resolve(produced({ status: 200, body: { answer: 'second' } }));
     });
+    expect(second).toEqual({ kind: 'conflict' });
     release();
-    expect(await first).toEqual({ kind: 'done', reply: produced(200).reply });
-    expect(await second).toEqual({ kind: 'done', reply: produced(200).reply });
+    expect(await first).toEqual({ kind: 'done', reply });
     expect(runs).toBe(1);
-    expect(db.reserved()).toBe(0);
   });
 
-  it('returns conflict when the request id already has an audit row', async () => {
+  it('returns conflict when an audit row already exists', async () => {
     const db = fakeDatabase({ audits: [eventId] });
     let runs = 0;
-    const result = await auditLog(db).run(claim(), () => {
+    const result = await auditLog(db).run(eventId, () => {
       runs += 1;
-      return Promise.resolve(produced(200));
+      return Promise.resolve(produced({ status: 200, body: { answer: 'fresh' } }));
     });
     expect(result).toEqual({ kind: 'conflict' });
     expect(runs).toBe(0);
+    expect(db.reservations()).toEqual([]);
   });
 
-  it('returns conflict and drops an open replay when the audit row already exists', async () => {
-    const db = fakeDatabase({
-      audits: [eventId],
-      openReplays: [{ requestId: eventId, initiatorSubject: 'alice' }],
-    });
+  it('returns conflict when the request id is already reserved', async () => {
+    const db = fakeDatabase({ reservations: [eventId] });
     let runs = 0;
-    const result = await auditLog(db).run(claim(), () => {
+    const result = await auditLog(db).run(eventId, () => {
       runs += 1;
-      return Promise.resolve(produced(200));
+      return Promise.resolve(produced({ status: 200, body: { answer: 'fresh' } }));
     });
     expect(result).toEqual({ kind: 'conflict' });
     expect(runs).toBe(0);
-    expect(db.replay(eventId)).toBeUndefined();
-  });
-
-  it('returns conflict when another caller reuses the request id', async () => {
-    const db = fakeDatabase();
-    const log = auditLog(db);
-    let runs = 0;
-    const first = await log.run(claim(), () => {
-      runs += 1;
-      return Promise.resolve(produced(200));
-    });
-    const second = await log.run(claim('bob'), () => {
-      runs += 1;
-      return Promise.resolve(produced(200));
-    });
-    expect(first).toEqual({ kind: 'done', reply: produced(200).reply });
-    expect(second).toEqual({ kind: 'conflict' });
-    expect(runs).toBe(1);
-  });
-
-  it('returns conflict when the stored reply failed', async () => {
-    const db = fakeDatabase();
-    const log = auditLog(db);
-    let runs = 0;
-    const first = await log.run(claim(), () => {
-      runs += 1;
-      return Promise.resolve(produced(502));
-    });
-    const second = await log.run(claim(), () => {
-      runs += 1;
-      return Promise.resolve(produced(200));
-    });
-    expect(first).toEqual({ kind: 'done', reply: produced(502).reply });
-    expect(second).toEqual({ kind: 'conflict' });
-    expect(runs).toBe(1);
-  });
-
-  it('stops waiting when an open reservation is not finished', async () => {
-    const db = fakeDatabase({
-      openReplays: [{ requestId: eventId, initiatorSubject: 'alice' }],
-    });
-    const log = auditLog(db, 40);
-    let runs = 0;
-    const outcome = await Promise.race([
-      log
-        .run(claim(), () => {
-          runs += 1;
-          return Promise.resolve(produced(200));
-        })
-        .then(
-          (result) => ({ status: 'returned' as const, result }),
-          (error: unknown) => ({ status: 'rejected' as const, error }),
-        ),
-      delay(500).then(() => ({ status: 'waiting' as const })),
-    ]);
-
-    expect(outcome).toMatchObject({
-      status: 'rejected',
-      error: { name: 'AuditWriteError', message: 'replay wait' },
-    });
-    expect(runs).toBe(0);
-    expect(db.replay(eventId)).toEqual({
-      initiator_subject: 'alice',
-      request_digest_sha256: digest,
-      response_status: null,
-      response_body: null,
-    });
-    expect(db.reserved()).toBe(0);
+    expect(db.reservations()).toEqual([eventId]);
   });
 
   it('runs again after the first execution throws', async () => {
@@ -166,52 +96,72 @@ describe('postgres ask reservation', () => {
     const log = auditLog(db);
     let runs = 0;
     await expect(
-      log.run(claim(), () => {
+      log.run(eventId, () => {
         runs += 1;
         return Promise.reject(new Error('boom'));
       }),
     ).rejects.toThrow('boom');
-    const result = await log.run(claim(), () => {
+    const reply = { status: 200, body: { answer: 'retried' } };
+    const result = await log.run(eventId, () => {
       runs += 1;
-      return Promise.resolve(produced(200));
+      return Promise.resolve(produced(reply));
     });
-    expect(result).toEqual({ kind: 'done', reply: produced(200).reply });
+    expect(result).toEqual({ kind: 'done', reply });
     expect(runs).toBe(2);
-    expect(db.reserved()).toBe(0);
+    expect(db.reservations()).toEqual([eventId]);
+  });
+
+  it('keeps the reservation when the audit insert throws', async () => {
+    const db = fakeDatabase();
+    db.failAuditInsert = true;
+    const log = auditLog(db);
+    let runs = 0;
+    await expect(
+      log.run(eventId, () => {
+        runs += 1;
+        return Promise.resolve(produced({ status: 200, body: { answer: 'lost' } }));
+      }),
+    ).rejects.toMatchObject({ name: 'AuditWriteError', message: 'audit write' });
+    expect(db.reservations()).toEqual([eventId]);
+    db.failAuditInsert = false;
+    const second = await log.run(eventId, () => {
+      runs += 1;
+      return Promise.resolve(produced({ status: 200, body: { answer: 'again' } }));
+    });
+    expect(second).toEqual({ kind: 'conflict' });
+    expect(runs).toBe(1);
   });
 });
 
-function auditLog(db: FakeDatabase, replayWaitMs?: number): AuditLog {
-  const sql = db.sql as unknown as postgres.Sql;
-  if (replayWaitMs === undefined) return createPostgresAuditLog(sql);
-  return createPostgresAuditLog(sql, replayWaitMs);
+function auditLog(db: FakeDatabase): AuditLog {
+  return createPostgresAuditLog(db.sql as unknown as postgres.Sql);
 }
 
-function claim(initiatorSubject = 'alice') {
-  return { eventId, initiatorSubject, requestDigestSha256: digest };
+function produced(reply: { status: number; body: unknown }): {
+  event: AuditEvent;
+  reply: { status: number; body: unknown };
+} {
+  return { event: eventFor(reply.status), reply };
 }
 
-function produced(status: number): { event: AuditEvent; reply: { status: number; body: unknown } } {
+function eventFor(status: number): AuditEvent {
   return {
-    event: {
-      eventId,
-      eventType: 'ask',
-      schemaVersion: '1',
-      occurredAt: '2026-10-10T10:00:00.000Z',
-      taskId: eventId,
-      stepId: 'ask',
-      traceId: '11111111111141118111111111111111',
-      initiatorSubject: 'alice',
-      agentPrincipal: 'agent:scripted-runner',
-      tool: 'drive.list',
-      policyDecisionId: null,
-      approvalId: null,
-      requestDigestSha256: digest,
-      outcome: status === 200 ? 'answered' : 'retrieval_failed',
-      externalObjectRef: null,
-      prevDigest: null,
-    },
-    reply: { status, body: { answer: 'stored-answer' } },
+    eventId,
+    eventType: 'ask',
+    schemaVersion: '1',
+    occurredAt: '2026-10-10T10:00:00.000Z',
+    taskId: eventId,
+    stepId: 'ask',
+    traceId: '11111111111141118111111111111111',
+    initiatorSubject: 'alice',
+    agentPrincipal: 'agent:scripted-runner',
+    tool: 'drive.list',
+    policyDecisionId: null,
+    approvalId: null,
+    requestDigestSha256: digest,
+    outcome: status === 200 ? 'answered' : 'retrieval_failed',
+    externalObjectRef: null,
+    prevDigest: null,
   };
 }
 
@@ -224,221 +174,57 @@ async function waitUntil(ready: () => boolean): Promise<void> {
 }
 
 type FakeDatabase = {
-  sql: { reserve: () => Promise<FakeConnection> };
-  reserved: () => number;
-  replay: (requestId: string) => ReplayRow | undefined;
+  sql: FakeSql;
+  reservations: () => readonly string[];
+  failAuditInsert: boolean;
 };
 
-type FakeConnection = {
-  (first: unknown, ...rest: unknown[]): Promise<QueryResult> | { row: Record<string, unknown> };
-  unsafe: (query: string) => Promise<QueryResult>;
-  release: () => void;
+type FakeSql = {
+  (first: unknown, ...rest: unknown[]): Promise<unknown[]> | { row: Record<string, unknown> };
+  reserve: () => never;
 };
-
-type QueryResult = unknown[] & { count: number };
-
-type Statement =
-  | 'lock'
-  | 'unlock'
-  | 'read-replay'
-  | 'read-audit'
-  | 'insert-replay'
-  | 'insert-audit'
-  | 'delete-replay'
-  | 'update-replay';
 
 function fakeDatabase(seed: Seed = {}): FakeDatabase {
-  const replays = new Map<string, ReplayRow>();
+  const reservations = new Set<string>(seed.reservations ?? []);
   const audits = new Set<string>(seed.audits ?? []);
-  const sessions = new Map<number, Snapshot | undefined>();
-  const heldBy = new Map<string, number>();
-  const waiters = new Map<string, (() => void)[]>();
-  let reserved = 0;
-  let nextSession = 0;
-  for (const replay of seed.openReplays ?? []) {
-    replays.set(replay.requestId, {
-      initiator_subject: replay.initiatorSubject,
-      request_digest_sha256: digest,
-      response_status: null,
-      response_body: null,
-    });
-  }
+  const flags = { failAuditInsert: false };
+  const sql = ((first: unknown, ...values: unknown[]) => {
+    if (!isTemplate(first)) {
+      if (flags.failAuditInsert) throw new Error('audit insert');
+      const row = first as Record<string, unknown>;
+      audits.add(String(row.event_id));
+      return { row };
+    }
+    return Promise.resolve(apply(stringsOf(first), values));
+  }) as FakeSql;
+  sql.reserve = () => {
+    throw new Error('pooled connection');
+  };
   return {
-    reserved: () => reserved,
-    replay: (requestId) => replays.get(requestId),
-    sql: {
-      reserve() {
-        reserved += 1;
-        const sessionId = ++nextSession;
-        sessions.set(sessionId, undefined);
-        return Promise.resolve(connection());
-
-        function connection(): FakeConnection {
-          const tag = (first: unknown, ...rest: unknown[]) => {
-            if (isTemplate(first)) return applyQuery(stringsOf(first), rest);
-            return { row: first as Record<string, unknown> };
-          };
-          tag.unsafe = (query: string) => {
-            applyUnsafe(query);
-            return Promise.resolve(empty());
-          };
-          tag.release = () => {
-            if (sessions.get(sessionId) !== undefined) restore(sessionId);
-            releaseLocks(sessionId);
-            sessions.delete(sessionId);
-            reserved -= 1;
-          };
-          return tag;
-        }
-
-        function applyQuery(sqlText: string, values: readonly unknown[]): Promise<QueryResult> {
-          const [first] = values;
-          const kind = classify(sqlText);
-          switch (kind) {
-            case 'lock':
-              return acquire(text(first), sessionId).then(() => empty());
-            case 'unlock':
-              unlock(text(first), sessionId);
-              return Promise.resolve(empty());
-            case 'read-replay':
-              return Promise.resolve(readReplay(text(first)));
-            case 'read-audit':
-              return Promise.resolve(readAudit(text(first)));
-            case 'insert-replay':
-              insertReplay(values);
-              return Promise.resolve(empty());
-            case 'insert-audit':
-              insertAudit(values);
-              return Promise.resolve(empty());
-            case 'delete-replay':
-              deleteReplay(text(first));
-              return Promise.resolve(empty());
-            case 'update-replay':
-              return Promise.resolve(updateReplay(values));
-            default: {
-              const unexpected: never = kind;
-              return Promise.reject(new Error(unexpected));
-            }
-          }
-        }
-
-        function applyUnsafe(query: string): void {
-          if (query === 'begin') {
-            sessions.set(sessionId, snapshot());
-            return;
-          }
-          if (query === 'commit') {
-            sessions.set(sessionId, undefined);
-            return;
-          }
-          if (query === 'rollback') {
-            restore(sessionId);
-            return;
-          }
-          throw new Error(`unexpected sql: ${query}`);
-        }
-
-        function readReplay(requestId: string): QueryResult {
-          const row = replays.get(requestId);
-          return row === undefined ? empty() : result([row]);
-        }
-
-        function readAudit(id: string): QueryResult {
-          return audits.has(id) ? result([{ event_id: id }]) : empty();
-        }
-
-        function insertReplay(values: readonly unknown[]): void {
-          const [requestId, initiatorSubject, requestDigestSha256] = values;
-          replays.set(text(requestId), {
-            initiator_subject: text(initiatorSubject),
-            request_digest_sha256: text(requestDigestSha256),
-            response_status: null,
-            response_body: null,
-          });
-        }
-
-        function insertAudit(values: readonly unknown[]): void {
-          const helper = values[0] as { row: Record<string, unknown> };
-          audits.add(String(helper.row.event_id));
-        }
-
-        function deleteReplay(requestId: string): void {
-          const row = replays.get(requestId);
-          if (row?.response_body === null) replays.delete(requestId);
-        }
-
-        function updateReplay(values: readonly unknown[]): QueryResult {
-          const [status, responseBody, requestId] = values;
-          const id = text(requestId);
-          const row = replays.get(id);
-          if (row === undefined) return empty();
-          replays.set(id, {
-            ...row,
-            response_status: status as number,
-            response_body: text(responseBody),
-          });
-          return result([id]);
-        }
-
-        function snapshot(): Snapshot {
-          return {
-            replays: new Map([...replays].map(([id, row]) => [id, { ...row }])),
-            audits: new Set(audits),
-          };
-        }
-
-        function restore(id: number): void {
-          const saved = sessions.get(id);
-          if (saved === undefined) return;
-          replays.clear();
-          for (const [replayId, row] of saved.replays) replays.set(replayId, row);
-          audits.clear();
-          for (const auditId of saved.audits) audits.add(auditId);
-          sessions.set(id, undefined);
-        }
-      },
+    sql,
+    reservations: () => [...reservations],
+    get failAuditInsert() {
+      return flags.failAuditInsert;
+    },
+    set failAuditInsert(value: boolean) {
+      flags.failAuditInsert = value;
     },
   };
 
-  function acquire(id: string, sessionId: number): Promise<void> {
-    if (!heldBy.has(id)) {
-      heldBy.set(id, sessionId);
-      return Promise.resolve();
+  function apply(sqlText: string, values: readonly unknown[]): unknown[] {
+    if (sqlText.includes('delete from ask_reservations')) {
+      reservations.delete(text(values[0]));
+      return [];
     }
-    return new Promise((resolve) => {
-      const queue = waiters.get(id) ?? [];
-      queue.push(() => {
-        heldBy.set(id, sessionId);
-        resolve();
-      });
-      waiters.set(id, queue);
-    });
-  }
-
-  function unlock(id: string, sessionId: number): void {
-    if (heldBy.get(id) !== sessionId) return;
-    heldBy.delete(id);
-    const next = waiters.get(id)?.shift();
-    if (next !== undefined) next();
-  }
-
-  function releaseLocks(sessionId: number): void {
-    for (const id of [...heldBy.keys()]) {
-      if (heldBy.get(id) === sessionId) unlock(id, sessionId);
+    if (sqlText.includes('insert into ask_reservations')) {
+      const requestId = text(values[0]);
+      if (audits.has(requestId) || reservations.has(requestId)) return [];
+      reservations.add(requestId);
+      return [{ request_id: requestId }];
     }
+    if (sqlText.includes('insert into audit_events')) return [];
+    throw new Error(`unexpected sql: ${sqlText}`);
   }
-}
-
-function classify(text: string): Statement {
-  if (text.includes('pg_advisory_unlock')) return 'unlock';
-  if (text.includes('pg_advisory_lock')) return 'lock';
-  if (text.includes('insert into ask_replays')) return 'insert-replay';
-  if (text.includes('insert into audit_events')) return 'insert-audit';
-  if (text.includes('delete from ask_replays')) return 'delete-replay';
-  if (text.includes('update ask_replays')) return 'update-replay';
-  if (text.includes('from ask_replays')) return 'read-replay';
-  if (text.includes('from audit_events')) return 'read-audit';
-  throw new Error(`unexpected sql: ${text}`);
 }
 
 function isTemplate(value: unknown): value is TemplateStringsArray {
@@ -451,12 +237,4 @@ function stringsOf(value: TemplateStringsArray): string {
 
 function text(value: unknown): string {
   return String(value);
-}
-
-function empty(): QueryResult {
-  return result([]);
-}
-
-function result(items: unknown[]): QueryResult {
-  return Object.assign([...items], { count: items.length });
 }

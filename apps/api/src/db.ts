@@ -6,20 +6,20 @@ import postgres from 'postgres';
 
 const lockId = 7001;
 const auditMigrationName = '0001_audit.sql';
-const replayMigrationName = '0002_ask_replay.sql';
+const reservationMigrationName = '0002_ask_reservation.sql';
 const auditMigrationPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../migrations/0001_audit.sql',
 );
-const replayMigrationPath = resolve(
+const reservationMigrationPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../migrations/0002_ask_replay.sql',
+  '../migrations/0002_ask_reservation.sql',
 );
 
 export async function openDatabase(url: string): Promise<postgres.Sql> {
   const sql = postgres(url);
   const auditMigration = readFileSync(auditMigrationPath, 'utf8');
-  const replayMigration = readFileSync(replayMigrationPath, 'utf8');
+  const reservationMigration = readFileSync(reservationMigrationPath, 'utf8');
   await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(${lockId})`;
     await tx`create table if not exists schema_migrations (
@@ -27,7 +27,7 @@ export async function openDatabase(url: string): Promise<postgres.Sql> {
       applied_at timestamptz not null default now()
     )`;
     await applyMigration(tx, auditMigrationName, auditMigration);
-    await applyMigration(tx, replayMigrationName, replayMigration);
+    await applyMigration(tx, reservationMigrationName, reservationMigration);
   });
   return sql;
 }
