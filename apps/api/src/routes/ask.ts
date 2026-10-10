@@ -38,8 +38,7 @@ type AskOutcome =
 const noSourcesAnswer = 'I could not find a source for that.';
 
 type AskSettlement =
-  | { readonly ok: true; readonly reply: ApiReply }
-  | { readonly ok: false; readonly error: unknown };
+  { readonly ok: true; readonly reply: ApiReply } | { readonly ok: false; readonly error: unknown };
 
 type AskClaim = {
   readonly callerSub: string;
@@ -97,8 +96,7 @@ async function replay(claim: AskClaim, caller: Caller, request: AskRequest): Pro
 }
 
 type AuthResult =
-  | { readonly ok: true; readonly caller: Caller }
-  | { readonly ok: false; readonly reply: ApiReply };
+  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,
