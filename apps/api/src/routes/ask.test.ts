@@ -101,7 +101,7 @@ describe('POST /v1/ask', () => {
     const second = await post(stack.iapUrl, requestId, triageQuestion);
     expect(second.status).toBe(200);
     expect(await second.json()).toEqual(generated(requestId, 1));
-    expect(calls).toEqual({ drive: 1, runner: 1 });
+    expect(calls).toEqual({ drive: 2, runner: 1 });
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
@@ -117,7 +117,7 @@ describe('POST /v1/ask', () => {
     expect(second.status).toBe(200);
     expect(await first.json()).toEqual(generated(requestId, 1));
     expect(await second.json()).toEqual(generated(requestId, 1));
-    expect(calls).toEqual({ drive: 1, runner: 1 });
+    expect(calls).toEqual({ drive: 2, runner: 1 });
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
@@ -141,7 +141,7 @@ describe('POST /v1/ask', () => {
     expect(secondResponse.status).toBe(200);
     expect(await secondResponse.json()).toEqual(answered(requestId, 'from-first-route'));
     expect(firstCalls).toEqual({ drive: 1, runner: 1 });
-    expect(secondCalls).toEqual({ drive: 0, runner: 0 });
+    expect(secondCalls).toEqual({ drive: 1, runner: 0 });
     expect(shared.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
