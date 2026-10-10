@@ -81,6 +81,29 @@ test('repository comes from GITHUB_REPOSITORY and otherwise from the local origi
   );
 });
 
+test('plan ids without a hyphen are read from issue titles', () => {
+  const plans = plansFromIssuePages(() => [
+    { title: 'A1: IAP assertion verification', state: 'open' },
+    { title: 'WF1: Local workflow engine + cancel', state: 'open' },
+    { title: 'C-06: Deploy to dev behind IAP', state: 'open' },
+    { title: 'F1-01: Verify IAP assertions', state: 'closed' },
+  ]);
+  expect(plans.get('A1')).toBe('OPEN');
+  expect(plans.get('WF1')).toBe('OPEN');
+  expect(plans.get('C-06')).toBe('OPEN');
+  expect(plans.get('F1-01')).toBe('CLOSED');
+});
+
+test('a closed hyphenless owner issue is merged', () => {
+  expect(
+    checkPending({
+      pending: [{ id: 'sec.forged-iap-header', owner: 'A1' }],
+      controls: [],
+      plans: new Map([['A1', 'CLOSED']]),
+    }),
+  ).toEqual(['sec.forged-iap-header owner A1 is merged']);
+});
+
 test('an owner issue after the first hundred is still resolved', () => {
   const firstPage = Array.from({ length: 100 }, (_, index) => ({
     title: `noise ${index}`,
