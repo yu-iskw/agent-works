@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from 'vitest';
 
-import { checkPending, parseControls } from './check-pending.mjs';
+import { checkPending, parseControls, plansFromIssuePages, resolveRepository } from './check-pending.mjs';
 
 const open = new Map([['F1-03', 'OPEN']]);
 
@@ -61,4 +61,37 @@ test('committed catalog passes while every owner issue is open', () => {
   const controls = parseControls(readFileSync('docs/security/controls.yaml', 'utf8'));
   const plans = new Map(pending.map((row) => [row.owner, 'OPEN']));
   expect(checkPending({ pending, controls, plans })).toEqual([]);
+});
+
+test('repository comes from GITHUB_REPOSITORY and otherwise from the local origin', () => {
+  expect(
+    resolveRepository(
+      { GITHUB_REPOSITORY: 'acme/widgets' },
+      'https://x-access-token:secret@github.com/yu-iskw/agent-works',
+    ),
+  ).toBe('acme/widgets');
+  expect(resolveRepository({}, 'git@github.com:local/fork.git')).toBe('local/fork');
+  expect(resolveRepository({ GITHUB_REPOSITORY: '   ' }, 'https://github.com/local/fork')).toBe(
+    'local/fork',
+  );
+});
+
+test('an owner issue after the first hundred is still resolved', () => {
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({
+    title: `noise ${index}`,
+    state: 'open',
+    pull_request: { url: `https://example.test/${index}` },
+  }));
+  const plans = plansFromIssuePages((page) => {
+    if (page === 1) return firstPage;
+    if (page === 2) {
+      return [
+        { title: 'F9-99: later plan', state: 'open' },
+        { title: 'PR-99: not an issue', state: 'closed', pull_request: {} },
+      ];
+    }
+    return [];
+  });
+  expect(plans.get('F9-99')).toBe('OPEN');
+  expect(plans.get('PR-99')).toBeUndefined();
 });
