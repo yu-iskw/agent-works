@@ -47,10 +47,22 @@ services:
   api:
     <<: *node
     command: node apps/api/dist/server.js
+    environment:
+      DATABASE_URL: postgres://postgres@postgres:5432/postgres
+      DRIVE_URL: http://fake-drive:8080
+      LLM_URL: http://fake-llm:8080
+      IAP_JWKS_URL: http://fake-iap:8080/jwks
+      IAP_ISSUER: https://fake-iap.local
+      IAP_AUDIENCE: agent-works-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - 127.0.0.1:8084:8080
   web:
     <<: *node
-    command: node apps/web/dist/server.js
+    command: node apps/web/dist/src/server.js
+    environment:
+      API_URL: http://api:8080
     ports:
       - 127.0.0.1:8085:8080

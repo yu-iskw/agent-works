@@ -4,10 +4,15 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "strict": true,
     "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src", "app"]
 }

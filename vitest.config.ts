@@ -1,13 +1,32 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
     projects: [
       'packages/*/vitest.config.ts',
+      'apps/api/vitest.config.ts',
       {
         test: {
           name: 'scripts',
           include: ['scripts/**/*.test.mjs'],
+        },
+      },
+      {
+        resolve: {
+          alias: {
+            '@agent-works/domain': fileURLToPath(
+              new URL('./packages/domain/src/index.ts', import.meta.url),
+            ),
+            '@agent-works/fakes': fileURLToPath(
+              new URL('./packages/fakes/src/index.ts', import.meta.url),
+            ),
+          },
+        },
+        test: {
+          name: 'contract',
+          include: ['e2e/contract/**/*.test.ts'],
         },
       },
     ],

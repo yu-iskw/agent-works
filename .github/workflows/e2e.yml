@@ -67,6 +67,15 @@ jobs:
           printf '%s\n' "$output"
           node e2e/contract/record-schema-check.mjs "$code" "$output"
 
+      - name: contract.ask
+        run: |
+          set +e
+          mkdir -p e2e/test-results
+          pnpm exec vitest run --project contract --reporter=json --outputFile=e2e/test-results/contract.json
+          code=$?
+          set -e
+          node e2e/contract/record-contract.mjs "$code" e2e/test-results/contract.json
+
       - name: Upload e2e artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -146,15 +155,17 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
-      - name: harness.trace-recorded
+      - name: Start stack and install Chromium
         run: |
-          set +e
-          pnpm exec playwright test --config e2e/playwright.config.ts web
-          code=$?
-          set -e
-          node e2e/web/record-trace.mjs "$code"
+          pnpm dev:up --wait >stack.log 2>&1 &
+          stack=$!
+          pnpm exec playwright install --with-deps chromium
+          wait "$stack" || { cat stack.log; exit 1; }
+      - name: e2e-web
+        run: pnpm exec playwright test --config e2e/playwright.config.ts web
+      - name: Compose logs
+        if: failure()
+        run: docker compose -f compose.dev.yml logs --no-color
       - name: Upload e2e artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
