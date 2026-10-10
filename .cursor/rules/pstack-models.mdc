@@ -1,9 +1,9 @@
 ---
-description: "pstack model per role for this repo. Two-pool split: Sonnet 5.5 xhigh for decisions and reviews, Grok 4.7 high for building, Haiku 5.5 xhigh for high-volume helpers. Never use Opus, max effort, fast mode, or 1M context."
+description: "pstack model per role for this repo. Sonnet 5.5 xhigh for decisions and reviews, Grok 4.7 high for building, Grok 4.7 medium for helpers. No Haiku 5.5 slug is on the Task allowlist. Never use Opus, max effort, fast mode, or 1M context."
 alwaysApply: true
 ---
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
-# Pools: Sonnet and Haiku draw on Other Models; Grok draws on Cursor Models. Rebalance if one fills first.
+# Pools: Sonnet draws on Other Models. Grok draws on Cursor Models. Helpers use Grok 4.7 medium because no Haiku 5.5 slug is on the Task allowlist.
 # budget: custom (CursorBench 4.0, 2026-10-10)
 feature, refactoring: grok-4.7-high
 bug-fix: claude-sonnet-5-5-xhigh
@@ -11,14 +11,14 @@ perf-issue: grok-4.7-high
 hillclimb: grok-4.7-high
 judgment and prose: claude-sonnet-5-5-xhigh
 hardest tasks: claude-sonnet-5-5-xhigh
-how explorer: claude-haiku-5-5-xhigh
+how explorer: grok-4.7-medium
 how explainer: claude-sonnet-5-5-xhigh
-why investigators: claude-haiku-5-5-xhigh
+why investigators: grok-4.7-medium
 why synthesizer: claude-sonnet-5-5-xhigh
-reflect tooling: claude-haiku-5-5-xhigh
+reflect tooling: grok-4.7-medium
 reflect judgment, divergent, synthesizer: claude-sonnet-5-5-xhigh
 arena runners: claude-sonnet-5-5-xhigh, grok-4.7-high
 arena cross-judge pool: claude-sonnet-5-5-xhigh, grok-4.7-high
-swarm workers: claude-haiku-5-5-xhigh
+swarm workers: grok-4.7-medium
 architect runners: claude-sonnet-5-5-xhigh, grok-4.7-high
 interrogate reviewers: claude-sonnet-5-5-xhigh, grok-4.7-high
