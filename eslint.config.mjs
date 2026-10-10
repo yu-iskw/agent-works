@@ -114,7 +114,7 @@ export default [
     ],
   },
   {
-    files: ['packages/**/*.config.ts', 'apps/**/*.config.ts'],
+    files: ['packages/**/*.config.ts', 'apps/**/*.config.ts', 'e2e/**/*.ts'],
     ignores: ['**/dist/**'],
     languageOptions: {
       parser: tsparser,
