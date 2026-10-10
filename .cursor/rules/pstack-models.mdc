@@ -1,5 +1,5 @@
 ---
-description: pstack model per role for this repo. Cost rule: every role runs grok-4.7 at high effort, non-fast. Never use Claude Opus, xhigh/max effort, or fast mode.
+description: "pstack model per role for this repo. Cost rule: every role runs grok-4.7 at high effort, non-fast. Never use Claude Opus, xhigh/max effort, or fast mode."
 alwaysApply: true
 ---
 # budget: medium (high)
