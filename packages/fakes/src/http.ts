@@ -11,9 +11,13 @@ export type Request = {
   body: Buffer;
 };
 
-export type Handler = (
-  request: Request,
-) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>;
+export type Reply = {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+};
+
+export type Handler = (request: Request) => Reply | Promise<Reply>;
 
 export function header(headers: IncomingHttpHeaders, name: string): string | undefined {
   for (const [key, value] of Object.entries(headers)) {
@@ -65,18 +69,22 @@ async function respond(
       headers: request.headers,
       body: await readBody(request),
     });
-    if (typeof reply.body === 'string') {
-      send(response, reply.status, reply.body, textPlain);
-      return;
-    }
-    send(response, reply.status, JSON.stringify(reply.body), 'application/json; charset=utf-8');
+    const body = typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body);
+    const type = typeof reply.body === 'string' ? textPlain : 'application/json; charset=utf-8';
+    send(response, reply.status, body, type, reply.headers);
   } catch {
     if (!response.headersSent) send(response, 500, 'error', textPlain);
   }
 }
 
-function send(response: ServerResponse, status: number, body: string, type: string): void {
-  response.writeHead(status, { 'content-type': type });
+function send(
+  response: ServerResponse,
+  status: number,
+  body: string,
+  type: string,
+  headers?: Record<string, string>,
+): void {
+  response.writeHead(status, { 'content-type': type, ...headers });
   response.end(body);
 }
 

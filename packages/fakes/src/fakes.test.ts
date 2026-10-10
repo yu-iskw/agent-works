@@ -1,5 +1,5 @@
 import { createPublicKey, createVerify } from 'node:crypto';
-import { createServer, request as httpRequest } from 'node:http';
+import { request as httpRequest } from 'node:http';
 
 import { describe, expect, it } from 'vitest';
 
@@ -9,7 +9,6 @@ import { header, listen } from './http.js';
 import { createIapProxy } from './iap-proxy.js';
 
 import type { JsonWebKey } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const assertionHeader = 'x-goog-iap-jwt-assertion';
 
@@ -192,21 +191,27 @@ describe('fakes', () => {
   });
 
   it('passes an empty upstream body through with its status', async () => {
-    const upstream = await rawListen((request, response) => {
-      const status = request.url === '/empty' ? 200 : 204;
-      response.writeHead(status, { 'content-type': 'application/json' });
-      response.end();
-    });
+    const upstream = await listen((request) => {
+      return {
+        status: request.url.pathname === '/empty' ? 200 : 204,
+        body: '',
+        headers: { 'content-type': 'application/json', 'x-upstream': 'kept' },
+      };
+    }, 0);
     const proxy = await listen(createIapProxy(upstream.url), 0);
     try {
-      const noContent = await fetch(`${proxy.url}/no-content`, {
-        headers: { 'x-fake-user': 'alice' },
-      });
-      const empty = await fetch(`${proxy.url}/empty`, { headers: { 'x-fake-user': 'alice' } });
-      expect(noContent.status).toBe(204);
-      expect(await noContent.text()).toBe('');
-      expect(empty.status).toBe(200);
-      expect(await empty.text()).toBe('');
+      for (const [path, status] of [
+        ['/no-content', 204],
+        ['/empty', 200],
+      ] as const) {
+        const response = await fetch(`${proxy.url}${path}`, {
+          headers: { 'x-fake-user': 'alice' },
+        });
+        expect(response.status).toBe(status);
+        expect(await response.text()).toBe('');
+        expect(response.headers.get('content-type')).toBe('application/json');
+        expect(response.headers.get('x-upstream')).toBe('kept');
+      }
     } finally {
       await proxy.close();
       await upstream.close();
@@ -215,15 +220,17 @@ describe('fakes', () => {
 
   it('returns an upstream redirect without calling the other origin', async () => {
     let hits = 0;
-    const other = await rawListen((_request, response) => {
+    const other = await listen(() => {
       hits += 1;
-      response.writeHead(200, { 'content-type': 'text/plain' });
-      response.end('landed');
-    });
-    const upstream = await rawListen((_request, response) => {
-      response.writeHead(302, { location: `${other.url}/landed` });
-      response.end();
-    });
+      return { status: 200, body: 'landed' };
+    }, 0);
+    const upstream = await listen(() => {
+      return {
+        status: 302,
+        body: 'moved',
+        headers: { location: `${other.url}/landed` },
+      };
+    }, 0);
     const proxy = await listen(createIapProxy(upstream.url), 0);
     try {
       const response = await fetch(`${proxy.url}/go`, {
@@ -232,7 +239,7 @@ describe('fakes', () => {
       });
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe(`${other.url}/landed`);
-      expect(await response.text()).toBe('');
+      expect(await response.text()).toBe('moved');
       expect(hits).toBe(0);
     } finally {
       await proxy.close();
@@ -282,29 +289,6 @@ describe('fakes', () => {
     }
   });
 });
-
-function rawListen(
-  handler: (request: IncomingMessage, response: ServerResponse) => void,
-): Promise<{ url: string; close: () => Promise<void> }> {
-  const server = createServer(handler);
-  return new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (address === null || typeof address === 'string') {
-        reject(new Error('port'));
-        return;
-      }
-      resolve({
-        url: `http://127.0.0.1:${address.port}`,
-        close: () =>
-          new Promise((done, fail) => {
-            server.close((error) => (error ? fail(error) : done()));
-          }),
-      });
-    });
-  });
-}
 
 function rawGet(
   url: string,

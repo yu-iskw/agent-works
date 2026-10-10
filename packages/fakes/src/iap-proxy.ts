@@ -2,16 +2,15 @@ import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 
 import { header } from './http.js';
 
-import type { Handler, Request } from './http.js';
+import type { Handler, Reply, Request } from './http.js';
 import type { KeyObject } from 'node:crypto';
 
 const users = new Set(['alice', 'bob']);
+const hop = new Set(['connection', 'content-length', 'keep-alive', 'transfer-encoding']);
+const dropResponse = new Set([...hop, 'content-encoding']);
 const skip = new Set([
+  ...hop,
   'host',
-  'content-length',
-  'connection',
-  'keep-alive',
-  'transfer-encoding',
   'upgrade',
   'expect',
   'x-fake-user',
@@ -62,11 +61,7 @@ function signAssertion(key: KeyObject, kid: string, sub: string): string {
   return `${input}.${signature}`;
 }
 
-async function forward(
-  upstream: string,
-  request: Request,
-  assertion: string,
-): Promise<{ status: number; body: unknown }> {
+async function forward(upstream: string, request: Request, assertion: string): Promise<Reply> {
   const base = new URL(upstream);
   const target = new URL(`${request.url.pathname}${request.url.search}`, base);
   if (target.origin !== base.origin) return { status: 400, body: { error: 'bad path' } };
@@ -82,11 +77,32 @@ async function forward(
   const response = await fetch(target, {
     method,
     headers,
+    redirect: 'manual',
     body: method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(request.body),
   });
+  return readUpstream(response);
+}
+
+async function readUpstream(response: Response): Promise<Reply> {
   const text = await response.text();
-  if ((response.headers.get('content-type') ?? '').includes('application/json')) {
-    return { status: response.status, body: JSON.parse(text) as unknown };
+  const json =
+    text.length > 0 && (response.headers.get('content-type') ?? '').includes('application/json');
+  return {
+    status: response.status,
+    body: json ? (JSON.parse(text) as unknown) : text,
+    headers: replyHeaders(response, text.length === 0),
+  };
+}
+
+function replyHeaders(response: Response, empty: boolean): Record<string, string> | undefined {
+  const entries: [string, string][] = [];
+  if (empty) {
+    response.headers.forEach((value, name) => {
+      if (!dropResponse.has(name)) entries.push([name, value]);
+    });
+  } else {
+    const location = response.headers.get('location');
+    if (location !== null) entries.push(['location', location]);
   }
-  return { status: response.status, body: text };
+  return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }
