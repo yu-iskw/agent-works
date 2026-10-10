@@ -11,10 +11,12 @@ export type Request = {
   body: Buffer;
 };
 
+export type ReplyHeaders = Readonly<Record<string, string | readonly string[]>>;
+
 export type Reply = {
   status: number;
   body: unknown;
-  headers?: Record<string, string>;
+  headers?: ReplyHeaders;
 };
 
 export type Handler = (request: Request) => Reply | Promise<Reply>;
@@ -82,9 +84,15 @@ function send(
   status: number,
   body: string,
   type: string,
-  headers?: Record<string, string>,
+  headers?: ReplyHeaders,
 ): void {
-  response.writeHead(status, { 'content-type': type, ...headers });
+  response.statusCode = status;
+  response.setHeader('content-type', type);
+  if (headers !== undefined) {
+    for (const [name, value] of Object.entries(headers)) {
+      response.setHeader(name, typeof value === 'string' ? value : [...value]);
+    }
+  }
   response.end(body);
 }
 

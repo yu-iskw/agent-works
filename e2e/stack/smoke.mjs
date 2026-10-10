@@ -4,7 +4,7 @@ import { writePng } from '../png.mjs';
 
 const code = process.argv[2] ?? '';
 const output = readFileSync(process.argv[3] ?? '', 'utf8');
-const reportedHealthy = output.split('\n').some((line) => line.trim() === '6/6 services healthy');
+const reportedHealthy = output.split('\n').some((line) => line.trim() === '7/7 services healthy');
 const stackPassed = code === '0' && reportedHealthy && (await everyHealthz());
 const scriptPassed = await unknownScript();
 
@@ -34,7 +34,7 @@ if (!stackPassed || !scriptPassed) process.exitCode = 1;
 
 async function everyHealthz() {
   try {
-    for (const port of [8081, 8082, 8083, 8084, 8085]) {
+    for (const port of [8081, 8082, 8083, 8084, 8085, 8086]) {
       const response = await fetch(`http://127.0.0.1:${port}/healthz`);
       if (response.status !== 200 || (await response.text()).trim() !== 'ok') return false;
     }
