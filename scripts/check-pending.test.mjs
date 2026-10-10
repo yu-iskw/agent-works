@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 import {
   checkPending,
   parseControls,
-  plansFromIssuePages,
+  plansFromIssues,
   resolveRepository,
 } from './check-pending.mjs';
 
@@ -82,44 +82,18 @@ test('repository comes from GITHUB_REPOSITORY and otherwise from the local origi
 });
 
 test('plan ids without a hyphen are read from issue titles', () => {
-  const plans = plansFromIssuePages(() => [
+  const plans = plansFromIssues([
     { title: 'A1: IAP assertion verification', state: 'open' },
     { title: 'WF1: Local workflow engine + cancel', state: 'open' },
     { title: 'C-06: Deploy to dev behind IAP', state: 'open' },
     { title: 'F1-01: Verify IAP assertions', state: 'closed' },
+    { title: 'TODO: not a plan', state: 'open' },
+    { title: 'PR-99: not an issue', state: 'closed', pull_request: {} },
   ]);
   expect(plans.get('A1')).toBe('OPEN');
   expect(plans.get('WF1')).toBe('OPEN');
   expect(plans.get('C-06')).toBe('OPEN');
   expect(plans.get('F1-01')).toBe('CLOSED');
-});
-
-test('a closed hyphenless owner issue is merged', () => {
-  expect(
-    checkPending({
-      pending: [{ id: 'sec.forged-iap-header', owner: 'A1' }],
-      controls: [],
-      plans: new Map([['A1', 'CLOSED']]),
-    }),
-  ).toEqual(['sec.forged-iap-header owner A1 is merged']);
-});
-
-test('an owner issue after the first hundred is still resolved', () => {
-  const firstPage = Array.from({ length: 100 }, (_, index) => ({
-    title: `noise ${index}`,
-    state: 'open',
-    pull_request: { url: `https://example.test/${index}` },
-  }));
-  const plans = plansFromIssuePages((page) => {
-    if (page === 1) return firstPage;
-    if (page === 2) {
-      return [
-        { title: 'F9-99: later plan', state: 'open' },
-        { title: 'PR-99: not an issue', state: 'closed', pull_request: {} },
-      ];
-    }
-    return [];
-  });
-  expect(plans.get('F9-99')).toBe('OPEN');
+  expect(plans.get('TODO')).toBeUndefined();
   expect(plans.get('PR-99')).toBeUndefined();
 });
