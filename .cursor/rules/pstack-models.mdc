@@ -1,22 +1,24 @@
 ---
-description: "pstack model per role for this repo. Cost rule: every role runs grok-4.7 at high effort, non-fast. Never use Claude Opus, xhigh/max effort, or fast mode."
+description: "pstack model per role for this repo. Two-pool split: Sonnet 5.5 xhigh for decisions and reviews, Grok 4.7 high for building, Haiku 5.5 xhigh for high-volume helpers. Never use Opus, max effort, fast mode, or 1M context."
 alwaysApply: true
 ---
-# budget: medium (high)
+# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+# Pools: Sonnet and Haiku draw on Other Models; Grok draws on Cursor Models. Rebalance if one fills first.
+# budget: custom (CursorBench 4.0, 2026-10-10)
 feature, refactoring: grok-4.7-high
-bug-fix: grok-4.7-high
+bug-fix: claude-sonnet-5-5-xhigh
 perf-issue: grok-4.7-high
 hillclimb: grok-4.7-high
-judgment and prose: grok-4.7-high
-hardest tasks: grok-4.7-high
-how explorer: grok-4.7-high
-how explainer: grok-4.7-high
-why investigators: grok-4.7-high
-why synthesizer: grok-4.7-high
-reflect tooling: grok-4.7-high
-reflect judgment, divergent, synthesizer: grok-4.7-high
-arena runners: grok-4.7-high
-arena cross-judge pool: grok-4.7-high
-swarm workers: grok-4.7-high
-architect runners: grok-4.7-high
-interrogate reviewers: grok-4.7-high
+judgment and prose: claude-sonnet-5-5-xhigh
+hardest tasks: claude-sonnet-5-5-xhigh
+how explorer: claude-haiku-5-5-xhigh
+how explainer: claude-sonnet-5-5-xhigh
+why investigators: claude-haiku-5-5-xhigh
+why synthesizer: claude-sonnet-5-5-xhigh
+reflect tooling: claude-haiku-5-5-xhigh
+reflect judgment, divergent, synthesizer: claude-sonnet-5-5-xhigh
+arena runners: claude-sonnet-5-5-xhigh, grok-4.7-high
+arena cross-judge pool: claude-sonnet-5-5-xhigh, grok-4.7-high
+swarm workers: claude-haiku-5-5-xhigh
+architect runners: claude-sonnet-5-5-xhigh, grok-4.7-high
+interrogate reviewers: claude-sonnet-5-5-xhigh, grok-4.7-high
