@@ -62,6 +62,35 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
+  it('does not return a stored answer after drive access is revoked', async () => {
+    let visible = true;
+    const calls = { drive: 0, runner: 0 };
+    const stack = await open(stacks, {
+      drive: {
+        retrieve() {
+          calls.drive += 1;
+          return Promise.resolve(visible ? [runbook] : []);
+        },
+      },
+      runner: {
+        run() {
+          calls.runner += 1;
+          return Promise.resolve({ answer: triageAnswer });
+        },
+      },
+    });
+    const requestId = randomUUID();
+    const first = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(answered(requestId, triageAnswer));
+    visible = false;
+    const second = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(second.status).toBe(502);
+    expect(await second.json()).toEqual({ error: 'retrieval_failed' });
+    expect(calls.runner).toBe(1);
+    expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
+  });
+
   it('returns the original answer when the same request id is retried', async () => {
     const calls = { drive: 0, runner: 0 };
     const stack = await open(stacks, countingPorts(calls));
