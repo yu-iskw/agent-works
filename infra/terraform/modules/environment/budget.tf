@@ -1,5 +1,3 @@
-# Alert only. There is no all_updates_rule, so no Pub/Sub topic exists for
-# automation to react to, and the default billing recipients get the email.
 resource "google_billing_budget" "spend" {
   billing_account = var.billing_account_id
   display_name    = "${var.project_id} spend"

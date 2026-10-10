@@ -1,8 +1,3 @@
-# environments/dev/tests/dev.tftest.hcl is a symlink to this file.
-# terraform test only looks beside the root module, and the required path is this file.
-# A run label cannot contain a dot, so infra-no-owner-binding is the id infra.no-owner-binding.
-# infra/terraform/evidence.mjs reads that status.
-
 mock_provider "google" {}
 
 variables {
@@ -36,41 +31,30 @@ run "identities-are-separate" {
 run "bindings-are-the-literal-set" {
   command = plan
 
-  # Values carry slot, scope, and role. The runtime slot is only in the key.
   assert {
     condition = toset([
-      for b in values(module.dev.iam_bindings) : "${b.slot}|${b.scope}|${b.role}"
+      for b in values(module.dev.iam_bindings) : "${b.slot}|${b.scope}|${b.role}|${b.target}"
       ]) == toset([
-      "bff|project|roles/cloudtrace.agent",
-      "bff|project|roles/logging.logWriter",
-      "bff|project|roles/monitoring.metricWriter",
-      "deployer|project|roles/artifactregistry.writer",
-      "deployer|project|roles/run.developer",
-      "deployer|service_account|roles/iam.serviceAccountUser",
-      "scheduled_execution|project|roles/cloudtrace.agent",
-      "scheduled_execution|project|roles/logging.logWriter",
-      "scheduled_execution|project|roles/monitoring.metricWriter",
-      "task_service|project|roles/cloudtrace.agent",
-      "task_service|project|roles/logging.logWriter",
-      "task_service|project|roles/monitoring.metricWriter",
-      "tool_broker|project|roles/cloudtrace.agent",
-      "tool_broker|project|roles/logging.logWriter",
-      "tool_broker|project|roles/monitoring.metricWriter",
+      "bff|project|roles/cloudtrace.agent|pilot-dev-check",
+      "bff|project|roles/logging.logWriter|pilot-dev-check",
+      "bff|project|roles/monitoring.metricWriter|pilot-dev-check",
+      "deployer|project|roles/artifactregistry.writer|pilot-dev-check",
+      "deployer|project|roles/run.developer|pilot-dev-check",
+      "deployer|service_account|roles/iam.serviceAccountUser|bff",
+      "deployer|service_account|roles/iam.serviceAccountUser|scheduled_execution",
+      "deployer|service_account|roles/iam.serviceAccountUser|task_service",
+      "deployer|service_account|roles/iam.serviceAccountUser|tool_broker",
+      "scheduled_execution|project|roles/cloudtrace.agent|pilot-dev-check",
+      "scheduled_execution|project|roles/logging.logWriter|pilot-dev-check",
+      "scheduled_execution|project|roles/monitoring.metricWriter|pilot-dev-check",
+      "task_service|project|roles/cloudtrace.agent|pilot-dev-check",
+      "task_service|project|roles/logging.logWriter|pilot-dev-check",
+      "task_service|project|roles/monitoring.metricWriter|pilot-dev-check",
+      "tool_broker|project|roles/cloudtrace.agent|pilot-dev-check",
+      "tool_broker|project|roles/logging.logWriter|pilot-dev-check",
+      "tool_broker|project|roles/monitoring.metricWriter|pilot-dev-check",
     ])
-    error_message = "The planned binding set is not the literal slot|scope|role set."
-  }
-
-  assert {
-    condition = toset([
-      for key, b in module.dev.iam_bindings : key
-      if b.slot == "deployer" && b.scope == "service_account" && b.role == "roles/iam.serviceAccountUser"
-      ]) == toset([
-      "deployer/bff/roles/iam.serviceAccountUser",
-      "deployer/scheduled_execution/roles/iam.serviceAccountUser",
-      "deployer/task_service/roles/iam.serviceAccountUser",
-      "deployer/tool_broker/roles/iam.serviceAccountUser",
-    ])
-    error_message = "Each runtime slot needs one deployer roles/iam.serviceAccountUser binding."
+    error_message = "The planned binding set is not the literal slot|scope|role|target set."
   }
 }
 

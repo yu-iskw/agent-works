@@ -8,6 +8,6 @@ locals {
 }
 
 output "test_tenant" {
-  description = "The pilot test tenant as data. Nothing in this stack creates or binds these users and groups."
+  description = "The pilot test tenant."
   value       = local.test_tenant
 }

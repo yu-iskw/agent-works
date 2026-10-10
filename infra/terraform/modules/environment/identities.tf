@@ -27,9 +27,6 @@ resource "google_project_iam_member" "grant" {
   member  = google_service_account.this[each.value.slot].member
 }
 
-# The deployer may act as each runtime identity and nothing wider. Scoped to
-# the service account, never the project, so it cannot act as itself or as a
-# default account.
 resource "google_service_account_iam_member" "deployer_acts_as" {
   for_each = toset(local.runtime_slots)
 

@@ -29,12 +29,7 @@ variable "billing_account_id" {
 }
 
 variable "identities" {
-  description = <<-EOT
-    The registry of service identities, written once by the calling root.
-    Keys are the fixed identity slots. Each value is the service account id and
-    the capability names the identity holds. A capability is a name from the
-    module catalogue, not a role id, so a basic role cannot be written here.
-  EOT
+  description = "Service identities. Keys are the fixed slots. grants names capabilities from the module catalogue."
   type = map(object({
     account_id = string
     grants     = set(string)
@@ -66,11 +61,7 @@ variable "identities" {
 }
 
 variable "budget" {
-  description = <<-EOT
-    Spend tracking. reference_amount is the monthly figure that alert_at
-    fractions are taken of. It is not a cap. This module has no resource that
-    can stop spend or disable billing.
-  EOT
+  description = "Spend tracking. reference_amount is the monthly figure alert fractions are taken of. It is not a cap."
   type = object({
     currency_code    = string
     reference_amount = number

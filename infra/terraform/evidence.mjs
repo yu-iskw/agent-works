@@ -31,6 +31,7 @@ export const evidence = [
   },
 ];
 
+// Terraform run labels are identifiers, so a dot in an evidence id cannot appear in the label.
 export function runLabel(id) {
   return id.replaceAll('.', '-');
 }

@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-The operator answered the six Appendix F questions on 2026-10-11 and made the answers binding. This file is repository record 0003. It is not the RFC section 3 note labeled ADR-003. C-05 writes records 0004 and 0005.
+The operator answered the six Appendix F questions on 2026-10-11 and made the answers binding. This file is repository record 0003. It is not the RFC section 3 note labeled ADR-003.
 
 ## Decision
 
@@ -26,8 +26,4 @@ The operator answered the six Appendix F questions on 2026-10-11 and made the an
 
 ## Consequences
 
-The infra-check job keeps the Spend answer true. A Pub/Sub topic wired to the budget fails the job.
-
 RFC-001 section 17.2 hard stops do not apply to the dev project. A later record changes that, not this one.
-
-C-05 records its two decisions in 0004 and 0005 and cites the Retrieval arm rule above.
