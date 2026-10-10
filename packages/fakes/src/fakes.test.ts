@@ -190,6 +190,64 @@ describe('fakes', () => {
     }
   });
 
+  it('passes an empty upstream body through with its status', async () => {
+    const upstream = await listen((request) => {
+      return {
+        status: request.url.pathname === '/empty' ? 200 : 204,
+        body: '',
+        headers: { 'content-type': 'application/json', 'x-upstream': 'kept' },
+      };
+    }, 0);
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      for (const [path, status] of [
+        ['/no-content', 204],
+        ['/empty', 200],
+      ] as const) {
+        const response = await fetch(`${proxy.url}${path}`, {
+          headers: { 'x-fake-user': 'alice' },
+        });
+        expect(response.status).toBe(status);
+        expect(await response.text()).toBe('');
+        expect(response.headers.get('content-type')).toBe('application/json');
+        expect(response.headers.get('x-upstream')).toBe('kept');
+      }
+    } finally {
+      await proxy.close();
+      await upstream.close();
+    }
+  });
+
+  it('returns an upstream redirect without calling the other origin', async () => {
+    let hits = 0;
+    const other = await listen(() => {
+      hits += 1;
+      return { status: 200, body: 'landed' };
+    }, 0);
+    const upstream = await listen(() => {
+      return {
+        status: 302,
+        body: 'moved',
+        headers: { location: `${other.url}/landed` },
+      };
+    }, 0);
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      const response = await fetch(`${proxy.url}/go`, {
+        headers: { 'x-fake-user': 'alice' },
+        redirect: 'manual',
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe(`${other.url}/landed`);
+      expect(await response.text()).toBe('moved');
+      expect(hits).toBe(0);
+    } finally {
+      await proxy.close();
+      await upstream.close();
+      await other.close();
+    }
+  });
+
   it('returns 599 for an unknown script', async () => {
     const llm = await listen(createLlm(), 0);
     try {
