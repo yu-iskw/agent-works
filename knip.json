@@ -8,6 +8,10 @@
     },
     "packages/*": {
       "project": ["src/**/*.ts"]
+    },
+    "packages/domain": {
+      "entry": ["src/bench.ts", "src/schema-cli.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }

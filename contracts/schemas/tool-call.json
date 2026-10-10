@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "taskId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stepId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sideEffectClass": {
+      "type": "string",
+      "enum": ["READ", "WRITE_LOW", "EXTERNAL_SEND", "WRITE_HIGH", "ADMIN", "CODE_EXEC"]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["userDelegated", "agentOwned", "approvedServiceWorkflow"]
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resourceConstraint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "auditRef": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["kind", "scopes", "resourceConstraint", "expiresAt", "auditRef"],
+      "additionalProperties": false
+    },
+    "policyDecisionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approvalId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "externalReceipt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "taskId",
+    "stepId",
+    "toolRef",
+    "sideEffectClass",
+    "idempotencyKey",
+    "authority",
+    "policyDecisionId",
+    "approvalId",
+    "status",
+    "externalReceipt"
+  ],
+  "additionalProperties": false
+}
