@@ -1,7 +1,11 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { auditEventSchema } from '@agent-works/domain';
 
 import type { AuditEvent } from '@agent-works/domain';
 import type postgres from 'postgres';
+
+const replayPollMs = 10;
 
 export class AuditWriteError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -170,37 +174,92 @@ function sameCaller(record: ReplayRecord, key: ClaimKey): boolean {
   );
 }
 
+type ClaimResult = AskRunResult | { readonly kind: 'pending' } | { readonly kind: 'claimed' };
+
 async function reservePostgres(sql: postgres.Sql, key: ClaimKey): Promise<Reservation> {
-  const conn = await sql.reserve();
-  const held = hold(conn, key.eventId);
+  const claimed = await withLocked(sql, key, (conn) => decideClaim(conn, key));
+  switch (claimed.kind) {
+    case 'done':
+    case 'conflict':
+      return claimed;
+    case 'pending':
+      return waitForStored(sql, key);
+    case 'claimed':
+      return ownedReservation(sql, key);
+    default: {
+      const unexpected: never = claimed;
+      return unexpected;
+    }
+  }
+}
+
+async function withLocked<T>(
+  sql: postgres.Sql,
+  key: ClaimKey,
+  body: (conn: postgres.ReservedSql) => Promise<T>,
+): Promise<T> {
   try {
-    await held.lock();
-    const existing = await conn<ReplayRow[]>`
-      select initiator_subject, request_digest_sha256, response_status, response_body
-      from ask_replays
-      where request_id = ${key.eventId}
-    `;
-    const row = existing.length > 0 ? existing[0] : undefined;
-    const decision = storedDecision(recordFrom(row), key);
-    if (decision !== undefined) {
+    const conn = await sql.reserve();
+    const held = hold(conn, key.eventId);
+    try {
+      await held.lock();
+      return await body(conn);
+    } finally {
       await held.release();
-      return decision;
     }
-    if (await auditClaimed(conn, key.eventId)) {
-      if (row !== undefined) await deleteOpenReservation(conn, key.eventId);
-      await held.release();
-      return { kind: 'conflict' };
-    }
-    if (row === undefined) await insertReservation(conn, key);
-    return {
-      kind: 'owned',
-      finish: (produced) => writeCompleted(conn, key, produced),
-      release: () => held.release(),
-    };
   } catch (error) {
-    await held.release();
+    if (error instanceof AuditWriteError) throw error;
     throw new AuditWriteError('audit write', { cause: error });
   }
+}
+
+async function decideClaim(conn: postgres.Sql, key: ClaimKey): Promise<ClaimResult> {
+  const row = await readReplay(conn, key.eventId);
+  const decision = storedDecision(recordFrom(row), key);
+  if (decision !== undefined) return decision;
+  if (await auditClaimed(conn, key.eventId)) {
+    if (row !== undefined) await deleteOpenReservation(conn, key.eventId);
+    return { kind: 'conflict' };
+  }
+  if (row !== undefined) return { kind: 'pending' };
+  await insertReservation(conn, key);
+  return { kind: 'claimed' };
+}
+
+async function waitForStored(sql: postgres.Sql, key: ClaimKey): Promise<AskRunResult> {
+  for (;;) {
+    const decision = await withLocked(sql, key, async (conn) => {
+      const row = await readReplay(conn, key.eventId);
+      if (row === undefined) return { kind: 'conflict' as const };
+      return storedDecision(recordFrom(row), key);
+    });
+    if (decision !== undefined) return decision;
+    await delay(replayPollMs);
+  }
+}
+
+function ownedReservation(sql: postgres.Sql, key: ClaimKey): Reservation {
+  let finished = false;
+  return {
+    kind: 'owned',
+    async finish(produced) {
+      await withLocked(sql, key, (conn) => writeCompleted(conn, key, produced));
+      finished = true;
+    },
+    release() {
+      if (finished) return Promise.resolve();
+      return withLocked(sql, key, (conn) => deleteOpenReservation(conn, key.eventId));
+    },
+  };
+}
+
+async function readReplay(conn: postgres.Sql, eventId: string): Promise<ReplayRow | undefined> {
+  const existing = await conn<ReplayRow[]>`
+    select initiator_subject, request_digest_sha256, response_status, response_body
+    from ask_replays
+    where request_id = ${eventId}
+  `;
+  return existing.length > 0 ? existing[0] : undefined;
 }
 
 function hold(
