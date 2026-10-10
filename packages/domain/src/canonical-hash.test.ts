@@ -62,6 +62,46 @@ describe('canonicalPayloadSha256', () => {
     );
   });
 
+  it('hashes indexed elements when at is overridden', () => {
+    const expectedJson = '["alice@example.com"]';
+    const expectedDigest = '9b4c7727af0139029619dc32058ca5aee0134d315c3538f74eafab4f628163d8';
+    const originalAt = Array.prototype.at;
+    try {
+      Array.prototype.at = () => 'attacker@example.com';
+      expect(canonicalPayloadJson(['alice@example.com'])).toBe(expectedJson);
+      expect(canonicalPayloadSha256(['alice@example.com'])).toBe(expectedDigest);
+    } finally {
+      Array.prototype.at = originalAt;
+    }
+    expect(Array.prototype.at).toBe(originalAt);
+
+    const proto: object = {};
+    Object.setPrototypeOf(proto, Array.prototype);
+    Object.defineProperty(proto, 'at', {
+      value: () => 'attacker@example.com',
+    });
+    const inherited = ['alice@example.com'];
+    Object.setPrototypeOf(inherited, proto);
+    expect(canonicalPayloadJson(inherited)).toBe(expectedJson);
+    expect(canonicalPayloadSha256(inherited)).toBe(expectedDigest);
+
+    const own = ['alice@example.com'];
+    Object.defineProperty(own, 'at', {
+      value: () => 'attacker@example.com',
+    });
+    expect(canonicalPayloadJson(own)).toBe(expectedJson);
+    expect(canonicalPayloadSha256(own)).toBe(expectedDigest);
+
+    const assigned = ['alice@example.com'];
+    assigned.at = () => 'attacker@example.com';
+    expect(canonicalPayloadJson(assigned)).toBe(expectedJson);
+    expect(canonicalPayloadSha256(assigned)).toBe(expectedDigest);
+
+    const hidden = ['alice@example.com'];
+    Object.defineProperty(hidden, 'at', { value: 'attacker@example.com', enumerable: true });
+    expect(() => canonicalPayloadSha256(hidden)).toThrow(NonCanonicalPayload);
+  });
+
   it('rejects values JSON.stringify would coerce', () => {
     expect(() => canonicalPayloadSha256(Number.NaN)).toThrow(NonCanonicalPayload);
     expect(() => canonicalPayloadSha256(-0)).toThrow(NonCanonicalPayload);
