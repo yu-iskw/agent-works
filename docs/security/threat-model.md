@@ -1,6 +1,6 @@
 # Threat model
 
-This note records the trust boundaries and threats from RFC-001 sections 4.2 and 13, plus the section 16.3 scenarios the suite has to keep. `docs/security/controls.yaml` maps each section 13.2 threat, each section 16.3 scenario, and invariants S-01 to S-08 to a test id and a plan owner. Owners are plan ids such as F1-03. `scripts/check-pending.mjs` treats that plan's GitHub issue as merged when the issue is closed.
+This note records the trust boundaries and threats from RFC-001 sections 4.2 and 13, plus the section 16.3 scenarios the suite has to keep. `docs/security/controls.yaml` maps each section 13.2 threat, each section 16.3 scenario, and invariants S-01 to S-08 to a test id and a plan owner. Owners are plan ids such as F1-03. `scripts/check-pending.mjs` reads the plan id from the GitHub issue title and treats that plan as merged when the issue is closed.
 
 ## Trust boundaries
 

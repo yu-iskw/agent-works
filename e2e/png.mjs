@@ -17,6 +17,8 @@ const pending = Buffer.from(
 const tones = { passed: green, failed: red, pending };
 
 export function writePng(file, tone) {
+  const bytes = tones[tone];
+  if (!bytes) throw new Error(`unknown png tone ${tone}`);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, tones[tone] ?? red);
+  writeFileSync(file, bytes);
 }

@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: ['web/**/*.spec.ts', 'security/**/*.spec.ts'],
   outputDir: 'test-results',
-  reporter: [['line'], ['json', { outputFile: 'playwright-report.json' }]],
+  reporter: 'line',
   use: {
     baseURL: 'http://127.0.0.1:8085',
     screenshot: 'on',

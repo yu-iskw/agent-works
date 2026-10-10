@@ -1,9 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
-const green =
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAIAAAAphe5+AAAAN0lEQVR4nO3PUQkAAAjE0ItgJAMa2hB+DGGwAG+p6dcFFzhACxygBQ7QAgdogQO0wAFa4AAtOLYDFHAun/eMCwAAAABJRU5ErkJggg==';
-const red =
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAIAAAAphe5+AAAAN0lEQVR4nO3PQQkAAAzDwEqp//cETsQeYRCIgEumfV1wgQO0wAFa4AAtcIAWOEALHKAFDtCCYws1LtAu3NMgpwAAAABJRU5ErkJggg==';
+import { writePng } from '../png.mjs';
 
 const code = process.argv[2] ?? '';
 const output = readFileSync(process.argv[3] ?? '', 'utf8');
@@ -11,8 +8,14 @@ const reportedHealthy = output.split('\n').some((line) => line.trim() === '6/6 s
 const stackPassed = code === '0' && reportedHealthy && (await everyHealthz());
 const scriptPassed = await unknownScript();
 
-write('stack.all-healthy', 'stack-all-healthy.png', stackPassed);
-write('fakes.unknown-llm-script', 'fakes-unknown-llm-script.png', scriptPassed);
+writePng(
+  'e2e/artifacts/stack.all-healthy/stack-all-healthy.png',
+  stackPassed ? 'passed' : 'failed',
+);
+writePng(
+  'e2e/artifacts/fakes.unknown-llm-script/fakes-unknown-llm-script.png',
+  scriptPassed ? 'passed' : 'failed',
+);
 writeFileSync(
   'e2e/artifacts/results.json',
   `${JSON.stringify(
@@ -28,11 +31,6 @@ writeFileSync(
 );
 
 if (!stackPassed || !scriptPassed) process.exitCode = 1;
-
-function write(id, file, passed) {
-  mkdirSync(`e2e/artifacts/${id}`, { recursive: true });
-  writeFileSync(`e2e/artifacts/${id}/${file}`, Buffer.from(passed ? green : red, 'base64'));
-}
 
 async function everyHealthz() {
   try {
