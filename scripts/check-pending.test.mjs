@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from 'vitest';
 
-import { checkPending, parseControls, plansFromIssuePages, resolveRepository } from './check-pending.mjs';
+import {
+  checkPending,
+  parseControls,
+  plansFromIssuePages,
+  resolveRepository,
+} from './check-pending.mjs';
 
 const open = new Map([['F1-03', 'OPEN']]);
 

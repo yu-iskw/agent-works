@@ -51,30 +51,57 @@ export function checkPending({ pending, controls, plans }) {
   return failures;
 }
 
-function plansFromGitHub() {
-  const raw = execFileSync(
-    'gh',
-    [
-      'issue',
-      'list',
-      '--repo',
-      'yu-iskw/agent-works',
-      '--state',
-      'all',
-      '--limit',
-      '100',
-      '--json',
-      'title,state',
-    ],
-    { encoding: 'utf8' },
-  );
+const ISSUE_PAGE_SIZE = 100;
+
+export function resolveRepository(env, originUrl) {
+  const fromActions = env.GITHUB_REPOSITORY?.trim() ?? '';
+  const repo = fromActions || ownerRepoFromOrigin(originUrl);
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('repository must be owner/name');
+  return repo;
+}
+
+function ownerRepoFromOrigin(url) {
+  const trimmed = url.trim();
+  const ssh = /^git@github\.com:(.+)$/.exec(trimmed);
+  const https = /^https:\/\/(?:[^@/]+@)?github\.com\/(.+)$/.exec(trimmed);
+  const path = (ssh?.[1] ?? https?.[1] ?? '').replace(/\.git$/, '').replace(/\/$/, '');
+  const parts = path.split('/');
+  if (parts.length !== 2 || parts.some((part) => part.length === 0)) {
+    throw new Error('cannot read owner/repo from origin');
+  }
+  return `${parts[0]}/${parts[1]}`;
+}
+
+export function plansFromIssuePages(readPage) {
   const plans = new Map();
-  for (const issue of JSON.parse(raw)) {
-    const match = /^([A-Z0-9]+-\d+):/.exec(issue.title);
-    if (!match) continue;
-    plans.set(match[1], String(issue.state).toUpperCase());
+  let page = 1;
+  for (;;) {
+    const rows = readPage(page);
+    for (const issue of rows) {
+      if (issue.pull_request != null) continue;
+      const match = /^([A-Z0-9]+-\d+):/.exec(issue.title);
+      if (!match) continue;
+      plans.set(match[1], String(issue.state).toUpperCase());
+    }
+    if (rows.length < ISSUE_PAGE_SIZE) break;
+    page += 1;
   }
   return plans;
+}
+
+function fetchIssuePage(repo, page) {
+  const raw = execFileSync(
+    'gh',
+    ['api', `repos/${repo}/issues?state=all&per_page=${ISSUE_PAGE_SIZE}&page=${page}`],
+    { encoding: 'utf8' },
+  );
+  return JSON.parse(raw);
+}
+
+function plansFromGitHub() {
+  const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
+  const repo = resolveRepository(process.env, originUrl);
+  return plansFromIssuePages((page) => fetchIssuePage(repo, page));
 }
 
 function main() {
