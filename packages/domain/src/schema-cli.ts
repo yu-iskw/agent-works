@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-import { schemaReport } from './schema-contract.js';
+import { contractReport, schemaReport } from './schema-contract.js';
 
 function isDirectRun(): boolean {
   return import.meta.url === pathToFileURL(process.argv[1]).href;
@@ -8,10 +8,10 @@ function isDirectRun(): boolean {
 
 if (isDirectRun()) {
   const check = process.argv.includes('--check');
-  schemaReport(check)
-    .then((message) => {
+  Promise.all([schemaReport(check), contractReport(check)])
+    .then(([schemas, contracts]) => {
       if (check) {
-        process.stdout.write(`${message}\n`);
+        process.stdout.write(`${schemas}\n${contracts}\n`);
       }
     })
     .catch((error: unknown) => {
