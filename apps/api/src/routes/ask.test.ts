@@ -116,6 +116,23 @@ describe('POST /v1/ask', () => {
     expect(shared.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
+  it('does not rerun a request id that already has an audit row', async () => {
+    const requestId = randomUUID();
+    const legacy = row(requestId, triageDigest, 'answered');
+    const shared = createMemoryAuditLog([legacy]);
+    const calls = { drive: 0, runner: 0 };
+    const stack = await open(stacks, { audit: shared, ...countingPorts(calls) });
+    const response = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'conflict' });
+    expect(calls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([legacy]);
+    const again = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(again.status).toBe(409);
+    expect(calls).toEqual({ drive: 0, runner: 0 });
+    expect(shared.rows()).toEqual([legacy]);
+  });
+
   it('keeps a single row when the same request id and question are replayed', async () => {
     const stack = await open(stacks);
     const requestId = randomUUID();

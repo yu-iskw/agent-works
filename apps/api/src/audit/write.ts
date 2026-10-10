@@ -60,8 +60,8 @@ export const AUDIT_COLUMNS: readonly string[] = Object.keys(auditEventSchema.sha
   camelToSnake,
 );
 
-export function createMemoryAuditLog(): MemoryAuditLog {
-  const rows: AuditEvent[] = [];
+export function createMemoryAuditLog(legacy: readonly AuditEvent[] = []): MemoryAuditLog {
+  const rows = [...legacy];
   const saved = new Map<string, ReplayRecord>();
   const inflight = new Map<string, Promise<ReplayRecord | undefined>>();
   return {
