@@ -4,40 +4,16 @@ import { createDrive, createIapProxy, createLlm, fakeIap, listen } from '@agent-
 
 import { createScriptedRunner } from '../agent/scripted-runner.js';
 import { createApp } from '../app.js';
+import { createMemoryAuditLog } from '../audit/write.js';
 import { Unavailable, createIapVerifier } from '../auth/iap.js';
 import { createHttpDrive } from '../retrieval/http-drive.js';
 
-import type { AuditLog } from '../audit/write.js';
+import type { MemoryAuditLog } from '../audit/write.js';
 import type { VerifyAssertion } from '../auth/iap.js';
 import type { AskDeps } from '../routes/ask.js';
-import type { AuditEvent } from '@agent-works/domain';
 import type { Server } from 'node:http';
 
-type MemoryAuditLog = AuditLog & { rows(): readonly AuditEvent[] };
-
-export function createMemoryAuditLog(): MemoryAuditLog {
-  const rows: AuditEvent[] = [];
-  return {
-    append(event) {
-      const existing = rows.find((row) => row.eventId === event.eventId);
-      if (existing === undefined) {
-        rows.push(event);
-        return Promise.resolve({ kind: 'recorded' as const });
-      }
-      if (
-        existing.requestDigestSha256 === event.requestDigestSha256 &&
-        existing.initiatorSubject === event.initiatorSubject &&
-        existing.outcome === event.outcome
-      ) {
-        return Promise.resolve({ kind: 'replay' as const });
-      }
-      return Promise.resolve({ kind: 'conflict' as const });
-    },
-    rows() {
-      return rows;
-    },
-  };
-}
+export { createMemoryAuditLog };
 
 export type Stack = {
   readonly iapUrl: string;
