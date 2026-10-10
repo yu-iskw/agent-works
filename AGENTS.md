@@ -97,7 +97,7 @@ When you want durable fixes (not one-off chat advice):
 
 ## Architecture
 
-- **Packages:** [ADR 0002](docs/adr/0002-monorepo-layout.md) records the target layout as `apps/web`, `apps/api`, `packages/domain`, `packages/policy`, `packages/fakes`, `packages/cli`, `e2e/`, `infra/`, and `docs/`. Of that layout, only `docs/` exists today. `packages/common` stays until a later change replaces it. A package may keep its code in `src/`.
+- **Packages:** `packages/*` today. A package may keep its code in `src/`. `packages/common` stays until a later change replaces it. The target layout is [ADR 0002](docs/adr/0002-monorepo-layout.md).
 - **Root:** shared scripts and config
 - **CI:** `.github/workflows/` — `sbom.yml` runs `pnpm lint:security` then generates/scans an SPDX SBOM on PRs/main; `publish.yml` re-runs `pnpm lint:security` before npm publish
 - **Agent/tooling config:** `.cursor/` (Cursor rules), `.claude/` (Claude Code compatibility/hooks), `.codex/` (Codex), `.gemini/` (Gemini CLI). Copilot can also read `.github/copilot-instructions.md` alongside `AGENTS.md`.

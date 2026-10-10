@@ -54,19 +54,10 @@ pnpm format
 
 ## Project Structure
 
-[ADR 0002](docs/adr/0002-monorepo-layout.md) sets the target layout:
+- `packages/common/`: shared utilities and types. It stays until a later change replaces it.
+- `docs/`: ADRs and RFCs
 
-- `apps/web/`
-- `apps/api/`
-- `packages/domain/`
-- `packages/policy/`
-- `packages/fakes/`
-- `packages/cli/`
-- `e2e/`
-- `infra/`
-- `docs/`
-
-Of these, only `docs/` exists today. The tree still has one package, `packages/common/`. It stays until a later change replaces it.
+[ADR 0002](docs/adr/0002-monorepo-layout.md) records the target layout. Of those directories, only `docs/` exists today.
 
 ## Architecture decisions
 
