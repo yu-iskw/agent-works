@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { describe, expect, it } from 'vitest';
 
-import { AuditWriteError, createPostgresAuditLog } from './write.js';
+import { createPostgresAuditLog } from './write.js';
 
 import type { AuditLog } from './write.js';
 import type { AuditEvent } from '@agent-works/domain';
@@ -128,11 +128,11 @@ describe('postgres ask reservation', () => {
     expect(runs).toBe(1);
   });
 
-  it('stops waiting when a reservation has no live owner', async () => {
+  it('stops waiting when an open reservation is not finished', async () => {
     const db = fakeDatabase({
       openReplays: [{ requestId: eventId, initiatorSubject: 'alice' }],
     });
-    const log = createPostgresAuditLog(db.sql as unknown as postgres.Sql, 40);
+    const log = auditLog(db, 40);
     let runs = 0;
     const outcome = await Promise.race([
       log
@@ -147,9 +147,9 @@ describe('postgres ask reservation', () => {
       delay(500).then(() => ({ status: 'waiting' as const })),
     ]);
 
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       status: 'rejected',
-      error: expect.any(AuditWriteError),
+      error: { name: 'AuditWriteError', message: 'replay wait' },
     });
     expect(runs).toBe(0);
     expect(db.replay(eventId)).toEqual({
@@ -181,8 +181,10 @@ describe('postgres ask reservation', () => {
   });
 });
 
-function auditLog(db: FakeDatabase): AuditLog {
-  return createPostgresAuditLog(db.sql as unknown as postgres.Sql);
+function auditLog(db: FakeDatabase, replayWaitMs?: number): AuditLog {
+  const sql = db.sql as unknown as postgres.Sql;
+  if (replayWaitMs === undefined) return createPostgresAuditLog(sql);
+  return createPostgresAuditLog(sql, replayWaitMs);
 }
 
 function claim(initiatorSubject = 'alice') {

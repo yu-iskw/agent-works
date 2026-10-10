@@ -6,6 +6,7 @@ import type { AuditEvent } from '@agent-works/domain';
 import type postgres from 'postgres';
 
 const replayPollMs = 10;
+const defaultReplayWaitMs = 30_000;
 
 export class AuditWriteError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -78,10 +79,13 @@ export function createMemoryAuditLog(legacy: readonly AuditEvent[] = []): Memory
   };
 }
 
-export function createPostgresAuditLog(sql: postgres.Sql): AuditLog {
+export function createPostgresAuditLog(
+  sql: postgres.Sql,
+  replayWaitMs = defaultReplayWaitMs,
+): AuditLog {
   return {
     run(key, execute) {
-      return settle(() => reservePostgres(sql, key), execute);
+      return settle(() => reservePostgres(sql, key, replayWaitMs), execute);
     },
   };
 }
@@ -176,14 +180,18 @@ function sameCaller(record: ReplayRecord, key: ClaimKey): boolean {
 
 type ClaimResult = AskRunResult | { readonly kind: 'pending' } | { readonly kind: 'claimed' };
 
-async function reservePostgres(sql: postgres.Sql, key: ClaimKey): Promise<Reservation> {
+async function reservePostgres(
+  sql: postgres.Sql,
+  key: ClaimKey,
+  replayWaitMs: number,
+): Promise<Reservation> {
   const claimed = await withLocked(sql, key, (conn) => decideClaim(conn, key));
   switch (claimed.kind) {
     case 'done':
     case 'conflict':
       return claimed;
     case 'pending':
-      return waitForStored(sql, key);
+      return waitForStored(sql, key, replayWaitMs);
     case 'claimed':
       return ownedReservation(sql, key);
     default: {
@@ -226,7 +234,12 @@ async function decideClaim(conn: postgres.Sql, key: ClaimKey): Promise<ClaimResu
   return { kind: 'claimed' };
 }
 
-async function waitForStored(sql: postgres.Sql, key: ClaimKey): Promise<AskRunResult> {
+async function waitForStored(
+  sql: postgres.Sql,
+  key: ClaimKey,
+  replayWaitMs: number,
+): Promise<AskRunResult> {
+  const deadline = performance.now() + replayWaitMs;
   for (;;) {
     const decision = await withLocked(sql, key, async (conn) => {
       const row = await readReplay(conn, key.eventId);
@@ -234,7 +247,9 @@ async function waitForStored(sql: postgres.Sql, key: ClaimKey): Promise<AskRunRe
       return storedDecision(recordFrom(row), key);
     });
     if (decision !== undefined) return decision;
-    await delay(replayPollMs);
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) throw new AuditWriteError('replay wait');
+    await delay(Math.min(replayPollMs, remaining));
   }
 }
 
