@@ -1,3 +1,12 @@
+export {
+  ASK_ERROR_CODES,
+  IAP_ASSERTION_HEADER,
+  askErrorSchema,
+  askRequestSchema,
+  askResponseSchema,
+  citationSchema,
+} from './ask.js';
+export type { AskErrorCode, AskRequest, AskResponse, Citation } from './ask.js';
 export { approvalSchema } from './approval.js';
 export type { Approval } from './approval.js';
 export { auditEventSchema } from './audit-event.js';

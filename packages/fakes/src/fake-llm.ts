@@ -1,10 +1,16 @@
-import { canonicalPayloadSha256 } from '@agent-works/domain';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import hello from '../fixtures/llm/hello.json' with { type: 'json' };
+import { canonicalPayloadSha256 } from '@agent-works/domain';
 
 import type { Handler } from './http.js';
 
-const scripts = new Map<string, unknown>([[canonicalPayloadSha256(hello.request), hello.response]]);
+const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
+const helloFixturePath = resolve(fixtureDirectory, '../fixtures/llm/hello.json');
+const triageFixturePath = resolve(fixtureDirectory, '../fixtures/llm/triage.json');
+
+const scripts = loadScripts();
 
 export function createLlm(): Handler {
   return (request) => {
@@ -22,4 +28,21 @@ export function createLlm(): Handler {
       ? { status: 599, body: { error: 'unknown script', key } }
       : { status: 200, body: response };
   };
+}
+
+function loadScripts(): Map<string, unknown> {
+  const scripts = new Map<string, unknown>();
+  addFixture(scripts, readFileSync(helloFixturePath, 'utf8'));
+  addFixture(scripts, readFileSync(triageFixturePath, 'utf8'));
+  return scripts;
+}
+
+function addFixture(scripts: Map<string, unknown>, source: string): void {
+  const parsed: unknown = JSON.parse(source);
+  if (!isFixture(parsed)) return;
+  scripts.set(canonicalPayloadSha256(parsed.request), parsed.response);
+}
+
+function isFixture(value: unknown): value is { request: unknown; response: unknown } {
+  return typeof value === 'object' && value !== null && 'request' in value && 'response' in value;
 }

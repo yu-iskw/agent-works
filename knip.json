@@ -12,9 +12,13 @@
         "!node_modules/**"
       ]
     },
-    "apps/*": {
+    "apps/api": {
       "entry": ["src/server.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "apps/web": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"]
     },
     "packages/*": {
       "project": ["src/**/*.ts"]

@@ -6,6 +6,7 @@ import { format, resolveConfig } from 'prettier';
 import * as z from 'zod';
 
 import { approvalSchema } from './approval.js';
+import { askResponseSchema } from './ask.js';
 import { auditEventSchema } from './audit-event.js';
 import { authoritySchema } from './authority.js';
 import { principalSchema } from './principal.js';
@@ -22,6 +23,15 @@ const taskPath = resolve(schemaDirectory, 'task.json');
 const approvalPath = resolve(schemaDirectory, 'approval.json');
 const toolCallPath = resolve(schemaDirectory, 'tool-call.json');
 const auditEventPath = resolve(schemaDirectory, 'audit-event.json');
+const askResponsePath = resolve(schemaDirectory, 'ask-response.json');
+
+type SchemaFile = {
+  name: string;
+  schema: z.ZodType;
+  path: string;
+  read: () => string | undefined;
+  write: (next: string) => void;
+};
 
 async function renderSchema(schema: z.ZodType, path: string): Promise<string> {
   const config = await resolveConfig(path);
@@ -32,16 +42,7 @@ async function renderSchema(schema: z.ZodType, path: string): Promise<string> {
   });
 }
 
-async function driftedName(
-  check: boolean,
-  file: {
-    name: string;
-    schema: z.ZodType;
-    path: string;
-    read: () => string | undefined;
-    write: (next: string) => void;
-  },
-): Promise<string | undefined> {
+async function driftedName(check: boolean, file: SchemaFile): Promise<string | undefined> {
   const next = await renderSchema(file.schema, file.path);
   if (!check) {
     file.write(next);
@@ -50,13 +51,28 @@ async function driftedName(
   return file.read() === next ? undefined : file.name;
 }
 
-export async function schemaReport(check: boolean): Promise<string> {
+async function report(
+  check: boolean,
+  files: readonly SchemaFile[],
+  success: string,
+): Promise<string> {
   if (!check) {
     mkdirSync(schemaDirectory, { recursive: true });
   }
-  const drifted = (
-    await Promise.all([
-      driftedName(check, {
+  const drifted = (await Promise.all(files.map((file) => driftedName(check, file)))).filter(
+    (name) => name !== undefined,
+  );
+  if (drifted.length > 0) {
+    throw new Error(`schemas drifted: ${drifted.join(', ')}`);
+  }
+  return success;
+}
+
+export async function schemaReport(check: boolean): Promise<string> {
+  return report(
+    check,
+    [
+      {
         name: 'principal.json',
         schema: principalSchema,
         path: principalPath,
@@ -64,8 +80,8 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(principalPath, next);
         },
-      }),
-      driftedName(check, {
+      },
+      {
         name: 'authority.json',
         schema: authoritySchema,
         path: authorityPath,
@@ -73,8 +89,8 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(authorityPath, next);
         },
-      }),
-      driftedName(check, {
+      },
+      {
         name: 'task.json',
         schema: taskSchema,
         path: taskPath,
@@ -82,8 +98,8 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(taskPath, next);
         },
-      }),
-      driftedName(check, {
+      },
+      {
         name: 'approval.json',
         schema: approvalSchema,
         path: approvalPath,
@@ -91,8 +107,8 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(approvalPath, next);
         },
-      }),
-      driftedName(check, {
+      },
+      {
         name: 'tool-call.json',
         schema: toolCallSchema,
         path: toolCallPath,
@@ -100,8 +116,8 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(toolCallPath, next);
         },
-      }),
-      driftedName(check, {
+      },
+      {
         name: 'audit-event.json',
         schema: auditEventSchema,
         path: auditEventPath,
@@ -109,11 +125,27 @@ export async function schemaReport(check: boolean): Promise<string> {
         write: (next) => {
           writeFileSync(auditEventPath, next);
         },
-      }),
-    ])
-  ).filter((name) => name !== undefined);
-  if (drifted.length > 0) {
-    throw new Error(`schemas drifted: ${drifted.join(', ')}`);
-  }
-  return '6 schemas up to date';
+      },
+    ],
+    '6 schemas up to date',
+  );
+}
+
+export async function contractReport(check: boolean): Promise<string> {
+  return report(
+    check,
+    [
+      {
+        name: 'ask-response.json',
+        schema: askResponseSchema,
+        path: askResponsePath,
+        read: () =>
+          existsSync(askResponsePath) ? readFileSync(askResponsePath, 'utf8') : undefined,
+        write: (next) => {
+          writeFileSync(askResponsePath, next);
+        },
+      },
+    ],
+    '1 api contract up to date',
+  );
 }
