@@ -80,7 +80,7 @@ function canonicalContainer(value: object, depth: number): string {
 
 function canonicalArray(value: unknown[], depth: number): string {
   for (const key of Reflect.ownKeys(value)) {
-    if (key === 'length') {
+    if (key === 'length' || isAtFunction(value, key)) {
       continue;
     }
     if (typeof key !== 'string' || !isArrayIndex(key, value.length)) {
@@ -88,14 +88,23 @@ function canonicalArray(value: unknown[], depth: number): string {
     }
     assertEnumerableData(value, key);
   }
-  if (Object.keys(value).length !== value.length) {
+  if (Object.keys(value).filter((key) => !isAtFunction(value, key)).length !== value.length) {
     throw new NonCanonicalPayload('undefined');
   }
   const parts: string[] = [];
   for (let index = 0; index < value.length; index += 1) {
-    parts.push(canonicalJson(value.at(index), depth + 1));
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    parts.push(canonicalJson(descriptor?.value, depth + 1));
   }
   return `[${parts.join(',')}]`;
+}
+
+function isAtFunction(value: object, key: PropertyKey): boolean {
+  if (key !== 'at') {
+    return false;
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && typeof descriptor.value === 'function';
 }
 
 function canonicalObject(value: object, depth: number): string {
