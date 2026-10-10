@@ -10,7 +10,7 @@ test('pending test with no owner fails', () => {
   expect(
     checkPending({
       pending: [{ id: 'sec.cross-user-leak', owner: '' }],
-      controls: [{ id: 'cross-user-leakage', test: 'sec.cross-user-leak' }],
+      controls: [{ id: 'cross-user-leakage', test: 'sec.other', owner: 'F1-03' }],
       plans: open,
     }),
   ).toEqual(['sec.cross-user-leak has no owner']);
@@ -36,14 +36,24 @@ test('control with no test id fails', () => {
   ).toEqual(['cross-user-leakage has no test id']);
 });
 
-test('control test id missing from the pending catalog fails', () => {
+test('control with no owner fails', () => {
   expect(
     checkPending({
       pending: [{ id: 'sec.cross-user-leak', owner: 'F1-03' }],
-      controls: [{ id: 'cross-user-leakage', test: 'sec.missing', owner: 'F1-03' }],
+      controls: [{ id: 'cross-user-leakage', test: 'sec.cross-user-leak', owner: '' }],
       plans: open,
     }),
-  ).toEqual(['cross-user-leakage test sec.missing is not pending']);
+  ).toEqual(['cross-user-leakage has no owner']);
+});
+
+test('control whose test has left the pending catalog still passes', () => {
+  expect(
+    checkPending({
+      pending: [{ id: 'sec.other', owner: 'F1-03' }],
+      controls: [{ id: 'cross-user-leakage', test: 'sec.cross-user-leak', owner: 'F1-03' }],
+      plans: open,
+    }),
+  ).toEqual([]);
 });
 
 test('committed catalog passes while every owner issue is open', () => {

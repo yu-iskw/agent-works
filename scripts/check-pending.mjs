@@ -39,12 +39,12 @@ export function checkPending({ pending, controls, plans }) {
       failures.push(`${control.id} has no test id`);
       continue;
     }
-    const row = byId.get(control.test);
-    if (!row) {
-      failures.push(`${control.id} test ${control.test} is not pending`);
+    if (!control.owner) {
+      failures.push(`${control.id} has no owner`);
       continue;
     }
-    if (control.owner && control.owner !== row.owner) {
+    const row = byId.get(control.test);
+    if (row && control.owner !== row.owner) {
       failures.push(`${control.id} owner ${control.owner} does not match ${row.owner}`);
     }
   }
