@@ -18,7 +18,7 @@ import type {
 
 export { OAuthDenied };
 
-export interface AuthLedger {
+interface AuthLedger {
   read(subject: string, taskId: string): Promise<Task | undefined>;
   transition(input: {
     readonly subject: string;

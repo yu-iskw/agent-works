@@ -19,7 +19,6 @@ import { appendResult } from '../results.mjs';
 
 import type { DisposablePostgres } from '../../apps/api/src/ledger/disposable-postgres.js';
 import type { OAuthStart, OutboxEvent, TaskSubmit } from '@agent-works/domain';
-import type { Sql } from 'postgres';
 
 const verifier = 'verifier-value-which-is-long-enough';
 const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -35,7 +34,7 @@ const submit: TaskSubmit = {
 };
 
 let database: DisposablePostgres | undefined;
-let sql: Sql | undefined;
+let sql: ReturnType<typeof openSql> | undefined;
 let closeOAuth: (() => Promise<void>) | undefined;
 
 beforeAll(async () => {
