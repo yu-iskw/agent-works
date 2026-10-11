@@ -19,6 +19,7 @@ const securityRecommended = security.configs.recommended;
 
 /**
  * import-x recommended + typescript resolver (uses `projectService` from parser; eslint-import-resolver-typescript installed for resolution).
+ * No `node: true` resolver. `@google/genai` ships a `node/` folder, and import-x loads that folder as the resolver while it walks the package.
  * Prettier stays canonical via Trunk — no @stylistic rules here.
  */
 const importXPlugins = {
@@ -33,7 +34,6 @@ const importXSettings = {
       alwaysTryTypes: true,
       project: ['packages/*/tsconfig.json', 'apps/*/tsconfig.json'],
     },
-    node: true,
   },
 };
 

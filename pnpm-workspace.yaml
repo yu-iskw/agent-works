@@ -8,10 +8,15 @@ packages:
 minimumReleaseAge: 10080 # 7 days * 1440 min
 blockExoticSubdeps: true # explicit; matches v11 default
 
-# Build scripts: pnpm 11 requires explicit approval for dependencies that run install scripts.
-# Approved for Vite/Vitest toolchain (esbuild native binary, unrs-resolver postinstall).
+# Build scripts: pnpm 11 requires an explicit true or false for each install script.
+# esbuild and unrs-resolver are the Vite/Vitest toolchain. @google/genai and protobufjs
+# run for the ADK client. ssh2 and cpu-features stay unbuilt.
 allowBuilds:
+  '@google/genai': true
+  cpu-features: false
   esbuild: true
+  protobufjs: true
+  ssh2: false
   unrs-resolver: true
 
 # Migrated from package.json#pnpm (pnpm 11 no longer reads that field)
@@ -43,3 +48,5 @@ overrides:
   source-map-js: 1.2.2
   # GHSA-p498-v437-472g fixed in 0.16.8+
   '@humanfs/node': 0.16.8
+  # GHSA-w5hq-g745-h8pq fixed in 11.1.1. gaxios 6 pulls uuid 9.
+  uuid: 11.1.1
