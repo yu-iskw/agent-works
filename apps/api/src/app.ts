@@ -30,7 +30,8 @@ async function dispatch(
       return;
     }
     request.resume();
-    const reply = await selectRoute(slot, env)({
+    const route = selectRoute(slot, env);
+    const reply = await route({
       method: request.method ?? 'GET',
       path: url.pathname,
       headers: request.headers,
