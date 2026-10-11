@@ -96,7 +96,7 @@ function runCanary(): Promise<CanaryReport> {
             return Promise.resolve(grant);
           },
         },
-        provider: createHttpOAuthProvider(server.url),
+        provider: createHttpOAuthProvider(server.url, 'https://app.example/oauth/callback'),
         ledger: {
           read(subject, taskId) {
             if (task.id !== taskId || task.createdBySub !== subject) return Promise.resolve(undefined);

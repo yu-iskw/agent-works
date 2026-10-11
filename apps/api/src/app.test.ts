@@ -228,7 +228,7 @@ it('dispatches OAuth start, callback, replay rejection and disconnect', async ()
         return Promise.resolve(grant);
       },
     },
-    provider: createHttpOAuthProvider(providerServer.url),
+    provider: createHttpOAuthProvider(providerServer.url, 'https://app.example/oauth/callback'),
     ledger: { ...createMemoryLedgerPort(), transition: () => Promise.reject(new Error('unused')) },
     now: () => new Date(0),
   });
@@ -255,15 +255,15 @@ it('dispatches OAuth start, callback, replay rejection and disconnect', async ()
     expect(startedBody).toEqual({
       kind: 'started',
       ...start,
-      authorizationUrl: createHttpOAuthProvider(providerServer.url).authorizationUrl(start),
+      authorizationUrl: createHttpOAuthProvider(
+        providerServer.url,
+        'https://app.example/oauth/callback',
+      ).authorizationUrl('bob', start),
     });
-    const authorizationUrl = new URL(startedBody.authorizationUrl);
-    authorizationUrl.searchParams.set('redirect_uri', `${server.url}/oauth/callback`);
-    authorizationUrl.searchParams.set('subject', 'bob');
-    const authorized = await fetch(authorizationUrl, { redirect: 'manual' });
+    const authorized = await fetch(startedBody.authorizationUrl, { redirect: 'manual' });
     expect(authorized.status).toBe(302);
     const redirect = new URL(authorized.headers.get('location') ?? '');
-    expect(redirect.origin + redirect.pathname).toBe(`${server.url}/oauth/callback`);
+    expect(redirect.origin + redirect.pathname).toBe('https://app.example/oauth/callback');
     expect(redirect.searchParams.get('state')).toBe(start.state);
     const code = redirect.searchParams.get('code');
     expect(code).toBeTruthy();

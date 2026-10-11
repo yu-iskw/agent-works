@@ -28,6 +28,7 @@ vi.mock('./config.js', async (importOriginal) => ({
     driveUrl: 'https://drive.test',
     directoryUrl: 'https://directory.test',
     llmUrl: 'https://llm.test',
+    oauthRedirectUri: 'https://app.example/oauth/callback',
     iap: {},
   }),
 }));

@@ -30,7 +30,7 @@ const oauth =
     ? undefined
     : createOAuthFlow({
         ...createPostgresCredentialStore(sql),
-        provider: createHttpOAuthProvider(oauthUrl),
+        provider: createHttpOAuthProvider(oauthUrl, config.oauthRedirectUri),
         ledger,
         now,
       });

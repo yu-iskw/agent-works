@@ -61,7 +61,7 @@ it('oauth.blocked-auth', async () => {
   const flow = createOAuthFlow({
     credentials: store.credentials,
     grants: store.grants,
-    provider: createHttpOAuthProvider(server.url),
+    provider: createHttpOAuthProvider(server.url, 'https://app.example/oauth/callback'),
     ledger,
     now: () => instant,
   });
@@ -76,12 +76,12 @@ it('oauth.blocked-auth', async () => {
   expect(oauthApiSchema.parse({ kind: 'started', ...started })).toEqual({
     kind: 'started',
     ...start,
-    authorizationUrl: createHttpOAuthProvider(server.url).authorizationUrl(start),
+    authorizationUrl: createHttpOAuthProvider(
+      server.url,
+      'https://app.example/oauth/callback',
+    ).authorizationUrl('alice', start),
   });
-  const authorizationUrl = new URL(started.authorizationUrl);
-  authorizationUrl.searchParams.set('redirect_uri', 'https://app.example/oauth/callback');
-  authorizationUrl.searchParams.set('subject', 'alice');
-  const authorized = await fetch(authorizationUrl, { redirect: 'manual' });
+  const authorized = await fetch(started.authorizationUrl, { redirect: 'manual' });
   expect(authorized.status).toBe(302);
   const redirect = new URL(authorized.headers.get('location') ?? '');
   expect(redirect.origin + redirect.pathname).toBe('https://app.example/oauth/callback');

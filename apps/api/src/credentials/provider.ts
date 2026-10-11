@@ -5,7 +5,7 @@ import { OAuthDenied, oauthFailure } from './denied.js';
 import type { OAuthCallback, OAuthConnection, OAuthStart } from '@agent-works/domain';
 
 export interface OAuthProvider {
-  authorizationUrl(start: OAuthStart): string;
+  authorizationUrl(subject: string, start: OAuthStart): string;
   exchange(callback: OAuthCallback): Promise<OAuthConnection>;
   read(tokenRef: string): Promise<OAuthConnection>;
   revoke(tokenRef: string): Promise<OAuthConnection>;
@@ -13,12 +13,14 @@ export interface OAuthProvider {
 
 type Reply = { readonly status: number; readonly body: unknown };
 
-export function createHttpOAuthProvider(baseUrl: string): OAuthProvider {
+export function createHttpOAuthProvider(baseUrl: string, redirectUri: string): OAuthProvider {
   return {
-    authorizationUrl(start) {
+    authorizationUrl(subject, start) {
       const url = new URL('/oauth/authorize', baseUrl);
       url.search = new URLSearchParams({
         response_type: 'code',
+        subject,
+        redirect_uri: redirectUri,
         provider: start.provider,
         state: start.state,
         code_challenge: start.codeChallenge,

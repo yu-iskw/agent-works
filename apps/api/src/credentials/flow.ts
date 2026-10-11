@@ -58,7 +58,10 @@ export function createOAuthFlow(deps: OAuthFlowDeps): OAuthFlow {
           codeChallenge: start.codeChallenge,
           scope: start.scope,
         })
-        .then(() => ({ ...start, authorizationUrl: deps.provider.authorizationUrl(start) }));
+        .then(() => ({
+          ...start,
+          authorizationUrl: deps.provider.authorizationUrl(subject, start),
+        }));
     },
     complete(subject, callback) {
       return complete(deps, subject, callback);
