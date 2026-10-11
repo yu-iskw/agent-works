@@ -52,6 +52,9 @@ function observingLedger(): LedgerPort {
       recorded.push(event);
       return inner.append(event);
     },
+    readOutbox(eventId) {
+      return inner.readOutbox(eventId);
+    },
   };
 }
 
