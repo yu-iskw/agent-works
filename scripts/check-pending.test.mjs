@@ -131,6 +131,23 @@ test('P1 security specs run and leave the pending catalog', () => {
   expect(ids).not.toContain('sec.model-claims-approval');
 });
 
+test('retrieval security ids stay pending while the security job only lists specs', () => {
+  const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
+  const job = workflow.slice(
+    workflow.indexOf('  e2e-security:'),
+    workflow.indexOf('  pending-owners:'),
+  );
+  expect(job).toContain('security --list');
+  expect(job).not.toContain('playwright install');
+  const pending = readPendingCatalog('e2e/pending');
+  expect(pending).toEqual(
+    expect.arrayContaining([
+      { id: 'sec.cross-user-leak', owner: 'R1' },
+      { id: 'sec.revoked-group', owner: 'R1' },
+    ]),
+  );
+});
+
 test('plan ids without a hyphen are read from issue titles', () => {
   const plans = plansFromIssues([
     { title: 'A1: IAP assertion verification', state: 'open' },
