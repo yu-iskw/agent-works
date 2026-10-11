@@ -10,11 +10,10 @@ type Script = {
   readonly response: unknown;
 };
 
-export function createSkillLlm(): (request: {
-  method: string;
-  url: URL;
-  body: Buffer;
-}) => { status: number; body: unknown } {
+export function createSkillLlm(): (request: { method: string; url: URL; body: Buffer }) => {
+  status: number;
+  body: unknown;
+} {
   const script = loadScript(readFileSync(scriptPath, 'utf8'));
   return (request) => {
     if (request.method !== 'POST' || !request.url.pathname.endsWith(':generateContent')) {
