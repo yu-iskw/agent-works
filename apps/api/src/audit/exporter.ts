@@ -104,7 +104,7 @@ function secretPatterns(): readonly RegExp[] {
   return [
     /(?<![A-Za-z0-9])Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
     /(?<![A-Za-z0-9])ya29\.[A-Za-z0-9._-]+/g,
-    /(?<![A-Za-z0-9])oauth_token(?:"\s*:\s*"[^"]*"|\s*[:=]\s*\S+|\s*%3D\S+)/gi,
+    /(?<![A-Za-z0-9])(?:oauth_token|access_token)(?:"\s*:\s*"[^"]*"|\s*[:=]\s*\S+|\s*%3D\S+)/gi,
     /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}/g,
     /(?<![A-Za-z0-9])ghp_[A-Za-z0-9]{8,}/g,
   ];
