@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { expect, test } from 'vitest';
 
@@ -71,15 +74,47 @@ test('committed catalog passes while every owner issue is open', () => {
 
 test('repository comes from GITHUB_REPOSITORY and otherwise from the local origin', () => {
   expect(
-    resolveRepository(
-      { GITHUB_REPOSITORY: 'acme/widgets' },
-      'https://x-access-token:secret@github.com/yu-iskw/agent-works',
-    ),
+    resolveRepository({ GITHUB_REPOSITORY: 'acme/widgets' }, () => {
+      throw new Error('origin');
+    }),
   ).toBe('acme/widgets');
-  expect(resolveRepository({}, 'git@github.com:local/fork.git')).toBe('local/fork');
-  expect(resolveRepository({ GITHUB_REPOSITORY: '   ' }, 'https://github.com/local/fork')).toBe(
-    'local/fork',
-  );
+  expect(resolveRepository({}, () => 'git@github.com:local/fork.git')).toBe('local/fork');
+  expect(
+    resolveRepository({ GITHUB_REPOSITORY: '   ' }, () => 'https://github.com/local/fork'),
+  ).toBe('local/fork');
+});
+
+test('pending owner lookup uses GITHUB_REPOSITORY when the checkout has no origin', () => {
+  const root = mkdtempSync(join(tmpdir(), 'pending-repo-'));
+  try {
+    mkdirSync(join(root, 'e2e/pending'), { recursive: true });
+    mkdirSync(join(root, 'docs/security'), { recursive: true });
+    writeFileSync(join(root, 'docs/security/controls.yaml'), '');
+    const gitDir = join(root, 'git');
+    const ghLog = join(root, 'gh-args');
+    const gh = join(root, 'gh');
+    writeFileSync(
+      gh,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(ghLog)}\nprintf '%s' '[]'\n`,
+    );
+    chmodSync(gh, 0o755);
+    const init = spawnSync('git', ['init', '--bare', gitDir], { encoding: 'utf8' });
+    expect(init.status).toBe(0);
+    const result = spawnSync(process.execPath, [join(process.cwd(), 'scripts/check-pending.mjs')], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_REPOSITORY: 'acme/widgets',
+        GIT_DIR: gitDir,
+        PATH: `${root}:${process.env.PATH ?? ''}`,
+      },
+    });
+    expect(result.status).toBe(0);
+    expect(readFileSync(ghLog, 'utf8')).toContain('acme/widgets');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('plan ids without a hyphen are read from issue titles', () => {

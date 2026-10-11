@@ -54,9 +54,9 @@ export function checkPending({ pending, controls, plans }) {
 
 const ISSUE_LIST_LIMIT = 1000;
 
-export function resolveRepository(env, originUrl) {
+export function resolveRepository(env, readOrigin) {
   const fromActions = env.GITHUB_REPOSITORY?.trim() ?? '';
-  const repo = fromActions || ownerRepoFromOrigin(originUrl);
+  const repo = fromActions || ownerRepoFromOrigin(readOrigin());
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('repository must be owner/name');
   return repo;
 }
@@ -109,8 +109,9 @@ function issuesFromGitHub(repo) {
 }
 
 function plansFromGitHub() {
-  const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
-  const repo = resolveRepository(process.env, originUrl);
+  const repo = resolveRepository(process.env, () =>
+    execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  );
   return plansFromIssues(issuesFromGitHub(repo));
 }
 

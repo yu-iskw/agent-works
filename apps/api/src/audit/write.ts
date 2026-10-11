@@ -58,15 +58,16 @@ export function createMemoryAuditLog(legacy: readonly AuditEvent[] = []): Memory
 }
 
 export function createPostgresAuditLog(sql: postgres.Sql): AuditLog {
+  const abandoned = new Set<string>();
   return {
-    run(requestId, execute) {
-      return reserve(sql, requestId).then((owned) =>
-        settle(
-          owned,
-          execute,
-          (produced) => finish(sql, produced.event),
-          () => release(sql, requestId),
-        ),
+    async run(requestId, execute) {
+      await releaseAbandoned(sql, abandoned, requestId);
+      const owned = await reserve(sql, requestId);
+      return settle(
+        owned,
+        execute,
+        (produced) => finish(sql, produced.event),
+        () => release(sql, abandoned, requestId),
       );
     },
   };
@@ -83,7 +84,7 @@ async function settle<Reply>(
   try {
     produced = await execute();
   } catch (error) {
-    await releaseRun().catch(() => undefined);
+    await releaseRun();
     throw error;
   }
   await finishRun(produced);
@@ -115,8 +116,30 @@ async function finish(sql: postgres.Sql, event: AuditEvent): Promise<void> {
   }
 }
 
-async function release(sql: postgres.Sql, requestId: string): Promise<void> {
-  await sql`delete from ask_reservations where request_id = ${requestId}`;
+async function releaseAbandoned(
+  sql: postgres.Sql,
+  abandoned: Set<string>,
+  requestId: string,
+): Promise<void> {
+  if (!abandoned.delete(requestId)) return;
+  try {
+    await sql`delete from ask_reservations where request_id = ${requestId}`;
+  } catch {
+    abandoned.add(requestId);
+  }
+}
+
+async function release(
+  sql: postgres.Sql,
+  abandoned: Set<string>,
+  requestId: string,
+): Promise<void> {
+  try {
+    await sql`delete from ask_reservations where request_id = ${requestId}`;
+    abandoned.delete(requestId);
+  } catch {
+    abandoned.add(requestId);
+  }
 }
 
 function toRow(event: AuditEvent): Record<string, string | null> {

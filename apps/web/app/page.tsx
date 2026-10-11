@@ -24,7 +24,13 @@ export default function Page({ view }: { readonly view: PageView }): Html {
       <h1>Ask</h1>
       <form method="post" action="/">
         <label for="question">Question</label>
-        <input id="question" name="question" required maxlength={1000} />
+        <input
+          id="question"
+          name="question"
+          required
+          maxlength={1000}
+          value={view.kind === 'failed' ? view.question : undefined}
+        />
         <input type="hidden" name="requestId" value={view.requestId} />
         <button type="submit">Ask</button>
       </form>

@@ -2,6 +2,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { describe, expect, it } from 'vitest';
 
+import { startStack } from '../testing/stack.js';
+
 import { createPostgresAuditLog } from './write.js';
 
 import type { AuditLog } from './write.js';
@@ -111,6 +113,42 @@ describe('postgres ask reservation', () => {
     expect(db.reservations()).toEqual([eventId]);
   });
 
+  it('returns 503 when reserving the pooled connection fails', async () => {
+    const db = fakeDatabase();
+    db.failReserve = true;
+    const stack = await startStack({
+      now: () => new Date('2026-10-10T10:00:00.000Z'),
+      audit: auditLog(db),
+    });
+    try {
+      const response = await fetch(`${stack.iapUrl}/v1/ask`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-fake-user': 'alice' },
+        body: JSON.stringify({
+          requestId: eventId,
+          question: 'What are the triage runbook steps?',
+        }),
+      });
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'audit_failed' });
+    } finally {
+      await stack.close();
+    }
+  });
+
+  it('runs again after reservation cleanup fails', async () => {
+    const db = fakeDatabase();
+    db.failRelease = true;
+    const log = auditLog(db);
+    await expect(log.run(eventId, () => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+    expect(db.reservations()).toEqual([eventId]);
+    db.failRelease = false;
+    const reply = { status: 200, body: { answer: 'retried' } };
+    const result = await log.run(eventId, () => Promise.resolve(produced(reply)));
+    expect(result).toEqual({ kind: 'done', reply });
+    expect(db.reservations()).toEqual([eventId]);
+  });
+
   it('keeps the reservation when the audit insert throws', async () => {
     const db = fakeDatabase();
     db.failAuditInsert = true;
@@ -177,6 +215,8 @@ type FakeDatabase = {
   sql: FakeSql;
   reservations: () => readonly string[];
   failAuditInsert: boolean;
+  failReserve: boolean;
+  failRelease: boolean;
 };
 
 type FakeSql = {
@@ -187,7 +227,7 @@ type FakeSql = {
 function fakeDatabase(seed: Seed = {}): FakeDatabase {
   const reservations = new Set<string>(seed.reservations ?? []);
   const audits = new Set<string>(seed.audits ?? []);
-  const flags = { failAuditInsert: false };
+  const flags = { failAuditInsert: false, failReserve: false, failRelease: false };
   const sql = ((first: unknown, ...values: unknown[]) => {
     if (!isTemplate(first)) {
       if (flags.failAuditInsert) throw new Error('audit insert');
@@ -209,14 +249,28 @@ function fakeDatabase(seed: Seed = {}): FakeDatabase {
     set failAuditInsert(value: boolean) {
       flags.failAuditInsert = value;
     },
+    get failReserve() {
+      return flags.failReserve;
+    },
+    set failReserve(value: boolean) {
+      flags.failReserve = value;
+    },
+    get failRelease() {
+      return flags.failRelease;
+    },
+    set failRelease(value: boolean) {
+      flags.failRelease = value;
+    },
   };
 
   function apply(sqlText: string, values: readonly unknown[]): unknown[] {
     if (sqlText.includes('delete from ask_reservations')) {
+      if (flags.failRelease) throw new Error('pooled connection');
       reservations.delete(text(values[0]));
       return [];
     }
     if (sqlText.includes('insert into ask_reservations')) {
+      if (flags.failReserve) throw new Error('pooled connection');
       const requestId = text(values[0]);
       if (audits.has(requestId) || reservations.has(requestId)) return [];
       reservations.add(requestId);
