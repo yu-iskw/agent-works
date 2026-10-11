@@ -37,6 +37,14 @@ output "org_policies" {
   }
 }
 
+output "audit_log" {
+  description = "Service and log types on the planned project audit config."
+  value = {
+    service   = google_project_iam_audit_config.all_services.service
+    log_types = sort([for entry in google_project_iam_audit_config.all_services.audit_log_config : entry.log_type])
+  }
+}
+
 output "budget" {
   description = "Planned alert thresholds and the Pub/Sub topics wired to the budget."
   value = {

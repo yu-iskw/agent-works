@@ -128,6 +128,20 @@ run "root-only-calls-modules" {
   }
 }
 
+run "audit-log-covers-every-service" {
+  command = plan
+
+  assert {
+    condition     = module.dev.audit_log.service == "allServices"
+    error_message = "The project audit config does not cover every service."
+  }
+
+  assert {
+    condition     = toset(module.dev.audit_log.log_types) == toset(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
+    error_message = "The project audit config does not record admin reads, data reads, and data writes. Planned: ${join(",", module.dev.audit_log.log_types)}."
+  }
+}
+
 run "budget-alerts-only" {
   command = plan
 
