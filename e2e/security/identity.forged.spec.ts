@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('sec.forged-iap-header', async ({ page }) => {
-  const { startStack } = (await import('../../apps/api/dist/testing/stack.js')) as {
+  const { startStack } = (await import('../../apps/api/src/testing/stack.ts')) as {
     startStack: () => Promise<{ apiUrl: string; close: () => Promise<void> }>;
   };
   const stack = await startStack();
