@@ -46,6 +46,22 @@ export const searchFixture: readonly IndexedDocument[] = [
     region: 'us',
     text: 'triage restricted',
   },
+  {
+    citation: citation('eu-doc', 'EU doc'),
+    groups: ['eng'],
+    classification: 'INTERNAL',
+    source: 'drive',
+    region: 'eu',
+    text: 'triage eu',
+  },
+  {
+    citation: citation('mail-doc', 'Mail doc'),
+    groups: ['eng'],
+    classification: 'INTERNAL',
+    source: 'mail',
+    region: 'us',
+    text: 'triage mail',
+  },
 ];
 
 const context: SearchContext = {

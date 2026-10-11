@@ -34,35 +34,11 @@ export type PatternSlot = SlotBase & {
 
 export type RouteSlot = ExactSlot | PatternSlot;
 
-const real = 'real';
+const realValue = 'real';
 
 function isReal(env: RouteEnv, name: RouteEnvName): boolean {
-  switch (name) {
-    case 'AW_SEARCH':
-      return env.AW_SEARCH === real;
-    case 'AW_TASKS':
-      return env.AW_TASKS === real;
-    case 'AW_TASKS_READ':
-      return env.AW_TASKS_READ === real;
-    case 'AW_TASKS_EVENTS':
-      return env.AW_TASKS_EVENTS === real;
-    case 'AW_TASKS_CANCEL':
-      return env.AW_TASKS_CANCEL === real;
-    case 'AW_APPROVALS':
-      return env.AW_APPROVALS === real;
-    case 'AW_ARTIFACTS':
-      return env.AW_ARTIFACTS === real;
-    case 'AW_SKILLS':
-      return env.AW_SKILLS === real;
-    case 'AW_OAUTH_CONNECT':
-      return env.AW_OAUTH_CONNECT === real;
-    case 'AW_OAUTH_REVOKE':
-      return env.AW_OAUTH_REVOKE === real;
-    default: {
-      const exhaustive: never = name;
-      return exhaustive;
-    }
-  }
+  // eslint-disable-next-line security/detect-object-injection
+  return env[name] === realValue;
 }
 
 export function selectRoute(slot: RouteSlot, env: RouteEnv): Route {

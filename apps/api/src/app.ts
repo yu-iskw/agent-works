@@ -1,5 +1,6 @@
 import { createListener } from './http.js';
-import { createRouteTable, matchSlot, patternReply } from './routes/index.js';
+import { createRouteTable, matchSlot } from './routes/index.js';
+import { selectRoute } from './routes/slot.js';
 
 import type { AskDeps } from './routes/ask.js';
 import type { RouteEnv } from './routes/slot.js';
@@ -21,15 +22,15 @@ async function dispatch(
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
-  const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-  const slot = matchSlot(request.method ?? 'GET', url.pathname);
-  if (slot === undefined) {
-    listener(request, response);
-    return;
-  }
-  request.resume();
   try {
-    const reply = await patternReply(slot, env, {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    const slot = matchSlot(request.method ?? 'GET', url.pathname);
+    if (slot === undefined) {
+      listener(request, response);
+      return;
+    }
+    request.resume();
+    const reply = await selectRoute(slot, env)({
       method: request.method ?? 'GET',
       path: url.pathname,
       headers: request.headers,

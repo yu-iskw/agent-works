@@ -11,7 +11,7 @@ import { tasksEventsSlot } from './tasks-events.js';
 import { tasksReadSlot } from './tasks-read.js';
 import { tasksSubmitSlot } from './tasks-submit.js';
 
-import type { ApiReply, Route } from '../http.js';
+import type { Route } from '../http.js';
 import type { AskDeps } from './ask.js';
 import type { PatternSlot, RouteEnv } from './slot.js';
 
@@ -39,12 +39,4 @@ export function createRouteTable(deps: AskDeps, env: RouteEnv): Readonly<Record<
 
 export function matchSlot(method: string, pathname: string): PatternSlot | undefined {
   return patternSlots.find((slot) => slot.method === method && slot.match.test(pathname));
-}
-
-export async function patternReply(
-  slot: PatternSlot,
-  env: RouteEnv,
-  request: Parameters<Route>[0],
-): Promise<ApiReply> {
-  return selectRoute(slot, env)(request);
 }

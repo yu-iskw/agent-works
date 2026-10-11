@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { connect } from 'node:net';
 
 import { describe, expect, it } from 'vitest';
 
@@ -67,11 +68,29 @@ describe('route registry', () => {
         body: { error: 'not_implemented' },
       });
       expect(await status(port, '/missing')).toEqual({ status: 404, body: { error: 'not_found' } });
+      const crashed = await raw(
+        port,
+        'GET // HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n',
+      );
+      expect(crashed.startsWith('HTTP/1.1 500')).toBe(true);
+      expect(await status(port, '/healthz')).toEqual({ status: 200, body: 'ok' });
     } finally {
       await close(server);
     }
   });
 });
+
+function raw(port: number, payload: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(payload);
+    });
+    const chunks: Buffer[] = [];
+    socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+    socket.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    socket.on('error', reject);
+  });
+}
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {

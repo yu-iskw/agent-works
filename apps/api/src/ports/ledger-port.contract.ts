@@ -37,22 +37,31 @@ const event: OutboxEvent = {
 
 export function ledgerPortContract(create: () => LedgerPort): void {
   describe('LedgerPort', () => {
-    it('returns the same accepted task for the same idempotency key', async () => {
+    it('returns the same accepted task for the same caller and idempotency key', async () => {
       const port = create();
-      const first = await port.submit(request, 'key-1');
-      expect(await port.submit(request, 'key-1')).toEqual(first);
-      expect(await port.read(first.taskId)).toMatchObject({
+      const first = await port.submit('alice', request, 'key-1');
+      expect(await port.submit('alice', request, 'key-1')).toEqual(first);
+      expect(await port.read('alice', first.taskId)).toMatchObject({
         id: first.taskId,
         status: 'QUEUED',
         version: 1,
+        createdBySub: 'alice',
       });
     });
 
-    it('rejects a second body for the same idempotency key', async () => {
+    it('keeps a second caller on the same key from reading the first task', async () => {
       const port = create();
-      await port.submit(request, 'key-1');
+      const alice = await port.submit('alice', request, 'key-1');
+      const bob = await port.submit('bob', request, 'key-1');
+      expect(bob.taskId).not.toBe(alice.taskId);
+      expect(await port.read('bob', alice.taskId)).toBeUndefined();
+    });
+
+    it('rejects a second body for the same caller and idempotency key', async () => {
+      const port = create();
+      await port.submit('alice', request, 'key-1');
       await expect(
-        port.submit({ ...request, objective: 'A different objective' }, 'key-1'),
+        port.submit('alice', { ...request, objective: 'A different objective' }, 'key-1'),
       ).rejects.toBeInstanceOf(LedgerConflict);
     });
 

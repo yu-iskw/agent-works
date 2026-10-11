@@ -18,21 +18,24 @@ export function createMemoryLedgerPort(now: () => Date = () => new Date()): Ledg
   const byId = new Map<string, Task>();
   const events = new Map<string, string>();
   return {
-    submit(request, idempotencyKey) {
+    submit(subject, request, idempotencyKey) {
       const digest = canonicalPayloadSha256(request);
-      const existing = byKey.get(idempotencyKey);
+      const existing = byKey.get(claimKey(subject, idempotencyKey));
       if (existing !== undefined) {
-        if (existing.digest !== digest)
+        if (existing.digest !== digest) {
           return Promise.reject(new LedgerConflict('task body changed'));
+        }
         return Promise.resolve(existing.accepted);
       }
-      const stored = store(request, digest, now().toISOString());
-      byKey.set(idempotencyKey, stored);
+      const stored = store(subject, request, digest, now().toISOString());
+      byKey.set(claimKey(subject, idempotencyKey), stored);
       byId.set(stored.task.id, stored.task);
       return Promise.resolve(stored.accepted);
     },
-    read(taskId) {
-      return Promise.resolve(byId.get(taskId));
+    read(subject, taskId) {
+      const task = byId.get(taskId);
+      if (task === undefined || task.createdBySub !== subject) return Promise.resolve(undefined);
+      return Promise.resolve(task);
     },
     append(event) {
       const digest = canonicalPayloadSha256(event);
@@ -47,11 +50,15 @@ export function createMemoryLedgerPort(now: () => Date = () => new Date()): Ledg
   };
 }
 
-function store(request: TaskSubmit, digest: string, at: string): Stored {
+function claimKey(subject: string, idempotencyKey: string): string {
+  return `${subject}\0${idempotencyKey}`;
+}
+
+function store(subject: string, request: TaskSubmit, digest: string, at: string): Stored {
   const taskId = randomUUID();
   const task = taskSchema.parse({
     id: taskId,
-    createdBySub: 'memory',
+    createdBySub: subject,
     status: 'QUEUED',
     objectiveDigest: canonicalPayloadSha256(request.objective),
     skillVersion: request.skillId,
