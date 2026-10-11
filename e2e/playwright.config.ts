@@ -24,6 +24,7 @@ const projects = readdirSync(root, { withFileTypes: true })
   .map((entry) => ({
     name: entry.name,
     testMatch: `${entry.name}/**/*.spec.ts`,
+    ...(entry.name === 'security' ? { testIgnore: 'security/pending.spec.ts' } : {}),
   }));
 
 export default defineConfig({

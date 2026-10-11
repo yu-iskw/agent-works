@@ -201,12 +201,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Security specs
         run: |
-          set +e
-          pnpm exec playwright test --config e2e/playwright.config.ts security --list
-          code=$?
-          set -e
           node e2e/security/record-pending.mjs
-          exit "$code"
+          pnpm --filter "@agent-works/cli..." build
+          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright test --config e2e/playwright.config.ts security
       - name: Upload e2e artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
