@@ -117,21 +117,18 @@ test('pending owner lookup uses GITHUB_REPOSITORY when the checkout has no origi
   }
 });
 
-test('policy security ids stay pending while the security job only lists specs', () => {
+test('P1 security specs run and leave the pending catalog', () => {
   const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
   const job = workflow.slice(
     workflow.indexOf('  e2e-security:'),
     workflow.indexOf('  pending-owners:'),
   );
-  expect(job).toContain('security --list');
-  expect(job).not.toContain('playwright install');
-  const pending = readPendingCatalog('e2e/pending');
-  expect(pending).toEqual(
-    expect.arrayContaining([
-      { id: 'sec.policy-fail-closed', owner: 'P1' },
-      { id: 'sec.model-claims-approval', owner: 'P1' },
-    ]),
-  );
+  expect(job).toContain('pnpm exec playwright test --config e2e/playwright.config.ts security\n');
+  expect(job).toContain('playwright install --with-deps chromium');
+  expect(job).not.toContain('--list');
+  const ids = readPendingCatalog('e2e/pending').map((row) => row.id);
+  expect(ids).not.toContain('sec.policy-fail-closed');
+  expect(ids).not.toContain('sec.model-claims-approval');
 });
 
 test('plan ids without a hyphen are read from issue titles', () => {
