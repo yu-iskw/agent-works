@@ -145,6 +145,23 @@ test('retrieval security specs run and leave the pending catalog', () => {
   expect(ids).not.toContain('sec.revoked-group');
 });
 
+test('stale-groups runs in the security job and leaves the pending catalog', () => {
+  const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
+  const job = workflow.slice(
+    workflow.indexOf('  e2e-security:'),
+    workflow.indexOf('  pending-owners:'),
+  );
+  expect(job).toContain('pnpm exec playwright test --config e2e/playwright.config.ts security\n');
+  expect(job).not.toContain('--list');
+  const spec = readFileSync('e2e/security/identity.stale.spec.ts', 'utf8');
+  expect(spec).toContain("test('sec.stale-groups'");
+  const config = readFileSync('e2e/playwright.config.ts', 'utf8');
+  expect(config).toContain("testIgnore: 'security/pending.spec.ts'");
+  expect(config).not.toContain('identity.stale.spec.ts');
+  const ids = readPendingCatalog('e2e/pending').map((row) => row.id);
+  expect(ids).not.toContain('sec.stale-groups');
+});
+
 test('plan ids without a hyphen are read from issue titles', () => {
   const plans = plansFromIssues([
     { title: 'A1: IAP assertion verification', state: 'open' },
