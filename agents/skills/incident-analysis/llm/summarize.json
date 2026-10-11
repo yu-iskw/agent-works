@@ -1,0 +1,14 @@
+{
+  "cue": "incident-analysis@1.0.0",
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [{ "text": "Checkout latency after dep-9" }]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  }
+}

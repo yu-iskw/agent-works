@@ -8,6 +8,7 @@ export default defineConfig({
       'packages/*/vitest.config.ts',
       'apps/api/vitest.config.ts',
       'apps/web/vitest.config.ts',
+      'agents/skills/incident-analysis/vitest.config.ts',
       {
         test: {
           name: 'scripts',

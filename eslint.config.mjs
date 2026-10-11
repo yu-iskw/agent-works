@@ -32,7 +32,11 @@ const importXSettings = {
   'import-x/resolver': {
     typescript: {
       alwaysTryTypes: true,
-      project: ['packages/*/tsconfig.json', 'apps/*/tsconfig.json'],
+      project: [
+        'packages/*/tsconfig.json',
+        'apps/*/tsconfig.json',
+        'agents/skills/incident-analysis/tsconfig.json',
+      ],
     },
   },
 };
@@ -114,7 +118,12 @@ export default [
     ],
   },
   {
-    files: ['packages/**/*.config.ts', 'apps/**/*.config.ts', 'e2e/**/*.ts'],
+    files: [
+      'packages/**/*.config.ts',
+      'apps/**/*.config.ts',
+      'e2e/**/*.ts',
+      'agents/skills/**/*.config.ts',
+    ],
     ignores: ['**/dist/**'],
     languageOptions: {
       parser: tsparser,
@@ -141,7 +150,13 @@ export default [
     },
   },
   {
-    files: ['packages/**/*.ts', 'packages/**/*.tsx', 'apps/**/*.ts', 'apps/**/*.tsx'],
+    files: [
+      'packages/**/*.ts',
+      'packages/**/*.tsx',
+      'apps/**/*.ts',
+      'apps/**/*.tsx',
+      'agents/skills/**/*.ts',
+    ],
     ignores: ['**/dist/**', '**/*.config.ts', '**/*.test.ts', '**/*.test.tsx'],
     languageOptions: {
       parser: tsparser,
@@ -172,6 +187,7 @@ export default [
       'packages/**/*.test.tsx',
       'apps/**/*.test.ts',
       'apps/**/*.test.tsx',
+      'agents/skills/**/*.test.ts',
     ],
     ignores: ['**/dist/**'],
     languageOptions: {
