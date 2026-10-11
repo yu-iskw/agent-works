@@ -58,11 +58,15 @@ const askLimits = runnerLimitsSchema.parse({
   maxParallelToolCalls: 1,
 });
 
+type AnswerSource = SourceDocument & { readonly retrievedAt?: string };
+
+type AskExecutionDeps = AskDeps & { readonly agentPrincipal: string };
+
 type AskOutcome =
   | {
       readonly kind: 'answered';
       readonly answer: string;
-      readonly sources: readonly SourceDocument[];
+      readonly sources: readonly AnswerSource[];
     }
   | { readonly kind: 'no_sources' }
   | { readonly kind: 'retrieval_failed' }
@@ -86,11 +90,12 @@ export function createAskRoute(deps: AskDeps): Route {
 async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promise<ApiReply> {
   const requestDigestSha256 = canonicalPayloadSha256({ question: request.question });
   try {
-    const result = await deps.audit.run(request.requestId, () =>
-      deps.wire === undefined
-        ? recordUnwired(deps, caller, request, requestDigestSha256)
-        : runWired(deps, deps.wire, caller, request, requestDigestSha256),
-    );
+    const result = await deps.audit.run(request.requestId, () => {
+      const execution = { ...deps, ...resolveRunner(deps) };
+      return deps.wire === undefined
+        ? recordUnwired(execution, caller, request, requestDigestSha256)
+        : runWired(execution, deps.wire, caller, request, requestDigestSha256);
+    });
     switch (result.kind) {
       case 'done':
         return result.reply;
@@ -132,7 +137,7 @@ async function retrieveAndRun(
   caller: Caller,
   request: AskRequest,
 ): Promise<AskOutcome> {
-  let sources: readonly SourceDocument[];
+  let sources: readonly AnswerSource[];
   try {
     sources = await deps.drive.retrieve(caller, request.question);
   } catch (error) {
@@ -154,7 +159,7 @@ function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): 
             sourceObjectId: source.id,
             title: source.title,
             sourceUri: source.uri,
-            retrievedAt,
+            retrievedAt: source.retrievedAt ?? retrievedAt,
             excerpt: source.text,
           })),
         },
@@ -173,6 +178,7 @@ function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): 
 }
 
 function auditEvent(input: {
+  readonly agentPrincipal: string;
   readonly caller: Caller;
   readonly request: AskRequest;
   readonly outcome: string;
@@ -191,7 +197,7 @@ function auditEvent(input: {
     stepId: 'ask',
     traceId: input.request.requestId.replaceAll('-', ''),
     initiatorSubject: input.caller.sub,
-    agentPrincipal: agentName(),
+    agentPrincipal: input.agentPrincipal,
     tool: input.tool,
     policyDecisionId: input.policyDecisionId,
     approvalId: null,
@@ -203,7 +209,7 @@ function auditEvent(input: {
 }
 
 async function recordUnwired(
-  deps: AskDeps,
+  deps: AskExecutionDeps,
   caller: Caller,
   request: AskRequest,
   requestDigestSha256: string,
@@ -212,6 +218,7 @@ async function recordUnwired(
   const now = deps.now();
   return {
     event: auditEvent({
+      agentPrincipal: deps.agentPrincipal,
       caller,
       request,
       outcome: outcome.kind,
@@ -226,7 +233,7 @@ async function recordUnwired(
 }
 
 async function runWired(
-  deps: AskDeps,
+  deps: AskExecutionDeps,
   wire: AskWire,
   caller: Caller,
   request: AskRequest,
@@ -238,6 +245,7 @@ async function runWired(
     const now = deps.now();
     return {
       event: auditEvent({
+        agentPrincipal: deps.agentPrincipal,
         caller,
         request,
         outcome: 'denied',
@@ -258,6 +266,7 @@ async function runWired(
   );
   const now = deps.now();
   const event = auditEvent({
+    agentPrincipal: deps.agentPrincipal,
     caller,
     request,
     outcome: outcome.kind,
@@ -300,13 +309,14 @@ async function searchAndRun(
   request: AskRequest,
 ): Promise<AskOutcome> {
   if (context === undefined) return { kind: 'retrieval_failed' };
-  let sources: readonly SourceDocument[];
+  let sources: readonly AnswerSource[];
   try {
     sources = (await wire.search.search(context, request.question)).map((citation) => ({
       id: citation.sourceObjectId,
       title: citation.title,
       text: citation.excerpt,
       uri: citation.sourceUri,
+      retrievedAt: citation.retrievedAt,
     }));
   } catch (error) {
     if (error instanceof ContextMismatch || error instanceof RetrievalError) {
@@ -320,11 +330,11 @@ async function searchAndRun(
 async function citeAnswer(
   deps: AskDeps,
   request: AskRequest,
-  sources: readonly SourceDocument[],
+  sources: readonly AnswerSource[],
 ): Promise<AskOutcome> {
   if (sources.length === 0) return { kind: 'no_sources' };
   try {
-    const output = await resolveRunner(deps).run({ question: request.question, sources });
+    const output = await deps.runner.run({ question: request.question, sources });
     const cited = new Set(output.citedSourceIds);
     return {
       kind: 'answered',
@@ -347,15 +357,18 @@ function askTask(question: string): TaskSubmit {
   };
 }
 
-function resolveRunner(deps: AskDeps): AgentRunner {
-  if (readRunnerKind(process.env) !== 'adk') return deps.runner;
+function resolveRunner(deps: AskDeps): {
+  readonly runner: AgentRunner;
+  readonly agentPrincipal: string;
+} {
   const baseUrl = process.env.LLM_URL;
-  if (baseUrl === undefined || baseUrl.trim().length === 0) return deps.runner;
-  return createAdkRunner({ baseUrl, limits: askLimits });
-}
-
-function agentName(): string {
-  return readRunnerKind(process.env) === 'adk' ? 'agent:adk-runner' : 'agent:scripted-runner';
+  if (readRunnerKind(process.env) === 'adk' && baseUrl !== undefined && baseUrl.trim().length > 0) {
+    return {
+      runner: createAdkRunner({ baseUrl, limits: askLimits }),
+      agentPrincipal: 'agent:adk-runner',
+    };
+  }
+  return { runner: deps.runner, agentPrincipal: 'agent:scripted-runner' };
 }
 
 function parseJson(body: Buffer): unknown {

@@ -28,6 +28,7 @@ describe('wired ask authorization', () => {
   afterEach(async () => {
     for (const stack of stacks.splice(0)) await stack.close();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   async function open(patch: Partial<NonNullable<AskDeps['wire']>> = {}) {
@@ -122,6 +123,57 @@ describe('wired ask authorization', () => {
     expect(ports.stack.audit.rows()).toMatchObject([{ outcome: 'denied' }]);
     expect(ports.search).not.toHaveBeenCalled();
     expect(ports.submit).not.toHaveBeenCalled();
+  });
+
+  it('preserves each cited search timestamp after answer generation', async () => {
+    const citations = ['first', 'second', 'unused'].map((id, index) => ({
+      sourceObjectId: id,
+      title: id,
+      sourceUri: `https://drive.fake.test/d/${id}`,
+      excerpt: `${id} text`,
+      retrievedAt: `2026-10-10T09:0${index}:00.000Z`,
+      etag: id,
+      accessDecisionId: `access:${id}`,
+    }));
+    const ports = await open({ search: { search: () => Promise.resolve(citations) } });
+    ports.runner.run.mockResolvedValue({ answer: 'answer', citedSourceIds: ['first', 'second'] });
+    const response = await post(ports.stack);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      answer: 'answer',
+      citations: citations.slice(0, 2).map((citation) => ({
+        sourceObjectId: citation.sourceObjectId,
+        retrievedAt: citation.retrievedAt,
+      })),
+    });
+    expect(ports.stack.audit.rows()).toMatchObject([{ occurredAt: at }]);
+  });
+
+  it.each([undefined, '', '   '])('audits the fallback runner with LLM_URL=%j', async (url) => {
+    vi.stubEnv('AGENT_RUNNER', 'adk');
+    vi.stubEnv('LLM_URL', url);
+    const ports = await open({
+      search: {
+        search: () =>
+          Promise.resolve([
+            {
+              sourceObjectId: 'source',
+              title: 'source',
+              sourceUri: 'https://drive.fake.test/d/source',
+              excerpt: 'source text',
+              retrievedAt: at,
+              etag: 'source',
+              accessDecisionId: 'access',
+            },
+          ]),
+      },
+    });
+    ports.runner.run.mockResolvedValue({ answer: 'fallback answer', citedSourceIds: ['source'] });
+    const response = await post(ports.stack);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ answer: 'fallback answer' });
+    expect(ports.runner.run).toHaveBeenCalledTimes(1);
+    expect(ports.stack.audit.rows()).toMatchObject([{ agentPrincipal: 'agent:scripted-runner' }]);
   });
 
   it('binds policy and retrieval to the verified caller and the same snapshot', async () => {

@@ -4,6 +4,7 @@ export type Config = {
   readonly port: number;
   readonly databaseUrl: string;
   readonly driveUrl: string;
+  readonly directoryUrl: string;
   readonly llmUrl: string;
   readonly iap: {
     readonly jwksUrl: string;
@@ -20,6 +21,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
   const missing: string[] = [];
   const databaseUrl = read(env.DATABASE_URL, 'DATABASE_URL', missing);
   const driveUrl = read(env.DRIVE_URL, 'DRIVE_URL', missing);
+  const directoryUrl = read(env.DIRECTORY_URL, 'DIRECTORY_URL', missing);
   const llmUrl = read(env.LLM_URL, 'LLM_URL', missing);
   const jwksUrl = read(env.IAP_JWKS_URL, 'IAP_JWKS_URL', missing);
   const issuer = read(env.IAP_ISSUER, 'IAP_ISSUER', missing);
@@ -29,6 +31,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
     missing.length > 0 ||
     databaseUrl === undefined ||
     driveUrl === undefined ||
+    directoryUrl === undefined ||
     llmUrl === undefined ||
     jwksUrl === undefined ||
     issuer === undefined ||
@@ -41,6 +44,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
     port,
     databaseUrl,
     driveUrl,
+    directoryUrl,
     llmUrl,
     iap: { jwksUrl, issuer, audience },
   };

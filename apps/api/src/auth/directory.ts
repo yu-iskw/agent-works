@@ -35,6 +35,18 @@ export function createRoleResolver(options: {
   };
 }
 
+export function createGroupResolver(options: {
+  readonly baseUrl: string;
+  readonly timeoutMs?: number;
+}): (sub: string) => Promise<GroupSnapshot> {
+  const baseUrl = new URL(options.baseUrl);
+  return async (sub) => {
+    const snapshot = await fetchSnapshot(baseUrl, sub, options.timeoutMs ?? defaultTimeoutMs);
+    if (snapshot === undefined) throw new Error('directory unavailable');
+    return snapshot;
+  };
+}
+
 async function fetchSnapshot(
   baseUrl: URL,
   sub: string,
