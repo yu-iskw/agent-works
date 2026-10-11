@@ -56,9 +56,10 @@ async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promi
   try {
     const result = await deps.audit.run(request.requestId, async () => {
       const outcome = await decide(deps, caller, request);
+      const now = deps.now();
       return {
-        event: auditEventFor(caller, request, outcome, deps.now(), requestDigestSha256),
-        reply: replyFor(outcome, request.requestId),
+        event: auditEventFor(caller, request, outcome, now, requestDigestSha256),
+        reply: replyFor(outcome, request.requestId, now.toISOString()),
       };
     });
     switch (result.kind) {
@@ -120,7 +121,7 @@ async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promi
   }
 }
 
-function replyFor(outcome: AskOutcome, requestId: string): ApiReply {
+function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): ApiReply {
   switch (outcome.kind) {
     case 'answered':
       return {
@@ -132,6 +133,8 @@ function replyFor(outcome: AskOutcome, requestId: string): ApiReply {
             sourceObjectId: source.id,
             title: source.title,
             sourceUri: source.uri,
+            retrievedAt,
+            excerpt: source.text,
           })),
         },
       };
