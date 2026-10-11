@@ -14,3 +14,22 @@ resource "google_project_service" "control_plane" {
   service            = each.key
   disable_on_destroy = false
 }
+
+resource "google_project_iam_audit_config" "all_services" {
+  project = google_project.this.project_id
+  service = "allServices"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
+
+  depends_on = [google_project_service.control_plane]
+}

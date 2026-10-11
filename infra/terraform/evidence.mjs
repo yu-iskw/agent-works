@@ -6,7 +6,10 @@ import { writePng } from '../../e2e/png.mjs';
 import { appendResult } from '../../e2e/results.mjs';
 
 const devRoot = 'infra/terraform/environments/dev';
-const scratchFile = `${devRoot}/zz-scratch.tf`;
+const scratchTargets = [
+  { where: 'root', file: `${devRoot}/zz-scratch.tf` },
+  { where: 'module', file: 'infra/terraform/modules/environment/zz-scratch.tf' },
+];
 
 export const evidence = [
   {
@@ -60,17 +63,21 @@ export function judge({ baseline, controlled }) {
     if (baseline.runs.get(label) !== 'pass') {
       reasons.push(`committed tree: ${label} is ${baseline.runs.get(label) ?? 'missing'}`);
     }
-    const control = controlled.get(id);
-    if (control.code === 0) reasons.push('scratch did not fail terraform test');
-    if (control.runs.get(label) !== 'fail') {
-      reasons.push(`scratch: ${label} is ${control.runs.get(label) ?? 'missing'}, not fail`);
-    }
-    for (const other of evidence.filter((entry) => entry.id !== id)) {
-      const otherLabel = runLabel(other.id);
-      if (control.runs.get(otherLabel) !== 'pass') {
-        reasons.push(
-          `scratch: ${otherLabel} is ${control.runs.get(otherLabel) ?? 'missing'}, not pass`,
-        );
+    const controls = controlled.get(id) ?? [];
+    if (controls.length === 0) reasons.push('no scratch run');
+    for (const control of controls) {
+      const where = control.where;
+      if (control.code === 0) reasons.push(`${where}: scratch did not fail terraform test`);
+      if (control.runs.get(label) !== 'fail') {
+        reasons.push(`${where}: ${label} is ${control.runs.get(label) ?? 'missing'}, not fail`);
+      }
+      for (const other of evidence.filter((entry) => entry.id !== id)) {
+        const otherLabel = runLabel(other.id);
+        if (control.runs.get(otherLabel) !== 'pass') {
+          reasons.push(
+            `${where}: ${otherLabel} is ${control.runs.get(otherLabel) ?? 'missing'}, not pass`,
+          );
+        }
       }
     }
     return { id, status: reasons.length === 0 ? 'passed' : 'failed', reasons };
@@ -86,19 +93,24 @@ function terraformTest() {
   return { code: result.status ?? 1, runs: parseRuns(result.stdout) };
 }
 
-function testWithScratch(body) {
-  if (existsSync(scratchFile)) throw new Error(`${scratchFile} already exists`);
-  writeFileSync(scratchFile, body);
+function testWithScratch(file, body) {
+  if (existsSync(file)) throw new Error(`${file} already exists`);
+  writeFileSync(file, body);
   try {
     return terraformTest();
   } finally {
-    rmSync(scratchFile, { force: true });
+    rmSync(file, { force: true });
   }
 }
 
 function main() {
   const baseline = terraformTest();
-  const controlled = new Map(evidence.map(({ id, scratch }) => [id, testWithScratch(scratch)]));
+  const controlled = new Map(
+    evidence.map(({ id, scratch }) => [
+      id,
+      scratchTargets.map(({ where, file }) => ({ where, ...testWithScratch(file, scratch) })),
+    ]),
+  );
   const verdicts = judge({ baseline, controlled });
   for (const { id, status, reasons } of verdicts) {
     writePng(`e2e/artifacts/${id}/${runLabel(id)}.png`, status);

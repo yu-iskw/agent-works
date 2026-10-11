@@ -21,25 +21,6 @@ resource "google_org_policy_policy" "guard" {
   depends_on = [google_project_service.control_plane]
 }
 
-resource "google_project_iam_audit_config" "all_services" {
-  project = google_project.this.project_id
-  service = "allServices"
-
-  audit_log_config {
-    log_type = "ADMIN_READ"
-  }
-
-  audit_log_config {
-    log_type = "DATA_READ"
-  }
-
-  audit_log_config {
-    log_type = "DATA_WRITE"
-  }
-
-  depends_on = [google_project_service.control_plane]
-}
-
 # auto_create_network = false makes the provider enable Compute, which creates a default account that GCP grants a basic role. That grant has no resource in this tree.
 resource "google_project_default_service_accounts" "deprivilege" {
   project = google_project.this.project_id

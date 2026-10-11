@@ -18,8 +18,20 @@ const green = {
 
 const controlled = (owner, keys) =>
   new Map([
-    ['infra.no-owner-binding', owner],
-    ['infra.no-sa-keys', keys],
+    [
+      'infra.no-owner-binding',
+      [
+        { where: 'root', ...owner },
+        { where: 'module', ...owner },
+      ],
+    ],
+    [
+      'infra.no-sa-keys',
+      [
+        { where: 'root', ...keys },
+        { where: 'module', ...keys },
+      ],
+    ],
   ]);
 
 const ownerTripped = {
@@ -42,20 +54,20 @@ test('parseRuns keeps run statuses and skips progress lines and noise', () => {
     run('a', 'pass'),
     run('b', 'fail'),
   ].join('\n');
-  assert.deepEqual([...parseRuns(lines)], [
-    ['a', 'pass'],
-    ['b', 'fail'],
-  ]);
+  assert.deepEqual(
+    [...parseRuns(lines)],
+    [
+      ['a', 'pass'],
+      ['b', 'fail'],
+    ],
+  );
 });
 
 test('each scratch failing only its own run marks both evidence ids passed', () => {
-  assert.deepEqual(
-    judge({ baseline: green, controlled: controlled(ownerTripped, keysTripped) }),
-    [
-      { id: 'infra.no-owner-binding', status: 'passed', reasons: [] },
-      { id: 'infra.no-sa-keys', status: 'passed', reasons: [] },
-    ],
-  );
+  assert.deepEqual(judge({ baseline: green, controlled: controlled(ownerTripped, keysTripped) }), [
+    { id: 'infra.no-owner-binding', status: 'passed', reasons: [] },
+    { id: 'infra.no-sa-keys', status: 'passed', reasons: [] },
+  ]);
 });
 
 test('a scratch that the test does not catch marks that id failed', () => {
@@ -64,7 +76,12 @@ test('a scratch that the test does not catch marks that id failed', () => {
   assert.deepEqual(verdicts[1], {
     id: 'infra.no-sa-keys',
     status: 'failed',
-    reasons: ['scratch did not fail terraform test', 'scratch: infra-no-sa-keys is pass, not fail'],
+    reasons: [
+      'root: scratch did not fail terraform test',
+      'root: infra-no-sa-keys is pass, not fail',
+      'module: scratch did not fail terraform test',
+      'module: infra-no-sa-keys is pass, not fail',
+    ],
   });
 });
 

@@ -104,6 +104,11 @@ run "scan-is-complete" {
   }
 
   assert {
+    condition     = length(fileset("${path.root}/../../modules", "**/*.tf")) > 0
+    error_message = "The module scan matched no Terraform files."
+  }
+
+  assert {
     condition = alltrue([
       for m in regexall("(?m)^\\s*source\\s*=\\s*\"([^\"]+)\"", join("\n", concat(
         [for f in fileset(path.root, "*.tf") : file("${path.root}/${f}")],
