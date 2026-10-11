@@ -101,7 +101,7 @@ When you want durable fixes (not one-off chat advice):
 - **Root:** shared scripts and config
 - **CI:** `.github/workflows/` — `sbom.yml` runs `pnpm lint:security` then generates/scans an SPDX SBOM on PRs/main; `publish.yml` re-runs `pnpm lint:security` before npm publish
 - **Agent/tooling config:** `.cursor/` (Cursor rules), `.claude/` (Claude Code compatibility/hooks), `.codex/` (Codex), `.gemini/` (Gemini CLI). Copilot can also read `.github/copilot-instructions.md` alongside `AGENTS.md`.
-- pstack role models come from `.cursor/rules/pstack-models.mdc` and take precedence over pstack defaults. Sonnet 5.5 xhigh handles decisions and reviews, Grok 4.7 high handles building, and Grok 4.7 medium handles helpers. Launch subagents on those models explicitly. Do not use Opus, max effort, fast mode, or 1M context.
+- pstack role models come from `.cursor/rules/pstack-models.mdc` and take precedence over pstack defaults. Grok 4.7 high handles decisions, reviews and building, and Grok 4.7 medium handles helpers. Launch subagents on those models explicitly. Never use Sonnet, Opus, max effort, fast mode, or 1M context.
 - **ADRs:** significant decisions in `docs/adr`. The index is [docs/adr/README.md](docs/adr/README.md).
 
 ### ADR contract (steerable memory)
