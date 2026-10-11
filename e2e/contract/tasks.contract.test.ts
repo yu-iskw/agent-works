@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import * as z from 'zod';
 
+import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
+import { createSkillRegistry } from '../../apps/api/src/skills/registry.js';
 import { startStack } from '../../apps/api/src/testing/stack.js';
+import { taskAuthorization } from '../../apps/api/src/testing/task-authorization.js';
 import { appendResult } from '../results.mjs';
 
 import type { Stack } from '../../apps/api/src/testing/stack.js';
@@ -21,7 +24,7 @@ const published = z.fromJSONSchema(JSON.parse(readFileSync(taskApiPath, 'utf8'))
 const submit = {
   kind: 'submit',
   objective: 'Summarize the runbook',
-  skillId: 'ask',
+  skillId: 'contract-test',
   sourceAllowlist: ['drive'],
   requestedOutputs: ['answer'],
   executionPolicy: { mode: 'interactive', budgetUsd: 0.1, deadlineSeconds: 30 },
@@ -33,7 +36,25 @@ beforeAll(async () => {
   process.env.AW_TASKS = 'real';
   process.env.AW_TASKS_READ = 'real';
   process.env.AW_TASKS_EVENTS = 'real';
-  stack = await startStack();
+  stack = await startStack({
+    skills: createSkillRegistry([
+      {
+        manifest: {
+          id: 'contract-test',
+          version: '1',
+          state: 'PUBLISHED',
+          tools: ['drive.search'],
+        },
+        validate: () => true,
+        dispatch: () => Promise.resolve(),
+      },
+    ]),
+    wire: {
+      ...taskAuthorization.wire,
+      ledger: createMemoryLedgerPort(),
+      search: { search: () => Promise.resolve([]) },
+    },
+  });
   process.env.IAP_JWKS_URL = `${stack.iapUrl}/jwks`;
   process.env.IAP_ISSUER = 'https://fake-iap.local';
   process.env.IAP_AUDIENCE = 'agent-works-dev';

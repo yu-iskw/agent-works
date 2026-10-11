@@ -26,14 +26,24 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { SearchPort } from '../ports/search-port.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
 import type { GroupSnapshot } from '../retrieval/search.js';
-import type { AuditEvent, AskRequest, SearchContext, TaskSubmit } from '@agent-works/domain';
+import type {
+  AuditEvent,
+  AskRequest,
+  SearchContext,
+  SkillManifest,
+  TaskSubmit,
+} from '@agent-works/domain';
 import type { PolicyInput } from '@agent-works/policy';
 
 type AskWire = {
   readonly search: SearchPort;
   readonly ledger: LedgerPort;
   readonly groups: (caller: Caller) => Promise<GroupSnapshot>;
-  readonly policyInput?: (caller: Caller, context: SearchContext) => Promise<PolicyInput>;
+  readonly policyInput?: (
+    caller: Caller,
+    context: SearchContext,
+    resource?: { readonly request: TaskSubmit; readonly manifest: SkillManifest },
+  ) => Promise<PolicyInput>;
 };
 
 export type AskDeps = {

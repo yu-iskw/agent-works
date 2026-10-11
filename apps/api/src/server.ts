@@ -61,14 +61,21 @@ createServer(
     wire: {
       groups: (caller) => groups(caller.sub),
       ledger,
-      policyInput: (caller, context) => {
+      policyInput: (caller, context, resource) => {
+        const incident = resource?.manifest.id === 'incident-analysis';
         callers.set(context, caller);
         return Promise.resolve({
           facts: {
-            approved_agent_and_skill_version: true,
-            agent_has_tool_capability: true,
+            approved_agent_and_skill_version:
+              resource === undefined || (incident && resource.manifest.state === 'PUBLISHED'),
+            agent_has_tool_capability:
+              resource === undefined ||
+              (incident && resource.manifest.tools.every((tool) => tool === 'ticket.create')),
             user_or_service_has_resource_authority: context.userSubject === caller.sub,
-            source_system_allows_operation: context.allowedSources.includes('drive'),
+            source_system_allows_operation: incident
+              ? context.allowedSources.length > 0 &&
+                context.allowedSources.every((source) => source === 'incidents')
+              : context.allowedSources.includes('drive'),
             data_classification_policy_allows: context.classificationCeiling === 'INTERNAL',
             valid_approval_if_required: true,
             within_time_and_budget_bounds: true,

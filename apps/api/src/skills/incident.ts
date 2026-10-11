@@ -5,13 +5,30 @@ import { deliverIncident } from '@agent-works/incident-analysis';
 
 import { Unavailable } from '../auth/iap.js';
 
-import type { SkillManifest, TaskAccepted, TaskSubmit } from '@agent-works/domain';
+import type { Caller } from '../auth/iap.js';
+import type {
+  PolicyDecision,
+  SearchContext,
+  SkillManifest,
+  TaskAccepted,
+  TaskSubmit,
+} from '@agent-works/domain';
 import type { Delivery, DeliverInput, IncidentModel } from '@agent-works/incident-analysis';
+
+export type AuthorizedCaller = {
+  readonly caller: Caller;
+  readonly context: SearchContext;
+  readonly decision: Extract<PolicyDecision, { effect: 'allow' }>;
+};
 
 export type RegisteredSkill = {
   readonly manifest: SkillManifest;
   validate(request: TaskSubmit): boolean;
-  dispatch(request: TaskSubmit, accepted: TaskAccepted): Promise<void>;
+  dispatch(
+    request: TaskSubmit,
+    accepted: TaskAccepted,
+    authorized: AuthorizedCaller,
+  ): Promise<void>;
 };
 
 export type IncidentConfig = {
@@ -44,7 +61,7 @@ export function createIncidentSkill(
     manifest: skill.manifest,
     validate: (request) =>
       typeof request.input?.incidentId === 'string' && request.input.incidentId.length > 0,
-    async dispatch(request, accepted) {
+    async dispatch(request, accepted, authorized) {
       const configured = config();
       if (configured === undefined) throw new Unavailable('incident');
       const incidentId = request.input?.incidentId;
@@ -52,6 +69,7 @@ export function createIncidentSkill(
         throw new Error('incident input');
       const result = await deliver({
         ...configured,
+        callerContext: authorized.context,
         skill,
         deliveryId: accepted.taskId,
         incidentId,

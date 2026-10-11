@@ -29,7 +29,7 @@ export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestLi
   const skills = deps.skills ?? createSkillRegistry();
   const tasks =
     deps.tasks ??
-    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, skills);
+    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, skills, deps);
   const listener = createListener(createRouteTable({ ...deps, tasks, skills }, env));
   const approvals =
     deps.approvals === undefined

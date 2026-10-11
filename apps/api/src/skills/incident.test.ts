@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Unavailable } from '../auth/iap.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createTaskRoutes } from '../routes/tasks.js';
+import { authorizedCaller, taskAuthorization } from '../testing/task-authorization.js';
 
 import { createIncidentSkill } from './incident.js';
 import { createSkillRegistry } from './registry.js';
@@ -38,8 +39,8 @@ describe('incident adapter', () => {
         ticketsUrl: tickets.url,
         model: { answer },
       }));
-      await skill.dispatch(submission, accepted);
-      await skill.dispatch(submission, accepted);
+      await skill.dispatch(submission, accepted, authorizedCaller);
+      await skill.dispatch(submission, accepted, authorizedCaller);
       expect(answer).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('inc-1'));
       const response = await fetch(`${tickets.url}/tickets`);
       expect(await response.json()).toEqual({
@@ -60,7 +61,9 @@ describe('incident adapter', () => {
   it('reports missing configuration without delivering', async () => {
     const deliver = vi.fn();
     const skill = createIncidentSkill(() => undefined, deliver);
-    await expect(skill.dispatch(submission, accepted)).rejects.toBeInstanceOf(Unavailable);
+    await expect(skill.dispatch(submission, accepted, authorizedCaller)).rejects.toBeInstanceOf(
+      Unavailable,
+    );
     expect(deliver).not.toHaveBeenCalled();
   });
 
@@ -83,6 +86,7 @@ describe('incident adapter', () => {
       createMemoryLedgerPort(),
       () => Promise.resolve({ sub: 'alice' } as Caller),
       registry,
+      taskAuthorization,
     );
     const request = {
       method: 'POST',

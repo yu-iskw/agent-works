@@ -5,6 +5,7 @@ import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createIncidentSkill } from '../skills/incident.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { taskAuthorization } from '../testing/task-authorization.js';
 
 import { createSkillsListRoute } from './skills-list.js';
 import { createTaskRoutes } from './tasks.js';
@@ -14,9 +15,10 @@ import { createRouteTable } from './index.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { Route } from '../http.js';
 import type { AskDeps } from './ask.js';
+import type { TaskAuthorization } from './tasks.js';
 import type { DeliverInput, Delivery } from '@agent-works/incident-analysis';
 
-const caller = { sub: 'alice' } as Caller;
+const caller = { sub: 'alice', assertion: 'verified-assertion' } as Caller;
 const verify: VerifyAssertion = () => Promise.resolve(caller);
 const submit = {
   kind: 'submit',
@@ -37,7 +39,10 @@ function request(body: unknown = submit, assertion = 'valid') {
   };
 }
 
-function setup(auth: VerifyAssertion = verify) {
+function setup(
+  auth: VerifyAssertion = verify,
+  authorization: TaskAuthorization = taskAuthorization,
+) {
   const deliver = vi
     .fn<(input: DeliverInput) => Promise<Delivery>>()
     .mockResolvedValue({ kind: 'written', ticketId: 'ticket-1' });
@@ -52,15 +57,22 @@ function setup(auth: VerifyAssertion = verify) {
       deliver,
     ),
   ]);
+  const policyInput =
+    authorization.wire?.policyInput === undefined
+      ? undefined
+      : vi.fn(authorization.wire.policyInput);
+  const wire =
+    authorization.wire === undefined ? undefined : { ...authorization.wire, policyInput };
   const ledger = createMemoryLedgerPort();
   const save = vi.spyOn(ledger, 'submit');
   return {
     deliver,
+    policyInput,
     model,
     registry,
     ledger,
     save,
-    routes: createTaskRoutes(ledger, auth, registry),
+    routes: createTaskRoutes(ledger, auth, registry, { ...authorization, wire }),
   };
 }
 
@@ -101,9 +113,22 @@ describe('registered skills', () => {
   });
 
   it('dispatches the selected skill with server config and the accepted task id', async () => {
-    const { routes, deliver, model, save, ledger } = setup();
+    const { routes, deliver, model, save, ledger, policyInput } = setup();
     const reply = await routes.submit(request());
     expect(reply.status).toBe(200);
+    expect(policyInput).toHaveBeenCalledWith(
+      caller,
+      expect.objectContaining({
+        userSubject: 'alice',
+        taskPurpose: 'incident-analysis',
+        allowedSources: ['incidents'],
+      }),
+      expect.any(Object),
+    );
+    expect(policyInput?.mock.calls[0]?.[2]).toMatchObject({
+      request: { input: submit.input },
+      manifest: { id: 'incident-analysis', tools: ['ticket.create'] },
+    });
     expect(taskApiSchema.safeParse(reply.body).success).toBe(true);
     expect(save).toHaveBeenCalledWith(
       'alice',
@@ -117,6 +142,12 @@ describe('registered skills', () => {
       incidentsUrl: 'https://incidents.test',
       ticketsUrl: 'https://tickets.test',
       timeoutMs: 30_000,
+      callerContext: {
+        userSubject: 'alice',
+        authorizedGroups: ['agent-users@company.example'],
+        taskPurpose: 'incident-analysis',
+        allowedSources: ['incidents'],
+      },
     });
     expect(input.model).toBe(model);
     expect(input.ledger).toBeInstanceOf(Map);
@@ -132,6 +163,52 @@ describe('registered skills', () => {
     ).toBe(409);
     expect(deliver).toHaveBeenCalledTimes(2);
   });
+
+  it('denies a caller removed from the group before ledger writes or delivery', async () => {
+    let groups = ['agent-users@company.example'];
+    const { routes, save, ledger, deliver } = setup(verify, {
+      ...taskAuthorization,
+      wire: {
+        ...taskAuthorization.wire,
+        groups: () => Promise.resolve({ groups, observedAt: new Date().toISOString() }),
+      },
+    });
+    const append = vi.spyOn(ledger, 'append');
+    expect((await routes.submit(request())).status).toBe(200);
+    groups = [];
+    save.mockClear();
+    append.mockClear();
+    deliver.mockClear();
+    expect(await routes.submit(request())).toEqual({ status: 403, body: { error: 'denied' } });
+    expect(save).not.toHaveBeenCalled();
+    expect(append).not.toHaveBeenCalled();
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { wire: undefined },
+    {
+      wire: {
+        ...taskAuthorization.wire,
+        policyInput: async () => ({
+          facts: {
+            ...(await taskAuthorization.wire.policyInput()).facts,
+            user_or_service_has_resource_authority: false,
+          },
+        }),
+      },
+    },
+  ])(
+    'denies missing or denied policy authority before ledger writes or delivery',
+    async (patch) => {
+      const { routes, save, ledger, deliver } = setup(verify, { ...taskAuthorization, ...patch });
+      const append = vi.spyOn(ledger, 'append');
+      expect(await routes.submit(request())).toEqual({ status: 403, body: { error: 'denied' } });
+      expect(save).not.toHaveBeenCalled();
+      expect(append).not.toHaveBeenCalled();
+      expect(deliver).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects unknown skills before any ledger write or delivery', async () => {
     const { routes, deliver, save } = setup();
@@ -176,7 +253,7 @@ describe('registered skills', () => {
   it('hides tasks and events from another subject', async () => {
     const ledger = createMemoryLedgerPort();
     const { registry } = setup();
-    const alice = createTaskRoutes(ledger, verify, registry);
+    const alice = createTaskRoutes(ledger, verify, registry, taskAuthorization);
     const reply = await alice.submit(request());
     const accepted = taskApiSchema.parse(reply.body);
     if (!('taskId' in accepted)) throw new Error('accepted');

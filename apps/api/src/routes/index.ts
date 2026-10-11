@@ -42,7 +42,7 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
   };
   const tasks =
     deps.tasks ??
-    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, deps.skills);
+    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, deps.skills, deps);
   const routes = new Map<string, Route>([
     ['skills-list', createSkillsListRoute(deps.verify, deps.skills)],
     ['tasks-submit', tasks.submit],

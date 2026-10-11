@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createIapVerifier } from '../auth/iap.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { taskAuthorization } from '../testing/task-authorization.js';
 
 import { createTaskRoutes } from './tasks.js';
 
@@ -48,6 +49,7 @@ describe('tasks bench', () => {
           dispatch: () => Promise.resolve(),
         },
       ]),
+      taskAuthorization,
     );
   });
 
