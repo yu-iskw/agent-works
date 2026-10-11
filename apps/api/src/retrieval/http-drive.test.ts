@@ -132,8 +132,8 @@ describe('retrieve as the calling user', () => {
     const scope = await http.open(alice);
     expect(scope.context.userSubject).toBe('alice');
     expect(scope.context.authorizedGroups).toEqual([group]);
-    const hits = await scope.port.search(scope.context, 'triage');
-    expect(hits.map((hit) => hit.title)).toEqual(['Triage runbook']);
+    const hits = await scope.port.search(scope.context, 'What are the triage runbook steps?');
+    expect(hits).toMatchObject([{ title: 'Triage runbook', text: 'Alice triage steps.' }]);
     await expect(
       scope.port.search({ ...scope.context, userSubject: 'bob' }, 'Bob'),
     ).rejects.toThrow('belongs to another caller');

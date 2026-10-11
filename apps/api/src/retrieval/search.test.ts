@@ -100,12 +100,11 @@ describe('readable', () => {
 });
 
 describe('select', () => {
-  it('stops at the limit, keeps input order, and returns the stored citation object', () => {
+  it('stops at the limit, keeps input order, and returns the citation and full text', () => {
     const docs = [driveDoc('a', 'public'), driveDoc('b', 'public'), driveDoc('c', 'public')];
     const context = contextWith({ groups: [], observedAt }, { resultCountLimit: 2 });
     const hits = select(context, docs, 'text of');
-    expect(hits).toEqual([docs[0].citation, docs[1].citation]);
-    expect(hits[0]).toBe(docs[0].citation);
+    expect(hits).toEqual(docs.slice(0, 2).map((doc) => ({ ...doc.citation, text: doc.text })));
   });
 
   it('agrees with the memory SearchPort on every axis the memory port knows', async () => {

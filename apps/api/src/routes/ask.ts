@@ -58,7 +58,7 @@ const askLimits = runnerLimitsSchema.parse({
   maxParallelToolCalls: 1,
 });
 
-type AnswerSource = SourceDocument & { readonly retrievedAt?: string };
+type AnswerSource = SourceDocument & { readonly retrievedAt?: string; readonly excerpt?: string };
 
 type AskExecutionDeps = AskDeps & { readonly agentPrincipal: string };
 
@@ -160,7 +160,7 @@ function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): 
             title: source.title,
             sourceUri: source.uri,
             retrievedAt: source.retrievedAt ?? retrievedAt,
-            excerpt: source.text,
+            excerpt: source.excerpt ?? source.text,
           })),
         },
       };
@@ -314,7 +314,8 @@ async function searchAndRun(
     sources = (await wire.search.search(context, request.question)).map((citation) => ({
       id: citation.sourceObjectId,
       title: citation.title,
-      text: citation.excerpt,
+      text: citation.text,
+      excerpt: citation.excerpt,
       uri: citation.sourceUri,
       retrievedAt: citation.retrievedAt,
     }));

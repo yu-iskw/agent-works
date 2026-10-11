@@ -1,8 +1,8 @@
 import { CLASSIFICATIONS } from '@agent-works/domain';
 
 import type { Caller } from '../auth/iap.js';
-import type { IndexedDocument, SearchPort } from '../ports/search-port.js';
-import type { Classification, SearchContext, SourceCitation } from '@agent-works/domain';
+import type { IndexedDocument, SearchHit, SearchPort } from '../ports/search-port.js';
+import type { Classification, SearchContext } from '@agent-works/domain';
 
 export const DRIVE_SOURCE = 'drive';
 export const DRIVE_REGION = 'us';
@@ -79,11 +79,11 @@ export function select(
   context: SearchContext,
   documents: readonly IndexedDocument[],
   query: string,
-): readonly SourceCitation[] {
-  const hits: SourceCitation[] = [];
+): readonly SearchHit[] {
+  const hits: SearchHit[] = [];
   for (const document of readable(context, documents)) {
     if (!document.text.includes(query)) continue;
-    hits.push(document.citation);
+    hits.push({ ...document.citation, text: document.text });
     if (hits.length === context.resultCountLimit) break;
   }
   return hits;

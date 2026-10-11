@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
+import { createDrive, listen } from '@agent-works/fakes';
 import * as policy from '@agent-works/policy';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createHttpDrive } from '../retrieval/http-drive.js';
+import { ContextMismatch } from '../retrieval/search.js';
 import { startStack } from '../testing/stack.js';
 
 import type { AskDeps } from './ask.js';
+import type { Caller } from '../auth/iap.js';
 import type { Stack } from '../testing/stack.js';
-import type { PolicyDecision } from '@agent-works/domain';
+import type { PolicyDecision, SearchContext } from '@agent-works/domain';
 import type { PolicyFacts } from '@agent-works/policy';
 
 const at = '2026-10-10T10:00:00.000Z';
@@ -24,9 +28,11 @@ const allowedFacts: PolicyFacts = {
 
 describe('wired ask authorization', () => {
   const stacks: Stack[] = [];
+  const closers: (() => Promise<void>)[] = [];
 
   afterEach(async () => {
     for (const stack of stacks.splice(0)) await stack.close();
+    for (const close of closers.splice(0)) await close();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
@@ -51,6 +57,77 @@ describe('wired ask authorization', () => {
     stacks.push(stack);
     return { stack, search, runner, submit, decision, policyInput, groups };
   }
+
+  async function openDrive(handler: Parameters<typeof listen>[0]) {
+    const server = await listen(handler, 0);
+    closers.push(server.close);
+    const drive = createHttpDrive({ baseUrl: server.url, now: () => new Date(at) });
+    const callers = new WeakMap<SearchContext, Caller>();
+    return open({
+      policyInput: (caller, context) => {
+        callers.set(context, caller);
+        return Promise.resolve({ facts: allowedFacts });
+      },
+      search: {
+        async search(context, question) {
+          const caller = callers.get(context);
+          if (caller === undefined) throw new ContextMismatch();
+          const scope = await drive.open(caller);
+          return scope.port.search(context, question);
+        },
+      },
+    });
+  }
+
+  it('answers a natural language question from the seeded HttpDrive runbook', async () => {
+    const ports = await openDrive(createDrive());
+    ports.runner.run.mockResolvedValue({
+      answer: 'Alice triage steps.',
+      citedSourceIds: ['alice-runbook'],
+    });
+    const response = await post(ports.stack, 'What are the triage runbook steps?');
+    expect(response.status).toBe(200);
+    expect(ports.runner.run).toHaveBeenCalledWith({
+      question: 'What are the triage runbook steps?',
+      sources: [expect.objectContaining({ id: 'alice-runbook', text: 'Alice triage steps.' })],
+    });
+    expect(await response.json()).toMatchObject({
+      answer: 'Alice triage steps.',
+      citations: [{ sourceObjectId: 'alice-runbook', title: 'Triage runbook' }],
+    });
+  });
+
+  it('passes full authorized content to the runner while displaying the short excerpt', async () => {
+    const text = `${'Triage introduction. '.repeat(10)}Restart the service after checking the queue.`;
+    const document = {
+      id: 'runbook',
+      folder: 'alice',
+      title: 'Triage runbook',
+      text,
+      webViewLink: 'https://drive.fake.test/d/runbook',
+    };
+    const ports = await openDrive(() => ({
+      status: 200,
+      body: [
+        document,
+        { ...document, id: 'private', folder: 'bob', text: 'Private triage steps.' },
+      ],
+    }));
+    ports.runner.run.mockResolvedValue({
+      answer: 'Restart the service.',
+      citedSourceIds: ['runbook'],
+    });
+    const response = await post(ports.stack, 'What are the triage runbook steps?');
+    expect(response.status).toBe(200);
+    expect(ports.runner.run).toHaveBeenCalledWith({
+      question: 'What are the triage runbook steps?',
+      sources: [expect.objectContaining({ id: 'runbook', text })],
+    });
+    expect(await response.json()).toMatchObject({
+      answer: 'Restart the service.',
+      citations: [{ sourceObjectId: 'runbook', excerpt: text.slice(0, 160) }],
+    });
+  });
 
   it('denies a removed user on the next request and audits the real decision', async () => {
     let groups = ['agent-users@company.example'];
@@ -131,6 +208,7 @@ describe('wired ask authorization', () => {
       title: id,
       sourceUri: `https://drive.fake.test/d/${id}`,
       excerpt: `${id} text`,
+      text: `${id} full text`,
       retrievedAt: `2026-10-10T09:0${index}:00.000Z`,
       etag: id,
       accessDecisionId: `access:${id}`,
@@ -161,6 +239,7 @@ describe('wired ask authorization', () => {
               title: 'source',
               sourceUri: 'https://drive.fake.test/d/source',
               excerpt: 'source text',
+              text: 'source full text',
               retrievedAt: at,
               etag: 'source',
               accessDecisionId: 'access',
@@ -193,10 +272,10 @@ describe('wired ask authorization', () => {
   });
 });
 
-function post(stack: Stack) {
+function post(stack: Stack, question = 'question') {
   return fetch(`${stack.iapUrl}/v1/ask`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-fake-user': 'alice' },
-    body: JSON.stringify({ requestId: randomUUID(), question: 'question' }),
+    body: JSON.stringify({ requestId: randomUUID(), question }),
   });
 }
