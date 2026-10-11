@@ -58,6 +58,7 @@ function hasSecret(body: Record<string, unknown>): boolean {
 async function post(baseUrl: string, path: string, body: unknown): Promise<Reply> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   return readReply(response);

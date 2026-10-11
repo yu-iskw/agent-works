@@ -119,7 +119,7 @@ async function blockIfStale(
       : await deps.credentials.save(connectionOf({ ...stored, status }));
   const task = await deps.ledger.read(subject, taskId);
   if (task === undefined) throw new OAuthDenied(oauthFailure.missing);
-  if (current.status === 'active' || task.status === blocked) return task;
+  if (current.status === 'active' || task.status !== 'RUNNING') return task;
   return deps.ledger.transition({
     subject,
     taskId,
