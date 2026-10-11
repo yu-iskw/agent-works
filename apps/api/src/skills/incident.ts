@@ -37,6 +37,7 @@ export type IncidentConfig = {
   readonly model: IncidentModel;
 };
 
+/* eslint-disable security/detect-non-literal-fs-filename -- fixed paths to the bundled skill files */
 const skill = {
   manifest: skillManifestSchema.parse(
     JSON.parse(
@@ -51,6 +52,7 @@ const skill = {
     'utf8',
   ),
 };
+/* eslint-enable security/detect-non-literal-fs-filename */
 
 export function createIncidentSkill(
   config: () => IncidentConfig | undefined = () => undefined,
