@@ -52,6 +52,7 @@ vi.mock('./audit/write.js', async (importOriginal) => {
   const original = await importOriginal<typeof auditModule>();
   return { ...original, createPostgresAuditLog: vi.fn(() => original.createMemoryAuditLog()) };
 });
+vi.mock('./broker/approvals.js', () => ({ createPostgresApprovalStore: vi.fn(() => ({})) }));
 vi.mock('./ledger/postgres-ledger.js', async () => {
   const { createMemoryLedgerPort } = await import('./ports/memory/ledger-port.js');
   return { createPostgresLedgerPort: vi.fn(() => createMemoryLedgerPort()) };
