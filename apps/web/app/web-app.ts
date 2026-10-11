@@ -8,6 +8,8 @@ import {
   sourceCitationSchema,
 } from '@agent-works/domain';
 
+import { webTraceparent } from '../src/telemetry.js';
+
 import CitationList from './citations/citation-list.js';
 import { renderDocument } from './html.js';
 import Page from './page.js';
@@ -129,14 +131,16 @@ async function ask(
   assertion: string | undefined,
 ): Promise<PageView> {
   const requestId = newRequestId();
+  const traceparent = webTraceparent(body.requestId);
   let response: Response;
   try {
     response = await load(new URL('/v1/ask', apiUrl), {
       method: 'POST',
-      headers:
-        assertion === undefined
-          ? { 'content-type': 'application/json' }
-          : { 'content-type': 'application/json', [IAP_ASSERTION_HEADER]: assertion },
+      headers: {
+        'content-type': 'application/json',
+        ...(assertion === undefined ? {} : { [IAP_ASSERTION_HEADER]: assertion }),
+        ...(traceparent === undefined ? {} : { traceparent }),
+      },
       body: JSON.stringify(body),
     });
   } catch {
