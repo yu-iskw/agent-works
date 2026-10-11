@@ -70,7 +70,7 @@ export function createPostgresCredentialStore(sql: postgres.Sql): CredentialStor
     },
     grants: {
       save(grant) {
-        return ready.then(() => upsertGrant(sql, grant));
+        return ready.then(() => insertGrant(sql, grant));
       },
       read(state) {
         return ready.then(() => selectGrant(sql, state));
@@ -132,17 +132,12 @@ async function selectConnection(
   });
 }
 
-async function upsertGrant(sql: postgres.Sql, grant: OAuthGrant): Promise<void> {
+async function insertGrant(sql: postgres.Sql, grant: OAuthGrant): Promise<void> {
   await sql`
     insert into oauth_grants (state, provider, subject, code_challenge, scope)
     values (
       ${grant.state}, ${grant.provider}, ${grant.subject}, ${grant.codeChallenge}, ${grant.scope}
     )
-    on conflict (state) do update
-    set provider = excluded.provider,
-        subject = excluded.subject,
-        code_challenge = excluded.code_challenge,
-        scope = excluded.scope
   `;
 }
 

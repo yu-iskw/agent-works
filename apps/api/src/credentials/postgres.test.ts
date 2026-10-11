@@ -66,3 +66,35 @@ it('oauth_connections has no raw token column', async () => {
     'token_ref',
   ]);
 });
+
+it('rejects a reused state and preserves the first pending grant', async () => {
+  if (database === undefined || sql === undefined) throw new Error('postgres');
+  const grant = {
+    provider: 'fake',
+    subject: 'alice',
+    state: 'reused-state',
+    codeChallenge: 'first-challenge',
+    scope: 'ticket.create',
+  };
+  const writer = createPostgresCredentialStore(sql);
+  await writer.grants.save(grant);
+  const second = openSql(database.url);
+  try {
+    const other = createPostgresCredentialStore(second);
+    await expect(other.grants.save(grant)).rejects.toMatchObject({ code: '23505' });
+    await expect(
+      other.grants.save({
+        ...grant,
+        provider: 'other',
+        subject: 'bob',
+        codeChallenge: 'second-challenge',
+        scope: 'other.scope',
+      }),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect(await writer.grants.read(grant.state)).toEqual(grant);
+    expect(await other.grants.consume(grant.state)).toEqual(grant);
+    expect(await writer.grants.read(grant.state)).toBeUndefined();
+  } finally {
+    await second.end({ timeout: 1 });
+  }
+});

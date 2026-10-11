@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { oauthStartSchema, taskSchema, transition } from '@agent-works/domain';
+import { TASK_STATUSES, oauthStartSchema, taskSchema, transition } from '@agent-works/domain';
 import { createOAuth, listen } from '@agent-works/fakes';
 import { afterEach, expect, it } from 'vitest';
 
@@ -174,6 +174,19 @@ it('a different subject cannot spend the grant', async () => {
   ).toEqual(activeConnection());
 });
 
+it.each(TASK_STATUSES.filter((status) => status !== 'RUNNING'))(
+  'an expired connection leaves a %s task alone',
+  async (status) => {
+    const initial = { ...runningTask(), status };
+    const { flow, url, task, events, setNow } = await openFlow(initial);
+    await connect(flow, url, 'state-1');
+    setNow('2100-01-01T00:00:00.000Z');
+    expect(await flow.blockIfStale('alice', 'fake', 'task-1')).toEqual(initial);
+    expect(task()).toEqual(initial);
+    expect(events).toEqual([]);
+  },
+);
+
 it('rejects domain-wide delegation before a grant is stored', async () => {
   const { flow, credentials } = await openFlow();
   const route = createOAuthConnectRoute({ flow, subject: () => 'alice' });
@@ -252,11 +265,11 @@ type FlowHandle = {
   readonly setNow: (iso: string) => void;
 };
 
-async function openFlow(): Promise<FlowHandle> {
+async function openFlow(initialTask: Task = runningTask()): Promise<FlowHandle> {
   const credentials = createMemoryCredentialsPort();
   const grants = memoryGrants();
   const events: OutboxEvent[] = [];
-  let task: Task | undefined = runningTask();
+  let task: Task | undefined = initialTask;
   let instant = new Date('2026-10-10T00:00:00.000Z');
   const server = await listen(createOAuth(), 0);
   closers.push(server);
