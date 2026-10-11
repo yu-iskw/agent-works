@@ -131,6 +131,18 @@ test('P1 security specs run and leave the pending catalog', () => {
   expect(ids).not.toContain('sec.model-claims-approval');
 });
 
+test('forged IAP header stays pending while the security job only lists specs', () => {
+  const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
+  const job = workflow.slice(
+    workflow.indexOf('  e2e-security:'),
+    workflow.indexOf('  pending-owners:'),
+  );
+  expect(job).toContain('security --list');
+  expect(job).not.toContain('playwright install');
+  const pending = readPendingCatalog('e2e/pending');
+  expect(pending).toEqual(expect.arrayContaining([{ id: 'sec.forged-iap-header', owner: 'A1' }]));
+});
+
 test('retrieval security specs run and leave the pending catalog', () => {
   const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
   const job = workflow.slice(
