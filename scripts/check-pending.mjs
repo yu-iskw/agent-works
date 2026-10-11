@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+import { readPendingCatalog } from '../e2e/pending/read-catalog.mjs';
 import { writePng } from '../e2e/png.mjs';
 
 export function parseControls(text) {
@@ -114,7 +115,7 @@ function plansFromGitHub() {
 }
 
 function main() {
-  const pending = JSON.parse(readFileSync('e2e/security/pending-tests.json', 'utf8'));
+  const pending = readPendingCatalog('e2e/pending');
   const controls = parseControls(readFileSync('docs/security/controls.yaml', 'utf8'));
   const failures = checkPending({ pending, controls, plans: plansFromGitHub() });
   const passed = failures.length === 0;

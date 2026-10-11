@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from 'vitest';
 
+import { readPendingCatalog } from '../e2e/pending/read-catalog.mjs';
 import {
   checkPending,
   parseControls,
@@ -62,7 +63,7 @@ test('control whose test has left the pending catalog still passes', () => {
 });
 
 test('committed catalog passes while every owner issue is open', () => {
-  const pending = JSON.parse(readFileSync('e2e/security/pending-tests.json', 'utf8'));
+  const pending = readPendingCatalog('e2e/pending');
   const controls = parseControls(readFileSync('docs/security/controls.yaml', 'utf8'));
   const plans = new Map(pending.map((row) => [row.owner, 'OPEN']));
   expect(checkPending({ pending, controls, plans })).toEqual([]);

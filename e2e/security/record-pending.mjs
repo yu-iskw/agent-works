@@ -1,8 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
+import { readPendingCatalog } from '../pending/read-catalog.mjs';
 import { writePng } from '../png.mjs';
 
-const pending = JSON.parse(readFileSync(new URL('./pending-tests.json', import.meta.url), 'utf8'));
+const pending = readPendingCatalog('e2e/pending');
 
 for (const row of pending) {
   writePng(`e2e/artifacts/${row.id}/${row.id.replaceAll('.', '-')}.png`, 'pending');
