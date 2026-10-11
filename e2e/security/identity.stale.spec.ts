@@ -1,17 +1,31 @@
 import { expect, test } from '@playwright/test';
 
-import { createRoleResolver } from '../../apps/api/src/auth/directory.js';
+import { createRoleResolver } from '../../apps/api/src/auth/directory.ts';
+import { createDirectory } from '../../packages/fakes/src/fake-directory.ts';
+import { listen } from '../../packages/fakes/src/http.ts';
 
-const directoryUrl = process.env.DIRECTORY_URL ?? 'http://127.0.0.1:8086';
 const seededObservedAt = '2026-01-01T00:00:00.000Z';
 const seededObservedMs = Date.parse(seededObservedAt);
 const oneDayMs = 86_400_000;
+
+let directoryUrl = '';
+let closeDirectory: (() => Promise<void>) | undefined;
+
+test.beforeAll(async () => {
+  const directory = await listen(createDirectory(), 0);
+  directoryUrl = directory.url;
+  closeDirectory = directory.close;
+});
+
+test.afterAll(async () => {
+  await closeDirectory?.();
+});
 
 test('sec.stale-groups', async ({ page }) => {
   await page.goto(`${directoryUrl}/snapshots/bob`);
   await expect(page.locator('body')).toContainText('agent-users@company.example');
   const snapshot: unknown = await (await page.request.get(`${directoryUrl}/snapshots/bob`)).json();
-  expect(snapshot, 'directory is not fresh, run pnpm dev:reset').toEqual({
+  expect(snapshot).toEqual({
     sub: 'bob',
     groups: ['agent-users@company.example'],
     observedAt: seededObservedAt,
