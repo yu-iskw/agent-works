@@ -79,7 +79,7 @@ services:
   otel-collector:
     profiles: [otel]
     image: otel/opentelemetry-collector-contrib:0.128.0
-    user: 0
+    user: '0'
     volumes:
       - ./apps/api/src/telemetry/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
       - otel-traces:/var/log/otel
