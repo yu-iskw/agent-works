@@ -1,0 +1,30 @@
+apiVersion: internal.agents/v1
+kind: ToolDefinition
+metadata:
+  name: ticket.create
+  version: 1.0.0
+  owner: platform-integrations
+spec:
+  description: Create one ticket in the fake tracker
+  executor: fake://ticket/create
+  inputSchemaRef: schemas/ticket-create.json
+  sideEffect: WRITE_LOW
+  dataClassificationMax: INTERNAL
+  lifecycle: PUBLISHED
+  permissions:
+    workloadCapability: ticket.create
+    userAuthority: delegated
+    resourceConstraint: project in approved_projects
+  approval:
+    required: true
+    policy: ticket-write-v1
+  execution:
+    timeoutSeconds: 30
+    retries: 0
+    idempotency: required
+  evidence:
+    logRequestDigest: true
+    logExternalObjectId: true
+    redactFields:
+      - summary
+      - description

@@ -10,6 +10,8 @@ const f1SchemaNames = [
   'outbox-event.json',
 ] as const;
 
+const f2SchemaNames = ['approval-api.json', 'tool-manifest.json', 'oauth.json'] as const;
+
 describe('schema contract', () => {
   it('schemas.up-to-date', async () => {
     expect(domainSchemaNames).toEqual([
@@ -20,8 +22,9 @@ describe('schema contract', () => {
       'tool-call.json',
       'audit-event.json',
       ...f1SchemaNames,
+      ...f2SchemaNames,
     ]);
-    await expect(schemaReport(true)).resolves.toBe('11 schemas up to date');
+    await expect(schemaReport(true)).resolves.toBe('14 schemas up to date');
   });
 
   it('contract.ask-response.up-to-date', async () => {
