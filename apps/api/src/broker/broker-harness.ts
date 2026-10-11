@@ -55,6 +55,7 @@ export type ApprovalHarness = {
   tickets(): Promise<number>;
   intentBeforePost(): boolean;
   failNextPost(): void;
+  pauseNextPost(): { started: Promise<void>; resume(): void };
   stop(): Promise<void>;
 };
 
@@ -68,6 +69,7 @@ export async function createApprovalHarness(
   let failedPosts = 0;
   let intended = false;
   let postedEarly = false;
+  let postGate: { resumed: Promise<void>; started(): void } | undefined;
   const inner = createMemoryLedgerPort(() => now);
   const ledger = {
     submit: inner.submit.bind(inner),
@@ -90,6 +92,12 @@ export async function createApprovalHarness(
         throw new Error('ticket transport');
       }
       posts += 1;
+      const gate = postGate;
+      postGate = undefined;
+      if (gate !== undefined) {
+        gate.started();
+        await gate.resumed;
+      }
       const response = await fetch(`${server.url}/tickets`, {
         method: 'POST',
         headers: {
@@ -151,6 +159,18 @@ export async function createApprovalHarness(
     intentBeforePost: () => intended && !postedEarly,
     failNextPost() {
       failedPosts += 1;
+    },
+    pauseNextPost() {
+      let started!: () => void;
+      let resume!: () => void;
+      const startedPromise = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const resumed = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      postGate = { started, resumed };
+      return { started: startedPromise, resume };
     },
     stop: () => server.close(),
   };
