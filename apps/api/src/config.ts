@@ -6,6 +6,11 @@ export type Config = {
   readonly driveUrl: string;
   readonly directoryUrl: string;
   readonly llmUrl: string;
+  readonly incident?: {
+    readonly incidentsUrl: string;
+    readonly ticketsUrl: string;
+    readonly model: string;
+  };
   readonly oauthRedirectUri: string;
   readonly iap: {
     readonly jwksUrl: string;
@@ -47,6 +52,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
     driveUrl,
     directoryUrl,
     llmUrl,
+    ...incidentConfig(env),
     oauthRedirectUri: env.OAUTH_REDIRECT_URI ?? 'http://localhost:8081/oauth/callback',
     iap: { jwksUrl, issuer, audience },
   };
@@ -72,4 +78,17 @@ function readPort(value: string | undefined, missing: string[]): number | undefi
     return undefined;
   }
   return port;
+}
+
+function incidentConfig(
+  env: Readonly<Record<string, string | undefined>>,
+): Pick<Config, 'incident'> {
+  if (!env.INCIDENTS_URL || !env.TICKETS_URL) return {};
+  return {
+    incident: {
+      incidentsUrl: env.INCIDENTS_URL,
+      ticketsUrl: env.TICKETS_URL,
+      model: env.INCIDENT_MODEL ?? 'gemini',
+    },
+  };
 }

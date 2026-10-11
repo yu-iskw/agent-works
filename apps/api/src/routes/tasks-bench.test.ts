@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIapVerifier } from '../auth/iap.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createSkillRegistry } from '../skills/registry.js';
 
 import { createTaskRoutes } from './tasks.js';
 
@@ -40,6 +41,13 @@ describe('tasks bench', () => {
     routes = createTaskRoutes(
       createMemoryLedgerPort(),
       createIapVerifier({ jwksUrl: `${jwks.url}/jwks`, issuer, audience }),
+      createSkillRegistry([
+        {
+          manifest: { id: 'ask', version: '1', state: 'PUBLISHED', tools: ['drive.search'] },
+          validate: () => true,
+          dispatch: () => Promise.resolve(),
+        },
+      ]),
     );
   });
 

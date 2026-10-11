@@ -14,6 +14,8 @@ import { openDatabase } from './db.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
+import { createIncidentSkill } from './skills/incident.js';
+import { createSkillRegistry } from './skills/registry.js';
 
 import type { Caller } from './auth/iap.js';
 import type { SearchContext } from '@agent-works/domain';
@@ -35,11 +37,22 @@ const oauth =
         now,
       });
 const callers = new WeakMap<SearchContext, Caller>();
+const skills = createSkillRegistry([
+  createIncidentSkill(() => {
+    if (config.incident === undefined) return undefined;
+    const runner = createScriptedRunner({ baseUrl: config.llmUrl, model: config.incident.model });
+    return {
+      ...config.incident,
+      model: { answer: async (question) => (await runner.run({ question, sources: [] })).answer },
+    };
+  }),
+]);
 
 createServer(
   createApp({
     verify: createIapVerifier(config.iap),
     drive,
+    skills,
     runner: createScriptedRunner({ baseUrl: config.llmUrl }),
     audit: createPostgresAuditLog(sql),
     now,

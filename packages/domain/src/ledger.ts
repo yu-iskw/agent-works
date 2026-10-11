@@ -9,6 +9,7 @@ const instant = z.iso.datetime();
 const submitFields = {
   objective: label,
   skillId: label,
+  input: z.record(z.string(), z.json()).optional(),
   sourceAllowlist: z.array(label),
   requestedOutputs: z.array(label),
   executionPolicy: z.strictObject({
@@ -29,9 +30,10 @@ const acceptedFields = {
 export const taskSubmitSchema = z.strictObject(submitFields);
 export const taskAcceptedSchema = z.strictObject(acceptedFields);
 
-export const taskApiSchema = z.discriminatedUnion('kind', [
+export const taskApiSchema = z.xor([
   z.strictObject({ kind: z.literal('submit'), ...submitFields }),
   z.strictObject({ kind: z.literal('accepted'), ...acceptedFields }),
+  z.strictObject({ error: z.literal('unknown_skill') }),
 ]);
 
 export type TaskSubmit = z.infer<typeof taskSubmitSchema>;

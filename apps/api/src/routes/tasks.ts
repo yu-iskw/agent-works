@@ -4,10 +4,13 @@ import { Unauthenticated, Unavailable, createIapVerifier } from '../auth/iap.js'
 import { headerValue } from '../http.js';
 import { LedgerConflict } from '../ports/ledger-port.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createSkillRegistry } from '../skills/registry.js';
 
 import type { VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
+import type { RegisteredSkill } from '../skills/incident.js';
+import type { SkillRegistry } from '../skills/registry.js';
 import type { OutboxEvent, Task, TaskAccepted, TaskApi, TaskSubmit } from '@agent-works/domain';
 
 const unauthenticated = {
@@ -40,10 +43,14 @@ export type TaskRoutes = {
   readonly events: Route;
 };
 
-export function createTaskRoutes(ledger: LedgerPort, verify: VerifyAssertion): TaskRoutes {
+export function createTaskRoutes(
+  ledger: LedgerPort,
+  verify: VerifyAssertion,
+  registry: SkillRegistry = createSkillRegistry(),
+): TaskRoutes {
   const events: EventLog = new Map();
   return {
-    submit: (request) => submitTask(ledger, events, verify, request),
+    submit: (request) => submitTask(ledger, events, verify, registry, request),
     read: (request) => readTask(ledger, verify, request),
     events: (request) => readEvents(ledger, events, verify, request),
   };
@@ -59,6 +66,7 @@ async function submitTask(
   ledger: LedgerPort,
   events: EventLog,
   verify: VerifyAssertion,
+  registry: SkillRegistry,
   request: ApiRequest,
 ): Promise<ApiReply> {
   const subject = await authenticate(verify, request);
@@ -66,10 +74,15 @@ async function submitTask(
   const body = parseJson(request.body);
   if (hasTrustedField(body)) return untrustedField;
   const parsed = taskApiSchema.safeParse(body);
-  if (!parsed.success || parsed.data.kind !== 'submit') return invalidRequest;
+  if (!parsed.success || !('kind' in parsed.data) || parsed.data.kind !== 'submit')
+    return invalidRequest;
   const idempotencyKey = headerValue(request.headers, idempotencyHeader);
   if (idempotencyKey === undefined || idempotencyKey.length === 0) return invalidRequest;
-  return accept(ledger, events, subject, submitBody(parsed.data), idempotencyKey);
+  const skill = registry.get(parsed.data.skillId);
+  if (skill === undefined) return { status: 400, body: { error: 'unknown_skill' } };
+  const submission = submitBody(parsed.data);
+  if (!skill.validate(submission)) return invalidRequest;
+  return accept(ledger, events, subject, submission, { idempotencyKey, skill });
 }
 
 async function accept(
@@ -77,14 +90,16 @@ async function accept(
   events: EventLog,
   subject: string,
   request: TaskSubmit,
-  idempotencyKey: string,
+  dispatch: { readonly idempotencyKey: string; readonly skill: RegisteredSkill },
 ): Promise<ApiReply> {
   try {
-    const accepted = await ledger.submit(subject, request, idempotencyKey);
+    const accepted = await ledger.submit(subject, request, dispatch.idempotencyKey);
     await recordSubmit(ledger, events, subject, accepted, request);
+    await dispatch.skill.dispatch(request, accepted);
     return { status: 200, body: { kind: 'accepted', ...accepted } };
   } catch (error) {
     if (error instanceof LedgerConflict) return conflict;
+    if (error instanceof Unavailable) return unavailable;
     throw error;
   }
 }
@@ -143,6 +158,7 @@ function submitBody(data: Extract<TaskApi, { kind: 'submit' }>): TaskSubmit {
   return {
     objective: data.objective,
     skillId: data.skillId,
+    ...(data.input === undefined ? {} : { input: data.input }),
     sourceAllowlist: data.sourceAllowlist,
     requestedOutputs: data.requestedOutputs,
     executionPolicy: data.executionPolicy,

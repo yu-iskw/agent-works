@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - agents/skills/*
 
 # Supply-chain protection - minimumReleaseAge is 7 days (10080 min), stricter than pnpm 11 default of 1 day.
 # https://pnpm.io/blog/releases/11.0
