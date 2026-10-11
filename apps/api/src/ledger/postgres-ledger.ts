@@ -258,7 +258,7 @@ function insertedTask(taskId: string, subject: string, request: TaskSubmit, at: 
 function toAccepted(task: Task): TaskAccepted {
   return taskAcceptedSchema.parse({
     taskId: task.id,
-    status: task.status,
+    status: 'QUEUED',
     submittedAt: task.createdAt,
     statusUrl: `/v1/tasks/${task.id}`,
     traceId: task.id.replaceAll('-', ''),

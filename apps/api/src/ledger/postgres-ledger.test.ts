@@ -117,6 +117,25 @@ it('a repeated submit returns the original acceptance after the task moves', asy
   });
 });
 
+it('a transition keeps an identical outbox event and still advances', async () => {
+  const query = requireSql();
+  const accepted = await port.submit('alice', request, 'shared-event-key');
+  const event = outbox('evt-shared', accepted.taskId);
+  expect(await port.append(event)).toBe('recorded');
+  await port.transition({
+    subject: 'alice',
+    taskId: accepted.taskId,
+    expectedVersion: 1,
+    to: 'RUNNING',
+    event,
+  });
+  expect(await port.read('alice', accepted.taskId)).toMatchObject({
+    status: 'RUNNING',
+    version: 2,
+  });
+  expect(await outboxCount(query)).toBe(1);
+});
+
 it('an illegal transition writes no outbox event', async () => {
   const query = requireSql();
   const accepted = await port.submit('alice', request, 'fail-key');
