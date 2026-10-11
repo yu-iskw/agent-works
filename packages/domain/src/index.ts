@@ -45,3 +45,29 @@ export {
 export type { Task, TaskStatus } from './task.js';
 export { toolCallSchema } from './tool-call.js';
 export type { ToolCall } from './tool-call.js';
+export {
+  approvalApiSchema,
+  approvalDecideSchema,
+  approvalDecidedSchema,
+  brokerReceiptSchema,
+  ticketCreateManifest,
+  toolManifestSchema,
+} from './broker.js';
+export type {
+  ApprovalApi,
+  ApprovalDecide,
+  ApprovalDecided,
+  BrokerReceipt,
+  ToolManifest,
+} from './broker.js';
+export {
+  oauthApiSchema,
+  oauthCallbackSchema,
+  oauthConnectionSchema,
+  oauthStartSchema,
+} from './credentials.js';
+export type { OAuthApi, OAuthCallback, OAuthConnection, OAuthStart } from './credentials.js';
+export { skillManifestSchema, skillPinSchema } from './skill.js';
+export type { SkillManifest, SkillPin } from './skill.js';
+export { workflowCheckpointSchema, workflowSignalSchema } from './workflow.js';
+export type { WorkflowCheckpoint, WorkflowSignal } from './workflow.js';

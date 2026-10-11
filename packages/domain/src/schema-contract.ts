@@ -9,6 +9,8 @@ import { approvalSchema } from './approval.js';
 import { askResponseSchema } from './ask.js';
 import { auditEventSchema } from './audit-event.js';
 import { authoritySchema } from './authority.js';
+import { approvalApiSchema, toolManifestSchema } from './broker.js';
+import { oauthApiSchema } from './credentials.js';
 import { outboxEventSchema, taskApiSchema } from './ledger.js';
 import { policyDecisionSchema } from './policy.js';
 import { principalSchema } from './principal.js';
@@ -33,6 +35,9 @@ const domainSchemas = [
   ['citation.json', sourceCitationSchema],
   ['task-api.json', taskApiSchema],
   ['outbox-event.json', outboxEventSchema],
+  ['approval-api.json', approvalApiSchema],
+  ['tool-manifest.json', toolManifestSchema],
+  ['oauth.json', oauthApiSchema],
 ] as const;
 
 export const domainSchemaNames = domainSchemas.map(([name]) => name);
