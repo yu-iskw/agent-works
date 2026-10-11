@@ -5,7 +5,10 @@ export type RunnerInput = {
   readonly sources: readonly SourceDocument[];
 };
 
-type RunnerOutput = { readonly answer: string };
+export type RunnerOutput = {
+  readonly answer: string;
+  readonly citedSourceIds: readonly string[];
+};
 
 export class RunnerError extends Error {
   constructor(message: string, options?: ErrorOptions) {

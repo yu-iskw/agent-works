@@ -62,6 +62,31 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
+  it('cites only the document the answer used', async () => {
+    const handbook = {
+      id: 'public-handbook',
+      title: 'Public handbook',
+      text: 'Anyone may read this handbook.',
+      uri: 'https://drive.fake.test/d/public-handbook',
+    };
+    const stack = await open(stacks, {
+      drive: {
+        retrieve: () => Promise.resolve([runbook, handbook]),
+      },
+      runner: {
+        run: () =>
+          Promise.resolve({
+            answer: triageAnswer,
+            citedSourceIds: [runbook.id],
+          }),
+      },
+    });
+    const requestId = randomUUID();
+    const response = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(answered(requestId, triageAnswer));
+  });
+
   it('returns 409 when the same request id is retried', async () => {
     const calls = { drive: 0, runner: 0 };
     const stack = await open(stacks, countingPorts(calls));
@@ -256,7 +281,10 @@ function countingPorts(calls: { drive: number; runner: number }): Parameters<typ
     runner: {
       run() {
         calls.runner += 1;
-        return Promise.resolve({ answer: `generated-${calls.runner}` });
+        return Promise.resolve({
+          answer: `generated-${calls.runner}`,
+          citedSourceIds: [runbook.id],
+        });
       },
     },
   };
@@ -276,7 +304,7 @@ function scriptedPorts(
     runner: {
       run() {
         calls.runner += 1;
-        return Promise.resolve({ answer });
+        return Promise.resolve({ answer, citedSourceIds: [runbook.id] });
       },
     },
   };

@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { RunnerError } from './runner-port.js';
 
-import type { AgentRunner, RunnerInput } from './runner-port.js';
+import type { AgentRunner, RunnerInput, RunnerOutput } from './runner-port.js';
 
 type GenerateContentRequest = {
   readonly contents: readonly {
@@ -24,6 +24,7 @@ const answerSchema = z.object({
         content: z.object({
           parts: z.array(z.object({ text: z.string().min(1) })).min(1),
         }),
+        finishReason: z.literal('STOP'),
       }),
     )
     .min(1),
@@ -34,7 +35,7 @@ export function createScriptedRunner(options: ScriptedRunnerOptions): AgentRunne
   const model = options.model ?? 'gemini';
   return {
     async run(input) {
-      return { answer: await generate(load, options.baseUrl, model, input) };
+      return generate(load, options.baseUrl, model, input);
     },
   };
 }
@@ -52,7 +53,7 @@ async function generate(
   baseUrl: string,
   model: string,
   input: RunnerInput,
-): Promise<string> {
+): Promise<RunnerOutput> {
   let response: Response;
   try {
     response = await load(new URL(`/v1beta/models/${model}:generateContent`, baseUrl), {
@@ -72,5 +73,12 @@ async function generate(
   }
   const parsed = answerSchema.safeParse(body);
   if (!parsed.success) throw new RunnerError('llm shape');
-  return parsed.data.candidates[0].content.parts[0].text;
+  const answer = parsed.data.candidates[0].content.parts[0].text;
+  return { answer, citedSourceIds: sourceIdsUsedBy(answer, input.sources) };
+}
+
+function sourceIdsUsedBy(answer: string, sources: RunnerInput['sources']): readonly string[] {
+  return sources
+    .filter((source) => answer.includes(source.id) || answer.includes(source.title))
+    .map((source) => source.id);
 }

@@ -7,6 +7,7 @@ export default defineConfig({
     projects: [
       'packages/*/vitest.config.ts',
       'apps/api/vitest.config.ts',
+      'apps/web/vitest.config.ts',
       {
         test: {
           name: 'scripts',

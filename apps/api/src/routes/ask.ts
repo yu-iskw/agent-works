@@ -78,7 +78,8 @@ async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promi
 }
 
 type AuthResult =
-  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
+  | { readonly ok: true; readonly caller: Caller }
+  | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,
@@ -108,7 +109,12 @@ async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promi
   if (sources.length === 0) return { kind: 'no_sources' };
   try {
     const output = await deps.runner.run({ question: request.question, sources });
-    return { kind: 'answered', answer: output.answer, sources };
+    const cited = new Set(output.citedSourceIds);
+    return {
+      kind: 'answered',
+      answer: output.answer,
+      sources: sources.filter((source) => cited.has(source.id)),
+    };
   } catch (error) {
     if (error instanceof RunnerError) return { kind: 'runner_failed' };
     throw error;
