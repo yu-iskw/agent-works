@@ -251,20 +251,26 @@ it('dispatches OAuth start, callback, replay rejection and disconnect', async ()
   try {
     const started = await post({ kind: 'start', ...start });
     expect(started.status).toBe(200);
-    expect(await started.json()).toEqual({
+    const startedBody = (await started.json()) as { authorizationUrl: string };
+    expect(startedBody).toEqual({
       kind: 'started',
       ...start,
       authorizationUrl: createHttpOAuthProvider(providerServer.url).authorizationUrl(start),
     });
-    const authorized = await fetch(`${providerServer.url}/oauth/authorize`, {
-      method: 'POST',
-      body: JSON.stringify({ subject: 'bob', ...start }),
-    });
-    const { code } = (await authorized.json()) as { code: string };
+    const authorizationUrl = new URL(startedBody.authorizationUrl);
+    authorizationUrl.searchParams.set('redirect_uri', `${server.url}/oauth/callback`);
+    authorizationUrl.searchParams.set('subject', 'bob');
+    const authorized = await fetch(authorizationUrl, { redirect: 'manual' });
+    expect(authorized.status).toBe(302);
+    const redirect = new URL(authorized.headers.get('location') ?? '');
+    expect(redirect.origin + redirect.pathname).toBe(`${server.url}/oauth/callback`);
+    expect(redirect.searchParams.get('state')).toBe(start.state);
+    const code = redirect.searchParams.get('code');
+    expect(code).toBeTruthy();
     const callback = {
       kind: 'callback',
       provider: 'fake',
-      state: 'state-1',
+      state: redirect.searchParams.get('state'),
       code,
       codeVerifier: verifier,
     };

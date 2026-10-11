@@ -78,16 +78,20 @@ it('oauth.blocked-auth', async () => {
     ...start,
     authorizationUrl: createHttpOAuthProvider(server.url).authorizationUrl(start),
   });
-  const authorized = await fetch(`${server.url}/oauth/authorize`, {
-    method: 'POST',
-    body: JSON.stringify({ subject: 'alice', ...start }),
-  });
-  const authorizedBody: unknown = await authorized.json();
-  if (!isRecord(authorizedBody) || typeof authorizedBody.code !== 'string') throw new Error('code');
+  const authorizationUrl = new URL(started.authorizationUrl);
+  authorizationUrl.searchParams.set('redirect_uri', 'https://app.example/oauth/callback');
+  authorizationUrl.searchParams.set('subject', 'alice');
+  const authorized = await fetch(authorizationUrl, { redirect: 'manual' });
+  expect(authorized.status).toBe(302);
+  const redirect = new URL(authorized.headers.get('location') ?? '');
+  expect(redirect.origin + redirect.pathname).toBe('https://app.example/oauth/callback');
+  expect(redirect.searchParams.get('state')).toBe(start.state);
+  const code = redirect.searchParams.get('code');
+  if (code === null || code.length === 0) throw new Error('code');
   const saved = await flow.complete('alice', {
     provider: 'fake',
-    state: 'state-1',
-    code: authorizedBody.code,
+    state: redirect.searchParams.get('state') ?? '',
+    code,
     codeVerifier: verifier,
   });
   expect(saved).toEqual({
@@ -103,7 +107,7 @@ it('oauth.blocked-auth', async () => {
     flow.complete('alice', {
       provider: 'fake',
       state: start.state,
-      code: authorizedBody.code,
+      code,
       codeVerifier: verifier,
     }),
   ).rejects.toMatchObject({ code: 'state_mismatch' });
@@ -158,8 +162,4 @@ function outbox(eventId: string, taskId: string): OutboxEvent {
       prevDigest: null,
     },
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -43,6 +43,36 @@ describe('fake ticket', () => {
 });
 
 describe('fake oauth', () => {
+  it.each([
+    ['state', ''],
+    ['code_challenge', ''],
+    ['code_challenge_method', 'plain'],
+    ['subject', ''],
+    ['response_type', 'token'],
+    ['redirect_uri', ''],
+    ['redirect_uri', '/callback'],
+    ['redirect_uri', 'javascript:alert(1)'],
+  ])('rejects invalid consent query %s=%s', async (key, value) => {
+    const url = new URL('http://provider.example/oauth/authorize');
+    url.search = new URLSearchParams({
+      response_type: 'code',
+      provider: 'fake',
+      state: 'state-1',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      scope: 'ticket.create',
+      subject: 'alice',
+      redirect_uri: 'https://app.example/callback',
+    }).toString();
+    url.searchParams.set(key, value);
+    expect(await createOAuth()({ method: 'GET', url, headers: {}, body: Buffer.alloc(0) })).toEqual(
+      {
+        status: 400,
+        body: { error: 'invalid_request' },
+      },
+    );
+  });
+
   it('issues a canary token only on the token response', async () => {
     const server = await listen(createOAuth(), 0);
     try {
