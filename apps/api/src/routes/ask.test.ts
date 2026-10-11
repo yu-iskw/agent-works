@@ -62,6 +62,26 @@ describe('POST /v1/ask', () => {
     expect(stack.audit.rows()).toEqual([row(requestId, triageDigest, 'answered')]);
   });
 
+  it('returns the retrieved time and the excerpt on the runbook citation', async () => {
+    const stack = await open(stacks);
+    const requestId = randomUUID();
+    const response = await post(stack.iapUrl, requestId, triageQuestion);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      requestId,
+      answer: triageAnswer,
+      citations: [
+        {
+          sourceObjectId: 'alice-runbook',
+          title: 'Triage runbook',
+          sourceUri: 'https://drive.fake.test/d/alice-runbook',
+          retrievedAt: fixedNow,
+          excerpt: 'Alice triage steps.',
+        },
+      ],
+    });
+  });
+
   it('cites only the document the answer used', async () => {
     const handbook = {
       id: 'public-handbook',
