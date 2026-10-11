@@ -27,8 +27,7 @@ export type DecisionCommand = {
 };
 
 export type BindResult =
-  | { readonly ok: true; readonly decided: ApprovalDecided }
-  | typeof approvalRequired;
+  { readonly ok: true; readonly decided: ApprovalDecided } | typeof approvalRequired;
 
 export type ClaimRequest = {
   readonly approvalId: string;
