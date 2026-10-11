@@ -1,105 +1,200 @@
-import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
+import { createHash } from 'node:crypto';
+
+import { IAP_ASSERTION_HEADER, sourceCitationSchema } from '@agent-works/domain';
 import * as z from 'zod';
 
 import { RetrievalError } from './drive-port.js';
+import {
+  DRIVE_REGION,
+  DRIVE_SOURCE,
+  NEVER_OBSERVED,
+  PUBLIC_FOLDER,
+  askPolicy,
+  boundTo,
+  contextFor,
+  createCorpusPort,
+  rankByOverlap,
+  readable,
+} from './search.js';
 
 import type { Drive, SourceDocument } from './drive-port.js';
+import type { GroupSnapshot, RetrievalPolicy } from './search.js';
 import type { Caller } from '../auth/iap.js';
+import type { IndexedDocument, SearchPort } from '../ports/search-port.js';
+import type { SearchContext } from '@agent-works/domain';
 
-const documentSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  text: z.string(),
-  webViewLink: z.url(),
+type FaultKind =
+  | 'drive unreachable'
+  | 'drive timeout'
+  | 'drive status'
+  | 'drive body'
+  | 'drive shape'
+  | 'directory unreachable'
+  | 'directory timeout'
+  | 'directory status'
+  | 'directory body'
+  | 'directory shape'
+  | 'directory identity';
+
+export class DriveFault extends RetrievalError {
+  constructor(readonly kind: FaultKind) {
+    super(kind);
+    this.name = 'DriveFault';
+  }
+}
+
+type DriveReaderOptions = {
+  readonly driveUrl: string;
+  readonly directoryUrl?: string;
+  readonly fetch: typeof fetch;
+  readonly now: () => Date;
+  readonly timeoutMs: number;
+};
+
+const documentsSchema = z.array(
+  z.object({
+    id: z.string().min(1),
+    folder: z.string().min(1),
+    title: z.string().min(1),
+    text: z.string(),
+    webViewLink: sourceCitationSchema.shape.sourceUri,
+  }),
+);
+
+const snapshotSchema = z.object({
+  sub: z.string().min(1),
+  groups: z.array(z.string().min(1)),
+  observedAt: z.iso.datetime(),
 });
 
-const documentsSchema = z.array(documentSchema);
+const excerptLength = 160;
 
 export type HttpDriveOptions = {
   readonly baseUrl: string;
+  readonly directoryUrl?: string;
+  readonly policy?: RetrievalPolicy;
   readonly fetch?: typeof fetch;
+  readonly now?: () => Date;
+  readonly timeoutMs?: number;
 };
 
-const maxSources = 3;
-const minTokenLength = 5;
+export type SearchScope = {
+  readonly context: SearchContext;
+  readonly port: SearchPort;
+};
 
-export function createHttpDrive(options: HttpDriveOptions): Drive {
-  const load = options.fetch ?? fetch;
+export interface HttpDrive extends Drive {
+  open(caller: Caller): Promise<SearchScope>;
+}
+
+const defaultTimeoutMs = 5_000;
+
+export function createHttpDrive(options: HttpDriveOptions): HttpDrive {
+  const policy = options.policy ?? askPolicy;
+  const reader: DriveReaderOptions = {
+    driveUrl: options.baseUrl,
+    directoryUrl: options.directoryUrl,
+    fetch: options.fetch ?? fetch,
+    now: options.now ?? (() => new Date()),
+    timeoutMs: options.timeoutMs ?? defaultTimeoutMs,
+  };
+  const read = (caller: Caller) =>
+    Promise.all([readDocuments(reader, caller), readSnapshot(reader, caller)]);
   return {
     async retrieve(caller, question) {
-      const documents = await listDocuments(load, options.baseUrl, caller);
-      return selectSources(question, documents);
+      const [documents, snapshot] = await read(caller);
+      const context = contextFor(caller, snapshot, policy);
+      return rankByOverlap(question, readable(context, documents), context.resultCountLimit).map(
+        toSource,
+      );
+    },
+    async open(caller) {
+      const [documents, snapshot] = await read(caller);
+      return {
+        context: contextFor(caller, snapshot, policy),
+        port: boundTo(caller.sub, createCorpusPort(documents)),
+      };
     },
   };
 }
 
-async function listDocuments(
-  load: typeof fetch,
-  baseUrl: string,
-  caller: Caller,
-): Promise<readonly SourceDocument[]> {
+function toSource(document: IndexedDocument): SourceDocument {
+  return {
+    id: document.citation.sourceObjectId,
+    title: document.citation.title,
+    text: document.text,
+    uri: document.citation.sourceUri,
+  };
+}
+
+type Peer = 'drive' | 'directory';
+
+async function getJson(
+  options: DriveReaderOptions,
+  peer: Peer,
+  url: URL,
+  headers: Record<string, string>,
+): Promise<{ readonly status: number; readonly body: unknown }> {
   let response: Response;
   try {
-    response = await load(new URL('/documents', baseUrl), {
-      headers: { [IAP_ASSERTION_HEADER]: caller.assertion },
+    response = await options.fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(options.timeoutMs),
     });
   } catch (error) {
-    throw new RetrievalError('drive unreachable', { cause: error });
+    throw new DriveFault(isTimeout(error) ? `${peer} timeout` : `${peer} unreachable`);
   }
-  if (!response.ok) throw new RetrievalError('drive status');
-  let body: unknown;
+  if (!response.ok) {
+    await response.body?.cancel();
+    return { status: response.status, body: undefined };
+  }
   try {
-    body = (await response.json()) as unknown;
+    return { status: response.status, body: (await response.json()) as unknown };
   } catch (error) {
-    throw new RetrievalError('drive body', { cause: error });
+    throw new DriveFault(isTimeout(error) ? `${peer} timeout` : `${peer} body`);
   }
-  const parsed = documentsSchema.safeParse(body);
-  if (!parsed.success) throw new RetrievalError('drive shape');
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && error.name === 'TimeoutError';
+}
+
+async function readDocuments(
+  options: DriveReaderOptions,
+  caller: Caller,
+): Promise<readonly IndexedDocument[]> {
+  const url = new URL('/documents', options.driveUrl);
+  const reply = await getJson(options, 'drive', url, { [IAP_ASSERTION_HEADER]: caller.assertion });
+  if (reply.status !== 200) throw new DriveFault('drive status');
+  const parsed = documentsSchema.safeParse(reply.body);
+  if (!parsed.success) throw new DriveFault('drive shape');
+  const retrievedAt = options.now().toISOString();
   return parsed.data.map((document) => ({
-    id: document.id,
-    title: document.title,
+    citation: {
+      sourceObjectId: document.id,
+      title: document.title,
+      sourceUri: document.webViewLink,
+      etag: createHash('sha256').update(document.text).digest('hex'),
+      retrievedAt,
+      accessDecisionId: `drive:${caller.sub}:${document.id}`,
+      excerpt: document.text.slice(0, excerptLength) || document.title,
+    },
+    groups: [document.folder],
+    classification: document.folder === PUBLIC_FOLDER ? 'PUBLIC' : 'INTERNAL',
+    source: DRIVE_SOURCE,
+    region: DRIVE_REGION,
     text: document.text,
-    uri: document.webViewLink,
   }));
 }
 
-function selectSources(
-  question: string,
-  documents: readonly SourceDocument[],
-): readonly SourceDocument[] {
-  const questionTokens = tokens(question);
-  const ranked = documents
-    .map((document, index) => ({
-      document,
-      index,
-      score: overlap(questionTokens, tokens(`${document.title} ${document.text}`)),
-    }))
-    .filter((item) => item.score > 0)
-    .sort((left, right) => compareRanked(left, right));
-  return ranked.slice(0, maxSources).map((item) => item.document);
-}
-
-function compareRanked(
-  left: { score: number; index: number },
-  right: { score: number; index: number },
-): number {
-  if (right.score !== left.score) return right.score - left.score;
-  return left.index - right.index;
-}
-
-function tokens(value: string): Set<string> {
-  const set = new Set<string>();
-  for (const match of value.toLowerCase().matchAll(/[a-z0-9]+/g)) {
-    const token = match[0];
-    if (token.length >= minTokenLength) set.add(token);
-  }
-  return set;
-}
-
-function overlap(left: ReadonlySet<string>, right: ReadonlySet<string>): number {
-  let score = 0;
-  for (const token of left) {
-    if (right.has(token)) score += 1;
-  }
-  return score;
+async function readSnapshot(options: DriveReaderOptions, caller: Caller): Promise<GroupSnapshot> {
+  if (options.directoryUrl === undefined) return { groups: [], observedAt: NEVER_OBSERVED };
+  const url = new URL(`/snapshots/${encodeURIComponent(caller.sub)}`, options.directoryUrl);
+  const reply = await getJson(options, 'directory', url, {});
+  if (reply.status === 404) return { groups: [], observedAt: options.now().toISOString() };
+  if (reply.status !== 200) throw new DriveFault('directory status');
+  const parsed = snapshotSchema.safeParse(reply.body);
+  if (!parsed.success) throw new DriveFault('directory shape');
+  if (parsed.data.sub !== caller.sub) throw new DriveFault('directory identity');
+  return { groups: parsed.data.groups, observedAt: parsed.data.observedAt };
 }
