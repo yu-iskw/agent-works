@@ -4,7 +4,7 @@ import { OAuthDenied, oauthFailure } from '../credentials/denied.js';
 
 import type { OAuthFlow } from '../credentials/flow.js';
 import type { ApiReply, Route } from '../http.js';
-import type { OAuthCallback, OAuthConnection, OAuthStart } from '@agent-works/domain';
+import type { OAuthCallback, OAuthConnection, OAuthStart, OAuthStarted } from '@agent-works/domain';
 import type { IncomingHttpHeaders } from 'node:http';
 
 const invalidRequest = { status: 400, body: { error: 'invalid_request' } } as const;
@@ -14,12 +14,14 @@ const connectionPath = /^\/v1\/oauth\/connections\/([^/]+)$/;
 
 export type OAuthRouteDeps = {
   readonly flow: OAuthFlow;
-  readonly subject: (headers: IncomingHttpHeaders) => string | undefined;
+  readonly subject: (
+    headers: IncomingHttpHeaders,
+  ) => string | undefined | Promise<string | undefined>;
 };
 
 export function createOAuthConnectRoute(deps: OAuthRouteDeps): Route {
   return async (request) => {
-    const subject = caller(deps, request.headers);
+    const subject = await caller(deps, request.headers);
     if (subject === undefined) return unauthenticated;
     const provider = pathProvider(request.path);
     if (provider === undefined) return notFound;
@@ -33,6 +35,7 @@ export function createOAuthConnectRoute(deps: OAuthRouteDeps): Route {
         const callback = callbackOf(parsed.data);
         return connectionReply(() => deps.flow.complete(subject, callback));
       }
+      case 'started':
       case 'connection':
         return invalidRequest;
       default: {
@@ -45,7 +48,7 @@ export function createOAuthConnectRoute(deps: OAuthRouteDeps): Route {
 
 export function createOAuthRevokeRoute(deps: OAuthRouteDeps): Route {
   return async (request) => {
-    const subject = caller(deps, request.headers);
+    const subject = await caller(deps, request.headers);
     if (subject === undefined) return unauthenticated;
     const provider = pathProvider(request.path);
     if (provider === undefined) return notFound;
@@ -53,14 +56,17 @@ export function createOAuthRevokeRoute(deps: OAuthRouteDeps): Route {
   };
 }
 
-function caller(deps: OAuthRouteDeps, headers: IncomingHttpHeaders): string | undefined {
-  const subject = deps.subject(headers);
+async function caller(
+  deps: OAuthRouteDeps,
+  headers: IncomingHttpHeaders,
+): Promise<string | undefined> {
+  const subject = await deps.subject(headers);
   if (subject === undefined || subject.length === 0) return undefined;
   return subject;
 }
 
-function started(start: OAuthStart): ApiReply {
-  return { status: 200, body: { kind: 'start', ...start } };
+function started(start: OAuthStarted): ApiReply {
+  return { status: 200, body: { kind: 'started', ...start } };
 }
 
 async function connectionReply(load: () => Promise<OAuthConnection>): Promise<ApiReply> {

@@ -65,8 +65,15 @@ export {
   oauthCallbackSchema,
   oauthConnectionSchema,
   oauthStartSchema,
+  oauthStartedSchema,
 } from './credentials.js';
-export type { OAuthApi, OAuthCallback, OAuthConnection, OAuthStart } from './credentials.js';
+export type {
+  OAuthApi,
+  OAuthCallback,
+  OAuthConnection,
+  OAuthStart,
+  OAuthStarted,
+} from './credentials.js';
 export { skillManifestSchema, skillPinSchema } from './skill.js';
 export type { SkillManifest, SkillPin } from './skill.js';
 export { workflowCheckpointSchema, workflowSignalSchema } from './workflow.js';

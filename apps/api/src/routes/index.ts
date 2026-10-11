@@ -1,4 +1,5 @@
 import { approvalsDecideSlot } from './approvals-decide.js';
+import { approvalsReadSlot } from './approvals-read.js';
 import { artifactsReadSlot } from './artifacts-read.js';
 import { createAskRoute } from './ask.js';
 import { oauthConnectSlot } from './oauth-connect.js';
@@ -20,6 +21,7 @@ const patternSlots: readonly PatternSlot[] = [
   tasksCancelSlot,
   tasksReadSlot,
   approvalsDecideSlot,
+  approvalsReadSlot,
   artifactsReadSlot,
   oauthConnectSlot,
   oauthRevokeSlot,

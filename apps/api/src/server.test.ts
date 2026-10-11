@@ -52,6 +52,9 @@ vi.mock('./audit/write.js', async (importOriginal) => {
   const original = await importOriginal<typeof auditModule>();
   return { ...original, createPostgresAuditLog: vi.fn(() => original.createMemoryAuditLog()) };
 });
+vi.mock('./credentials/postgres.js', () => ({
+  createPostgresCredentialStore: () => ({ credentials: {}, grants: {} }),
+}));
 vi.mock('./broker/approvals.js', () => ({ createPostgresApprovalStore: vi.fn(() => ({})) }));
 vi.mock('./ledger/postgres-ledger.js', async () => {
   const { createMemoryLedgerPort } = await import('./ports/memory/ledger-port.js');
@@ -82,9 +85,11 @@ describe('server composition', () => {
 
   it('supplies production wire with role checks, policy, task storage and ledger audit', async () => {
     vi.stubEnv('AGENT_RUNNER', 'scripted');
+    vi.stubEnv('OAUTH_URL', 'https://oauth.test');
     await import('./server.js');
     const deps = vi.mocked(createApp).mock.calls[0][0];
     expect(deps.wire).toBeDefined();
+    expect(deps.oauth).toBeDefined();
     expect(createGroupResolver).toHaveBeenCalledWith({ baseUrl: 'https://directory.test' });
     expect(createHttpDrive).toHaveBeenCalledWith(
       expect.objectContaining({

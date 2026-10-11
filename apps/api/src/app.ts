@@ -1,8 +1,13 @@
-import { createListener, readLimited } from './http.js';
+import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
+
+import { Unauthenticated, Unavailable } from './auth/iap.js';
+import { createListener, headerValue, readLimited } from './http.js';
 import { createApprovalsRoute } from './routes/approvals.js';
 import { createRouteTable, matchSlot } from './routes/index.js';
+import { createOAuthConnectRoute, createOAuthRevokeRoute } from './routes/oauth.js';
 import { selectRoute } from './routes/slot.js';
 
+import type { OAuthFlow } from './credentials/flow.js';
 import type { Route } from './http.js';
 import type { ApprovalsDeps } from './routes/approvals.js';
 import type { AskDeps } from './routes/ask.js';
@@ -12,7 +17,10 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 const jsonType = 'application/json; charset=utf-8';
 const textType = 'text/plain; charset=utf-8';
 
-type AppDeps = AskDeps & { readonly approvals?: Omit<ApprovalsDeps, 'verify'> };
+type AppDeps = AskDeps & {
+  readonly approvals?: Omit<ApprovalsDeps, 'verify'>;
+  readonly oauth?: OAuthFlow;
+};
 
 export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestListener {
   const listener = createListener(createRouteTable(deps, env));
@@ -20,15 +28,31 @@ export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestLi
     deps.approvals === undefined
       ? undefined
       : createApprovalsRoute({ ...deps.approvals, verify: deps.verify });
+  const oauthDeps =
+    deps.oauth === undefined
+      ? undefined
+      : {
+          flow: deps.oauth,
+          subject: async (headers: Parameters<Route>[0]['headers']) => {
+            const caller = await deps.verify(headerValue(headers, IAP_ASSERTION_HEADER));
+            return caller.sub;
+          },
+        };
+  const routes = new Map<string, Route | undefined>([
+    ['approvals-decide', approvals],
+    ['approvals-read', approvals],
+    ['oauth-connect', oauthDeps === undefined ? undefined : createOAuthConnectRoute(oauthDeps)],
+    ['oauth-revoke', oauthDeps === undefined ? undefined : createOAuthRevokeRoute(oauthDeps)],
+  ]);
   return (request, response) => {
-    void dispatch(listener, env, approvals, request, response);
+    void dispatch(listener, env, routes, request, response);
   };
 }
 
 async function dispatch(
   listener: RequestListener,
   env: RouteEnv,
-  approvals: Route | undefined,
+  routes: ReadonlyMap<string, Route | undefined>,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -46,7 +70,7 @@ async function dispatch(
       return;
     }
     const route = selectRoute(
-      slot.id === 'approvals-decide' ? { ...slot, real: approvals } : slot,
+      routes.has(slot.id) ? { ...slot, real: routes.get(slot.id) } : slot,
       env,
     );
     const reply = await route({
@@ -59,10 +83,19 @@ async function dispatch(
     const type = typeof reply.body === 'string' ? textType : jsonType;
     response.writeHead(reply.status, { 'content-type': type });
     response.end(payload);
-  } catch {
-    if (!response.headersSent) {
-      response.writeHead(500, { 'content-type': textType });
-      response.end('error');
-    }
+  } catch (error) {
+    dispatchError(error, response);
   }
+}
+
+function dispatchError(error: unknown, response: ServerResponse): void {
+  if (response.headersSent) return;
+  if (error instanceof Unauthenticated || error instanceof Unavailable) {
+    const unauthenticated = error instanceof Unauthenticated;
+    response.writeHead(unauthenticated ? 401 : 503, { 'content-type': jsonType });
+    response.end(JSON.stringify({ error: unauthenticated ? 'unauthenticated' : 'unavailable' }));
+    return;
+  }
+  response.writeHead(500, { 'content-type': textType });
+  response.end('error');
 }

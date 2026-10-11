@@ -13,6 +13,7 @@ import {
   applyTaskLedgerMigration,
   createPostgresLedgerPort,
 } from '../../apps/api/src/ledger/postgres-ledger.js';
+import { oauthApiSchema } from '../../packages/domain/src/credentials.js';
 import { createOAuth } from '../../packages/fakes/src/fake-oauth.js';
 import { listen } from '../../packages/fakes/src/http.js';
 import { appendResult } from '../results.mjs';
@@ -71,7 +72,12 @@ it('oauth.blocked-auth', async () => {
     codeChallengeMethod: 'S256',
     scope: 'ticket.create',
   };
-  await flow.begin('alice', start);
+  const started = await flow.begin('alice', start);
+  expect(oauthApiSchema.parse({ kind: 'started', ...started })).toEqual({
+    kind: 'started',
+    ...start,
+    authorizationUrl: createHttpOAuthProvider(server.url).authorizationUrl(start),
+  });
   const authorized = await fetch(`${server.url}/oauth/authorize`, {
     method: 'POST',
     body: JSON.stringify({ subject: 'alice', ...start }),
@@ -93,6 +99,14 @@ it('oauth.blocked-auth', async () => {
     tokenRef: 'token-1',
   });
   expect(JSON.stringify(saved).includes(canary)).toBe(false);
+  await expect(
+    flow.complete('alice', {
+      provider: 'fake',
+      state: start.state,
+      code: authorizedBody.code,
+      codeVerifier: verifier,
+    }),
+  ).rejects.toMatchObject({ code: 'state_mismatch' });
 
   const accepted = await ledger.submit('alice', submit, 'oauth-block');
   await ledger.transition({

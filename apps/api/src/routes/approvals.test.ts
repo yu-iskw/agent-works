@@ -1,6 +1,7 @@
 import { IAP_ASSERTION_HEADER, approvalSchema } from '@agent-works/domain';
 import { expect, it } from 'vitest';
 
+import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { createMemoryApprovalStore } from '../broker/approvals.js';
 import { TICKET_TOOL } from '../broker/broker.js';
 
@@ -181,4 +182,66 @@ it('rejects a caller who is no longer a reviewer', async () => {
     }),
   ).toEqual({ status: 403, body: { error: 'forbidden' } });
   expect(await store.read(approvalId)).toMatchObject({ state: 'pending', approverSub: null });
+});
+
+it.each([
+  { sub: 'alice', roles: [], status: 200 },
+  { sub: 'bob', roles: ['Reviewer'], status: 200 },
+  { sub: 'bob', roles: [], status: 403 },
+  { sub: 'bob', roles: ['Admin'], status: 403 },
+] as const)(
+  'approval read checks ownership and roles: $sub $roles',
+  async ({ sub, roles, status }) => {
+    const { route, store } = await world(roles);
+    const reply = await route({
+      method: 'GET',
+      path: '/v1/approvals/apr-1',
+      headers: { [IAP_ASSERTION_HEADER]: sub },
+      body: Buffer.alloc(0),
+    });
+    expect(reply.status).toBe(status);
+    if (status === 200)
+      expect(reply.body).toEqual({
+        kind: 'detail',
+        id: approvalId,
+        actionSummary: `${TICKET_TOOL} on PROJ`,
+        requestedBySub: 'alice',
+        payloadSha256: digest,
+        state: 'pending',
+        expiresAt: pendingApproval().expiresAt,
+      });
+    expect(await store.read(approvalId)).toEqual(pendingApproval());
+  },
+);
+
+it('returns not found for a missing approval', async () => {
+  const { route } = await world();
+  expect(
+    await route({
+      method: 'GET',
+      path: '/v1/approvals/missing',
+      headers: {},
+      body: Buffer.alloc(0),
+    }),
+  ).toEqual({ status: 404, body: { error: 'not_found' } });
+});
+
+it.each([
+  { error: new Unauthenticated('missing'), status: 401 },
+  { error: new Unavailable('unavailable'), status: 503 },
+])('approval read handles authentication failure $status', async ({ error, status }) => {
+  const route = createApprovalsRoute({
+    store: createMemoryApprovalStore(),
+    verify: () => Promise.reject(error),
+  });
+  expect(
+    (
+      await route({
+        method: 'GET',
+        path: '/v1/approvals/apr-1',
+        headers: {},
+        body: Buffer.alloc(0),
+      })
+    ).status,
+  ).toBe(status);
 });

@@ -217,7 +217,14 @@ it('begin returns the pkce start and callback returns the connection', async () 
   const start = startFor('state-1');
   expect(
     await connect(call('POST', '/v1/oauth/connections/fake', { kind: 'start', ...start })),
-  ).toEqual({ status: 200, body: { kind: 'start', ...start } });
+  ).toEqual({
+    status: 200,
+    body: {
+      kind: 'started',
+      ...start,
+      authorizationUrl: createHttpOAuthProvider(url).authorizationUrl(start),
+    },
+  });
   const code = await authorize(url, 'state-1');
   expect(
     await connect(

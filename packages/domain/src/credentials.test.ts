@@ -53,3 +53,23 @@ describe('oauth contracts', () => {
     });
   });
 });
+
+it('requires a consent URL on the start response', () => {
+  const response = { kind: 'started', ...start, authorizationUrl: 'https://oauth.example/consent' };
+  expect(oauthApiSchema.parse(response)).toEqual(response);
+  expect(oauthApiSchema.safeParse({ kind: 'started', ...start }).success).toBe(false);
+  expect(oauthApiSchema.safeParse({ ...response, authorizationUrl: 'invalid' }).success).toBe(
+    false,
+  );
+});
+
+it.each(['code', 'state'] as const)('requires callback %s', (field) => {
+  const callback = {
+    kind: 'callback',
+    provider: 'fake',
+    state: 'state-1',
+    code: 'code-1',
+    codeVerifier: 'verifier',
+  };
+  expect(oauthApiSchema.safeParse({ ...callback, [field]: undefined }).success).toBe(false);
+});

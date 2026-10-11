@@ -43,3 +43,25 @@ it.each(['exchange', 'revoke'] as const)(
     );
   },
 );
+
+it('builds a provider consent URL with state and PKCE', () => {
+  const provider = createHttpOAuthProvider('https://oauth.example');
+  const url = new URL(
+    provider.authorizationUrl({
+      provider: 'fake',
+      state: 'state & value',
+      codeChallenge: 'challenge',
+      codeChallengeMethod: 'S256',
+      scope: 'ticket.create',
+    }),
+  );
+  expect(url.origin + url.pathname).toBe('https://oauth.example/oauth/authorize');
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    response_type: 'code',
+    provider: 'fake',
+    state: 'state & value',
+    code_challenge: 'challenge',
+    code_challenge_method: 'S256',
+    scope: 'ticket.create',
+  });
+});

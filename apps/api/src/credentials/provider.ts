@@ -2,9 +2,10 @@ import { oauthConnectionSchema } from '@agent-works/domain';
 
 import { OAuthDenied, oauthFailure } from './denied.js';
 
-import type { OAuthCallback, OAuthConnection } from '@agent-works/domain';
+import type { OAuthCallback, OAuthConnection, OAuthStart } from '@agent-works/domain';
 
 export interface OAuthProvider {
+  authorizationUrl(start: OAuthStart): string;
   exchange(callback: OAuthCallback): Promise<OAuthConnection>;
   read(tokenRef: string): Promise<OAuthConnection>;
   revoke(tokenRef: string): Promise<OAuthConnection>;
@@ -14,6 +15,18 @@ type Reply = { readonly status: number; readonly body: unknown };
 
 export function createHttpOAuthProvider(baseUrl: string): OAuthProvider {
   return {
+    authorizationUrl(start) {
+      const url = new URL('/oauth/authorize', baseUrl);
+      url.search = new URLSearchParams({
+        response_type: 'code',
+        provider: start.provider,
+        state: start.state,
+        code_challenge: start.codeChallenge,
+        code_challenge_method: start.codeChallengeMethod,
+        scope: start.scope,
+      }).toString();
+      return url.toString();
+    },
     exchange(callback) {
       return post(baseUrl, '/oauth/token', callback).then(issued);
     },
