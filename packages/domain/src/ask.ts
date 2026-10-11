@@ -8,6 +8,8 @@ export const citationSchema = z.strictObject({
   sourceObjectId: label,
   title: label,
   sourceUri: z.url().regex(/^https?:\/\//),
+  retrievedAt: z.iso.datetime(),
+  excerpt: label,
 });
 export type Citation = z.infer<typeof citationSchema>;
 

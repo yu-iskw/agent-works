@@ -20,7 +20,7 @@ const published = z.fromJSONSchema(JSON.parse(readFileSync(askResponsePath, 'utf
 let stack: Stack;
 
 beforeAll(async () => {
-  stack = await startStack();
+  stack = await startStack({ now: () => new Date('2026-10-10T10:00:00.000Z') });
 });
 
 afterAll(async () => {
@@ -51,6 +51,8 @@ it('contract.ask.response-shape', async () => {
         sourceObjectId: 'alice-runbook',
         title: 'Triage runbook',
         sourceUri: 'https://drive.fake.test/d/alice-runbook',
+        retrievedAt: '2026-10-10T10:00:00.000Z',
+        excerpt: 'Alice triage steps.',
       },
     ],
   });

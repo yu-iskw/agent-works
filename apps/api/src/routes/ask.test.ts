@@ -56,6 +56,8 @@ describe('POST /v1/ask', () => {
           sourceObjectId: 'alice-runbook',
           title: 'Triage runbook',
           sourceUri: 'https://drive.fake.test/d/alice-runbook',
+          retrievedAt: fixedNow,
+          excerpt: 'Alice triage steps.',
         },
       ],
     });
@@ -339,6 +341,8 @@ function answered(requestId: string, answer: string) {
         sourceObjectId: runbook.id,
         title: runbook.title,
         sourceUri: runbook.uri,
+        retrievedAt: fixedNow,
+        excerpt: 'Alice triage steps.',
       },
     ],
   };
@@ -353,6 +357,8 @@ function generated(requestId: string, generation: number) {
         sourceObjectId: runbook.id,
         title: runbook.title,
         sourceUri: runbook.uri,
+        retrievedAt: fixedNow,
+        excerpt: 'Alice triage steps.',
       },
     ],
   };

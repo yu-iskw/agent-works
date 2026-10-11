@@ -41,6 +41,14 @@ export default function Page({ view }: { readonly view: PageView }): Html {
             {view.response.citations.map((citation) => (
               <li>
                 <a href={citation.sourceUri}>{citation.title}</a>
+                <dl>
+                  <dt>Retrieved</dt>
+                  <dd>
+                    <time datetime={citation.retrievedAt}>{citation.retrievedAt}</time>
+                  </dd>
+                  <dt>Source data</dt>
+                  <dd>{citation.excerpt}</dd>
+                </dl>
               </li>
             ))}
           </ol>
