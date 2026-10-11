@@ -204,6 +204,7 @@ jobs:
           node e2e/security/record-pending.mjs
           pnpm --filter "@agent-works/cli..." build
           pnpm --filter "@agent-works/api..." build
+          pnpm --filter "@agent-works/fakes" build
           pnpm exec playwright install --with-deps chromium
           pnpm exec playwright test --config e2e/playwright.config.ts security
       - name: Upload e2e artifacts

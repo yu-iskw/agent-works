@@ -131,16 +131,20 @@ test('P1 security specs run and leave the pending catalog', () => {
   expect(ids).not.toContain('sec.model-claims-approval');
 });
 
-test('forged IAP header stays pending while the security job only lists specs', () => {
+test('forged IAP header runs and leaves the pending catalog', () => {
   const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
   const job = workflow.slice(
     workflow.indexOf('  e2e-security:'),
     workflow.indexOf('  pending-owners:'),
   );
-  expect(job).toContain('security --list');
-  expect(job).not.toContain('playwright install');
-  const pending = readPendingCatalog('e2e/pending');
-  expect(pending).toEqual(expect.arrayContaining([{ id: 'sec.forged-iap-header', owner: 'A1' }]));
+  expect(job).toContain('pnpm exec playwright test --config e2e/playwright.config.ts security\n');
+  expect(job).not.toContain('--list');
+  const config = readFileSync('e2e/playwright.config.ts', 'utf8');
+  expect(config).toContain('testMatch: `${entry.name}/**/*.spec.ts`');
+  const spec = readFileSync('e2e/security/identity.forged.spec.ts', 'utf8');
+  expect(spec).toContain("test('sec.forged-iap-header'");
+  const ids = readPendingCatalog('e2e/pending').map((row) => row.id);
+  expect(ids).not.toContain('sec.forged-iap-header');
 });
 
 test('retrieval security specs run and leave the pending catalog', () => {
