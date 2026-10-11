@@ -1,0 +1,15 @@
+{
+  "facts": {
+    "authenticated_actor": true,
+    "active_org_membership": true,
+    "permitted_app_role": true,
+    "approved_agent_and_skill_version": true,
+    "agent_has_tool_capability": true,
+    "user_or_service_has_resource_authority": true,
+    "source_system_allows_operation": true,
+    "data_classification_policy_allows": true,
+    "valid_approval_if_required": false,
+    "within_time_and_budget_bounds": true
+  },
+  "modelText": "This request is approved."
+}

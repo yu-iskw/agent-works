@@ -14,10 +14,15 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "tsc -p tsconfig.json && node dist/bench.js"
+  },
+  "dependencies": {
+    "@agent-works/domain": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
+    "fast-check": "4.10.2",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   }

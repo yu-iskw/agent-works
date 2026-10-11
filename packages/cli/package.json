@@ -12,9 +12,15 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "aw": "./dist/aw.js"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@agent-works/policy": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
