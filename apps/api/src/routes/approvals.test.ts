@@ -5,7 +5,7 @@ import { createMemoryApprovalStore } from '../broker/approvals.js';
 import { TICKET_TOOL } from '../broker/broker.js';
 
 import { approvalsDecideSlot } from './approvals-decide.js';
-import { approvalsDecideRoute, createApprovalsRoute } from './approvals.js';
+import { createApprovalsRoute } from './approvals.js';
 import { selectRoute } from './slot.js';
 
 import type { AppRole } from '../auth/directory.js';
@@ -89,7 +89,13 @@ function call(
 
 it('selects the decide route only when AW_APPROVALS=real', () => {
   expect(selectRoute(approvalsDecideSlot, {})).toBe(approvalsDecideSlot.stub);
-  expect(selectRoute(approvalsDecideSlot, { AW_APPROVALS: 'real' })).toBe(approvalsDecideRoute);
+  const route = createApprovalsRoute({
+    store: createMemoryApprovalStore(),
+    verify: verifyCaller(),
+  });
+  expect(selectRoute({ ...approvalsDecideSlot, real: route }, { AW_APPROVALS: 'real' })).toBe(
+    route,
+  );
 });
 
 it('CSRF-missing', async () => {
