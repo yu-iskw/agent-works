@@ -9,6 +9,8 @@ export type IndexedDocument = {
   readonly text: string;
 };
 
+export type SearchHit = SourceCitation & { readonly text: string };
+
 export interface SearchPort {
-  search(context: SearchContext, query: string): Promise<readonly SourceCitation[]>;
+  search(context: SearchContext, query: string): Promise<readonly SearchHit[]>;
 }

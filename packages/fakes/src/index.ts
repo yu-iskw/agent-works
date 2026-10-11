@@ -1,3 +1,4 @@
+export { createDirectory } from './fake-directory.js';
 export { createDrive } from './fake-drive.js';
 export { createIncidents } from './fake-incidents.js';
 export { createLlm } from './fake-llm.js';

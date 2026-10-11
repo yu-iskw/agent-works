@@ -12,7 +12,6 @@ import {
   askPolicy,
   boundTo,
   contextFor,
-  createCorpusPort,
   rankByOverlap,
   readable,
 } from './search.js';
@@ -112,7 +111,14 @@ export function createHttpDrive(options: HttpDriveOptions): HttpDrive {
       const [documents, snapshot] = await read(caller);
       return {
         context: contextFor(caller, snapshot, policy),
-        port: boundTo(caller.sub, createCorpusPort(documents)),
+        port: boundTo(caller.sub, {
+          search: (context, question) =>
+            Promise.resolve(
+              rankByOverlap(question, readable(context, documents), context.resultCountLimit).map(
+                (document) => ({ ...document.citation, text: document.text }),
+              ),
+            ),
+        }),
       };
     },
   };

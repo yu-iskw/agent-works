@@ -1,5 +1,5 @@
-import type { IndexedDocument, SearchPort } from '../search-port.js';
-import type { Classification, SearchContext, SourceCitation } from '@agent-works/domain';
+import type { IndexedDocument, SearchHit, SearchPort } from '../search-port.js';
+import type { Classification, SearchContext } from '@agent-works/domain';
 
 function rank(classification: Classification): number {
   switch (classification) {
@@ -32,10 +32,10 @@ function visible(context: SearchContext, document: IndexedDocument, query: strin
 export function createMemorySearchPort(documents: readonly IndexedDocument[]): SearchPort {
   return {
     search(context, query) {
-      const hits: SourceCitation[] = [];
+      const hits: SearchHit[] = [];
       for (const document of documents) {
         if (!visible(context, document, query)) continue;
-        hits.push(document.citation);
+        hits.push({ ...document.citation, text: document.text });
         if (hits.length === context.resultCountLimit) break;
       }
       return Promise.resolve(hits);

@@ -3,8 +3,6 @@ import { fakeUsers } from './iap-proxy.js';
 import type { Handler, Reply } from './http.js';
 
 export const agentUsersGroup = 'agent-users@company.example';
-const seededObservedAt = '2026-01-01T00:00:00.000Z';
-const revokedObservedAt = '2026-01-01T00:01:00.000Z';
 
 type Snapshot = {
   sub: string;
@@ -29,7 +27,7 @@ export function snapshotGroups(body: unknown): readonly string[] | undefined {
 export function createDirectory(): Handler {
   const state = new Map<string, Snapshot>();
   for (const sub of fakeUsers) {
-    state.set(sub, { sub, groups: [...seededGroups(sub)], observedAt: seededObservedAt });
+    state.set(sub, { sub, groups: [...seededGroups(sub)], observedAt: new Date().toISOString() });
   }
   return (request) => {
     const match = /^\/snapshots\/([a-z]+)$/.exec(request.url.pathname);
@@ -37,7 +35,7 @@ export function createDirectory(): Handler {
       const snapshot = state.get(match[1]);
       return snapshot === undefined
         ? { status: 404, body: { error: 'not found' } }
-        : { status: 200, body: snapshot };
+        : { status: 200, body: { ...snapshot, observedAt: new Date().toISOString() } };
     }
     if (request.method === 'POST' && request.url.pathname === '/revocations') {
       return revoke(state, request.body);
@@ -51,11 +49,10 @@ function revoke(state: Map<string, Snapshot>, body: Buffer): Reply {
   if (parsed === undefined) return { status: 400, body: { error: 'bad body' } };
   const current = state.get(parsed.sub);
   if (current === undefined) return { status: 404, body: { error: 'not found' } };
-  if (!current.groups.includes(parsed.group)) return { status: 200, body: current };
   const next: Snapshot = {
     sub: current.sub,
     groups: current.groups.filter((group) => group !== parsed.group),
-    observedAt: revokedObservedAt,
+    observedAt: new Date().toISOString(),
   };
   state.set(current.sub, next);
   return { status: 200, body: next };

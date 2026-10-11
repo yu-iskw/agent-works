@@ -17,6 +17,9 @@ function citation(id: string, title: string): SourceCitation {
   };
 }
 
+const runbookText = 'triage runbook';
+const secretText = 'triage secret';
+
 const runbook = citation('alice-runbook', 'Triage runbook');
 const secret = citation('bob-secret', 'Bob secret');
 const restricted = citation('restricted-doc', 'Restricted');
@@ -28,7 +31,7 @@ export const searchFixture: readonly IndexedDocument[] = [
     classification: 'INTERNAL',
     source: 'drive',
     region: 'us',
-    text: 'triage runbook',
+    text: runbookText,
   },
   {
     citation: secret,
@@ -36,7 +39,7 @@ export const searchFixture: readonly IndexedDocument[] = [
     classification: 'INTERNAL',
     source: 'drive',
     region: 'us',
-    text: 'triage secret',
+    text: secretText,
   },
   {
     citation: restricted,
@@ -79,13 +82,13 @@ const context: SearchContext = {
 export function searchPortContract(create: () => SearchPort): void {
   describe('SearchPort', () => {
     it('returns the caller groups under the classification ceiling', async () => {
-      expect(await create().search(context, 'triage')).toEqual([runbook]);
+      expect(await create().search(context, 'triage')).toEqual([{ ...runbook, text: runbookText }]);
     });
 
     it('returns nothing for a group the caller is not in', async () => {
       expect(
         await create().search({ ...context, authorizedGroups: ['other'] }, 'triage secret'),
-      ).toEqual([secret]);
+      ).toEqual([{ ...secret, text: secretText }]);
       expect(await create().search({ ...context, authorizedGroups: ['nope'] }, 'triage')).toEqual(
         [],
       );
@@ -93,7 +96,7 @@ export function searchPortContract(create: () => SearchPort): void {
 
     it('stops at the context result limit', async () => {
       expect(await create().search({ ...context, resultCountLimit: 1 }, 'triage')).toEqual([
-        runbook,
+        { ...runbook, text: runbookText },
       ]);
     });
   });

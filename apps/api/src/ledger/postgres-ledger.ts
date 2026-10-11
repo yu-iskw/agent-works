@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   canonicalPayloadSha256,
+  outboxEventSchema,
   taskAcceptedSchema,
   taskSchema,
   transition,
@@ -83,6 +84,13 @@ export function createPostgresLedgerPort(
     },
     append(event) {
       return ready.then(() => appendEvent(sql, event));
+    },
+    async readOutbox(eventId) {
+      await ready;
+      const rows = await sql<{ payload: unknown }[]>`
+        select payload from outbox_events where event_id = ${eventId}
+      `;
+      return rows.length === 0 ? undefined : outboxEventSchema.parse(rows[0].payload);
     },
     transition(input) {
       return ready.then(() => commitTransition(sql, now, input));

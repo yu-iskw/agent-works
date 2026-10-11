@@ -67,7 +67,9 @@ export function ledgerPortContract(create: () => LedgerPort): void {
 
     it('records an outbox event once and replays the same body', async () => {
       const port = create();
+      expect(await port.readOutbox(event.event.eventId)).toBeUndefined();
       expect(await port.append(event)).toBe('recorded');
+      expect(await port.readOutbox(event.event.eventId)).toEqual(event);
       expect(await port.append(event)).toBe('replay');
       await expect(
         port.append({ ...event, event: { ...event.event, outcome: 'CHANGED' } }),

@@ -35,6 +35,18 @@ export function createRoleResolver(options: {
   };
 }
 
+export function createGroupResolver(options: {
+  readonly baseUrl: string;
+  readonly timeoutMs?: number;
+}): (sub: string) => Promise<GroupSnapshot> {
+  const baseUrl = new URL(options.baseUrl);
+  return async (sub) => {
+    const snapshot = await fetchSnapshot(baseUrl, sub, options.timeoutMs ?? defaultTimeoutMs);
+    if (snapshot === undefined) throw new Error('directory unavailable');
+    return snapshot;
+  };
+}
+
 async function fetchSnapshot(
   baseUrl: URL,
   sub: string,
@@ -56,7 +68,10 @@ async function fetchSnapshot(
   return parsed.data;
 }
 
-function rolesAt(snapshot: GroupSnapshot, nowMs: number): readonly AppRole[] {
+export function rolesAt(
+  snapshot: { readonly groups: readonly string[]; readonly observedAt: string },
+  nowMs: number,
+): readonly AppRole[] {
   const ageMs = nowMs - Date.parse(snapshot.observedAt);
   const fresh = ageMs >= -futureSkewMs && ageMs <= maxSnapshotAgeMs;
   if (!fresh) return [];
