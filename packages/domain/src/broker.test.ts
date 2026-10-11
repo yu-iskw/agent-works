@@ -38,9 +38,10 @@ describe('broker contracts', () => {
   });
 
   it('validates ticket.create input with the schema the manifest names', () => {
-    const schemaPath = resolve(repoRoot, ticketCreateManifest.spec.inputSchemaRef);
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
-    const parsed: unknown = JSON.parse(readFileSync(schemaPath, 'utf8'));
+    expect(ticketCreateManifest.spec.inputSchemaRef).toBe('schemas/ticket-create.json');
+    const parsed: unknown = JSON.parse(
+      readFileSync(resolve(repoRoot, 'schemas/ticket-create.json'), 'utf8'),
+    );
     if (!isJsonSchema(parsed)) throw new Error('ticket create schema');
     const schema = z.fromJSONSchema(parsed);
     expect(schema.parse({ summary: 'Checkout latency', project: 'ops' })).toEqual({
