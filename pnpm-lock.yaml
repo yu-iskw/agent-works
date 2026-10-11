@@ -79,6 +79,9 @@ importers:
       '@agent-works/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@agent-works/policy':
+        specifier: workspace:*
+        version: link:../../packages/policy
       '@google/adk':
         specifier: 2.2.0
         version: 2.2.0(@grpc/grpc-js@1.14.5)

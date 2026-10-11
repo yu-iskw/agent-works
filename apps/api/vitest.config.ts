@@ -8,6 +8,9 @@ export default defineProject({
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),
+      '@agent-works/policy': fileURLToPath(
+        new URL('../../packages/policy/src/index.ts', import.meta.url),
+      ),
       '@agent-works/fakes': fileURLToPath(
         new URL('../../packages/fakes/src/index.ts', import.meta.url),
       ),
