@@ -72,6 +72,7 @@ export async function createApprovalHarness(
   let postGate: { resumed: Promise<void>; started(): void } | undefined;
   const inner = createMemoryLedgerPort(() => now);
   const ledger = {
+    ...inner,
     submit: inner.submit.bind(inner),
     read: inner.read.bind(inner),
     append(event: Parameters<typeof inner.append>[0]) {

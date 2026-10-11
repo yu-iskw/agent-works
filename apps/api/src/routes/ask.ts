@@ -14,6 +14,7 @@ import { rolesAt } from '../auth/directory.js';
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { readRunnerKind } from '../config.js';
 import { headerValue } from '../http.js';
+import { LedgerConflict } from '../ports/ledger-port.js';
 import { RetrievalError } from '../retrieval/drive-port.js';
 import { ContextMismatch, askPolicy, contextFor } from '../retrieval/search.js';
 
@@ -265,17 +266,30 @@ async function runWired(
     request.requestId,
   );
   const now = deps.now();
-  const event = auditEvent({
-    agentPrincipal: deps.agentPrincipal,
-    caller,
-    request,
-    outcome: outcome.kind,
-    now,
-    requestDigestSha256,
-    taskId: accepted.taskId,
-    tool: searchTool,
-    policyDecisionId: decision.decisionId,
-  });
+  const persisted = await wire.ledger.readOutbox(request.requestId);
+  if (
+    persisted !== undefined &&
+    (persisted.destination !== 'audit' ||
+      persisted.event.eventType !== 'ask' ||
+      persisted.event.initiatorSubject !== caller.sub ||
+      persisted.event.taskId !== accepted.taskId ||
+      persisted.event.requestDigestSha256 !== requestDigestSha256)
+  ) {
+    throw new LedgerConflict('outbox event changed');
+  }
+  const event =
+    persisted?.event ??
+    auditEvent({
+      agentPrincipal: deps.agentPrincipal,
+      caller,
+      request,
+      outcome: outcome.kind,
+      now,
+      requestDigestSha256,
+      taskId: accepted.taskId,
+      tool: searchTool,
+      policyDecisionId: decision.decisionId,
+    });
   await wire.ledger.append({ destination: 'audit', event });
   return { event, reply: replyFor(outcome, request.requestId, now.toISOString()) };
 }

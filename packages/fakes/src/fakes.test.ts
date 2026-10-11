@@ -2,7 +2,7 @@ import { createPublicKey, createVerify } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 
 import { IAP_ASSERTION_HEADER as assertionHeader } from '@agent-works/domain';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDirectory } from './fake-directory.js';
 import { createDrive } from './fake-drive.js';
@@ -347,14 +347,17 @@ describe('fakes', () => {
   });
 
   it('returns a group snapshot and drops the group after revocation', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime('2026-10-10T10:00:00.000Z');
     const directory = await listen(createDirectory(), 0);
     try {
+      vi.setSystemTime('2026-10-10T10:10:00.000Z');
       const before = await fetch(`${directory.url}/snapshots/alice`);
       expect(before.status).toBe(200);
       expect(await before.json()).toEqual({
         sub: 'alice',
         groups: ['agent-users@company.example'],
-        observedAt: '2026-01-01T00:00:00.000Z',
+        observedAt: '2026-10-10T10:10:00.000Z',
       });
       const revoked = await fetch(`${directory.url}/revocations`, {
         method: 'POST',
@@ -365,7 +368,7 @@ describe('fakes', () => {
       const after = {
         sub: 'alice',
         groups: [],
-        observedAt: '2026-01-01T00:01:00.000Z',
+        observedAt: '2026-10-10T10:10:00.000Z',
       };
       expect(await revoked.json()).toEqual(after);
       const again = await fetch(`${directory.url}/revocations`, {
@@ -374,10 +377,15 @@ describe('fakes', () => {
         body: JSON.stringify({ sub: 'alice', group: 'agent-users@company.example' }),
       });
       expect(await again.json()).toEqual(after);
+      vi.setSystemTime('2026-10-10T10:20:00.000Z');
       const snapshot = await fetch(`${directory.url}/snapshots/alice`);
-      expect(await snapshot.json()).toEqual(after);
+      expect(await snapshot.json()).toEqual({
+        ...after,
+        observedAt: '2026-10-10T10:20:00.000Z',
+      });
     } finally {
       await directory.close();
+      vi.useRealTimers();
     }
   });
 

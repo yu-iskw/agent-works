@@ -5,7 +5,7 @@ import { canonicalPayloadSha256, taskAcceptedSchema, taskSchema } from '@agent-w
 import { LedgerConflict } from '../ledger-port.js';
 
 import type { LedgerPort } from '../ledger-port.js';
-import type { Task, TaskAccepted, TaskSubmit } from '@agent-works/domain';
+import type { OutboxEvent, Task, TaskAccepted, TaskSubmit } from '@agent-works/domain';
 
 type Stored = {
   readonly digest: string;
@@ -16,7 +16,7 @@ type Stored = {
 export function createMemoryLedgerPort(now: () => Date = () => new Date()): LedgerPort {
   const byKey = new Map<string, Stored>();
   const byId = new Map<string, Task>();
-  const events = new Map<string, string>();
+  const events = new Map<string, OutboxEvent>();
   return {
     submit(subject, request, idempotencyKey) {
       const digest = canonicalPayloadSha256(request);
@@ -41,11 +41,14 @@ export function createMemoryLedgerPort(now: () => Date = () => new Date()): Ledg
       const digest = canonicalPayloadSha256(event);
       const prior = events.get(event.event.eventId);
       if (prior === undefined) {
-        events.set(event.event.eventId, digest);
+        events.set(event.event.eventId, structuredClone(event));
         return Promise.resolve('recorded');
       }
-      if (prior === digest) return Promise.resolve('replay');
+      if (canonicalPayloadSha256(prior) === digest) return Promise.resolve('replay');
       return Promise.reject(new LedgerConflict('outbox event changed'));
+    },
+    readOutbox(eventId) {
+      return Promise.resolve(structuredClone(events.get(eventId)));
     },
   };
 }

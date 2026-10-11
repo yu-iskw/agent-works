@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { createDrive, listen } from '@agent-works/fakes';
+import { createDirectory, createDrive, listen } from '@agent-works/fakes';
 import * as policy from '@agent-works/policy';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createGroupResolver } from '../auth/directory.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createHttpDrive } from '../retrieval/http-drive.js';
 import { ContextMismatch } from '../retrieval/search.js';
@@ -37,7 +38,7 @@ describe('wired ask authorization', () => {
     vi.unstubAllEnvs();
   });
 
-  async function open(patch: Partial<NonNullable<AskDeps['wire']>> = {}) {
+  async function open(patch: Partial<NonNullable<AskDeps['wire']>> = {}, now = () => new Date(at)) {
     const search = vi.fn(() => Promise.resolve([]));
     const runner = { run: vi.fn() };
     const ledger = createMemoryLedgerPort(() => new Date(at));
@@ -50,7 +51,7 @@ describe('wired ask authorization', () => {
       Promise.resolve({ groups: ['agent-users@company.example'], observedAt: at }),
     );
     const stack = await startStack({
-      now: () => new Date(at),
+      now,
       runner,
       wire: { search: { search }, ledger, groups, policyInput, ...patch },
     });
@@ -148,6 +149,51 @@ describe('wired ask authorization', () => {
       { outcome: 'no_sources', policyDecisionId: decisions[0].decisionId },
       { outcome: 'denied', tool: null, policyDecisionId: decisions[1].decisionId },
     ]);
+  });
+
+  it('authorizes with the fake directory and denies after revocation', async () => {
+    const directory = await listen(createDirectory(), 0);
+    closers.push(directory.close);
+    const groups = createGroupResolver({ baseUrl: directory.url });
+    const ports = await open({ groups: (caller) => groups(caller.sub) }, () => new Date());
+    expect((await post(ports.stack)).status).toBe(200);
+    const revoked = await fetch(`${directory.url}/revocations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sub: 'alice', group: 'agent-users@company.example' }),
+    });
+    expect(revoked.status).toBe(200);
+    expect((await post(ports.stack)).status).toBe(403);
+    expect(ports.search).toHaveBeenCalledTimes(1);
+    expect(ports.stack.audit.rows()).toMatchObject([
+      { outcome: 'no_sources' },
+      { outcome: 'denied' },
+    ]);
+  });
+
+  it('reuses the committed outbox event after an append acknowledgement is lost', async () => {
+    const ledger = createMemoryLedgerPort(() => new Date(at));
+    const append = ledger.append.bind(ledger);
+    const lostAck = vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+      await append(event);
+      throw new Error('lost acknowledgement');
+    });
+    let now = new Date(at);
+    const ports = await open({ ledger }, () => now);
+    const requestId = randomUUID();
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
+    const persisted = await ledger.readOutbox(requestId);
+    expect(persisted).toBeDefined();
+    expect(ports.stack.audit.rows()).toEqual([]);
+    now = new Date('2026-10-10T10:01:00.000Z');
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(200);
+    expect(lostAck).toHaveBeenCalledTimes(2);
+    expect(lostAck.mock.calls[1][0]).toEqual(persisted);
+    expect(await ledger.readOutbox(requestId)).toEqual(persisted);
+    expect(ports.stack.audit.rows()).toEqual([persisted?.event]);
+    const decisions = ports.decision.mock.results.map((result) => result.value as PolicyDecision);
+    expect(decisions[1].decisionId).not.toBe(decisions[0].decisionId);
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(409);
   });
 
   it('denies a caller without Employee even if policy inputs claim the role', async () => {
@@ -272,10 +318,10 @@ describe('wired ask authorization', () => {
   });
 });
 
-function post(stack: Stack, question = 'question') {
+function post(stack: Stack, question = 'question', requestId = randomUUID()) {
   return fetch(`${stack.iapUrl}/v1/ask`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-fake-user': 'alice' },
-    body: JSON.stringify({ requestId: randomUUID(), question }),
+    body: JSON.stringify({ requestId, question }),
   });
 }

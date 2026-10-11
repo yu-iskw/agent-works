@@ -23,6 +23,7 @@ function services(events: string[] = []) {
   const log = createMemoryWorkflowLog();
   const inner = createMemoryLedgerPort();
   const ledger: LedgerPort = {
+    ...inner,
     submit: (subject, body, idempotencyKey) => inner.submit(subject, body, idempotencyKey),
     read: (subject, taskId) => inner.read(subject, taskId),
     append(event) {
@@ -262,6 +263,7 @@ it('appends the step event on the next run when the ledger write fails after the
   const events: string[] = [];
   let failed = false;
   const ledger: LedgerPort = {
+    ...inner,
     submit: (subject, body, idempotencyKey) => inner.submit(subject, body, idempotencyKey),
     read: (subject, taskId) => inner.read(subject, taskId),
     append(event) {
