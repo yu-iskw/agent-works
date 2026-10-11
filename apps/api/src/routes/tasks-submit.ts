@@ -1,4 +1,5 @@
 import { notImplementedRoute } from './not-implemented.js';
+import { taskSubmitRoute } from './tasks.js';
 
 import type { ExactSlot } from './slot.js';
 
@@ -9,4 +10,5 @@ export const tasksSubmitSlot: ExactSlot = {
   path: '/v1/tasks',
   kind: 'exact',
   stub: notImplementedRoute,
+  real: taskSubmitRoute,
 };

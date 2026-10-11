@@ -1,4 +1,5 @@
 import { notImplementedRoute } from './not-implemented.js';
+import { taskEventsRoute } from './tasks.js';
 
 import type { PatternSlot } from './slot.js';
 
@@ -9,4 +10,5 @@ export const tasksEventsSlot: PatternSlot = {
   match: /^\/v1\/tasks\/([^/]+)\/events$/,
   kind: 'pattern',
   stub: notImplementedRoute,
+  real: taskEventsRoute,
 };
