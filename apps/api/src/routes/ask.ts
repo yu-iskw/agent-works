@@ -78,8 +78,7 @@ async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promi
 }
 
 type AuthResult =
-  | { readonly ok: true; readonly caller: Caller }
-  | { readonly ok: false; readonly reply: ApiReply };
+  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,

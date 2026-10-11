@@ -16,8 +16,7 @@ type Produced<Reply> = {
 };
 
 type AskRunResult<Reply> =
-  | { readonly kind: 'done'; readonly reply: Reply }
-  | { readonly kind: 'conflict' };
+  { readonly kind: 'done'; readonly reply: Reply } | { readonly kind: 'conflict' };
 
 export interface AuditLog {
   run<Reply>(
