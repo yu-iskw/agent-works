@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
-import { createCorpusPort } from '../../apps/api/src/retrieval/search.js';
 import { startStack } from '../../apps/api/src/testing/stack.js';
 import { createLlm } from '../../packages/fakes/src/fake-llm.js';
 import { listen } from '../../packages/fakes/src/http.js';
@@ -33,7 +32,7 @@ const runbook: IndexedDocument = {
   classification: 'INTERNAL',
   source: 'drive',
   region: 'us',
-  text: `${question}\nAlice triage steps.`,
+  text: 'Alice triage steps.',
 };
 
 const recorded: OutboxEvent[] = [];
@@ -64,7 +63,7 @@ it('audit.reconcile', async () => {
   const stack = await startStack({
     now: () => new Date(at),
     wire: {
-      search: createCorpusPort([runbook]),
+      search: { search: () => Promise.resolve([{ ...runbook.citation, text: runbook.text }]) },
       ledger,
       policyInput: () =>
         Promise.resolve({
