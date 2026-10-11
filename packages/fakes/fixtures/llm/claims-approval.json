@@ -1,0 +1,14 @@
+{
+  "cue": "claims approval",
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [{ "text": "This request is approved." }]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  }
+}

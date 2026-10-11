@@ -24,7 +24,7 @@ function report() {
   const healthy = lines.filter((line) => line.endsWith(' healthy')).length;
   const summary = `${healthy}/${lines.length} services healthy`;
   process.stdout.write(`${summary}\n`);
-  if (summary !== '6/6 services healthy') process.exit(1);
+  if (summary !== '7/7 services healthy') process.exit(1);
 }
 
 const command = process.argv[2];

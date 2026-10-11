@@ -1,8 +1,10 @@
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 
+import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
+
 import { header } from './http.js';
 
-import type { Handler, Reply, Request } from './http.js';
+import type { Handler, Reply, ReplyHeaders, Request } from './http.js';
 import type { KeyObject } from 'node:crypto';
 
 export const fakeIap = {
@@ -10,7 +12,9 @@ export const fakeIap = {
   audience: 'agent-works-dev',
 } as const;
 
-const users = new Set(['alice', 'bob']);
+export const fakeUsers = ['alice', 'bob'] as const;
+
+const users = new Set<string>(fakeUsers);
 const contentTypeHeader = 'content-type';
 const hop = new Set(['connection', 'content-length', 'keep-alive', 'transfer-encoding']);
 const dropResponse = new Set([...hop, 'content-encoding']);
@@ -20,22 +24,51 @@ const skip = new Set([
   'upgrade',
   'expect',
   'x-fake-user',
-  'x-goog-iap-jwt-assertion',
+  'x-fake-iap',
+  IAP_ASSERTION_HEADER,
 ]);
 
+type Fault = 'bad-sig' | 'bad-aud' | 'expired';
+
+type SigningKeys = {
+  jwk: ReturnType<typeof publicJwk>;
+  privateKey: KeyObject;
+  decoyKey: KeyObject;
+};
+
 export function createIapProxy(upstream: string): Handler {
-  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-  const jwk = publicJwk(publicKey);
+  const signing = createSigningKeys();
   return async (request) => {
     if (request.method === 'GET' && request.url.pathname === '/jwks') {
-      return { status: 200, body: { keys: [jwk] } };
+      return { status: 200, body: { keys: [signing.jwk] } };
     }
     const user = header(request.headers, 'x-fake-user');
     if (user === undefined || !users.has(user)) {
       return { status: 401, body: { error: 'unauthenticated' } };
     }
-    return forward(upstream, request, signAssertion(privateKey, jwk.kid, user));
+    const fault = readFault(header(request.headers, 'x-fake-iap'));
+    if (fault === 'invalid') return { status: 400, body: { error: 'bad iap switch' } };
+    return forward(upstream, request, signAssertion(signing, user, fault));
   };
+}
+
+function createSigningKeys(): SigningKeys {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const { privateKey: decoyKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  return { jwk: publicJwk(publicKey), privateKey, decoyKey };
+}
+
+function readFault(value: string | undefined): Fault | 'invalid' | undefined {
+  switch (value) {
+    case undefined:
+      return undefined;
+    case 'bad-sig':
+    case 'bad-aud':
+    case 'expired':
+      return value;
+    default:
+      return 'invalid';
+  }
 }
 
 function publicJwk(publicKey: KeyObject) {
@@ -47,24 +80,45 @@ function publicJwk(publicKey: KeyObject) {
   return { kty, crv, x, y, kid, alg: 'ES256' as const, use: 'sig' as const };
 }
 
-function signAssertion(key: KeyObject, kid: string, sub: string): string {
-  const iat = Math.floor(Date.now() / 1000);
-  const head = Buffer.from(JSON.stringify({ alg: 'ES256', kid, typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(
-    JSON.stringify({
-      iss: fakeIap.issuer,
-      aud: fakeIap.audience,
-      sub,
-      email: `${sub}@example.test`,
-      iat,
-      exp: iat + 600,
-    }),
+function signAssertion(signing: SigningKeys, sub: string, fault: Fault | undefined): string {
+  const key = fault === 'bad-sig' ? signing.decoyKey : signing.privateKey;
+  const head = Buffer.from(
+    JSON.stringify({ alg: 'ES256', kid: signing.jwk.kid, typ: 'JWT' }),
   ).toString('base64url');
+  const payload = Buffer.from(JSON.stringify(assertionClaims(sub, fault))).toString('base64url');
   const input = `${head}.${payload}`;
   const signature = sign('SHA256', Buffer.from(input), { key, dsaEncoding: 'ieee-p1363' }).toString(
     'base64url',
   );
   return `${input}.${signature}`;
+}
+
+function assertionClaims(
+  sub: string,
+  fault: Fault | undefined,
+): {
+  iss: string;
+  aud: string;
+  sub: string;
+  email: string;
+  iat: number;
+  exp: number;
+} {
+  const now = Math.floor(Date.now() / 1000);
+  const identity = { iss: fakeIap.issuer, sub, email: `${sub}@example.test` };
+  switch (fault) {
+    case undefined:
+    case 'bad-sig':
+      return { ...identity, aud: fakeIap.audience, iat: now, exp: now + 600 };
+    case 'bad-aud':
+      return { ...identity, aud: 'agent-works-other', iat: now, exp: now + 600 };
+    case 'expired':
+      return { ...identity, aud: fakeIap.audience, iat: now - 180, exp: now - 120 };
+    default: {
+      const unreachable: never = fault;
+      return unreachable;
+    }
+  }
 }
 
 async function forward(upstream: string, request: Request, assertion: string): Promise<Reply> {
@@ -78,7 +132,7 @@ async function forward(upstream: string, request: Request, assertion: string): P
     }
     headers.set(name, Array.isArray(value) ? value.join(',') : value);
   }
-  headers.set('x-goog-iap-jwt-assertion', assertion);
+  headers.set(IAP_ASSERTION_HEADER, assertion);
   const method = request.method;
   const response = await fetch(target, {
     method,
@@ -100,11 +154,12 @@ async function readUpstream(response: Response): Promise<Reply> {
   };
 }
 
-function replyHeaders(response: Response, empty: boolean): Record<string, string> | undefined {
+function replyHeaders(response: Response, empty: boolean): ReplyHeaders | undefined {
   const entries: [string, string][] = [];
   if (empty) {
     response.headers.forEach((value, name) => {
-      if (!dropResponse.has(name)) entries.push([name, value]);
+      if (name === 'set-cookie' || dropResponse.has(name)) return;
+      entries.push([name, value]);
     });
   } else {
     const location = response.headers.get('location');
@@ -112,5 +167,8 @@ function replyHeaders(response: Response, empty: boolean): Record<string, string
     const contentType = response.headers.get(contentTypeHeader);
     if (contentType !== null) entries.push([contentTypeHeader, contentType]);
   }
-  return entries.length === 0 ? undefined : Object.fromEntries(entries);
+  const cookies = response.headers.getSetCookie();
+  if (entries.length === 0 && cookies.length === 0) return undefined;
+  const headers: ReplyHeaders = Object.fromEntries(entries);
+  return cookies.length === 0 ? headers : { ...headers, 'set-cookie': cookies };
 }

@@ -34,9 +34,19 @@ services:
       UPSTREAM_URL: http://web:8080
     ports:
       - 127.0.0.1:8081:8080
+  fake-directory:
+    <<: *node
+    command: node packages/fakes/dist/main.js directory
+    ports:
+      - 127.0.0.1:8086:8080
   fake-drive:
     <<: *node
     command: node packages/fakes/dist/main.js drive
+    environment:
+      DIRECTORY_URL: http://fake-directory:8080
+    depends_on:
+      fake-directory:
+        condition: service_healthy
     ports:
       - 127.0.0.1:8082:8080
   fake-llm:

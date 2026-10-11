@@ -1,0 +1,21 @@
+{
+  "cue": "loop until the step limit",
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [
+            {
+              "functionCall": {
+                "name": "search",
+                "args": { "query": "loop until the step limit" }
+              }
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  }
+}
