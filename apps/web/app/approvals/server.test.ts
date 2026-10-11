@@ -1,10 +1,11 @@
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 
 import { expect, test } from 'vitest';
 
 import { createWebServer } from '../../src/server.js';
 
 import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 const detail = {
   kind: 'detail',
@@ -115,3 +116,20 @@ function close(server: Server): Promise<void> {
     server.close((error) => (error === undefined ? resolve() : reject(error)));
   });
 }
+
+test('rejects a malformed request target without crashing', async () => {
+  const server = createWebServer({ apiUrl: 'http://127.0.0.1:9' }).listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  const { port } = server.address() as AddressInfo;
+  const status = await new Promise<number | undefined>((resolve) => {
+    const req = request({ port, path: 'http://[' }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    });
+    req.on('error', () => resolve(undefined));
+    req.end();
+  });
+  expect(server.listening).toBe(true);
+  expect(status).not.toBe(200);
+  server.close();
+});

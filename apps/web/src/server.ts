@@ -10,8 +10,9 @@ export function createWebServer(options: WebAppOptions) {
   const approvals = createApprovalsHandler(options);
   const web = createWebApp(options);
   return createServer((request, response) => {
-    const path = new URL(request.url ?? '/', 'http://localhost').pathname;
-    if (/^\/approvals\/[^/]+(?:\/decide)?$/.test(path)) approvals(request, response);
+    const path = URL.parse(request.url ?? '/', 'http://localhost')?.pathname;
+    if (path !== undefined && /^\/approvals\/[^/]+(?:\/decide)?$/.test(path))
+      approvals(request, response);
     else web(request, response);
   });
 }
