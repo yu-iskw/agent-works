@@ -5,11 +5,14 @@ import {
   askErrorSchema,
   askRequestSchema,
   askResponseSchema,
+  sourceCitationSchema,
 } from '@agent-works/domain';
 
+import CitationList from './citations/citation-list.js';
 import { renderDocument } from './html.js';
 import Page from './page.js';
 
+import type { Html } from './html.js';
 import type { PageView } from './page.js';
 import type { AskErrorCode } from '@agent-works/domain';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
@@ -49,6 +52,10 @@ async function handle(
       sendPage(response, 200, { kind: 'ready', requestId: newRequestId() });
       return;
     }
+    if (request.method === 'POST' && url.pathname === '/citations') {
+      await postCitations(request, response);
+      return;
+    }
     if (request.method === 'POST' && url.pathname === '/') {
       await postAsk(apiUrl, load, newRequestId, request, response);
       return;
@@ -56,6 +63,28 @@ async function handle(
     send(response, 404, 'not found', textPlain);
   } catch {
     if (!response.headersSent) send(response, 500, 'error', textPlain);
+  }
+}
+
+async function postCitations(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  const body = await readLimited(request, maxBodyBytes);
+  if (body === undefined) {
+    send(response, 400, 'too large', textPlain);
+    return;
+  }
+  const parsed = sourceCitationSchema.array().safeParse(readJson(body));
+  if (!parsed.success) {
+    send(response, 400, 'invalid citation', textPlain);
+    return;
+  }
+  sendHtml(response, 200, CitationList({ citations: parsed.data }));
+}
+
+function readJson(body: Buffer): unknown {
+  try {
+    return JSON.parse(body.toString('utf8')) as unknown;
+  } catch {
+    return undefined;
   }
 }
 
@@ -170,7 +199,11 @@ function readForm(body: Buffer): { question?: string; requestId?: string } {
 }
 
 function sendPage(response: ServerResponse, status: number, view: PageView): void {
-  send(response, status, renderDocument(Page({ view })), textHtml);
+  sendHtml(response, status, Page({ view }));
+}
+
+function sendHtml(response: ServerResponse, status: number, root: Html): void {
+  send(response, status, renderDocument(root), textHtml);
 }
 
 function send(response: ServerResponse, status: number, body: string, type: string): void {
