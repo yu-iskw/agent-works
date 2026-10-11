@@ -101,6 +101,22 @@ it('a new connection reads the task after the first pool closes', async () => {
   }
 });
 
+it('a repeated submit returns the original acceptance after the task moves', async () => {
+  const accepted = await port.submit('alice', request, 'replay-key');
+  await port.transition({
+    subject: 'alice',
+    taskId: accepted.taskId,
+    expectedVersion: 1,
+    to: 'RUNNING',
+    event: outbox('evt-replay-status', accepted.taskId),
+  });
+  expect(await port.submit('alice', request, 'replay-key')).toEqual(accepted);
+  expect(await port.read('alice', accepted.taskId)).toMatchObject({
+    status: 'RUNNING',
+    version: 2,
+  });
+});
+
 it('an illegal transition writes no outbox event', async () => {
   const query = requireSql();
   const accepted = await port.submit('alice', request, 'fail-key');
