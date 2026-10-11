@@ -1,10 +1,11 @@
-import { h } from '../html.js';
+import { Fragment, h } from '../html.js';
 
 import type { Html } from '../html.js';
+import type { ApprovalDetail } from './reader.js';
 import type { Approval } from '@agent-works/domain';
 
 export type ApprovalView = {
-  readonly approval: Approval;
+  readonly approval: Approval | ApprovalDetail;
   readonly csrfToken: string;
   readonly message?: string;
   readonly blocked?: boolean;
@@ -20,14 +21,23 @@ export default function Page({ approval, csrfToken, message, blocked }: Approval
       <dl>
         <dt>Approval</dt>
         <dd>{approval.id}</dd>
-        <dt>Task</dt>
-        <dd>{approval.taskId}</dd>
-        <dt>Step</dt>
-        <dd>{approval.stepId}</dd>
-        <dt>Tool</dt>
-        <dd>{approval.tool}</dd>
-        <dt>Target resource</dt>
-        <dd>{approval.targetResource}</dd>
+        {'kind' in approval ? (
+          <>
+            <dt>Action</dt>
+            <dd>{approval.actionSummary}</dd>
+          </>
+        ) : (
+          <>
+            <dt>Task</dt>
+            <dd>{approval.taskId}</dd>
+            <dt>Step</dt>
+            <dd>{approval.stepId}</dd>
+            <dt>Tool</dt>
+            <dd>{approval.tool}</dd>
+            <dt>Target resource</dt>
+            <dd>{approval.targetResource}</dd>
+          </>
+        )}
         <dt>Requested by</dt>
         <dd>{approval.requestedBySub}</dd>
         <dt>Payload SHA-256</dt>
@@ -40,10 +50,14 @@ export default function Page({ approval, csrfToken, message, blocked }: Approval
         </dd>
         <dt>State</dt>
         <dd>{approval.state}</dd>
-        <dt>Executions</dt>
-        <dd>
-          {approval.executionsUsed} / {approval.maxExecutions}
-        </dd>
+        {!('kind' in approval) && (
+          <>
+            <dt>Executions</dt>
+            <dd>
+              {approval.executionsUsed} / {approval.maxExecutions}
+            </dd>
+          </>
+        )}
       </dl>
       {message !== undefined && <p role={blocked === true ? 'alert' : 'status'}>{message}</p>}
       {expired && pending && <p role="alert">This approval has expired.</p>}

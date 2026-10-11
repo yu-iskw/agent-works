@@ -5,14 +5,19 @@ import { IAP_ASSERTION_HEADER, approvalApiSchema, approvalSchema } from '@agent-
 import { renderDocument } from '../html.js';
 
 import Page from './page.js';
+import { createApprovalReader } from './reader.js';
 
 import type { ApprovalView } from './page.js';
+import type { ApprovalDetail } from './reader.js';
 import type { Approval, ApprovalApi } from '@agent-works/domain';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 
 export type ApprovalsOptions = {
   readonly apiUrl: string;
-  readonly readApproval: (id: string, request: IncomingMessage) => Promise<Approval | undefined>;
+  readonly readApproval?: (
+    id: string,
+    request: IncomingMessage,
+  ) => Promise<Approval | ApprovalDetail | undefined>;
   readonly fetch?: typeof fetch;
 };
 
@@ -29,15 +34,19 @@ function routeFor(request: IncomingMessage): { id: string; isDecision: boolean }
 }
 
 export function createApprovalsHandler(options: ApprovalsOptions): RequestListener {
+  const resolved = {
+    ...options,
+    readApproval: options.readApproval ?? createApprovalReader(options),
+  };
   return (request, response) => {
-    void handle(options, request, response).catch(() => {
+    void handle(resolved, request, response).catch(() => {
       if (!response.headersSent) send(response, 503, 'The approval service is unavailable.');
     });
   };
 }
 
 async function handle(
-  options: ApprovalsOptions,
+  options: ApprovalsOptions & { readApproval: NonNullable<ApprovalsOptions['readApproval']> },
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -52,7 +61,9 @@ async function handle(
     send(response, 404, notFound);
     return;
   }
-  const parsed = approvalSchema.parse(approval);
+  const parsed =
+    'kind' in approval ? approvalApiSchema.parse(approval) : approvalSchema.parse(approval);
+  if ('kind' in parsed && parsed.kind !== 'detail') throw new Error('Invalid approval detail');
   if (parsed.id !== id) throw new Error('Approval id mismatch');
   const csrfToken = cookieToken(request) ?? randomBytes(32).toString('hex');
   if (isDecision) {
