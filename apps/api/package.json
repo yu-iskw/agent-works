@@ -18,6 +18,7 @@
     "@agent-works/policy": "workspace:*",
     "@google/adk": "2.2.0",
     "postgres": "3.4.9",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@agent-works/incident-analysis": "workspace:*"
   }
 }

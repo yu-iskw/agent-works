@@ -2,28 +2,35 @@ import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
 
 import { Unauthenticated, Unavailable } from './auth/iap.js';
 import { createListener, headerValue, readLimited } from './http.js';
+import { createMemoryLedgerPort } from './ports/memory/ledger-port.js';
 import { createApprovalsRoute } from './routes/approvals.js';
 import { createRouteTable, matchSlot } from './routes/index.js';
 import { createOAuthConnectRoute, createOAuthRevokeRoute } from './routes/oauth.js';
 import { selectRoute } from './routes/slot.js';
+import { createTaskRoutes } from './routes/tasks.js';
+import { createSkillRegistry } from './skills/registry.js';
 
 import type { OAuthFlow } from './credentials/flow.js';
 import type { Route } from './http.js';
 import type { ApprovalsDeps } from './routes/approvals.js';
-import type { AskDeps } from './routes/ask.js';
+import type { RouteDeps } from './routes/index.js';
 import type { RouteEnv } from './routes/slot.js';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 
 const jsonType = 'application/json; charset=utf-8';
 const textType = 'text/plain; charset=utf-8';
 
-type AppDeps = AskDeps & {
+type AppDeps = RouteDeps & {
   readonly approvals?: Omit<ApprovalsDeps, 'verify'>;
   readonly oauth?: OAuthFlow;
 };
 
 export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestListener {
-  const listener = createListener(createRouteTable(deps, env));
+  const skills = deps.skills ?? createSkillRegistry();
+  const tasks =
+    deps.tasks ??
+    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, skills, deps);
+  const listener = createListener(createRouteTable({ ...deps, tasks, skills }, env));
   const approvals =
     deps.approvals === undefined
       ? undefined
@@ -39,6 +46,8 @@ export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestLi
           },
         };
   const routes = new Map<string, Route | undefined>([
+    ['tasks-read', tasks.read],
+    ['tasks-events', tasks.events],
     ['approvals-decide', approvals],
     ['approvals-read', approvals],
     ['oauth-connect', oauthDeps === undefined ? undefined : createOAuthConnectRoute(oauthDeps)],

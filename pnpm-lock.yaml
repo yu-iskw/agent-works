@@ -74,11 +74,20 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  agents/skills/incident-analysis:
+    dependencies:
+      '@agent-works/domain':
+        specifier: workspace:*
+        version: link:../../../packages/domain
+
   apps/api:
     dependencies:
       '@agent-works/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@agent-works/incident-analysis':
+        specifier: workspace:*
+        version: link:../../agents/skills/incident-analysis
       '@agent-works/policy':
         specifier: workspace:*
         version: link:../../packages/policy

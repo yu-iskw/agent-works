@@ -1,4 +1,4 @@
-import type { SkillManifest } from '@agent-works/domain';
+import type { SearchContext, SkillManifest } from '@agent-works/domain';
 
 export type SkillPackage = {
   readonly manifest: SkillManifest;
@@ -10,6 +10,7 @@ export type IncidentModel = {
 };
 
 export type DeliverInput = {
+  readonly callerContext?: SearchContext;
   readonly skill: SkillPackage;
   readonly deliveryId: string;
   readonly incidentId: string;

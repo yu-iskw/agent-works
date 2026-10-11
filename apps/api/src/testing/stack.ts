@@ -10,7 +10,7 @@ import { createHttpDrive } from '../retrieval/http-drive.js';
 
 import type { MemoryAuditLog } from '../audit/write.js';
 import type { VerifyAssertion } from '../auth/iap.js';
-import type { AskDeps } from '../routes/ask.js';
+import type { RouteDeps } from '../routes/index.js';
 import type { Server } from 'node:http';
 
 export { createMemoryAuditLog };
@@ -22,7 +22,7 @@ export type Stack = {
   close(): Promise<void>;
 };
 
-export async function startStack(overrides: Partial<AskDeps> = {}): Promise<Stack> {
+export async function startStack(overrides: Partial<RouteDeps> = {}): Promise<Stack> {
   const closers: (() => Promise<void>)[] = [];
   try {
     const driveServer = await listen(createDrive(), 0);

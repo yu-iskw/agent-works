@@ -1,5 +1,17 @@
 {
   "name": "@agent-works/incident-analysis",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./deliver.ts",
+      "import": "./dist/deliver.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@agent-works/domain": "workspace:*"
+  }
 }

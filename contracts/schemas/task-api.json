@@ -16,6 +16,15 @@
           "type": "string",
           "minLength": 1
         },
+        "input": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
         "sourceAllowlist": {
           "type": "array",
           "items": {
@@ -105,6 +114,50 @@
       },
       "required": ["kind", "taskId", "status", "submittedAt", "statusUrl", "traceId"],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "const": "unknown_skill"
+        }
+      },
+      "required": ["error"],
+      "additionalProperties": false
     }
-  ]
+  ],
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
 }

@@ -28,6 +28,16 @@ describe('task api', () => {
     });
   });
 
+  it('accepts optional skill input and unknown-skill rejection', () => {
+    const withInput = { ...submit, input: { incidentId: 'inc-1' } };
+    expect(taskSubmitSchema.parse(withInput)).toEqual(withInput);
+    expect(taskApiSchema.parse({ kind: 'submit', ...withInput })).toEqual({
+      kind: 'submit',
+      ...withInput,
+    });
+    expect(taskApiSchema.parse({ error: 'unknown_skill' })).toEqual({ error: 'unknown_skill' });
+  });
+
   it('rejects a client-supplied user id', () => {
     expect(taskSubmitSchema.safeParse({ ...submit, userId: 'alice' }).success).toBe(false);
   });

@@ -1,13 +1,20 @@
 import { IAP_ASSERTION_HEADER, canonicalPayloadSha256, taskApiSchema } from '@agent-works/domain';
+import { decide } from '@agent-works/policy';
 
+import { rolesAt } from '../auth/directory.js';
 import { Unauthenticated, Unavailable, createIapVerifier } from '../auth/iap.js';
 import { headerValue } from '../http.js';
 import { LedgerConflict } from '../ports/ledger-port.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { askPolicy, contextFor } from '../retrieval/search.js';
+import { createSkillRegistry } from '../skills/registry.js';
 
-import type { VerifyAssertion } from '../auth/iap.js';
+import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
+import type { AskDeps } from './ask.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
+import type { AuthorizedCaller, RegisteredSkill } from '../skills/incident.js';
+import type { SkillRegistry } from '../skills/registry.js';
 import type { OutboxEvent, Task, TaskAccepted, TaskApi, TaskSubmit } from '@agent-works/domain';
 
 const unauthenticated = {
@@ -34,16 +41,26 @@ const trustedFields = new Set(['userId', 'agentIdentity', 'scopes']);
 type ApiRequest = Parameters<Route>[0];
 type EventLog = Map<string, readonly OutboxEvent[]>;
 
+export type TaskAuthorization = {
+  readonly now: AskDeps['now'];
+  readonly wire?: Pick<NonNullable<AskDeps['wire']>, 'groups' | 'policyInput'>;
+};
+
 export type TaskRoutes = {
   readonly submit: Route;
   readonly read: Route;
   readonly events: Route;
 };
 
-export function createTaskRoutes(ledger: LedgerPort, verify: VerifyAssertion): TaskRoutes {
+export function createTaskRoutes(
+  ledger: LedgerPort,
+  verify: VerifyAssertion,
+  registry: SkillRegistry = createSkillRegistry(),
+  authorization?: TaskAuthorization,
+): TaskRoutes {
   const events: EventLog = new Map();
   return {
-    submit: (request) => submitTask(ledger, events, verify, request),
+    submit: (request) => submitTask(ledger, events, verify, request, { registry, authorization }),
     read: (request) => readTask(ledger, verify, request),
     events: (request) => readEvents(ledger, events, verify, request),
   };
@@ -60,16 +77,59 @@ async function submitTask(
   events: EventLog,
   verify: VerifyAssertion,
   request: ApiRequest,
+  options: { readonly registry: SkillRegistry; readonly authorization?: TaskAuthorization },
 ): Promise<ApiReply> {
-  const subject = await authenticate(verify, request);
-  if (typeof subject !== 'string') return subject;
+  const caller = await authenticate(verify, request);
+  if ('status' in caller) return caller;
+  const subject = caller.sub;
   const body = parseJson(request.body);
   if (hasTrustedField(body)) return untrustedField;
   const parsed = taskApiSchema.safeParse(body);
-  if (!parsed.success || parsed.data.kind !== 'submit') return invalidRequest;
+  if (!parsed.success || !('kind' in parsed.data) || parsed.data.kind !== 'submit')
+    return invalidRequest;
   const idempotencyKey = headerValue(request.headers, idempotencyHeader);
   if (idempotencyKey === undefined || idempotencyKey.length === 0) return invalidRequest;
-  return accept(ledger, events, subject, submitBody(parsed.data), idempotencyKey);
+  const skill = options.registry.get(parsed.data.skillId);
+  if (skill === undefined) return { status: 400, body: { error: 'unknown_skill' } };
+  const submission = submitBody(parsed.data);
+  if (!skill.validate(submission)) return invalidRequest;
+  const authorized = await authorize(caller, submission, skill, options.authorization);
+  if (authorized === undefined) return { status: 403, body: { error: 'denied' } };
+  return accept(ledger, events, subject, submission, { idempotencyKey, skill, authorized });
+}
+
+async function authorize(
+  caller: Caller,
+  request: TaskSubmit,
+  skill: RegisteredSkill,
+  deps?: TaskAuthorization,
+): Promise<AuthorizedCaller | undefined> {
+  try {
+    if (deps?.wire === undefined) return undefined;
+    const snapshot = await deps.wire.groups(caller);
+    const roles = rolesAt(snapshot, deps.now().getTime());
+    const context = contextFor(caller, snapshot, {
+      ...askPolicy,
+      taskPurpose: skill.manifest.id,
+      allowedSources: request.sourceAllowlist,
+    });
+    const input = await deps.wire.policyInput?.(caller, context, {
+      request,
+      manifest: skill.manifest,
+    });
+    const decision = decide({
+      facts: {
+        ...input?.facts,
+        authenticated_actor: caller.sub.length > 0,
+        active_org_membership: roles.length > 0,
+        permitted_app_role: roles.includes('Employee'),
+      },
+    });
+    if (decision.effect !== 'allow') return undefined;
+    return { caller, context, decision };
+  } catch {
+    return undefined;
+  }
 }
 
 async function accept(
@@ -77,14 +137,20 @@ async function accept(
   events: EventLog,
   subject: string,
   request: TaskSubmit,
-  idempotencyKey: string,
+  dispatch: {
+    readonly idempotencyKey: string;
+    readonly skill: RegisteredSkill;
+    readonly authorized: AuthorizedCaller;
+  },
 ): Promise<ApiReply> {
   try {
-    const accepted = await ledger.submit(subject, request, idempotencyKey);
+    const accepted = await ledger.submit(subject, request, dispatch.idempotencyKey);
     await recordSubmit(ledger, events, subject, accepted, request);
+    await dispatch.skill.dispatch(request, accepted, dispatch.authorized);
     return { status: 200, body: { kind: 'accepted', ...accepted } };
   } catch (error) {
     if (error instanceof LedgerConflict) return conflict;
+    if (error instanceof Unavailable) return unavailable;
     throw error;
   }
 }
@@ -130,8 +196,9 @@ async function openTask(
   verify: VerifyAssertion,
   request: ApiRequest,
 ): Promise<Opened> {
-  const subject = await authenticate(verify, request);
-  if (typeof subject !== 'string') return { ok: false, reply: subject };
+  const caller = await authenticate(verify, request);
+  if ('status' in caller) return { ok: false, reply: caller };
+  const subject = caller.sub;
   const taskId = pathTaskId(request.path);
   if (taskId === undefined) return { ok: false, reply: notFound };
   const task = await ledger.read(subject, taskId);
@@ -143,6 +210,7 @@ function submitBody(data: Extract<TaskApi, { kind: 'submit' }>): TaskSubmit {
   return {
     objective: data.objective,
     skillId: data.skillId,
+    ...(data.input === undefined ? {} : { input: data.input }),
     sourceAllowlist: data.sourceAllowlist,
     requestedOutputs: data.requestedOutputs,
     executionPolicy: data.executionPolicy,
@@ -189,10 +257,9 @@ function hasTrustedField(value: unknown): boolean {
 async function authenticate(
   verify: VerifyAssertion,
   request: ApiRequest,
-): Promise<string | ApiReply> {
+): Promise<Caller | ApiReply> {
   try {
-    const caller = await verify(headerValue(request.headers, IAP_ASSERTION_HEADER));
-    return caller.sub;
+    return await verify(headerValue(request.headers, IAP_ASSERTION_HEADER));
   } catch (error) {
     if (error instanceof Unauthenticated) return unauthenticated;
     if (error instanceof Unavailable) return unavailable;
