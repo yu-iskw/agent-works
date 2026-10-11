@@ -131,24 +131,46 @@ describe('createAdkRunner', () => {
       const input = { question: triageQuestion, sources: [triageSource] };
       const scripted = createScriptedRunner({ baseUrl: llm.url });
       const adk = createAdkRunner({ baseUrl: llm.url, limits: limits() });
-      const scriptedP95 = await sampleP95(() => scripted.run(input));
-      const adkP95 = await sampleP95(() => adk.run(input));
-      expect(adkP95).toBeLessThanOrEqual(scriptedP95 * 1.5);
+      const p95 = await pairedP95(
+        () => scripted.run(input),
+        () => adk.run(input),
+      );
+      expect(p95.adk).toBeLessThanOrEqual(p95.scripted * 1.5);
     } finally {
       await llm.close();
     }
   });
 });
 
-async function sampleP95(run: () => Promise<unknown>): Promise<number> {
-  for (let warmup = 0; warmup < 3; warmup += 1) await run();
-  const durations: number[] = [];
-  for (let sample = 0; sample < 11; sample += 1) {
-    const started = performance.now();
-    await run();
-    durations.push(performance.now() - started);
+async function pairedP95(
+  scripted: () => Promise<unknown>,
+  adk: () => Promise<unknown>,
+): Promise<{ scripted: number; adk: number }> {
+  const scriptedDurations: number[] = [];
+  const adkDurations: number[] = [];
+  for (let warmup = 0; warmup < 3; warmup += 1) {
+    await scripted();
+    await adk();
   }
-  return percentile(durations, 95);
+  for (let sample = 0; sample < 40; sample += 1) {
+    if (sample % 2 === 0) {
+      scriptedDurations.push(await elapsed(scripted));
+      adkDurations.push(await elapsed(adk));
+    } else {
+      adkDurations.push(await elapsed(adk));
+      scriptedDurations.push(await elapsed(scripted));
+    }
+  }
+  return {
+    scripted: percentile(scriptedDurations, 95),
+    adk: percentile(adkDurations, 95),
+  };
+}
+
+async function elapsed(run: () => Promise<unknown>): Promise<number> {
+  const started = performance.now();
+  await run();
+  return performance.now() - started;
 }
 
 function percentile(samples: readonly number[], rank: number): number {
