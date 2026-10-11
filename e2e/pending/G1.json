@@ -1,5 +1,1 @@
-[
-  { "id": "sec.prompt-injection-read", "owner": "G1" },
-  { "id": "agent.step-limit", "owner": "G1" },
-  { "id": "agent.runner-parity", "owner": "G1" }
-]
+[]
