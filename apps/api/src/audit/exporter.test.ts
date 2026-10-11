@@ -132,6 +132,26 @@ describe('audit exporter', () => {
     expect(verifyChain(log.links())).toBe('intact');
   });
 
+  it('redaction covers an opaque access_token in a query and in json', () => {
+    const log = createExportLog();
+    const opaque = 'opaque-access-7f3c';
+    drain(
+      [
+        outbox('evt-1', `access_token=${opaque}`, null),
+        outbox(
+          'evt-2',
+          `{"access_token":"${opaque}"}`,
+          `https://files.example/?access_token=${opaque}`,
+        ),
+      ],
+      log,
+    );
+    const dumped = JSON.stringify(log.links());
+    expect(dumped).not.toContain(opaque);
+    expect(dumped).toContain(redacted);
+    expect(verifyChain(log.links())).toBe('intact');
+  });
+
   it('redaction covers hyphenated keys and json oauth tokens', () => {
     const log = createExportLog();
     const hyphenated = 'sk-proj-AbC123_def';
