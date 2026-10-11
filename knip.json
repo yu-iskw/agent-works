@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["grype", "terraform"],
+  "ignoreBinaries": ["grype"],
+  "ignoreIssues": {
+    "infra/terraform/evidence.mjs": ["binaries"]
+  },
   "workspaces": {
     ".": {
       "entry": ["stylelint.config.mjs"],
