@@ -1,3 +1,5 @@
+export type RunnerKind = 'scripted' | 'adk';
+
 export type Config = {
   readonly port: number;
   readonly databaseUrl: string;
@@ -9,6 +11,10 @@ export type Config = {
     readonly audience: string;
   };
 };
+
+export function readRunnerKind(env: Readonly<Record<string, string | undefined>>): RunnerKind {
+  return env.AGENT_RUNNER === 'adk' ? 'adk' : 'scripted';
+}
 
 export function loadConfig(env: Readonly<Record<string, string | undefined>>): Config {
   const missing: string[] = [];

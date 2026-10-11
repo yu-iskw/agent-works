@@ -1,22 +1,36 @@
 import {
-  canonicalPayloadSha256,
-  IAP_ASSERTION_HEADER,
   askRequestSchema,
   auditEventSchema,
+  canonicalPayloadSha256,
+  IAP_ASSERTION_HEADER,
+  runnerLimitsSchema,
 } from '@agent-works/domain';
+import { decide as decidePolicy } from '@agent-works/policy';
 
+import { createAdkRunner } from '../agent/adk-runner.js';
 import { RunnerError } from '../agent/runner-port.js';
 import { AuditWriteError } from '../audit/write.js';
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
+import { readRunnerKind } from '../config.js';
 import { headerValue } from '../http.js';
 import { RetrievalError } from '../retrieval/drive-port.js';
+import { ContextMismatch, askPolicy, contextFor } from '../retrieval/search.js';
 
 import type { AgentRunner } from '../agent/runner-port.js';
 import type { AuditLog } from '../audit/write.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
+import type { LedgerPort } from '../ports/ledger-port.js';
+import type { SearchPort } from '../ports/search-port.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
-import type { AuditEvent, AskRequest } from '@agent-works/domain';
+import type { GroupSnapshot } from '../retrieval/search.js';
+import type { AuditEvent, AskRequest, PolicyClause, TaskSubmit } from '@agent-works/domain';
+
+type AskWire = {
+  readonly search: SearchPort;
+  readonly ledger: LedgerPort;
+  readonly groups: (caller: Caller) => Promise<GroupSnapshot>;
+};
 
 export type AskDeps = {
   readonly verify: VerifyAssertion;
@@ -24,7 +38,35 @@ export type AskDeps = {
   readonly runner: AgentRunner;
   readonly audit: AuditLog;
   readonly now: () => Date;
+  readonly wire?: AskWire;
 };
+
+const askAllowFacts: { readonly [Clause in PolicyClause]: true } = {
+  authenticated_actor: true,
+  active_org_membership: true,
+  permitted_app_role: true,
+  approved_agent_and_skill_version: true,
+  agent_has_tool_capability: true,
+  user_or_service_has_resource_authority: true,
+  source_system_allows_operation: true,
+  data_classification_policy_allows: true,
+  valid_approval_if_required: true,
+  within_time_and_budget_bounds: true,
+};
+
+const searchTool = 'drive.search@1';
+
+const askLimits = runnerLimitsSchema.parse({
+  maxSteps: 4,
+  maxToolCalls: 4,
+  maxCostUsd: 1,
+  maxElapsedMs: 30_000,
+  maxBytesRetrieved: 1_000_000,
+  maxGeneratedOutputs: 1,
+  maxModelRetries: 1,
+  maxSubagents: 0,
+  maxParallelToolCalls: 1,
+});
 
 type AskOutcome =
   | {
@@ -54,14 +96,11 @@ export function createAskRoute(deps: AskDeps): Route {
 async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promise<ApiReply> {
   const requestDigestSha256 = canonicalPayloadSha256({ question: request.question });
   try {
-    const result = await deps.audit.run(request.requestId, async () => {
-      const outcome = await decide(deps, caller, request);
-      const now = deps.now();
-      return {
-        event: auditEventFor(caller, request, outcome, now, requestDigestSha256),
-        reply: replyFor(outcome, request.requestId, now.toISOString()),
-      };
-    });
+    const result = await deps.audit.run(request.requestId, () =>
+      deps.wire === undefined
+        ? recordUnwired(deps, caller, request, requestDigestSha256)
+        : runWired(deps, deps.wire, caller, request, requestDigestSha256),
+    );
     switch (result.kind) {
       case 'done':
         return result.reply;
@@ -79,7 +118,8 @@ async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promi
 }
 
 type AuthResult =
-  { readonly ok: true; readonly caller: Caller } | { readonly ok: false; readonly reply: ApiReply };
+  | { readonly ok: true; readonly caller: Caller }
+  | { readonly ok: false; readonly reply: ApiReply };
 
 async function authenticate(
   verify: VerifyAssertion,
@@ -98,7 +138,11 @@ async function authenticate(
   }
 }
 
-async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promise<AskOutcome> {
+async function retrieveAndRun(
+  deps: AskDeps,
+  caller: Caller,
+  request: AskRequest,
+): Promise<AskOutcome> {
   let sources: readonly SourceDocument[];
   try {
     sources = await deps.drive.retrieve(caller, request.question);
@@ -106,19 +150,7 @@ async function decide(deps: AskDeps, caller: Caller, request: AskRequest): Promi
     if (error instanceof RetrievalError) return { kind: 'retrieval_failed' };
     throw error;
   }
-  if (sources.length === 0) return { kind: 'no_sources' };
-  try {
-    const output = await deps.runner.run({ question: request.question, sources });
-    const cited = new Set(output.citedSourceIds);
-    return {
-      kind: 'answered',
-      answer: output.answer,
-      sources: sources.filter((source) => cited.has(source.id)),
-    };
-  } catch (error) {
-    if (error instanceof RunnerError) return { kind: 'runner_failed' };
-    throw error;
-  }
+  return citeAnswer(deps, request, sources);
 }
 
 function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): ApiReply {
@@ -151,31 +183,167 @@ function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): 
   }
 }
 
-function auditEventFor(
-  caller: Caller,
-  request: AskRequest,
-  outcome: AskOutcome,
-  now: Date,
-  requestDigestSha256: string,
-): AuditEvent {
+function auditEvent(input: {
+  readonly caller: Caller;
+  readonly request: AskRequest;
+  readonly outcome: string;
+  readonly now: Date;
+  readonly requestDigestSha256: string;
+  readonly taskId: string;
+  readonly tool: string | null;
+  readonly policyDecisionId: string | null;
+}): AuditEvent {
   return auditEventSchema.parse({
-    eventId: request.requestId,
+    eventId: input.request.requestId,
     eventType: 'ask',
     schemaVersion: '1',
-    occurredAt: now.toISOString(),
-    taskId: request.requestId,
+    occurredAt: input.now.toISOString(),
+    taskId: input.taskId,
     stepId: 'ask',
-    traceId: request.requestId.replaceAll('-', ''),
-    initiatorSubject: caller.sub,
-    agentPrincipal: 'agent:scripted-runner',
-    tool: 'drive.list',
-    policyDecisionId: null,
+    traceId: input.request.requestId.replaceAll('-', ''),
+    initiatorSubject: input.caller.sub,
+    agentPrincipal: agentName(),
+    tool: input.tool,
+    policyDecisionId: input.policyDecisionId,
     approvalId: null,
-    requestDigestSha256,
-    outcome: outcome.kind,
+    requestDigestSha256: input.requestDigestSha256,
+    outcome: input.outcome,
     externalObjectRef: null,
     prevDigest: null,
   });
+}
+
+async function recordUnwired(
+  deps: AskDeps,
+  caller: Caller,
+  request: AskRequest,
+  requestDigestSha256: string,
+): Promise<{ readonly event: AuditEvent; readonly reply: ApiReply }> {
+  const outcome = await retrieveAndRun(deps, caller, request);
+  const now = deps.now();
+  return {
+    event: auditEvent({
+      caller,
+      request,
+      outcome: outcome.kind,
+      now,
+      requestDigestSha256,
+      taskId: request.requestId,
+      tool: 'drive.list',
+      policyDecisionId: null,
+    }),
+    reply: replyFor(outcome, request.requestId, now.toISOString()),
+  };
+}
+
+async function runWired(
+  deps: AskDeps,
+  wire: AskWire,
+  caller: Caller,
+  request: AskRequest,
+  requestDigestSha256: string,
+): Promise<{ readonly event: AuditEvent; readonly reply: ApiReply }> {
+  const decision = decidePolicy({ facts: askAllowFacts });
+  if (decision.effect === 'deny') {
+    const now = deps.now();
+    return {
+      event: auditEvent({
+        caller,
+        request,
+        outcome: 'denied',
+        now,
+        requestDigestSha256,
+        taskId: request.requestId,
+        tool: null,
+        policyDecisionId: decision.decisionId,
+      }),
+      reply: { status: 403, body: { error: 'denied' } },
+    };
+  }
+  const outcome = await searchAndRun(deps, wire, caller, request);
+  const accepted = await wire.ledger.submit(
+    caller.sub,
+    askTask(request.question),
+    request.requestId,
+  );
+  const now = deps.now();
+  const event = auditEvent({
+    caller,
+    request,
+    outcome: outcome.kind,
+    now,
+    requestDigestSha256,
+    taskId: accepted.taskId,
+    tool: searchTool,
+    policyDecisionId: decision.decisionId,
+  });
+  await wire.ledger.append({ destination: 'audit', event });
+  return { event, reply: replyFor(outcome, request.requestId, now.toISOString()) };
+}
+
+async function searchAndRun(
+  deps: AskDeps,
+  wire: AskWire,
+  caller: Caller,
+  request: AskRequest,
+): Promise<AskOutcome> {
+  let sources: readonly SourceDocument[];
+  try {
+    const context = contextFor(caller, await wire.groups(caller), askPolicy);
+    sources = (await wire.search.search(context, request.question)).map((citation) => ({
+      id: citation.sourceObjectId,
+      title: citation.title,
+      text: citation.excerpt,
+      uri: citation.sourceUri,
+    }));
+  } catch (error) {
+    if (error instanceof ContextMismatch || error instanceof RetrievalError) {
+      return { kind: 'retrieval_failed' };
+    }
+    throw error;
+  }
+  return citeAnswer(deps, request, sources);
+}
+
+async function citeAnswer(
+  deps: AskDeps,
+  request: AskRequest,
+  sources: readonly SourceDocument[],
+): Promise<AskOutcome> {
+  if (sources.length === 0) return { kind: 'no_sources' };
+  try {
+    const output = await resolveRunner(deps).run({ question: request.question, sources });
+    const cited = new Set(output.citedSourceIds);
+    return {
+      kind: 'answered',
+      answer: output.answer,
+      sources: sources.filter((source) => cited.has(source.id)),
+    };
+  } catch (error) {
+    if (error instanceof RunnerError) return { kind: 'runner_failed' };
+    throw error;
+  }
+}
+
+function askTask(question: string): TaskSubmit {
+  return {
+    objective: question,
+    skillId: 'ask',
+    sourceAllowlist: ['drive'],
+    requestedOutputs: ['answer'],
+    executionPolicy: { mode: 'interactive', budgetUsd: 0.1, deadlineSeconds: 30 },
+  };
+}
+
+function resolveRunner(deps: AskDeps): AgentRunner {
+  if (readRunnerKind(process.env) !== 'adk') return deps.runner;
+  const baseUrl = process.env.LLM_URL;
+  if (baseUrl === undefined || baseUrl.trim().length === 0) return deps.runner;
+  return createAdkRunner({ baseUrl, limits: askLimits });
+}
+
+function agentName(): string {
+  return readRunnerKind(process.env) === 'adk' ? 'agent:adk-runner' : 'agent:scripted-runner';
 }
 
 function parseJson(body: Buffer): unknown {
