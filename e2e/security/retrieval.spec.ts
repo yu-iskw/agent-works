@@ -14,7 +14,6 @@ const bobTitle = 'Bob private notes';
 
 // Playwright loads these specs as CommonJS, so the ESM-only workspace packages
 // can only be reached through built output and a native dynamic import.
-// `playwright test security --list` never runs a test body and needs no build.
 function load<T>(path: string): Promise<T> {
   return import(pathToFileURL(resolve(path)).href) as Promise<T>;
 }

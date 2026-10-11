@@ -131,21 +131,18 @@ test('P1 security specs run and leave the pending catalog', () => {
   expect(ids).not.toContain('sec.model-claims-approval');
 });
 
-test('retrieval security ids stay pending while the security job only lists specs', () => {
+test('retrieval security specs run and leave the pending catalog', () => {
   const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
   const job = workflow.slice(
     workflow.indexOf('  e2e-security:'),
     workflow.indexOf('  pending-owners:'),
   );
-  expect(job).toContain('security --list');
-  expect(job).not.toContain('playwright install');
-  const pending = readPendingCatalog('e2e/pending');
-  expect(pending).toEqual(
-    expect.arrayContaining([
-      { id: 'sec.cross-user-leak', owner: 'R1' },
-      { id: 'sec.revoked-group', owner: 'R1' },
-    ]),
-  );
+  expect(job).toContain('pnpm exec playwright test --config e2e/playwright.config.ts security\n');
+  expect(job).toContain('playwright install --with-deps chromium');
+  expect(job).not.toContain('--list');
+  const ids = readPendingCatalog('e2e/pending').map((row) => row.id);
+  expect(ids).not.toContain('sec.cross-user-leak');
+  expect(ids).not.toContain('sec.revoked-group');
 });
 
 test('plan ids without a hyphen are read from issue titles', () => {
