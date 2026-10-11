@@ -1,0 +1,15 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  file:
+    path: /var/log/otel/traces.jsonl
+    format: json
+    append: true
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file]

@@ -76,3 +76,15 @@ services:
       API_URL: http://api:8080
     ports:
       - 127.0.0.1:8085:8080
+  otel-collector:
+    profiles: [otel]
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    user: '0'
+    volumes:
+      - ./apps/api/src/telemetry/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - otel-traces:/var/log/otel
+    ports:
+      - 127.0.0.1:4318:4318
+
+volumes:
+  otel-traces:
