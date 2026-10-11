@@ -373,15 +373,29 @@ async function bindPostgres(
 }
 
 async function claimPostgres(sql: postgres.Sql, request: ClaimRequest): Promise<ClaimOutcome> {
-  return sql.begin(async (tx) => {
-    const approval = await lockApproval(tx, request.approvalId);
-    const calls = await lockCalls(tx, request.callId, request.idempotencyKey);
-    const result = claimCall({ approval, calls, request });
-    if (result.kind !== 'intended') return result;
-    await updateUsage(tx, result.approval);
-    await insertCall(tx, result.call);
-    return { kind: 'intended' };
-  });
+  return sql
+    .begin(async (tx): Promise<ClaimOutcome> => {
+      const approval = await lockApproval(tx, request.approvalId);
+      const calls = await lockCalls(tx, request.callId, request.idempotencyKey);
+      const result = claimCall({ approval, calls, request });
+      if (result.kind !== 'intended') return result;
+      await updateUsage(tx, result.approval);
+      await insertCall(tx, result.call);
+      return { kind: 'intended' };
+    })
+    .catch((error: unknown) => {
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === '23505' &&
+        'constraint_name' in error &&
+        (error.constraint_name === 'tool_calls_pkey' ||
+          error.constraint_name === 'tool_calls_idempotency_key_key')
+      ) {
+        return { kind: 'duplicate' } as const;
+      }
+      throw error;
+    });
 }
 
 async function insertApproval(sql: postgres.Sql, approval: Approval): Promise<void> {

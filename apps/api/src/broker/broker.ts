@@ -61,6 +61,8 @@ export type BrokerDeps = {
 };
 
 export function createBroker(deps: BrokerDeps): Broker {
+  const activeCalls = new Set<string>();
+  const activeKeys = new Set<string>();
   return {
     bindApproval(id, command) {
       if (!deps.approverAuthorized(command.actorSub)) {
@@ -68,8 +70,18 @@ export function createBroker(deps: BrokerDeps): Broker {
       }
       return deps.store.bind(id, command);
     },
-    execute(input) {
-      return execute(deps, input);
+    async execute(input) {
+      if (activeCalls.has(input.id) || activeKeys.has(input.idempotencyKey)) {
+        return denial('DUPLICATE_CALL', 409);
+      }
+      activeCalls.add(input.id);
+      activeKeys.add(input.idempotencyKey);
+      try {
+        return await execute(deps, input);
+      } finally {
+        activeCalls.delete(input.id);
+        activeKeys.delete(input.idempotencyKey);
+      }
     },
   };
 }
