@@ -117,6 +117,23 @@ test('pending owner lookup uses GITHUB_REPOSITORY when the checkout has no origi
   }
 });
 
+test('policy security ids stay pending while the security job only lists specs', () => {
+  const workflow = readFileSync('.github/workflows/e2e.yml', 'utf8');
+  const job = workflow.slice(
+    workflow.indexOf('  e2e-security:'),
+    workflow.indexOf('  pending-owners:'),
+  );
+  expect(job).toContain('security --list');
+  expect(job).not.toContain('playwright install');
+  const pending = readPendingCatalog('e2e/pending');
+  expect(pending).toEqual(
+    expect.arrayContaining([
+      { id: 'sec.policy-fail-closed', owner: 'P1' },
+      { id: 'sec.model-claims-approval', owner: 'P1' },
+    ]),
+  );
+});
+
 test('plan ids without a hyphen are read from issue titles', () => {
   const plans = plansFromIssues([
     { title: 'A1: IAP assertion verification', state: 'open' },
