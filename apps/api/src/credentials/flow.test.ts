@@ -217,7 +217,17 @@ it('begin returns the pkce start and callback returns the connection', async () 
   const start = startFor('state-1');
   expect(
     await connect(call('POST', '/v1/oauth/connections/fake', { kind: 'start', ...start })),
-  ).toEqual({ status: 200, body: { kind: 'start', ...start } });
+  ).toEqual({
+    status: 200,
+    body: {
+      kind: 'started',
+      ...start,
+      authorizationUrl: createHttpOAuthProvider(
+        url,
+        'https://app.example/oauth/callback',
+      ).authorizationUrl('alice', start),
+    },
+  });
   const code = await authorize(url, 'state-1');
   expect(
     await connect(
@@ -276,7 +286,7 @@ async function openFlow(initialTask: Task = runningTask()): Promise<FlowHandle> 
   const flow = createOAuthFlow({
     credentials,
     grants,
-    provider: createHttpOAuthProvider(server.url),
+    provider: createHttpOAuthProvider(server.url, 'https://app.example/oauth/callback'),
     ledger: {
       read(subject, taskId) {
         if (task === undefined || task.id !== taskId || task.createdBySub !== subject) {

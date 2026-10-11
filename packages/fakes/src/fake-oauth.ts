@@ -34,8 +34,13 @@ export function createOAuth(): Handler {
   const tokens = new Map<string, Issued>();
   const sequence = { code: 0, token: 0 };
   return (request) => {
-    if (request.method === 'POST' && request.url.pathname === '/oauth/authorize') {
-      return authorize(codes, sequence, request.body);
+    if (request.url.pathname === '/oauth/authorize') {
+      switch (request.method) {
+        case 'GET':
+          return consent(codes, sequence, request.url.searchParams);
+        case 'POST':
+          return authorize(codes, sequence, request.body);
+      }
     }
     if (request.method === 'POST' && request.url.pathname === '/oauth/token') {
       return exchange(codes, tokens, sequence, request.body);
@@ -57,12 +62,52 @@ function authorize(
   sequence: { code: number; token: number },
   body: Buffer,
 ): Reply {
-  const parsed = readAuthorize(body);
+  const parsed = readAuthorize(readJson(body));
   if (parsed === undefined) return { status: 400, body: { error: 'bad body' } };
+  return { status: 200, body: issueCode(codes, sequence, parsed) };
+}
+
+function consent(
+  codes: Map<string, Code>,
+  sequence: { code: number; token: number },
+  query: URLSearchParams,
+): Reply {
+  const parsed = readAuthorize({
+    provider: query.get('provider'),
+    state: query.get('state'),
+    codeChallenge: query.get('code_challenge'),
+    codeChallengeMethod: query.get('code_challenge_method'),
+    scope: query.get('scope'),
+    subject: query.get('subject'),
+  });
+  const redirectUri = query.get('redirect_uri');
+  if (parsed === undefined || query.get('response_type') !== 'code' || redirectUri === null) {
+    return { status: 400, body: { error: 'invalid_request' } };
+  }
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    return { status: 400, body: { error: 'invalid_request' } };
+  }
+  if (redirect.protocol !== 'http:' && redirect.protocol !== 'https:') {
+    return { status: 400, body: { error: 'invalid_request' } };
+  }
+  const issued = issueCode(codes, sequence, parsed);
+  redirect.searchParams.set('code', issued.code);
+  redirect.searchParams.set('state', issued.state);
+  return { status: 302, headers: { location: redirect.toString() }, body: '' };
+}
+
+function issueCode(
+  codes: Map<string, Code>,
+  sequence: { code: number; token: number },
+  parsed: Code,
+): { code: string; state: string } {
   sequence.code += 1;
   const code = `code-${sequence.code}`;
   codes.set(code, parsed);
-  return { status: 200, body: { code, state: parsed.state } };
+  return { code, state: parsed.state };
 }
 
 function exchange(
@@ -136,8 +181,7 @@ function s256(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
-function readAuthorize(body: Buffer): Code | undefined {
-  const parsed = readJson(body);
+function readAuthorize(parsed: Record<string, unknown> | undefined): Code | undefined {
   if (parsed === undefined) return undefined;
   const subject = text(parsed, 'subject');
   if (subject === undefined) return undefined;

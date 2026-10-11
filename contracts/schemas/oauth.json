@@ -35,6 +35,49 @@
     {
       "type": "object",
       "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "codeChallenge": {
+          "type": "string",
+          "minLength": 1
+        },
+        "codeChallengeMethod": {
+          "type": "string",
+          "const": "S256"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authorizationUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "kind": {
+          "type": "string",
+          "const": "started"
+        }
+      },
+      "required": [
+        "provider",
+        "state",
+        "codeChallenge",
+        "codeChallengeMethod",
+        "scope",
+        "authorizationUrl",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
         "kind": {
           "type": "string",
           "const": "callback"

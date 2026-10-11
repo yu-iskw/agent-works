@@ -42,6 +42,7 @@ describe('route registry', () => {
     expect(matchSlot('GET', '/v1/tasks/abc/events')?.id).toBe('tasks-events');
     expect(matchSlot('GET', '/v1/tasks/abc')?.id).toBe('tasks-read');
     expect(matchSlot('POST', '/v1/tasks/abc:cancel')?.id).toBe('tasks-cancel');
+    expect(matchSlot('GET', '/v1/approvals/id')?.id).toBe('approvals-read');
     expect(matchSlot('POST', '/v1/approvals/id:decide')?.id).toBe('approvals-decide');
     expect(matchSlot('GET', '/v1/artifacts/id')?.id).toBe('artifacts-read');
     expect(matchSlot('POST', '/v1/oauth/connections/google')?.id).toBe('oauth-connect');

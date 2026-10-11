@@ -11,6 +11,7 @@ import type {
   OAuthCallback,
   OAuthConnection,
   OAuthStart,
+  OAuthStarted,
   OutboxEvent,
   Task,
   TaskStatus,
@@ -30,7 +31,7 @@ interface AuthLedger {
 }
 
 export type OAuthFlow = {
-  begin(subject: string, start: OAuthStart): Promise<OAuthStart>;
+  begin(subject: string, start: OAuthStart): Promise<OAuthStarted>;
   complete(subject: string, callback: OAuthCallback): Promise<OAuthConnection>;
   revoke(subject: string, provider: string): Promise<OAuthConnection>;
   blockIfStale(subject: string, provider: string, taskId: string): Promise<Task>;
@@ -57,7 +58,10 @@ export function createOAuthFlow(deps: OAuthFlowDeps): OAuthFlow {
           codeChallenge: start.codeChallenge,
           scope: start.scope,
         })
-        .then(() => start);
+        .then(() => ({
+          ...start,
+          authorizationUrl: deps.provider.authorizationUrl(subject, start),
+        }));
     },
     complete(subject, callback) {
       return complete(deps, subject, callback);

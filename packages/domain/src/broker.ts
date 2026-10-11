@@ -20,7 +20,17 @@ const decidedFields = {
 export const approvalDecideSchema = z.strictObject(decideFields);
 export const approvalDecidedSchema = z.strictObject(decidedFields);
 
+const detailFields = {
+  id: label,
+  actionSummary: label,
+  requestedBySub: label,
+  payloadSha256: sha256DigestSchema,
+  state: label,
+  expiresAt: z.iso.datetime(),
+};
+
 export const approvalApiSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('detail'), ...detailFields }),
   z.strictObject({ kind: z.literal('decide'), ...decideFields }),
   z.strictObject({ kind: z.literal('decided'), ...decidedFields }),
 ]);

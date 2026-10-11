@@ -6,6 +6,7 @@ export type Config = {
   readonly driveUrl: string;
   readonly directoryUrl: string;
   readonly llmUrl: string;
+  readonly oauthRedirectUri: string;
   readonly iap: {
     readonly jwksUrl: string;
     readonly issuer: string;
@@ -46,6 +47,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
     driveUrl,
     directoryUrl,
     llmUrl,
+    oauthRedirectUri: env.OAUTH_REDIRECT_URI ?? 'http://localhost:8081/oauth/callback',
     iap: { jwksUrl, issuer, audience },
   };
 }

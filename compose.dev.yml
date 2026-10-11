@@ -62,6 +62,7 @@ services:
       DRIVE_URL: http://fake-drive:8080
       DIRECTORY_URL: http://fake-directory:8080
       LLM_URL: http://fake-llm:8080
+      OAUTH_REDIRECT_URI: http://localhost:8081/oauth/callback
       IAP_JWKS_URL: http://fake-iap:8080/jwks
       IAP_ISSUER: https://fake-iap.local
       IAP_AUDIENCE: agent-works-dev

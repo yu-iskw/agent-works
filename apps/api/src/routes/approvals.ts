@@ -35,6 +35,8 @@ const approvalRequired = {
   body: { error: 'approval_required' },
 } as const satisfies ApiReply;
 
+export const approvalsReadMatch = /^\/v1\/approvals\/([^/]+)$/;
+
 export const approvalsDecideMatch = /^\/v1\/approvals\/([^/]+):decide$/;
 
 export type ApprovalsDeps = {
@@ -61,7 +63,31 @@ type Facts = {
 
 export function createApprovalsRoute(deps: ApprovalsDeps): Route {
   const resolved = { ...deps, rolesFor: deps.rolesFor ?? envRoles() };
-  return (request) => decide(resolved, request);
+  return (request) =>
+    request.method === 'GET' ? read(resolved, request) : decide(resolved, request);
+}
+
+async function read(deps: Required<ApprovalsDeps>, request: ApiRequest): Promise<ApiReply> {
+  const subject = await authenticate(deps.verify, request);
+  if (typeof subject !== 'string') return subject;
+  const id = approvalsReadMatch.exec(request.path)?.[1];
+  if (id === undefined) return invalidRequest;
+  const approval = await deps.store.read(id);
+  if (approval === undefined) return notFound;
+  const roles = await deps.rolesFor(subject);
+  if (approval.requestedBySub !== subject && !roles.includes('Reviewer')) return forbidden;
+  return {
+    status: 200,
+    body: approvalApiSchema.parse({
+      kind: 'detail',
+      id: approval.id,
+      actionSummary: `${approval.tool} on ${approval.targetResource}`,
+      requestedBySub: approval.requestedBySub,
+      payloadSha256: approval.payloadSha256,
+      state: approval.state,
+      expiresAt: approval.expiresAt,
+    }),
+  };
 }
 
 async function decide(deps: Required<ApprovalsDeps>, request: ApiRequest): Promise<ApiReply> {

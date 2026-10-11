@@ -19,7 +19,10 @@ it.each(['exchange', 'revoke'] as const)(
     };
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ ...connection, token: 'secret' }));
     vi.stubGlobal('fetch', fetchMock);
-    const provider = createHttpOAuthProvider('https://oauth.example');
+    const provider = createHttpOAuthProvider(
+      'https://oauth.example',
+      'https://app.example/oauth/callback',
+    );
     const callback = {
       provider: 'fake',
       state: 'state-1',
@@ -43,3 +46,30 @@ it.each(['exchange', 'revoke'] as const)(
     );
   },
 );
+
+it('builds a provider consent URL with state and PKCE', () => {
+  const provider = createHttpOAuthProvider(
+    'https://oauth.example',
+    'https://app.example/oauth/callback',
+  );
+  const url = new URL(
+    provider.authorizationUrl('alice & bob', {
+      provider: 'fake',
+      state: 'state & value',
+      codeChallenge: 'challenge',
+      codeChallengeMethod: 'S256',
+      scope: 'ticket.create',
+    }),
+  );
+  expect(url.origin + url.pathname).toBe('https://oauth.example/oauth/authorize');
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    response_type: 'code',
+    subject: 'alice & bob',
+    redirect_uri: 'https://app.example/oauth/callback',
+    provider: 'fake',
+    state: 'state & value',
+    code_challenge: 'challenge',
+    code_challenge_method: 'S256',
+    scope: 'ticket.create',
+  });
+});

@@ -13,6 +13,7 @@ import {
   applyTaskLedgerMigration,
   createPostgresLedgerPort,
 } from '../../apps/api/src/ledger/postgres-ledger.js';
+import { oauthApiSchema } from '../../packages/domain/src/credentials.js';
 import { createOAuth } from '../../packages/fakes/src/fake-oauth.js';
 import { listen } from '../../packages/fakes/src/http.js';
 import { appendResult } from '../results.mjs';
@@ -60,7 +61,7 @@ it('oauth.blocked-auth', async () => {
   const flow = createOAuthFlow({
     credentials: store.credentials,
     grants: store.grants,
-    provider: createHttpOAuthProvider(server.url),
+    provider: createHttpOAuthProvider(server.url, 'https://app.example/oauth/callback'),
     ledger,
     now: () => instant,
   });
@@ -71,17 +72,26 @@ it('oauth.blocked-auth', async () => {
     codeChallengeMethod: 'S256',
     scope: 'ticket.create',
   };
-  await flow.begin('alice', start);
-  const authorized = await fetch(`${server.url}/oauth/authorize`, {
-    method: 'POST',
-    body: JSON.stringify({ subject: 'alice', ...start }),
+  const started = await flow.begin('alice', start);
+  expect(oauthApiSchema.parse({ kind: 'started', ...started })).toEqual({
+    kind: 'started',
+    ...start,
+    authorizationUrl: createHttpOAuthProvider(
+      server.url,
+      'https://app.example/oauth/callback',
+    ).authorizationUrl('alice', start),
   });
-  const authorizedBody: unknown = await authorized.json();
-  if (!isRecord(authorizedBody) || typeof authorizedBody.code !== 'string') throw new Error('code');
+  const authorized = await fetch(started.authorizationUrl, { redirect: 'manual' });
+  expect(authorized.status).toBe(302);
+  const redirect = new URL(authorized.headers.get('location') ?? '');
+  expect(redirect.origin + redirect.pathname).toBe('https://app.example/oauth/callback');
+  expect(redirect.searchParams.get('state')).toBe(start.state);
+  const code = redirect.searchParams.get('code');
+  if (code === null || code.length === 0) throw new Error('code');
   const saved = await flow.complete('alice', {
     provider: 'fake',
-    state: 'state-1',
-    code: authorizedBody.code,
+    state: redirect.searchParams.get('state') ?? '',
+    code,
     codeVerifier: verifier,
   });
   expect(saved).toEqual({
@@ -93,6 +103,14 @@ it('oauth.blocked-auth', async () => {
     tokenRef: 'token-1',
   });
   expect(JSON.stringify(saved).includes(canary)).toBe(false);
+  await expect(
+    flow.complete('alice', {
+      provider: 'fake',
+      state: start.state,
+      code,
+      codeVerifier: verifier,
+    }),
+  ).rejects.toMatchObject({ code: 'state_mismatch' });
 
   const accepted = await ledger.submit('alice', submit, 'oauth-block');
   await ledger.transition({
@@ -144,8 +162,4 @@ function outbox(eventId: string, taskId: string): OutboxEvent {
       prevDigest: null,
     },
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

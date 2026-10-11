@@ -1,16 +1,25 @@
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 
 import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
+import { createOAuth, listen as listenFake } from '@agent-works/fakes';
 import { describe, expect, it } from 'vitest';
 
 import { createApp } from './app.js';
 import { createMemoryAuditLog } from './audit/write.js';
+import { Unauthenticated, Unavailable } from './auth/iap.js';
 import { createMemoryApprovalStore, createPostgresApprovalStore } from './broker/approvals.js';
 import { createApprovalHarness, useApprovalDatabase } from './broker/broker-harness.js';
 import { TICKET_TOOL } from './broker/broker.js';
+import { createOAuthFlow } from './credentials/flow.js';
+import { createHttpOAuthProvider } from './credentials/provider.js';
+import { createMemoryCredentialsPort } from './ports/memory/credentials.js';
+import { createMemoryLedgerPort } from './ports/memory/ledger-port.js';
 
 import type { Caller } from './auth/iap.js';
 import type { ApprovalStore } from './broker/approvals.js';
+import type { OAuthFlow } from './credentials/flow.js';
+import type { OAuthGrant } from './credentials/grant.js';
 import type { RequestListener } from 'node:http';
 
 const digest = 'a'.repeat(64);
@@ -164,3 +173,152 @@ function listen(
     });
   });
 }
+
+it('dispatches the approval read route', async () => {
+  const server = await listen(app(await memoryStore()), 0);
+  try {
+    const response = await fetch(`${server.url}/v1/approvals/apr-1`, { headers });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      kind: 'detail',
+      id: 'apr-1',
+      actionSummary: `${TICKET_TOOL} on PROJ`,
+      requestedBySub: 'alice',
+      payloadSha256: digest,
+      state: 'pending',
+      expiresAt: '2026-12-01T00:00:00.000Z',
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+function oauthApp(flow: OAuthFlow, failure?: Error, enabled = true) {
+  return createApp(
+    {
+      verify: (assertion) =>
+        failure === undefined
+          ? Promise.resolve({ sub: assertion ?? 'bob', assertion: assertion ?? 'bob' } as Caller)
+          : Promise.reject(failure),
+      drive: { retrieve: () => Promise.reject(new Error('unused')) },
+      runner: { run: () => Promise.reject(new Error('unused')) },
+      audit: createMemoryAuditLog(),
+      now: () => new Date(0),
+      oauth: flow,
+    },
+    { AW_OAUTH_CONNECT: enabled ? 'real' : 'stub', AW_OAUTH_REVOKE: enabled ? 'real' : 'stub' },
+  );
+}
+
+it('dispatches OAuth start, callback, replay rejection and disconnect', async () => {
+  const providerServer = await listenFake(createOAuth(), 0);
+  const grants = new Map<string, OAuthGrant>();
+  const credentials = createMemoryCredentialsPort();
+  const flow = createOAuthFlow({
+    credentials,
+    grants: {
+      save: (grant) => {
+        grants.set(grant.state, grant);
+        return Promise.resolve();
+      },
+      read: (state) => Promise.resolve(grants.get(state)),
+      consume: (state) => {
+        const grant = grants.get(state);
+        grants.delete(state);
+        return Promise.resolve(grant);
+      },
+    },
+    provider: createHttpOAuthProvider(providerServer.url, 'https://app.example/oauth/callback'),
+    ledger: { ...createMemoryLedgerPort(), transition: () => Promise.reject(new Error('unused')) },
+    now: () => new Date(0),
+  });
+  const server = await listen(oauthApp(flow), 0);
+  const endpoint = `${server.url}/v1/oauth/connections/fake`;
+  const verifier = 'verifier-value-which-is-long-enough';
+  const start = {
+    provider: 'fake',
+    state: 'state-1',
+    codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+    codeChallengeMethod: 'S256' as const,
+    scope: 'ticket.create',
+  };
+  const post = (body: unknown, subject = 'bob') =>
+    fetch(endpoint, {
+      method: 'POST',
+      headers: { [IAP_ASSERTION_HEADER]: subject },
+      body: JSON.stringify(body),
+    });
+  try {
+    const started = await post({ kind: 'start', ...start });
+    expect(started.status).toBe(200);
+    const startedBody = (await started.json()) as { authorizationUrl: string };
+    expect(startedBody).toEqual({
+      kind: 'started',
+      ...start,
+      authorizationUrl: createHttpOAuthProvider(
+        providerServer.url,
+        'https://app.example/oauth/callback',
+      ).authorizationUrl('bob', start),
+    });
+    const authorized = await fetch(startedBody.authorizationUrl, { redirect: 'manual' });
+    expect(authorized.status).toBe(302);
+    const redirect = new URL(authorized.headers.get('location') ?? '');
+    expect(redirect.origin + redirect.pathname).toBe('https://app.example/oauth/callback');
+    expect(redirect.searchParams.get('state')).toBe(start.state);
+    const code = redirect.searchParams.get('code');
+    expect(code).toBeTruthy();
+    const callback = {
+      kind: 'callback',
+      provider: 'fake',
+      state: redirect.searchParams.get('state'),
+      code,
+      codeVerifier: verifier,
+    };
+    const wrongSubject = await post(callback, 'alice');
+    expect(wrongSubject.status).toBe(400);
+    expect(await wrongSubject.json()).toEqual({ error: 'state_mismatch' });
+    const connected = await post(callback);
+    expect(connected.status).toBe(200);
+    expect(await connected.json()).toMatchObject({
+      kind: 'connection',
+      subject: 'bob',
+      status: 'active',
+    });
+    const replay = await post(callback);
+    expect(replay.status).toBe(400);
+    expect(await replay.json()).toEqual({ error: 'state_mismatch' });
+    const revoked = await fetch(endpoint, { method: 'DELETE', headers });
+    expect(revoked.status).toBe(200);
+    expect(await revoked.json()).toMatchObject({
+      kind: 'connection',
+      subject: 'bob',
+      status: 'revoked',
+    });
+    expect(await credentials.read('bob', 'fake')).toMatchObject({ status: 'revoked' });
+  } finally {
+    await server.close();
+    await providerServer.close();
+  }
+});
+
+it.each([
+  { failure: new Unauthenticated('missing'), status: 401, enabled: true },
+  { failure: new Unavailable('unavailable'), status: 503, enabled: true },
+  { failure: new Error('unused'), status: 501, enabled: false },
+])('OAuth dispatcher handles verifier failure $status', async ({ failure, status, enabled }) => {
+  const flow: OAuthFlow = {
+    begin: () => Promise.reject(new Error('unused')),
+    complete: () => Promise.reject(new Error('unused')),
+    revoke: () => Promise.reject(new Error('unused')),
+    blockIfStale: () => Promise.reject(new Error('unused')),
+  };
+  const server = await listen(oauthApp(flow, failure, enabled), 0);
+  try {
+    for (const method of ['POST', 'DELETE']) {
+      const response = await fetch(`${server.url}/v1/oauth/connections/fake`, { method });
+      expect(response.status).toBe(status);
+    }
+  } finally {
+    await server.close();
+  }
+});

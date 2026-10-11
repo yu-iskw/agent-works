@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as z from 'zod';
 
-import { approvalDecideSchema, ticketCreateManifest, toolManifestSchema } from './broker.js';
+import {
+  approvalApiSchema,
+  approvalDecideSchema,
+  ticketCreateManifest,
+  toolManifestSchema,
+} from './broker.js';
 
 import type { JSONSchema } from 'zod/v4/core';
 
@@ -54,4 +59,19 @@ describe('broker contracts', () => {
       schema.safeParse({ summary: 'Checkout latency', project: 'ops', note: 'x' }).success,
     ).toBe(false);
   });
+});
+
+it('requires reviewer details in the approval read response', () => {
+  const detail = {
+    kind: 'detail',
+    id: 'apr-1',
+    actionSummary: 'ticket.create on PROJ',
+    requestedBySub: 'alice',
+    payloadSha256: digest,
+    state: 'pending',
+    expiresAt: '2026-12-01T00:00:00.000Z',
+  };
+  expect(approvalApiSchema.parse(detail)).toEqual(detail);
+  expect(approvalApiSchema.safeParse({ ...detail, payloadSha256: 'invalid' }).success).toBe(false);
+  expect(approvalApiSchema.safeParse({ ...detail, actionSummary: undefined }).success).toBe(false);
 });
