@@ -66,7 +66,19 @@ it('audit.reconcile', async () => {
     wire: {
       search: createCorpusPort([runbook]),
       ledger,
-      groups: () => Promise.resolve({ groups: ['alice'], observedAt: at }),
+      policyInput: () =>
+        Promise.resolve({
+          facts: {
+            approved_agent_and_skill_version: true,
+            agent_has_tool_capability: true,
+            user_or_service_has_resource_authority: true,
+            source_system_allows_operation: true,
+            data_classification_policy_allows: true,
+            valid_approval_if_required: true,
+            within_time_and_budget_bounds: true,
+          },
+        }),
+      groups: () => Promise.resolve({ groups: ['agent-users@company.example'], observedAt: at }),
     },
   });
   try {

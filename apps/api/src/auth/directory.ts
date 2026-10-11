@@ -56,7 +56,10 @@ async function fetchSnapshot(
   return parsed.data;
 }
 
-function rolesAt(snapshot: GroupSnapshot, nowMs: number): readonly AppRole[] {
+export function rolesAt(
+  snapshot: { readonly groups: readonly string[]; readonly observedAt: string },
+  nowMs: number,
+): readonly AppRole[] {
   const ageMs = nowMs - Date.parse(snapshot.observedAt);
   const fresh = ageMs >= -futureSkewMs && ageMs <= maxSnapshotAgeMs;
   if (!fresh) return [];

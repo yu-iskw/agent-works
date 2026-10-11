@@ -10,6 +10,7 @@ import { decide as decidePolicy } from '@agent-works/policy';
 import { createAdkRunner } from '../agent/adk-runner.js';
 import { RunnerError } from '../agent/runner-port.js';
 import { AuditWriteError } from '../audit/write.js';
+import { rolesAt } from '../auth/directory.js';
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { readRunnerKind } from '../config.js';
 import { headerValue } from '../http.js';
@@ -24,12 +25,14 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { SearchPort } from '../ports/search-port.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
 import type { GroupSnapshot } from '../retrieval/search.js';
-import type { AuditEvent, AskRequest, PolicyClause, TaskSubmit } from '@agent-works/domain';
+import type { AuditEvent, AskRequest, SearchContext, TaskSubmit } from '@agent-works/domain';
+import type { PolicyInput } from '@agent-works/policy';
 
 type AskWire = {
   readonly search: SearchPort;
   readonly ledger: LedgerPort;
   readonly groups: (caller: Caller) => Promise<GroupSnapshot>;
+  readonly policyInput?: (caller: Caller, context: SearchContext) => Promise<PolicyInput>;
 };
 
 export type AskDeps = {
@@ -39,19 +42,6 @@ export type AskDeps = {
   readonly audit: AuditLog;
   readonly now: () => Date;
   readonly wire?: AskWire;
-};
-
-const askAllowFacts: { readonly [Clause in PolicyClause]: true } = {
-  authenticated_actor: true,
-  active_org_membership: true,
-  permitted_app_role: true,
-  approved_agent_and_skill_version: true,
-  agent_has_tool_capability: true,
-  user_or_service_has_resource_authority: true,
-  source_system_allows_operation: true,
-  data_classification_policy_allows: true,
-  valid_approval_if_required: true,
-  within_time_and_budget_bounds: true,
 };
 
 const searchTool = 'drive.search@1';
@@ -242,7 +232,8 @@ async function runWired(
   request: AskRequest,
   requestDigestSha256: string,
 ): Promise<{ readonly event: AuditEvent; readonly reply: ApiReply }> {
-  const decision = decidePolicy({ facts: askAllowFacts });
+  const authorization = await authorize(wire, caller, deps.now());
+  const decision = decidePolicy(authorization.input);
   if (decision.effect === 'deny') {
     const now = deps.now();
     return {
@@ -259,7 +250,7 @@ async function runWired(
       reply: { status: 403, body: { error: 'denied' } },
     };
   }
-  const outcome = await searchAndRun(deps, wire, caller, request);
+  const outcome = await searchAndRun(deps, wire, authorization.context, request);
   const accepted = await wire.ledger.submit(
     caller.sub,
     askTask(request.question),
@@ -280,15 +271,37 @@ async function runWired(
   return { event, reply: replyFor(outcome, request.requestId, now.toISOString()) };
 }
 
+async function authorize(wire: AskWire, caller: Caller, now: Date) {
+  try {
+    const snapshot = await wire.groups(caller);
+    const roles = rolesAt(snapshot, now.getTime());
+    const context = contextFor(caller, snapshot, askPolicy);
+    const input = await wire.policyInput?.(caller, context);
+    return {
+      context,
+      input: {
+        facts: {
+          ...input?.facts,
+          authenticated_actor: caller.sub.length > 0,
+          active_org_membership: roles.length > 0,
+          permitted_app_role: roles.includes('Employee'),
+        },
+      },
+    };
+  } catch {
+    return { context: undefined, input: { facts: { authenticated_actor: caller.sub.length > 0 } } };
+  }
+}
+
 async function searchAndRun(
   deps: AskDeps,
   wire: AskWire,
-  caller: Caller,
+  context: SearchContext | undefined,
   request: AskRequest,
 ): Promise<AskOutcome> {
+  if (context === undefined) return { kind: 'retrieval_failed' };
   let sources: readonly SourceDocument[];
   try {
-    const context = contextFor(caller, await wire.groups(caller), askPolicy);
     sources = (await wire.search.search(context, request.question)).map((citation) => ({
       id: citation.sourceObjectId,
       title: citation.title,
