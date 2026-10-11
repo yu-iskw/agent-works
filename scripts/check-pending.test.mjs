@@ -87,9 +87,8 @@ test('repository comes from GITHUB_REPOSITORY and otherwise from the local origi
 test('pending owner lookup uses GITHUB_REPOSITORY when the checkout has no origin', () => {
   const root = mkdtempSync(join(tmpdir(), 'pending-repo-'));
   try {
-    mkdirSync(join(root, 'e2e/security'), { recursive: true });
+    mkdirSync(join(root, 'e2e/pending'), { recursive: true });
     mkdirSync(join(root, 'docs/security'), { recursive: true });
-    writeFileSync(join(root, 'e2e/security/pending-tests.json'), '[]\n');
     writeFileSync(join(root, 'docs/security/controls.yaml'), '');
     const gitDir = join(root, 'git');
     const ghLog = join(root, 'gh-args');
