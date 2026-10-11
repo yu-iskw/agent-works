@@ -93,6 +93,22 @@ describe('fake oauth', () => {
     }
   });
 
+  it('rejects a provider that does not match the started flow', async () => {
+    const server = await listen(createOAuth(), 0);
+    try {
+      const code = await authorize(server.url, 'state-1');
+      const mismatched = await post(server.url, '/oauth/token', {
+        provider: 'google',
+        code,
+        codeVerifier: verifier,
+        state: 'state-1',
+      });
+      expect(mismatched).toEqual({ status: 400, body: { error: 'provider_mismatch' } });
+    } finally {
+      await server.close();
+    }
+  });
+
   it('marks a token revoked or expired without returning the canary', async () => {
     const server = await listen(createOAuth(), 0);
     try {

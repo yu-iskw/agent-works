@@ -75,6 +75,8 @@ function exchange(
   if (parsed === undefined) return { status: 400, body: { error: 'bad body' } };
   const code = codes.get(parsed.code);
   if (code === undefined) return { status: 400, body: { error: 'bad code' } };
+  if (code.provider !== parsed.provider)
+    return { status: 400, body: { error: 'provider_mismatch' } };
   if (code.state !== parsed.state) return { status: 400, body: { error: 'state_mismatch' } };
   if (code.codeChallenge !== s256(parsed.codeVerifier)) {
     return { status: 400, body: { error: 'pkce_mismatch' } };
