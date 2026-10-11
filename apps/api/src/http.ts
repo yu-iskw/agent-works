@@ -49,7 +49,7 @@ async function handle(
       send(response, 200, 'ok', textPlain);
       return;
     }
-    const body = await readLimited(request, maxBodyBytes);
+    const body = await readLimited(request);
     if (body === undefined) {
       send(response, 413, JSON.stringify({ error: 'too_large' }), jsonType);
       return;
@@ -78,7 +78,10 @@ function send(response: ServerResponse, status: number, body: string, type: stri
   response.end(body);
 }
 
-function readLimited(request: IncomingMessage, max: number): Promise<Buffer | undefined> {
+export function readLimited(
+  request: IncomingMessage,
+  max = maxBodyBytes,
+): Promise<Buffer | undefined> {
   const chunks: Buffer[] = [];
   let size = 0;
   let settled = false;

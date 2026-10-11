@@ -5,8 +5,7 @@ import {
 } from '@agent-works/domain';
 
 import { createRoleResolver } from '../auth/directory.js';
-import { Unauthenticated, Unavailable, createIapVerifier } from '../auth/iap.js';
-import { createMemoryApprovalStore } from '../broker/approvals.js';
+import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { headerValue } from '../http.js';
 
 import type { AppRole } from '../auth/directory.js';
@@ -38,10 +37,10 @@ const approvalRequired = {
 
 export const approvalsDecideMatch = /^\/v1\/approvals\/([^/]+):decide$/;
 
-type ApprovalsDeps = {
+export type ApprovalsDeps = {
   readonly store: ApprovalStore;
   readonly verify: VerifyAssertion;
-  readonly rolesFor: (sub: string) => Promise<readonly AppRole[]>;
+  readonly rolesFor?: (sub: string) => Promise<readonly AppRole[]>;
 };
 
 type ApiRequest = Parameters<Route>[0];
@@ -61,16 +60,11 @@ type Facts = {
 };
 
 export function createApprovalsRoute(deps: ApprovalsDeps): Route {
-  return (request) => decide(deps, request);
+  const resolved = { ...deps, rolesFor: deps.rolesFor ?? envRoles() };
+  return (request) => decide(resolved, request);
 }
 
-export const approvalsDecideRoute = createApprovalsRoute({
-  store: createMemoryApprovalStore(),
-  verify: envVerifier(),
-  rolesFor: envRoles(),
-});
-
-async function decide(deps: ApprovalsDeps, request: ApiRequest): Promise<ApiReply> {
+async function decide(deps: Required<ApprovalsDeps>, request: ApiRequest): Promise<ApiReply> {
   const subject = await authenticate(deps.verify, request);
   if (typeof subject !== 'string') return subject;
   if (!hasCsrf(request.headers)) return csrfMissing;
@@ -185,31 +179,6 @@ async function authenticate(
     if (error instanceof Unavailable) return unavailable;
     throw error;
   }
-}
-
-function envVerifier(): VerifyAssertion {
-  let cached: VerifyAssertion | undefined;
-  return (assertion) => {
-    cached ??= verifierFromEnv();
-    return cached(assertion);
-  };
-}
-
-function verifierFromEnv(): VerifyAssertion {
-  const jwksUrl = process.env.IAP_JWKS_URL;
-  const issuer = process.env.IAP_ISSUER;
-  const audience = process.env.IAP_AUDIENCE;
-  if (
-    jwksUrl === undefined ||
-    issuer === undefined ||
-    audience === undefined ||
-    jwksUrl.length === 0 ||
-    issuer.length === 0 ||
-    audience.length === 0
-  ) {
-    return () => Promise.reject(new Unavailable('iap'));
-  }
-  return createIapVerifier({ jwksUrl, issuer, audience });
 }
 
 function envRoles(): (sub: string) => Promise<readonly AppRole[]> {

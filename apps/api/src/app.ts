@@ -1,7 +1,10 @@
-import { createListener } from './http.js';
+import { createListener, readLimited } from './http.js';
+import { createApprovalsRoute } from './routes/approvals.js';
 import { createRouteTable, matchSlot } from './routes/index.js';
 import { selectRoute } from './routes/slot.js';
 
+import type { Route } from './http.js';
+import type { ApprovalsDeps } from './routes/approvals.js';
 import type { AskDeps } from './routes/ask.js';
 import type { RouteEnv } from './routes/slot.js';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
@@ -9,16 +12,23 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 const jsonType = 'application/json; charset=utf-8';
 const textType = 'text/plain; charset=utf-8';
 
-export function createApp(deps: AskDeps, env: RouteEnv = process.env): RequestListener {
+type AppDeps = AskDeps & { readonly approvals?: Omit<ApprovalsDeps, 'verify'> };
+
+export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestListener {
   const listener = createListener(createRouteTable(deps, env));
+  const approvals =
+    deps.approvals === undefined
+      ? undefined
+      : createApprovalsRoute({ ...deps.approvals, verify: deps.verify });
   return (request, response) => {
-    void dispatch(listener, env, request, response);
+    void dispatch(listener, env, approvals, request, response);
   };
 }
 
 async function dispatch(
   listener: RequestListener,
   env: RouteEnv,
+  approvals: Route | undefined,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -29,13 +39,21 @@ async function dispatch(
       listener(request, response);
       return;
     }
-    request.resume();
-    const route = selectRoute(slot, env);
+    const body = await readLimited(request);
+    if (body === undefined) {
+      response.writeHead(413, { 'content-type': jsonType });
+      response.end(JSON.stringify({ error: 'too_large' }));
+      return;
+    }
+    const route = selectRoute(
+      slot.id === 'approvals-decide' ? { ...slot, real: approvals } : slot,
+      env,
+    );
     const reply = await route({
       method: request.method ?? 'GET',
       path: url.pathname,
       headers: request.headers,
-      body: Buffer.alloc(0),
+      body,
     });
     const payload = typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body);
     const type = typeof reply.body === 'string' ? textType : jsonType;

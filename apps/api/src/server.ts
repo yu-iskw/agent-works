@@ -4,6 +4,7 @@ import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
 import { createIapVerifier } from './auth/iap.js';
+import { createPostgresApprovalStore } from './broker/approvals.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
@@ -18,5 +19,6 @@ createServer(
     runner: createScriptedRunner({ baseUrl: config.llmUrl }),
     audit: createPostgresAuditLog(sql),
     now: () => new Date(),
+    approvals: { store: createPostgresApprovalStore(sql) },
   }),
 ).listen(config.port, '0.0.0.0');
