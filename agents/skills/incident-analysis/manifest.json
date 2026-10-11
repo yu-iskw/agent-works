@@ -1,0 +1,6 @@
+{
+  "id": "incident-analysis",
+  "version": "1.0.0",
+  "tools": ["ticket.create"],
+  "state": "PUBLISHED"
+}

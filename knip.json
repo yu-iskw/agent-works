@@ -6,7 +6,7 @@
   },
   "workspaces": {
     ".": {
-      "entry": ["stylelint.config.mjs"],
+      "entry": ["stylelint.config.mjs", "agents/skills/incident-analysis/eval-run.ts"],
       "project": [
         "**/*.{js,cjs,mjs,ts,cts,mts}",
         "!packages/**",
