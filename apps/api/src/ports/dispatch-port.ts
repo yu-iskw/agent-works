@@ -196,7 +196,7 @@ export function requireProof(lease: LeaseProof): LeaseProof {
 }
 
 export function proofOf(claimed: ClaimedDelivery): LeaseProof {
-  return proofFrom(claimed, claimed.workerId);
+  return requireProof(claimed);
 }
 
 export function proofFrom(row: DeliveryRow, workerId: string): LeaseProof {
