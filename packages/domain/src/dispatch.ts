@@ -4,6 +4,7 @@ import { sha256DigestSchema } from './canonical-hash.js';
 import { taskSubmitSchema } from './ledger.js';
 import { policyDecisionSchema } from './policy.js';
 import { principalSchema } from './principal.js';
+import { searchContextSchema } from './search.js';
 
 const instant = z.iso.datetime();
 
@@ -21,7 +22,8 @@ export const deliveryPayloadSchema = z.strictObject({
   subject: z.string().min(1),
   policy: policyDecisionSchema,
   agent: principalSchema,
-  input: taskSubmitSchema.shape.input,
+  request: taskSubmitSchema,
+  context: searchContextSchema,
   deadline: instant,
 });
 

@@ -11,10 +11,12 @@ import {
   transition,
 } from '@agent-works/domain';
 
+import { assertDeliveryLease } from '../ports/dispatch-port.js';
 import {
   acceptedTask,
   bodyConflict,
   ConcurrentUpdate,
+  isControlPlaneTransition,
   LedgerConflict,
   queuedTask,
   taskMissing,
@@ -35,10 +37,12 @@ export type { TaskLedger };
 
 const tasksMigration = '0006_tasks.sql';
 const dispatchMigration = '0007_task_dispatch.sql';
+const historyMigration = '0008_task_history.sql';
 const migrationLock = 7006;
 const migrationDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../migrations');
 const tasksPath = resolve(migrationDirectory, tasksMigration);
 const dispatchPath = resolve(migrationDirectory, dispatchMigration);
+const historyPath = resolve(migrationDirectory, historyMigration);
 const ledgerVersion = 'postgres';
 const changedEvent = 'outbox event changed';
 
@@ -87,6 +91,17 @@ export function createPostgresLedgerPort(
       `;
       return rows.length === 0 ? undefined : outboxEventSchema.parse(rows[0].payload);
     },
+    async events(subject, taskId) {
+      await ready;
+      const rows = await sql<{ payload: unknown }[]>`
+        select e.payload from outbox_events e join tasks t on t.id = e.payload->'event'->>'taskId'
+        where t.id = ${taskId} and t.created_by_sub = ${subject}
+        order by e.payload->'event'->>'occurredAt',
+          case e.payload->'event'->>'eventType' when 'task.submitted' then 0 when 'task.running' then 1 else 2 end,
+          e.event_id
+      `;
+      return rows.map((row) => outboxEventSchema.parse(row.payload));
+    },
     transition(input) {
       return ready.then(() => commitTransition(sql, now, input));
     },
@@ -109,7 +124,7 @@ export async function applyTaskLedgerMigration(sql: postgres.Sql): Promise<void>
     )`;
     const applied = await tx<{ name: string }[]>`
       select name from schema_migrations
-      where name in (${tasksMigration}, ${dispatchMigration})
+      where name in (${tasksMigration}, ${dispatchMigration}, ${historyMigration})
     `;
     const names = new Set(applied.map((row) => row.name));
     if (!names.has(tasksMigration)) {
@@ -119,6 +134,10 @@ export async function applyTaskLedgerMigration(sql: postgres.Sql): Promise<void>
     if (!names.has(dispatchMigration)) {
       await tx.unsafe(readFileSync(dispatchPath, 'utf8'));
       await tx`insert into schema_migrations (name) values (${dispatchMigration})`;
+    }
+    if (!names.has(historyMigration)) {
+      await tx.unsafe(readFileSync(historyPath, 'utf8'));
+      await tx`insert into schema_migrations (name) values (${historyMigration})`;
     }
   });
 }
@@ -181,10 +200,32 @@ async function commitTransition(
 ): Promise<Task> {
   const digest = canonicalPayloadSha256(input.event);
   const receipt = input.receipt === undefined ? undefined : externalWriteReceipt(input.receipt);
-  const at = now();
   return sql.begin(async (tx) => {
+    // Lock delivery before task, matching claim/renew to avoid lock-order inversions.
+    const deliveries = await tx<
+      { worker_id: string | null; fencing_token: number; lease_until: Date | null }[]
+    >`
+      select worker_id, fencing_token, lease_until from task_deliveries
+      where task_id = ${input.taskId} for update
+    `;
     const current = await lockTask(tx, input.taskId, input.subject);
+    const delivery = deliveries.at(0);
+    if (input.lease !== undefined || (delivery !== undefined && !isControlPlaneTransition(input))) {
+      assertDeliveryLease(
+        delivery === undefined
+          ? undefined
+          : {
+              workerId: delivery.worker_id ?? undefined,
+              fencingToken: delivery.fencing_token,
+              leaseUntil: delivery.lease_until ?? undefined,
+            },
+        input.lease,
+        input.taskId,
+        now(),
+      );
+    }
     if (current.version !== input.expectedVersion) throw new ConcurrentUpdate();
+    const at = now();
     const next = transition(current, input.to);
     await tx`
       update tasks

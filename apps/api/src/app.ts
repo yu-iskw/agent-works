@@ -2,11 +2,12 @@ import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
 
 import { Unauthenticated, Unavailable } from './auth/iap.js';
 import { createListener, headerValue, readLimited } from './http.js';
-import { createMemoryLedgerPort } from './ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from './ports/memory/task-ports.js';
 import { createApprovalsRoute } from './routes/approvals.js';
 import { createRouteTable, matchSlot } from './routes/index.js';
 import { createOAuthConnectRoute, createOAuthRevokeRoute } from './routes/oauth.js';
 import { selectRoute } from './routes/slot.js';
+import { cancelTaskRoute } from './routes/tasks-cancel.js';
 import { createTaskRoutes } from './routes/tasks.js';
 import { createSkillRegistry } from './skills/registry.js';
 
@@ -27,9 +28,16 @@ type AppDeps = RouteDeps & {
 
 export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestListener {
   const skills = deps.skills ?? createSkillRegistry();
+  const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??
-    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, skills, deps);
+    createTaskRoutes(
+      deps.dispatch === undefined ? memory.ledger : (deps.wire?.ledger ?? memory.ledger),
+      deps.verify,
+      skills,
+      deps,
+      deps.dispatch ?? memory.dispatch,
+    );
   const listener = createListener(createRouteTable({ ...deps, tasks, skills }, env));
   const approvals =
     deps.approvals === undefined
@@ -48,6 +56,7 @@ export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestLi
   const routes = new Map<string, Route | undefined>([
     ['tasks-read', tasks.read],
     ['tasks-events', tasks.events],
+    ['tasks-cancel', taskCancellation(tasks.cancel)],
     ['approvals-decide', approvals],
     ['approvals-read', approvals],
     ['oauth-connect', oauthDeps === undefined ? undefined : createOAuthConnectRoute(oauthDeps)],
@@ -107,4 +116,11 @@ function dispatchError(error: unknown, response: ServerResponse): void {
   }
   response.writeHead(500, { 'content-type': textType });
   response.end('error');
+}
+
+function taskCancellation(cancel: Route | undefined): Route {
+  return async (request) => {
+    const reply = await cancel?.(request);
+    return reply === undefined || reply.status === 404 ? cancelTaskRoute(request) : reply;
+  };
 }

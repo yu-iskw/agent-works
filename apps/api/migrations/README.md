@@ -11,5 +11,8 @@
 | 0005   | `credentials`     | Reserved by #51.                                                       |
 | 0006   | `tasks`           | Reserved by #39 for the task ledger (#46). File name `0006_tasks.sql`. |
 | 0007   | `task_dispatch`   | Task dispatch (#119). File name `0007_task_dispatch.sql`.              |
+| 0008   | `task_history`    | Persisted task event reads (#97). File name `0008_task_history.sql`.   |
 
-The next free number after these reservations is `0008`.
+The task ledger applies `0006`–`0008` under its migration lock. `0008` indexes task history stored in the existing JSON outbox; dispatch envelopes use the existing `task_deliveries.payload` column. No public API schema changes.
+
+The next free number after these reservations is `0009`.

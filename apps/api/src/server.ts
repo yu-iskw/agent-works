@@ -11,12 +11,15 @@ import { createOAuthFlow } from './credentials/flow.js';
 import { createPostgresCredentialStore } from './credentials/postgres.js';
 import { createHttpOAuthProvider } from './credentials/provider.js';
 import { openDatabase } from './db.js';
+import { createPostgresDispatchPort } from './ledger/postgres-dispatch.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 import { createIncidentSkill } from './skills/incident.js';
 import { createSkillRegistry } from './skills/registry.js';
+import { createTaskDispatcher } from './skills/task-dispatcher.js';
+import { createTicketReconciler } from './skills/ticket-receipts.js';
 
 import type { Caller } from './auth/iap.js';
 import type { SearchContext } from '@agent-works/domain';
@@ -49,11 +52,22 @@ const skills = createSkillRegistry([
   }),
 ]);
 
-createServer(
+const dispatch = createPostgresDispatchPort(sql, now);
+const worker = createTaskDispatcher({
+  dispatch,
+  ledger,
+  registry: skills,
+  now,
+  reconcile:
+    config.incident === undefined ? undefined : createTicketReconciler(config.incident.ticketsUrl),
+  onError: () => console.error('task dispatcher operation failed'),
+});
+const server = createServer(
   createApp({
     verify: createIapVerifier(config.iap),
     drive,
     skills,
+    dispatch,
     runner: createScriptedRunner({ baseUrl: config.llmUrl }),
     audit: createPostgresAuditLog(sql),
     now,
@@ -95,3 +109,20 @@ createServer(
     },
   }),
 ).listen(config.port, '0.0.0.0');
+
+worker.start();
+let stopping = false;
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+  await worker.stop();
+  await closed;
+  await sql.end({ timeout: 5 });
+}
+process.once('SIGTERM', () => {
+  void shutdown();
+});
+process.once('SIGINT', () => {
+  void shutdown();
+});

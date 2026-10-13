@@ -26,8 +26,8 @@ it('keeps the stored payload unchanged when a claimed payload is mutated', async
   const original = structuredClone(claimed.payload);
   claimed.payload.subject = 'mallory';
   claimed.payload.policy.policyVersion = 'changed';
-  if (claimed.payload.input === undefined) throw new Error('missing input');
-  claimed.payload.input.incidentId = 'changed';
+  if (claimed.payload.request.input === undefined) throw new Error('missing input');
+  claimed.payload.request.input.incidentId = 'changed';
 
   await dispatch.release(proofOf(claimed));
   const reclaimed = await dispatch.claim('worker-b', 60_000);

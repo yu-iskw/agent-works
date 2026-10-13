@@ -2,6 +2,7 @@ import { canonicalPayloadSha256, taskAcceptedSchema, taskSchema } from '@agent-w
 
 import type {
   ExternalWriteReceipt,
+  LeaseProof,
   OutboxEvent,
   Task,
   TaskAccepted,
@@ -73,18 +74,30 @@ export type TransitionInput = {
   readonly to: TaskStatus;
   readonly event: OutboxEvent;
   readonly receipt?: ExternalWriteReceipt;
+  readonly lease?: LeaseProof;
 };
+
+/** Trusted control-plane callers may stop work without holding a worker lease. */
+export function isControlPlaneTransition(input: TransitionInput): boolean {
+  return (
+    input.lease === undefined &&
+    input.receipt === undefined &&
+    (input.to === 'BLOCKED_AUTH' || input.to === 'CANCELLED')
+  );
+}
 
 export interface LedgerPort {
   submit(subject: string, request: TaskSubmit, idempotencyKey: string): Promise<TaskAccepted>;
   read(subject: string, taskId: string): Promise<Task | undefined>;
   append(event: OutboxEvent): Promise<'recorded' | 'replay'>;
   readOutbox(eventId: string): Promise<OutboxEvent | undefined>;
+  events?(subject: string, taskId: string): Promise<readonly OutboxEvent[]>;
   transition?(input: TransitionInput): Promise<Task>;
   readReceipt?(subject: string, taskId: string): Promise<ExternalWriteReceipt | undefined>;
 }
 
 export interface TaskLedger extends LedgerPort {
+  events(subject: string, taskId: string): Promise<readonly OutboxEvent[]>;
   transition(input: TransitionInput): Promise<Task>;
   readReceipt(subject: string, taskId: string): Promise<ExternalWriteReceipt | undefined>;
 }

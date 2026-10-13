@@ -5,10 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
 import { createGroupResolver } from './auth/directory.js';
+import { createPostgresDispatchPort } from './ledger/postgres-dispatch.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { createAskRoute } from './routes/ask.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
+import { createTaskDispatcher } from './skills/task-dispatcher.js';
 
 import type * as auditModule from './audit/write.js';
 import type * as directoryModule from './auth/directory.js';
@@ -19,7 +21,12 @@ import type { HttpDrive } from './retrieval/http-drive.js';
 
 const caller = { sub: 'alice', assertion: 'verified-assertion' } as Caller;
 
-vi.mock('node:http', () => ({ createServer: vi.fn(() => ({ listen: vi.fn() })) }));
+const runtime = vi.hoisted(() => {
+  const server = { listen: vi.fn(), close: vi.fn((callback: () => void) => callback()) };
+  server.listen.mockReturnValue(server);
+  return { server, end: vi.fn().mockResolvedValue(undefined) };
+});
+vi.mock('node:http', () => ({ createServer: vi.fn(() => runtime.server) }));
 vi.mock('./app.js', () => ({ createApp: vi.fn(() => () => undefined) }));
 vi.mock('./config.js', async (importOriginal) => ({
   ...(await importOriginal<typeof configModule>()),
@@ -33,7 +40,14 @@ vi.mock('./config.js', async (importOriginal) => ({
     iap: {},
   }),
 }));
-vi.mock('./db.js', () => ({ openDatabase: () => Promise.resolve({}) }));
+vi.mock('./ledger/postgres-dispatch.js', () => ({ createPostgresDispatchPort: vi.fn(() => ({})) }));
+vi.mock('./skills/task-dispatcher.js', () => ({
+  createTaskDispatcher: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+vi.mock('./db.js', () => ({ openDatabase: () => Promise.resolve({ end: runtime.end }) }));
 vi.mock('./auth/iap.js', async (importOriginal) => ({
   ...(await importOriginal<typeof iapModule>()),
   createIapVerifier: () => () => Promise.resolve(caller),
@@ -91,9 +105,22 @@ describe('server composition', () => {
   it('supplies production wire with role checks, policy, task storage and ledger audit', async () => {
     vi.stubEnv('AGENT_RUNNER', 'scripted');
     vi.stubEnv('OAUTH_URL', 'https://oauth.test');
+    const once = vi.spyOn(process, 'once').mockReturnValue(process);
     await import('./server.js');
     const deps = vi.mocked(createApp).mock.calls[0][0];
     expect(deps.wire).toBeDefined();
+    expect(deps.dispatch).toBe(vi.mocked(createPostgresDispatchPort).mock.results[0].value);
+    expect(createTaskDispatcher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ledger: deps.wire?.ledger,
+        dispatch: deps.dispatch,
+        registry: deps.skills,
+      }),
+    );
+    const worker = vi.mocked(createTaskDispatcher).mock.results[0].value as ReturnType<
+      typeof createTaskDispatcher
+    >;
+    expect(worker.start).toHaveBeenCalledOnce();
     expect(deps.oauth).toBeDefined();
     expect(createPostgresOAuthConnectionsReader).toHaveBeenCalledTimes(1);
     expect(deps.oauthConnections?.read).toBe(
@@ -145,5 +172,13 @@ describe('server composition', () => {
     expect(await route(request())).toEqual({ status: 403, body: { error: 'denied' } });
     expect(submit).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledTimes(1);
+    const sigterm = once.mock.calls.find(([event]) => event === 'SIGTERM');
+    if (sigterm === undefined) throw new Error('shutdown handler');
+    sigterm[1]();
+    await vi.waitFor(() => expect(runtime.end).toHaveBeenCalledWith({ timeout: 5 }));
+    expect(worker.stop).toHaveBeenCalledOnce();
+    expect(runtime.server.close).toHaveBeenCalledOnce();
+    sigterm[1]();
+    expect(runtime.server.close).toHaveBeenCalledOnce();
   });
 });

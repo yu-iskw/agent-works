@@ -5,7 +5,7 @@ import { listen } from '@agent-works/fakes';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIapVerifier } from '../auth/iap.js';
-import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { createSkillRegistry } from '../skills/registry.js';
 import { taskAuthorization } from '../testing/task-authorization.js';
 
@@ -39,8 +39,9 @@ describe('tasks bench', () => {
     const jwks = await listen(() => ({ status: 200, body: { keys: [keys.jwk] } }), 0);
     closeJwks = jwks.close;
     assertion = signedAssertion(keys.privateKey, keys.jwk.kid);
+    const ports = createMemoryTaskPorts();
     routes = createTaskRoutes(
-      createMemoryLedgerPort(),
+      ports.ledger,
       createIapVerifier({ jwksUrl: `${jwks.url}/jwks`, issuer, audience }),
       createSkillRegistry([
         {
@@ -50,6 +51,7 @@ describe('tasks bench', () => {
         },
       ]),
       taskAuthorization,
+      ports.dispatch,
     );
   });
 
