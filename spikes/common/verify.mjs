@@ -64,6 +64,11 @@ const exchangeSchema = z.strictObject({
     .max(32),
 });
 
+function isCapturedAt(value) {
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().replace('.000Z', 'Z') === value;
+}
+
 const transcriptFields = {
   schemaId: z.literal(transcriptSchemaId),
   schemaVersion: z.literal(1),
@@ -71,7 +76,7 @@ const transcriptFields = {
   capturedAt: z
     .string()
     .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/)
-    .refine((value) => Number.isFinite(Date.parse(value))),
+    .refine(isCapturedAt),
   region: z.string().regex(/^[a-z][a-z0-9-]{1,30}[0-9]$/),
   spike: z.enum(Object.keys(spikePrefix)),
   feature: slug,
