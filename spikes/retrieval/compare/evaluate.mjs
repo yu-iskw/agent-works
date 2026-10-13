@@ -1,26 +1,15 @@
-import { corpus, forbiddenDocuments, matrix, matrixCase } from './matrix.ts';
-import { parseEvidence } from './schema.ts';
-
-import type { EvidenceCase, EvidenceHit, RetrievalEvidence } from './schema.ts';
-
-const unknownSource = 'unknown-source';
-
-export type Thresholds = {
+// @ts-check
+/** @typedef {import('./schema.mjs').EvidenceCase} EvidenceCase */
+/** @typedef {import('./schema.mjs').EvidenceHit} EvidenceHit */
+/** @typedef {import('./schema.mjs').RetrievalEvidence} RetrievalEvidence */
+/** @typedef {{
   readonly status: 'proposed' | 'approved';
   readonly approvedBy: string | null;
   readonly minimumRecall: number;
   readonly maximumP95LatencyMs: number;
   readonly maximumRevocationLagMs: number;
-};
-/** Proposal only; the owner must set approval before an arm can be selected. */
-export const proposedThresholds: Thresholds = {
-  status: 'proposed',
-  approvedBy: null,
-  minimumRecall: 0.9,
-  maximumP95LatencyMs: 5000,
-  maximumRevocationLagMs: 60_000,
-};
-export type Finding = {
+}} Thresholds */
+/** @typedef {{
   readonly caseId: string;
   readonly code:
     | 'leak'
@@ -32,8 +21,8 @@ export type Finding = {
     | 'recall'
     | 'latency';
   readonly surface: string | null;
-};
-export type ArmResult = {
+}} Finding */
+/** @typedef {{
   readonly arm: 'A' | 'B';
   readonly eligible: boolean;
   readonly evidenceProvenance: 'synthetic' | 'observed';
@@ -51,9 +40,24 @@ export type ArmResult = {
     readonly deletionLagMs: number | null;
     readonly costUsd: number | null;
   };
+}} ArmResult */
+import { corpus, forbiddenDocuments, matrix, matrixCase } from './matrix.mjs';
+import { parseEvidence } from './schema.mjs';
+const unknownSource = 'unknown-source';
+/** Proposal only; the owner must set approval before an arm can be selected. */
+/** @type {Thresholds} */
+export const proposedThresholds = {
+  status: 'proposed',
+  approvedBy: null,
+  minimumRecall: 0.9,
+  maximumP95LatencyMs: 5000,
+  maximumRevocationLagMs: 60_000,
 };
-
-function visibleSurfaces(entry: EvidenceCase): readonly { surface: string; text: string }[] {
+/**
+ * @param {EvidenceCase} entry
+ * @returns {readonly { surface: string; text: string }[]}
+ */
+function visibleSurfaces(entry) {
   return [
     { surface: 'response', text: entry.responseText },
     ...entry.hits.flatMap((hit) => [
@@ -65,9 +69,13 @@ function visibleSurfaces(entry: EvidenceCase): readonly { surface: string; text:
     ]),
   ];
 }
-
-function leaks(entry: EvidenceCase): Finding[] {
-  const findings: Finding[] = [];
+/**
+ * @param {EvidenceCase} entry
+ * @returns {Finding[]}
+ */
+function leaks(entry) {
+  /** @type {Finding[]} */
+  const findings = [];
   const forbidden = forbiddenDocuments(entry.id);
   for (const visible of visibleSurfaces(entry)) {
     const text = visible.text.toLowerCase();
@@ -85,8 +93,12 @@ function leaks(entry: EvidenceCase): Finding[] {
   }
   return findings;
 }
-
-function validProvenance(hit: EvidenceHit, entry: EvidenceCase, capturedAt: string) {
+/**
+ * @param {EvidenceHit} hit
+ * @param {EvidenceCase} entry
+ * @param {string} capturedAt
+ */
+function validProvenance(hit, entry, capturedAt) {
   const provenance = hit.provenance;
   if (!provenance || !provenance.sourceAccessChecked || provenance.subject !== entry.subject)
     return false;
@@ -96,13 +108,18 @@ function validProvenance(hit: EvidenceHit, entry: EvidenceCase, capturedAt: stri
   const path = new URL(provenance.sourceUri).pathname.split('/');
   return path.includes(hit.sourceObjectId);
 }
-
-function caseFindings(entry: EvidenceCase, capturedAt: string): Finding[] {
+/**
+ * @param {EvidenceCase} entry
+ * @param {string} capturedAt
+ * @returns {Finding[]}
+ */
+function caseFindings(entry, capturedAt) {
   const findings = leaks(entry);
   if (entry.revocationChecks.some((check) => !check.denied)) {
     findings.push({ caseId: entry.id, code: 'leak', surface: 'revocation-recheck' });
   }
-  const known = new Set<string>(corpus.map((document) => document.id));
+  /** @type {Set<string>} */
+  const known = new Set(corpus.map((document) => document.id));
   for (const hit of entry.hits) {
     if (!known.has(hit.sourceObjectId))
       findings.push({ caseId: entry.id, code: unknownSource, surface: 'identifier' });
@@ -119,14 +136,20 @@ function caseFindings(entry: EvidenceCase, capturedAt: string): Finding[] {
   }
   return findings;
 }
-
-export function percentile95(values: readonly number[]): number | null {
+/**
+ * @param {readonly number[]} values
+ * @returns {number | null}
+ */
+export function percentile95(values) {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * 0.95) - 1];
 }
-
-function measurements(evidence: RetrievalEvidence): ArmResult['measurements'] {
+/**
+ * @param {RetrievalEvidence} evidence
+ * @returns {ArmResult['measurements']}
+ */
+function measurements(evidence) {
   if (evidence.provenance !== 'observed' || evidence.cases.length !== matrix.length) {
     return {
       recall: null,
@@ -139,7 +162,7 @@ function measurements(evidence: RetrievalEvidence): ArmResult['measurements'] {
   let found = 0;
   let expected = 0;
   for (const entry of evidence.cases) {
-    const wanted = new Set<string>(matrixCase(entry.id).expected);
+    const wanted = new Set(matrixCase(entry.id).expected);
     const ids = new Set(entry.hits.map((hit) => hit.sourceObjectId));
     expected += wanted.size;
     found += [...wanted].filter((id) => ids.has(id)).length;
@@ -157,11 +180,12 @@ function measurements(evidence: RetrievalEvidence): ArmResult['measurements'] {
     costUsd: evidence.costUsd,
   };
 }
-
-export function evaluateArm(
-  input: unknown,
-  thresholds: Thresholds = proposedThresholds,
-): ArmResult {
+/**
+ * @param {unknown} input
+ * @param {Thresholds} [thresholds]
+ * @returns {ArmResult}
+ */
+export function evaluateArm(input, thresholds = proposedThresholds) {
   validateThresholds(thresholds);
   const evidence = parseEvidence(input);
   const findings = evidence.cases.flatMap((entry) => caseFindings(entry, evidence.capturedAt));
@@ -197,8 +221,8 @@ export function evaluateArm(
     };
   }
   if (
-    measured.revocationLagMs! > thresholds.maximumRevocationLagMs ||
-    measured.deletionLagMs! > thresholds.maximumRevocationLagMs
+    (measured.revocationLagMs ?? Infinity) > thresholds.maximumRevocationLagMs ||
+    (measured.deletionLagMs ?? Infinity) > thresholds.maximumRevocationLagMs
   ) {
     findings.push({ caseId: 'revocation', code: 'timing', surface: null });
     return {
@@ -210,9 +234,9 @@ export function evaluateArm(
       measurements: measured,
     };
   }
-  if (measured.recall! < thresholds.minimumRecall)
+  if ((measured.recall ?? 0) < thresholds.minimumRecall)
     findings.push({ caseId: 'matrix', code: 'recall', surface: null });
-  if (measured.p95LatencyMs! > thresholds.maximumP95LatencyMs)
+  if ((measured.p95LatencyMs ?? Infinity) > thresholds.maximumP95LatencyMs)
     findings.push({ caseId: 'matrix', code: 'latency', surface: null });
   const eligible = findings.length === 0;
   return {
@@ -224,13 +248,13 @@ export function evaluateArm(
     measurements: measured,
   };
 }
-
-function mustDefer(
-  evidence: RetrievalEvidence,
-  findings: readonly Finding[],
-  measured: ArmResult['measurements'],
-  thresholds: Thresholds,
-) {
+/**
+ * @param {RetrievalEvidence} evidence
+ * @param {readonly Finding[]} findings
+ * @param {ArmResult['measurements']} measured
+ * @param {Thresholds} thresholds
+ */
+function mustDefer(evidence, findings, measured, thresholds) {
   const incomplete = findings.some((item) =>
     ['missing-case', 'unavailable', 'timing'].includes(item.code),
   );
@@ -249,8 +273,10 @@ function mustDefer(
     thresholds.status !== 'approved'
   );
 }
-
-function validateThresholds(thresholds: Thresholds) {
+/**
+ * @param {Thresholds} thresholds
+ */
+function validateThresholds(thresholds) {
   if (
     !Number.isFinite(thresholds.minimumRecall) ||
     thresholds.minimumRecall < 0 ||
@@ -264,12 +290,12 @@ function validateThresholds(thresholds: Thresholds) {
     throw new Error('invalid or unsigned thresholds');
   }
 }
-
-export function compareArms(
-  managed: unknown,
-  drive: unknown,
-  thresholds: Thresholds = proposedThresholds,
-) {
+/**
+ * @param {unknown} managed
+ * @param {unknown} drive
+ * @param {Thresholds} [thresholds]
+ */
+export function compareArms(managed, drive, thresholds = proposedThresholds) {
   const a = evaluateArm(managed, thresholds);
   const b = evaluateArm(drive, thresholds);
   if (a.arm !== 'A' || b.arm !== 'B') throw new Error('comparison requires A then B');
@@ -288,22 +314,34 @@ export function compareArms(
     observed: aLatency !== null || bLatency !== null,
   };
 }
-
-function chooseOutcome(a: ArmResult, b: ArmResult): 'A' | 'B' | 'NO-GO' | 'DEFER' | 'neither' {
-  // RFC-001 prefers managed search. ADR-0003 explicitly permits B when A defers.
+/**
+ * @param {ArmResult} a
+ * @param {ArmResult} b
+ * @returns {'A' | 'B' | 'NO-GO' | 'DEFER' | 'neither'}
+ */
+function chooseOutcome(a, b) {
+  // ADR-0003 permits B only when the managed trial is unavailable.
   if (a.eligible) return 'A';
-  if (b.eligible) return 'B';
+  if (a.availability === 'unavailable' && a.verdict === 'DEFER' && b.eligible) return 'B';
+  if (a.availability === 'available')
+    return a.verdict === 'NO-GO' ? 'NO-GO' : a.verdict === 'DEFER' ? 'DEFER' : 'neither';
   if (a.verdict === 'NO-GO' && b.verdict === 'NO-GO') return 'NO-GO';
   if (a.verdict === 'DEFER' || b.verdict === 'DEFER') return 'DEFER';
   return 'neither';
 }
-
-function relativeLatency(a: number | null, b: number | null) {
+/**
+ * @param {number | null} a
+ * @param {number | null} b
+ */
+function relativeLatency(a, b) {
   if (a === null || a <= 0 || b === null) return null;
   return b / a;
 }
-
-function reportMetadata(evidence: RetrievalEvidence, findings: readonly Finding[]) {
+/**
+ * @param {RetrievalEvidence} evidence
+ * @param {readonly Finding[]} findings
+ */
+function reportMetadata(evidence, findings) {
   const complete =
     evidence.provenance === 'observed' &&
     evidence.cases.length === matrix.length &&
@@ -320,12 +358,12 @@ function reportMetadata(evidence: RetrievalEvidence, findings: readonly Finding[
     : complete
       ? 'OBSERVED'
       : 'UNVERIFIED';
-  return {
+  return /** @type {const} */ ({
     evidenceProvenance: evidence.provenance,
     capturedAt: evidence.capturedAt,
     featureScope: evidence.featureScope,
     availability: evidence.availability,
     accessIsolation,
     sourceProvenance,
-  } as const;
+  });
 }

@@ -1,21 +1,20 @@
-import { summarizeRevocation } from '../compare/revocation.ts';
-
-import type { RevocationCheck } from '../compare/revocation.ts';
-
-export type PollOptions = {
+// @ts-check
+/** @typedef {import('../compare/revocation.mjs').RevocationCheck} RevocationCheck */
+/** @typedef {{
   readonly changedAt: string;
   readonly sourceObjectId: string;
   readonly attempts: number;
   readonly intervalMs: number;
-  /** True only after a successful source access recheck denies the targeted object.
-   * Network error, timeout, invalid identity and empty unrelated query are not denial. */
   readonly recheckDenied: (sourceObjectId: string) => Promise<boolean>;
   readonly now?: () => number;
   readonly wait?: (ms: number) => Promise<void>;
-};
-
+}} PollOptions */
+import { summarizeRevocation } from '../compare/revocation.mjs';
 /** Operator-only source revoke/delete polling. No live runner is executed by CI. */
-export async function pollRevocation(options: PollOptions) {
+/**
+ * @param {PollOptions} options
+ */
+export async function pollRevocation(options) {
   if (
     !Number.isInteger(options.attempts) ||
     options.attempts < 2 ||
@@ -27,9 +26,9 @@ export async function pollRevocation(options: PollOptions) {
     throw new Error('invalid polling budget');
   }
   const now = options.now ?? Date.now;
-  const wait =
-    options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const checks: RevocationCheck[] = [];
+  const wait = options.wait ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  /** @type {RevocationCheck[]} */
+  const checks = [];
   for (let index = 0; index < options.attempts; index += 1) {
     if (index > 0) await wait(options.intervalMs);
     const denied = await options.recheckDenied(options.sourceObjectId);

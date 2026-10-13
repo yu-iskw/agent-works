@@ -1,11 +1,13 @@
+// @ts-check
+/** @typedef {z.infer<typeof evidenceShapeSchema>} EvidenceShape */
+/** @typedef {z.infer<typeof evidenceSchema>} RetrievalEvidence */
+/** @typedef {z.infer<typeof caseSchema>} EvidenceCase */
+/** @typedef {z.infer<typeof hitSchema>} EvidenceHit */
 import { z } from 'zod';
-
 import { canonicalPayloadSha256 } from '../../../packages/domain/src/canonical-hash.ts';
 import { verifyTranscriptBytes } from '../../common/verify.mjs';
-
-import { matrix, matrixId, query } from './matrix.ts';
-import { summarizeRevocation } from './revocation.ts';
-
+import { matrix, matrixId, query } from './matrix.mjs';
+import { summarizeRevocation } from './revocation.mjs';
 const label = z.string().trim().min(1).max(500);
 const timestamp = z.iso.datetime();
 const measurement = z.number().finite().nonnegative().nullable();
@@ -67,10 +69,15 @@ export const evidenceShapeSchema = z.strictObject({
   cases: z.array(caseSchema).max(6),
   omitted: z.array(label),
 });
-type EvidenceShape = z.infer<typeof evidenceShapeSchema>;
-
-function caseErrors(entry: z.infer<typeof caseSchema>, capturedAt: string): string[] {
-  const errors: string[] = [];
+/**
+ * @param {z.infer<typeof caseSchema>} entry
+ * @param {string} capturedAt
+ * @returns {string[]}
+ */
+function caseErrors(entry, capturedAt) {
+  /** @type {string[]} */
+  /** @type {string[]} */
+  const errors = [];
   const expected = matrix.find((item) => item.id === entry.id);
   if (entry.subject !== expected?.subject) errors.push('matrix identity mismatch');
   if (entry.status !== 'ok' && entry.hits.length > 0)
@@ -80,8 +87,11 @@ function caseErrors(entry: z.infer<typeof caseSchema>, capturedAt: string): stri
     errors.push('case captured after evidence capture');
   return errors;
 }
-
-function validTiming(entry: z.infer<typeof caseSchema>): boolean {
+/**
+ * @param {z.infer<typeof caseSchema>} entry
+ * @returns {boolean}
+ */
+function validTiming(entry) {
   if (entry.revocationLagMs === null) return true;
   if (!entry.changedAt || !entry.checkedAt) return false;
   const elapsed = Date.parse(entry.checkedAt) - Date.parse(entry.changedAt);
@@ -100,9 +110,12 @@ function validTiming(entry: z.infer<typeof caseSchema>): boolean {
     return false;
   }
 }
-
-function runErrors(value: EvidenceShape): string[] {
-  const errors: string[] = [];
+/**
+ * @param {EvidenceShape} value
+ * @returns {string[]}
+ */
+function runErrors(value) {
+  const errors = [];
   if ((value.arm === 'A') !== (value.service === 'gemini-enterprise'))
     errors.push('arm/service mismatch');
   const ids = value.cases.map((entry) => entry.id);
@@ -115,8 +128,10 @@ function runErrors(value: EvidenceShape): string[] {
     errors.push('synthetic measurements prohibited');
   return errors;
 }
-
-function observedComplete(value: EvidenceShape) {
+/**
+ * @param {EvidenceShape} value
+ */
+function observedComplete(value) {
   return (
     value.provenance === 'observed' &&
     value.cases.length === matrix.length &&
@@ -126,14 +141,15 @@ function observedComplete(value: EvidenceShape) {
     value.configuration.featureStage !== 'operator-gated'
   );
 }
-
-function hasMeasurements(value: EvidenceShape) {
+/**
+ * @param {EvidenceShape} value
+ */
+function hasMeasurements(value) {
   return (
     value.costUsd !== null ||
     value.cases.some((entry) => entry.latencyMs !== null || entry.revocationLagMs !== null)
   );
 }
-
 export const evidenceSchema = evidenceShapeSchema.superRefine((value, context) => {
   const errors = [
     ...runErrors(value),
@@ -141,18 +157,16 @@ export const evidenceSchema = evidenceShapeSchema.superRefine((value, context) =
   ];
   for (const message of errors) context.addIssue({ code: 'custom', message });
 });
-export type RetrievalEvidence = z.infer<typeof evidenceSchema>;
-export type EvidenceCase = z.infer<typeof caseSchema>;
-export type EvidenceHit = z.infer<typeof hitSchema>;
-
 export const evidenceEnvelopeSchema = z.strictObject({
   evidence: evidenceSchema,
   digest: z.string().regex(/^[a-f0-9]{64}$/),
   /** #98 envelope, required for observed runs. Its evidence-sha256 observation binds the payload. */
   transcript: z.unknown().nullable(),
 });
-
-function rejectSecrets(input: unknown) {
+/**
+ * @param {unknown} input
+ */
+function rejectSecrets(input) {
   const text = JSON.stringify(input);
   // Deliberately never include the matching text in an exception.
   if (
@@ -163,16 +177,22 @@ function rejectSecrets(input: unknown) {
     throw new Error('evidence contains prohibited credentials');
   }
 }
-
-export function sealEvidence(evidence: unknown, transcript: unknown = null) {
+/**
+ * @param {unknown} evidence
+ * @param {unknown} [transcript]
+ */
+export function sealEvidence(evidence, transcript = null) {
   rejectSecrets(evidence);
   const parsed = evidenceSchema.parse(evidence);
   const envelope = { evidence: parsed, digest: canonicalPayloadSha256(parsed), transcript };
   parseEvidence(envelope);
   return envelope;
 }
-
-export function parseEvidence(input: unknown): RetrievalEvidence {
+/**
+ * @param {unknown} input
+ * @returns {RetrievalEvidence}
+ */
+export function parseEvidence(input) {
   rejectSecrets(input);
   const raw = z.object({ evidence: z.unknown(), digest: z.string() }).parse(input);
   if (canonicalPayloadSha256(raw.evidence) !== raw.digest)
@@ -187,8 +207,10 @@ export function parseEvidence(input: unknown): RetrievalEvidence {
   if (envelope.transcript) validateBinding(envelope);
   return evidence;
 }
-
-function validateBinding(envelope: z.infer<typeof evidenceEnvelopeSchema>) {
+/**
+ * @param {z.infer<typeof evidenceEnvelopeSchema>} envelope
+ */
+function validateBinding(envelope) {
   const checked = verifyTranscriptBytes(JSON.stringify(envelope.transcript));
   if (checked.status !== 'passed') throw new Error('invalid C-04 transcript');
   const bindingSchema = z.object({
@@ -216,8 +238,10 @@ function validateBinding(envelope: z.infer<typeof evidenceEnvelopeSchema>) {
     throw new Error('C-04 transcript does not bind this evidence');
   }
 }
-
-export function transcriptVerdict(verdict: RetrievalEvidence['verdict']) {
+/**
+ * @param {RetrievalEvidence['verdict']} verdict
+ */
+export function transcriptVerdict(verdict) {
   switch (verdict) {
     case 'UNVERIFIED':
       return 'unverified';

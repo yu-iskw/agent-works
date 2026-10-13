@@ -12,5 +12,6 @@
     "types": ["node"],
     "typeRoots": ["../../../apps/api/node_modules/@types"]
   },
-  "include": ["../**/*.ts"]
+  "include": ["../**/*.mjs"],
+  "exclude": ["../**/*.test.mjs", "./eslint.config.mjs"]
 }

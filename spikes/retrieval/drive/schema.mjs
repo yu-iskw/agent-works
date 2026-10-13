@@ -1,5 +1,6 @@
+// @ts-check
+/** @typedef {z.infer<typeof driveRecordingSchema>} DriveRecording */
 import { z } from 'zod';
-
 const metadata = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().min(1),
@@ -41,14 +42,17 @@ export const driveRecordingSchema = z
       }
     }
   });
-export type DriveRecording = z.infer<typeof driveRecordingSchema>;
-
 /** An ordered fake transport, not a live measurement. Reject unexpected requests. */
-export function replayTransport(input: unknown) {
+/**
+ * @param {unknown} input
+ */
+export function replayTransport(input) {
   const recording = driveRecordingSchema.parse(input);
   const queue = [...recording.exchanges];
-  const requests: { url: string; delegated: boolean }[] = [];
-  const load: typeof fetch = (url, init) => {
+  /** @type {{ url: string; delegated: boolean }[]} */
+  const requests = [];
+  /** @type {typeof fetch} */
+  const load = (url, init) => {
     const parsed = new URL(url instanceof Request ? url.url : url);
     const next = queue.shift();
     if (!next || parsed.origin !== 'https://www.googleapis.com')
@@ -68,8 +72,11 @@ export function replayTransport(input: unknown) {
   };
   return { recording, load, requests, remaining: () => queue.length };
 }
-
-function requestOperation(url: URL): 'list' | 'content' | 'metadata' {
+/**
+ * @param {URL} url
+ * @returns {'list' | 'content' | 'metadata'}
+ */
+function requestOperation(url) {
   if (url.pathname === '/drive/v3/files') return 'list';
   if (url.pathname.endsWith('/export') || url.searchParams.get('alt') === 'media') return 'content';
   return 'metadata';

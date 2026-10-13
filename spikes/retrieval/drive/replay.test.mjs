@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { readJson } from '../compare/fixture-tools.ts';
-import { parseEvidence } from '../compare/schema.ts';
-import { driveRecordingSchema, replayTransport } from './schema.ts';
+import { readJson } from '../compare/fixture-tools.mjs';
+import { parseEvidence } from '../compare/schema.mjs';
+import { driveRecordingSchema, replayTransport } from './schema.mjs';
 
 const directory = new URL('./fixtures/', import.meta.url);
-const names = readdirSync(directory)
+// Fixed repository fixture directory; not derived from request input.
+const names = readdirSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures'))
   .filter(
     (name) =>
       name.endsWith('.json') && name !== 'evidence.json' && !name.endsWith('.transcript.json'),
@@ -72,7 +75,7 @@ test('Drive report leaves all live measurements unverified', () => {
 });
 
 test('revocation poll requires repeated successful denial and preserves sampling interval', async () => {
-  const { pollRevocation } = await import('./revocation.ts');
+  const { pollRevocation } = await import('./revocation.mjs');
   let at = Date.parse('2026-10-13T00:00:00Z');
   const result = await pollRevocation({
     changedAt: new Date(at).toISOString(),
@@ -93,7 +96,7 @@ test('revocation poll requires repeated successful denial and preserves sampling
 });
 
 test('failed polling is unavailable evidence, never a successful revoke', async () => {
-  const { pollRevocation } = await import('./revocation.ts');
+  const { pollRevocation } = await import('./revocation.mjs');
   await assert.rejects(
     pollRevocation({
       changedAt: '2026-10-13T00:00:00Z',
@@ -117,7 +120,7 @@ test('failed polling is unavailable evidence, never a successful revoke', async 
 });
 
 test('operator probe rejects a mismatched identity before loading the adapter', async () => {
-  const { probeDrive } = await import('./probe.ts');
+  const { probeDrive } = await import('./probe.mjs');
   await assert.rejects(
     probeDrive({ caller: { sub: 'real-alice' } }, {}, 'bob', {
       callerSubject: 'real-alice',
@@ -126,4 +129,17 @@ test('operator probe rejects a mismatched identity before loading the adapter', 
     }),
     /identity binding mismatch/,
   );
+});
+
+test('Drive replay preserves nested response extensions without schema stripping', async () => {
+  const input = readJson(new URL('alice.json', directory));
+  input.exchanges[0].body.files[0].extra = { content: 'C04_BOB_CONTENT' };
+  input.exchanges[1].body.capabilities.extra = { content: 'C04_BOB_CONTENT' };
+  const replay = replayTransport(input);
+  assert.deepEqual(replay.recording.exchanges, input.exchanges);
+  const response = await replay.load('https://www.googleapis.com/drive/v3/files', {
+    headers: { authorization: 'Bearer FAKE_REDACTED_DELEGATED' },
+    redirect: 'error',
+  });
+  assert.deepEqual(await response.json(), input.exchanges[0].body);
 });

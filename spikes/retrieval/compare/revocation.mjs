@@ -1,26 +1,29 @@
-export type RevocationCheck = {
+// @ts-check
+/** @typedef {{
   readonly checkedAt: string;
   readonly sourceObjectId: string;
   readonly denied: boolean;
-};
-export type RevocationObservation = {
+}} RevocationCheck */
+/** @typedef {{
   readonly changedAt: string;
   readonly checks: readonly RevocationCheck[];
   readonly revocationLagMs: number | null;
   readonly stable: boolean;
-};
-
+}} RevocationObservation */
 /** First of at least two consecutive denied samples. This is a sampled upper bound,
  * not the exact propagation time; callers must keep the polling interval with evidence.
  * An allow after a denial resets stability. Any disclosure remains independently NO-GO. */
-export function summarizeRevocation(
-  changedAt: string,
-  checks: readonly RevocationCheck[],
-): RevocationObservation {
+/**
+ * @param {string} changedAt
+ * @param {readonly RevocationCheck[]} checks
+ * @returns {RevocationObservation}
+ */
+export function summarizeRevocation(changedAt, checks) {
   const changed = Date.parse(changedAt);
   if (!Number.isFinite(changed)) throw new Error('invalid change timestamp');
   let previous = changed;
-  let firstDenial: number | null = null;
+  /** @type {number | null} */
+  let firstDenial = null;
   let deniedCount = 0;
   for (const check of checks) {
     const at = Date.parse(check.checkedAt);

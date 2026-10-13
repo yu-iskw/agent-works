@@ -1,11 +1,14 @@
-import { query } from '../compare/matrix.ts';
-import { caseSchema } from '../compare/schema.ts';
+// @ts-check
 
-import { managedRecordingSchema } from './schema.ts';
-
+import { query } from '../compare/matrix.mjs';
+import { caseSchema } from '../compare/schema.mjs';
+import { managedRecordingSchema } from './schema.mjs';
 /** Preserve every recorded surface in responseText before extracting hits. No live client,
  * guessed userInfo.userId identity binding, credential fallback, or simulated live PASS. */
-export function replayManaged(input: unknown) {
+/**
+ * @param {unknown} input
+ */
+export function replayManaged(input) {
   const recording = managedRecordingSchema.parse(input);
   const status =
     recording.status === 200

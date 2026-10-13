@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { evaluateArm } from '../compare/evaluate.ts';
-import { baseline, bindEvidence, readJson } from '../compare/fixture-tools.ts';
-import { matrix } from '../compare/matrix.ts';
-import { parseEvidence } from '../compare/schema.ts';
-import { replayManaged } from './replay.ts';
-import { managedRecordingSchema } from './schema.ts';
+import { evaluateArm } from '../compare/evaluate.mjs';
+import { baseline, bindEvidence, readJson } from '../compare/fixture-tools.mjs';
+import { matrix } from '../compare/matrix.mjs';
+import { parseEvidence } from '../compare/schema.mjs';
+import { replayManaged } from './replay.mjs';
+import { managedRecordingSchema } from './schema.mjs';
 
 const directory = new URL('./fixtures/', import.meta.url);
 const fixture = (name) => readJson(new URL(`${name}.json`, directory));
@@ -100,3 +100,26 @@ test('explicit arm A report records DEFER/unavailable, no live PASS', () => {
   assert.equal(evidence.provenance, 'synthetic');
   assert.deepEqual(evidence.cases, []);
 });
+
+for (const level of ['result', 'document', 'structData', 'derivedStructData', 'snippet']) {
+  test(`managed nested ${level} extension remains visible as a leak`, () => {
+    const input = fixture('alice');
+    const result = input.response.results[0];
+    const targets = new Map([
+      ['result', result],
+      ['document', result.document],
+      ['structData', result.document.structData],
+      ['derivedStructData', result.document.derivedStructData],
+      ['snippet', result.document.derivedStructData.snippets[0]],
+    ]);
+    targets.get(level).extra = { nested: { content: 'C04_BOB_CONTENT' } };
+    const normalized = replayManaged(input);
+    assert.deepEqual(JSON.parse(normalized.responseText), input.response);
+    const report = evaluateArm(evidenceWith(normalized));
+    assert.equal(report.verdict, 'NO-GO');
+    assert.equal(report.eligible, false);
+    assert.ok(
+      report.findings.some((finding) => finding.code === 'leak' && finding.surface === 'response'),
+    );
+  });
+}

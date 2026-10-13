@@ -1,35 +1,30 @@
-import { pathToFileURL } from 'node:url';
-
-import { matrixCase, query } from '../compare/matrix.ts';
-import { caseSchema } from '../compare/schema.ts';
-
-import type { SearchPort } from '../../../apps/api/src/ports/search-port.ts';
-import type { DriveAdapterOptions } from '../../../apps/api/src/retrieval/drive-adapter.ts';
-import type { SearchContext } from '../../../packages/domain/src/search.ts';
-
-/** Programmatic operator entrypoint. The operator's existing trusted OAuth integration
- * supplies the branded Caller and grant; this runner never mints a caller or reads ADC. */
-export type ProbeBindings = {
+// @ts-check
+/** @typedef {import('../../../apps/api/src/ports/search-port.ts').SearchPort} SearchPort */
+/** @typedef {import('../../../apps/api/src/retrieval/drive-adapter.ts').DriveAdapterOptions} DriveAdapterOptions */
+/** @typedef {import('../../../packages/domain/src/search.ts').SearchContext} SearchContext */
+/** @typedef {{
   readonly callerSubject: string;
   readonly subjectAlias: 'alice' | 'bob' | 'reviewer' | 'outsider';
   readonly sourceAliases: Readonly<Record<string, string>>;
-};
-
-export async function probeDrive(
-  options: DriveAdapterOptions,
-  context: SearchContext,
-  caseId: string,
-  bindings: ProbeBindings,
-) {
+}} ProbeBindings */
+import { pathToFileURL } from 'node:url';
+import { matrixCase, query } from '../compare/matrix.mjs';
+import { caseSchema } from '../compare/schema.mjs';
+/**
+ * @param {DriveAdapterOptions} options
+ * @param {SearchContext} context
+ * @param {string} caseId
+ * @param {ProbeBindings} bindings
+ */
+export async function probeDrive(options, context, caseId, bindings) {
   const expected = matrixCase(caseId);
   if (bindings.callerSubject !== options.caller.sub || bindings.subjectAlias !== expected.subject) {
     throw new Error('operator identity binding mismatch');
   }
   // The API uses NodeNext .js imports. Build first rather than adding a runtime loader.
-  const { createDriveAdapter } =
-    (await import('../../../apps/api/dist/retrieval/drive-adapter.js')) as {
-      createDriveAdapter: (options: DriveAdapterOptions) => SearchPort;
-    };
+  const { createDriveAdapter } = /** @type {{
+          createDriveAdapter: (options: DriveAdapterOptions) => SearchPort;
+        }} */ (await import('../../../apps/api/dist/retrieval/drive-adapter.js'));
   const started = performance.now();
   const hits = await createDriveAdapter(options).search(context, query);
   const ended = performance.now();
@@ -64,29 +59,27 @@ export async function probeDrive(
     revocationLagMs: null,
   });
 }
-
 /** A deliberately read-only CLI smoke probe. Operator supplies a trusted local integration
  * module exporting options/context/caseId. Nothing containing a credential is written. */
 async function main() {
   if (process.argv.length !== 4 || process.argv[2] !== '--operator-module') {
     throw new Error(
-      'usage: node spikes/retrieval/drive/probe.ts --operator-module /absolute/local-module.ts',
+      'usage: node spikes/retrieval/drive/probe.mjs --operator-module /absolute/local-module.ts',
     );
   }
   const location = process.argv[3];
   if (!location.startsWith('/')) throw new Error('operator module must be absolute');
-  const input = (await import(pathToFileURL(location).href)) as {
-    options: DriveAdapterOptions;
-    context: SearchContext;
-    caseId: string;
-    bindings: ProbeBindings;
-  };
+  const input = /** @type {{
+        options: DriveAdapterOptions;
+        context: SearchContext;
+        caseId: string;
+        bindings: ProbeBindings;
+      }} */ (await import(pathToFileURL(location).href));
   // Merely importing a module is not evidence of a real authenticated identity.
   // Integration module must use the real verifier and trusted OAuth grant store.
   const result = await probeDrive(input.options, input.context, input.caseId, input.bindings);
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   void main().catch(() => {
     process.stderr.write('Drive probe denied; no credential or upstream body logged\n');

@@ -4,11 +4,11 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { canonicalPayloadSha256 } from '../../../packages/domain/src/canonical-hash.ts';
-import { compareArms, evaluateArm, percentile95, proposedThresholds } from './evaluate.ts';
-import { baseline, bindEvidence, readJson } from './fixture-tools.ts';
-import { matrix } from './matrix.ts';
-import { evidenceSchema, parseEvidence, sealEvidence } from './schema.ts';
-import { replayManaged } from '../managed/replay.ts';
+import { compareArms, evaluateArm, percentile95, proposedThresholds } from './evaluate.mjs';
+import { baseline, bindEvidence, readJson } from './fixture-tools.mjs';
+import { matrix } from './matrix.mjs';
+import { evidenceSchema, parseEvidence, sealEvidence } from './schema.mjs';
+import { replayManaged } from '../managed/replay.mjs';
 
 const approved = { ...proposedThresholds, status: 'approved', approvedBy: 'test-only-owner' };
 const repository = fileURLToPath(new URL('../../../', import.meta.url));
@@ -69,7 +69,11 @@ for (const arm of ['A', 'B']) {
       const input = rebind(observed(arm), (evidence) => {
         if (surface === 'response') evidence.cases[0].responseText = 'C04_BOB_TITLE';
         else if (surface === 'identifier') evidence.cases[0].hits[0].sourceObjectId = 'bob-private';
-        else evidence.cases[0].hits[0][surface] = `prefix c04_bob_${surface.toUpperCase()} suffix`;
+        else if (surface === 'title')
+          evidence.cases[0].hits[0].title = 'prefix c04_bob_TITLE suffix';
+        else if (surface === 'snippet')
+          evidence.cases[0].hits[0].snippet = 'prefix c04_bob_SNIPPET suffix';
+        else evidence.cases[0].hits[0].content = 'prefix c04_bob_CONTENT suffix';
       });
       const result = evaluateArm(input, approved);
       assert.equal(result.verdict, 'NO-GO');
@@ -97,6 +101,10 @@ test('baseline saved reports deterministically defer and block downstream tasks'
   assert.equal(report.relativeLatencyBOverA, null);
   assert.equal(report.observed, false);
   assert.deepEqual(compareArms(a, b), report);
+  assert.deepEqual(
+    report,
+    readJson(new URL('../../../docs/spikes/retrieval-acl.json', import.meta.url)),
+  );
 });
 
 test('synthetic GO and invented synthetic measurements are rejected', () => {
@@ -173,13 +181,13 @@ test('approved complete evidence selects managed first; unavailable managed perm
   assert.throws(() => compareArms(observed('B'), observed('A'), approved), /requires A then B/);
 });
 
-test('both leaking arms produce NO-GO, one remaining unverified arm leaves DEFER', () => {
+test('available managed authorization failure produces NO-GO regardless of Drive evidence', () => {
   const leaking = (arm) =>
     rebind(observed(arm), (evidence) => {
       evidence.cases[0].responseText = 'C04_BOB_CONTENT';
     });
   assert.equal(compareArms(leaking('A'), leaking('B'), approved).outcome, 'NO-GO');
-  assert.equal(compareArms(leaking('A'), bindEvidence(baseline('B')), approved).outcome, 'DEFER');
+  assert.equal(compareArms(leaking('A'), bindEvidence(baseline('B')), approved).outcome, 'NO-GO');
 });
 
 test('observed recall is distinct-object recall; duplicates cannot inflate it', () => {
@@ -267,7 +275,7 @@ test('threshold validation rejects unsigned approval and invalid budgets', () =>
 
 test('CLI replay is deterministic, read-only, and refuses malformed inputs', () => {
   const args = [
-    'spikes/retrieval/compare/run.ts',
+    'spikes/retrieval/compare/run.mjs',
     'docs/spikes/retrieval/managed.json',
     'docs/spikes/retrieval/drive.json',
   ];
@@ -276,7 +284,7 @@ test('CLI replay is deterministic, read-only, and refuses malformed inputs', () 
   assert.equal(first, second);
   assert.equal(JSON.parse(first).outcome, 'DEFER');
   assert.throws(() =>
-    execFileSync(process.execPath, ['spikes/retrieval/compare/run.ts'], {
+    execFileSync(process.execPath, ['spikes/retrieval/compare/run.mjs'], {
       stdio: 'pipe',
       cwd: repository,
     }),
@@ -284,7 +292,7 @@ test('CLI replay is deterministic, read-only, and refuses malformed inputs', () 
 });
 
 test('polling summary resets after stale access and requires two denials', async () => {
-  const { summarizeRevocation } = await import('./revocation.ts');
+  const { summarizeRevocation } = await import('./revocation.mjs');
   const changedAt = '2026-10-13T00:00:00Z';
   const checks = [
     { checkedAt: '2026-10-13T00:00:01Z', denied: true },
@@ -333,4 +341,55 @@ test('GO requires a specified source ACL mode, identity binding and feature stag
   const evidence = observed().evidence;
   evidence.configuration = baseline('A').configuration;
   assert.throws(() => bindEvidence(evidence), /complete observed evidence/);
+});
+
+for (const failure of ['leak', 'recall', 'latency', 'explicit-no-go', 'incomplete']) {
+  test(`available managed ${failure} cannot select an eligible Drive arm`, () => {
+    const a = rebind(observed('A'), (evidence) => {
+      if (failure === 'leak') evidence.cases[0].responseText = 'C04_BOB_CONTENT';
+      if (failure === 'recall') evidence.cases[0].hits = [];
+      if (failure === 'latency') evidence.cases[0].latencyMs = 5001;
+      if (failure === 'explicit-no-go') evidence.verdict = 'NO-GO';
+      if (failure === 'incomplete') evidence.cases[0].latencyMs = null;
+    });
+    const report = compareArms(a, observed('B'), approved);
+    assert.equal(report.arms[1].eligible, true);
+    assert.equal(
+      report.outcome,
+      failure === 'leak' || failure === 'explicit-no-go'
+        ? 'NO-GO'
+        : failure === 'incomplete'
+          ? 'DEFER'
+          : 'neither',
+    );
+    assert.deepEqual(report.blocksIssues, [23, 24]);
+  });
+}
+
+test('not-probed managed evidence cannot authorize Drive fallback', () => {
+  const a = bindEvidence({ ...baseline('A'), availability: 'not-probed' });
+  assert.equal(compareArms(a, observed('B'), approved).outcome, 'DEFER');
+});
+
+for (const arm of ['A', 'B']) {
+  test(`${arm}: comparison evaluates nested extension canaries in responseText`, () => {
+    const input = rebind(observed(arm), (evidence) => {
+      evidence.cases[0].responseText = JSON.stringify({
+        results: [{ document: { structData: { extra: { content: 'C04_BOB_CONTENT' } } } }],
+      });
+    });
+    assert.equal(evaluateArm(input, approved).verdict, 'NO-GO');
+  });
+}
+
+test('comparison rejects unknown nested evidence fields instead of stripping disclosures', () => {
+  for (const target of ['hit', 'provenance', 'check']) {
+    const evidence = structuredClone(observed().evidence);
+    if (target === 'hit') evidence.cases[0].hits[0].extra = { content: 'C04_BOB_CONTENT' };
+    if (target === 'provenance')
+      evidence.cases[0].hits[0].provenance.extra = { content: 'C04_BOB_CONTENT' };
+    if (target === 'check')
+      evidence.cases[4].revocationChecks[0].extra = { content: 'C04_BOB_CONTENT' };
+    assert.throws(() => bindEvidence(evidence), /Unrecognized key/);
+  }
 });

@@ -90,6 +90,8 @@ const recordingSchema = z.object({
   ),
 });
 const fixtureRoot = new URL('../../../../spikes/retrieval/drive/fixtures/', import.meta.url);
+// This repository-owned directory is fixed; it never comes from request input.
+// eslint-disable-next-line security/detect-non-literal-fs-filename
 const recordings = readdirSync(fixtureRoot)
   .filter(
     (name) =>
@@ -97,6 +99,8 @@ const recordings = readdirSync(fixtureRoot)
   )
   .sort((a, b) => a.localeCompare(b))
   .map((name) => {
+    // Names come only from the fixed fixture directory listing above.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     const raw: unknown = JSON.parse(readFileSync(new URL(name, fixtureRoot), 'utf8'));
     return recordingSchema.parse(raw);
   });
@@ -285,6 +289,26 @@ describe('source policy and response safety', () => {
     const hits = await createDriveAdapter(options({ fetch: load })).search(context, 'bundle-b');
     expect(hits[0].sourceUri).toBe('https://drive.google.com/file/d/alice-private/view');
     expect(requestUrl(load.mock.calls[2][0]).toString()).toContain('alt=media');
+  });
+
+  it('omits nested upstream extensions from returned hits and access events', async () => {
+    const extended = {
+      ...metadata,
+      extra: { content: 'C04_BOB_CONTENT' },
+      capabilities: { canDownload: true, extra: 'C04_BOB_CONTENT' },
+    };
+    const load = responses([
+      { files: [{ id: 'alice-private', extra: 'C04_BOB_CONTENT' }] },
+      extended,
+      'C04_ALICE_CONTENT',
+      extended,
+    ]);
+    const events: unknown[] = [];
+    const hits = await createDriveAdapter(
+      options({ fetch: load, onAccess: (event) => events.push(event) }),
+    ).search(context, 'bundle-b');
+    expect(hits).toHaveLength(1);
+    expect(JSON.stringify({ hits, events })).not.toContain('C04_BOB_CONTENT');
   });
 
   it('does not cache a previous result across a source permission revoke', async () => {

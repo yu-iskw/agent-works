@@ -1,18 +1,22 @@
+// @ts-check
+/** @typedef {import('./schema.mjs').RetrievalEvidence} RetrievalEvidence */
 import { readFileSync } from 'node:fs';
-
 import { canonicalPayloadSha256 } from '../../../packages/domain/src/canonical-hash.ts';
 import { sealTranscript } from '../../common/verify.mjs';
-
-import { evidenceSchema, sealEvidence, transcriptVerdict } from './schema.ts';
-
-import type { RetrievalEvidence } from './schema.ts';
-
-export function readJson(url: URL): unknown {
-  return JSON.parse(readFileSync(url, 'utf8')) as unknown;
+import { evidenceSchema, sealEvidence, transcriptVerdict } from './schema.mjs';
+/**
+ * @param {URL} url
+ * @returns {unknown}
+ */
+export function readJson(url) {
+  // Fixed fixtures or explicit operator-local evidence paths, never HTTP request input.
+  return /** @type {unknown} */ (JSON.parse(readFileSync(url, 'utf8')));
 }
-
 /** Also used by operators after sanitization. No evidence capture or live claims here. */
-export function bindEvidence(input: unknown) {
+/**
+ * @param {unknown} input
+ */
+export function bindEvidence(input) {
   const evidence = evidenceSchema.parse(input);
   const digest = canonicalPayloadSha256(evidence);
   const transcript = {
@@ -46,8 +50,11 @@ export function bindEvidence(input: unknown) {
   if (!sealed.ok) throw new Error('cannot bind invalid transcript');
   return sealEvidence(evidence, sealed.envelope);
 }
-
-export function baseline(arm: 'A' | 'B'): RetrievalEvidence {
+/**
+ * @param {'A' | 'B'} arm
+ * @returns {RetrievalEvidence}
+ */
+export function baseline(arm) {
   return {
     schemaId: 'agent-works.retrieval.evidence',
     schemaVersion: 1,
