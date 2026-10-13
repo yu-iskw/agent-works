@@ -8,6 +8,7 @@ import { createGroupResolver } from './auth/directory.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { createAskRoute } from './routes/ask.js';
+import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 
 import type * as auditModule from './audit/write.js';
 import type * as directoryModule from './auth/directory.js';
@@ -56,6 +57,9 @@ vi.mock('./audit/write.js', async (importOriginal) => {
 vi.mock('./credentials/postgres.js', () => ({
   createPostgresCredentialStore: () => ({ credentials: {}, grants: {} }),
 }));
+vi.mock('./routes/oauth-connections-read.js', () => ({
+  createPostgresOAuthConnectionsReader: vi.fn(() => () => Promise.resolve([])),
+}));
 vi.mock('./broker/approvals.js', () => ({ createPostgresApprovalStore: vi.fn(() => ({})) }));
 vi.mock('./ledger/postgres-ledger.js', async () => {
   const { createMemoryLedgerPort } = await import('./ports/memory/ledger-port.js');
@@ -91,6 +95,10 @@ describe('server composition', () => {
     const deps = vi.mocked(createApp).mock.calls[0][0];
     expect(deps.wire).toBeDefined();
     expect(deps.oauth).toBeDefined();
+    expect(createPostgresOAuthConnectionsReader).toHaveBeenCalledTimes(1);
+    expect(deps.oauthConnections?.read).toBe(
+      vi.mocked(createPostgresOAuthConnectionsReader).mock.results[0].value,
+    );
     expect(createGroupResolver).toHaveBeenCalledWith({ baseUrl: 'https://directory.test' });
     expect(createHttpDrive).toHaveBeenCalledWith(
       expect.objectContaining({
