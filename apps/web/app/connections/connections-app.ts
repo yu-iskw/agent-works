@@ -13,8 +13,6 @@ type Session = {
   readonly csrf: string;
   readonly expiresAt: number;
   grant?: { state: string; codeVerifier: string };
-  status?: ConnectionView['status'];
-  scope?: string;
 };
 
 type Options = { readonly apiUrl: string; readonly fetch?: typeof fetch };
@@ -65,12 +63,12 @@ async function handle(
   const existing =
     cookie === undefined ? undefined : sessions.get(cookie.slice(cookieName.length + 1));
   if (request.method === 'GET' && url.pathname === callbackPath) {
-    await callback(options, existing, exchange);
+    await callback(options, sessions, existing, exchange);
     return;
   }
   const session = existing ?? newSession(sessions, exchange);
   if (request.method === 'GET' && url.pathname === connectionsPath) {
-    sendPage(response, session);
+    await renderPage(options, exchange, session);
     return;
   }
   if (
@@ -79,7 +77,7 @@ async function handle(
   ) {
     const form = await readForm(request);
     if (form?.get('csrf') !== session.csrf) {
-      sendPage(response, session, 'Invalid connection request.', 400);
+      await renderPage(options, exchange, session, 'Invalid connection request.', 400);
       return;
     }
     await change(options, session, exchange);
@@ -112,11 +110,9 @@ async function change(options: Options, session: Session, exchange: Exchange): P
       result.provider !== provider ||
       result.status !== 'revoked'
     ) {
-      sendPage(exchange.response, session, 'Could not disconnect. Try again.', 502);
+      await renderPage(options, exchange, session, 'Could not disconnect. Try again.', 502);
       return;
     }
-    session.status = result.status;
-    session.scope = result.scope;
     session.grant = undefined;
     redirect(exchange.response, connectionsPath);
     return;
@@ -141,12 +137,12 @@ async function change(options: Options, session: Session, exchange: Exchange): P
     result.state !== grant.state ||
     result.codeChallenge !== codeChallenge
   ) {
-    sendPage(exchange.response, session, 'Could not start the connection. Try again.', 502);
+    await renderPage(options, exchange, session, 'Could not start the connection. Try again.', 502);
     return;
   }
   const authorization = new URL(result.authorizationUrl);
   if (!['http:', 'https:'].includes(authorization.protocol)) {
-    sendPage(exchange.response, session, 'Invalid authorization URL.', 502);
+    await renderPage(options, exchange, session, 'Invalid authorization URL.', 502);
     return;
   }
   session.grant = grant;
@@ -155,6 +151,7 @@ async function change(options: Options, session: Session, exchange: Exchange): P
 
 async function callback(
   options: Options,
+  sessions: Map<string, Session>,
   session: Session | undefined,
   exchange: Exchange,
 ): Promise<void> {
@@ -165,13 +162,25 @@ async function callback(
     grant === undefined ||
     url.searchParams.get('state') !== grant.state
   ) {
-    sendPage(response, { csrf: '' }, 'Invalid or expired authorization state.', 400);
+    await renderPage(
+      options,
+      exchange,
+      session ?? newSession(sessions, exchange),
+      'Invalid or expired authorization state.',
+      400,
+    );
     return;
   }
   session.grant = undefined;
   const code = url.searchParams.get('code');
   if (url.searchParams.has('error') || code === null || code.length === 0) {
-    sendPage(response, session, 'Authorization was not completed. Try again.', 400);
+    await renderPage(
+      options,
+      exchange,
+      session,
+      'Authorization was not completed. Try again.',
+      400,
+    );
     return;
   }
   const result = await callApi(options, request, 'POST', {
@@ -182,20 +191,28 @@ async function callback(
     codeVerifier: grant.codeVerifier,
   });
   if (result?.kind !== 'connection' || result.provider !== provider) {
-    sendPage(response, session, 'Could not complete the connection. Try again.', 502);
+    await renderPage(
+      options,
+      exchange,
+      session,
+      'Could not complete the connection. Try again.',
+      502,
+    );
     return;
   }
-  session.status = result.status;
-  session.scope = result.scope;
   redirect(response, connectionsPath);
 }
 
 async function callApi(options: Options, request: IncomingMessage, method: string, body?: unknown) {
   const assertion = Reflect.get(request.headers, IAP_ASSERTION_HEADER) as unknown;
   const response = await (options.fetch ?? fetch)(
-    new URL(`/v1/oauth/connections/${provider}`, options.apiUrl),
+    new URL(
+      method === 'GET' ? '/v1/oauth/connections' : `/v1/oauth/connections/${provider}`,
+      options.apiUrl,
+    ),
     {
       method,
+      cache: 'no-store',
       headers: {
         'content-type': 'application/json',
         ...(typeof assertion === 'string' ? { [IAP_ASSERTION_HEADER]: assertion } : {}),
@@ -220,6 +237,33 @@ async function readForm(request: IncomingMessage): Promise<URLSearchParams | und
     chunks.push(chunk);
   }
   return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
+async function renderPage(
+  options: Options,
+  exchange: Exchange,
+  session: Pick<Session, 'csrf'>,
+  message?: string,
+  status = 200,
+): Promise<void> {
+  const { request, response } = exchange;
+  const result = await callApi(options, request, 'GET').catch(() => undefined);
+  if (result?.kind !== 'connections') {
+    sendPage(
+      response,
+      { csrf: session.csrf, status: 'unavailable' },
+      message ?? 'Could not load connections. Refresh to try again.',
+      status === 200 ? 502 : status,
+    );
+    return;
+  }
+  const connection = result.connections.find((item) => item.provider === provider);
+  sendPage(
+    response,
+    { csrf: session.csrf, status: connection?.status, scope: connection?.scope },
+    message,
+    status,
+  );
 }
 
 function sendPage(
