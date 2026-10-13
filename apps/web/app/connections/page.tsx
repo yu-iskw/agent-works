@@ -4,7 +4,7 @@ import type { Html } from '../html.js';
 
 export type ConnectionView = {
   readonly csrf: string;
-  readonly status?: 'active' | 'revoked' | 'expired';
+  readonly status?: 'active' | 'revoked' | 'expired' | 'unavailable';
   readonly scope?: string;
   readonly message?: string;
 };
@@ -15,15 +15,27 @@ export default function ConnectionsPage({ view }: { readonly view: ConnectionVie
       <h1>Connections</h1>
       <a href="/">Ask</a>
       <h2>Google Drive</h2>
-      <p role="status">{view.status ?? 'Not connected'}</p>
+      <p role="status">
+        {view.status === 'unavailable'
+          ? 'Connection status unavailable'
+          : (view.status ?? 'Not connected')}
+      </p>
       {view.scope && <p>Scope: {view.scope}</p>}
-      <form
-        method="post"
-        action={view.status === 'active' ? '/connections/disconnect' : '/connections/connect'}
-      >
-        <input type="hidden" name="csrf" value={view.csrf} />
-        <button type="submit">{view.status === 'active' ? 'Disconnect' : 'Connect'}</button>
-      </form>
+      {view.status !== 'unavailable' && (
+        <form
+          method="post"
+          action={view.status === 'active' ? '/connections/disconnect' : '/connections/connect'}
+        >
+          <input type="hidden" name="csrf" value={view.csrf} />
+          <button type="submit">{view.status === 'active' ? 'Disconnect' : 'Connect'}</button>
+        </form>
+      )}
+      {view.status === 'expired' && (
+        <form method="post" action="/connections/disconnect">
+          <input type="hidden" name="csrf" value={view.csrf} />
+          <button type="submit">Disconnect</button>
+        </form>
+      )}
       {view.message && <p role="alert">{view.message}</p>}
     </main>
   );
