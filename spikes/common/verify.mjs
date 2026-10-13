@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import {
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -470,7 +477,7 @@ function fallbackId(file) {
 
 function isDirectory(file) {
   try {
-    return statSync(file).isDirectory();
+    return lstatSync(file).isDirectory();
   } catch {
     return false;
   }
@@ -482,7 +489,11 @@ function listFiles(directory) {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) visit(full);
-      else if (entry.isFile()) files.push(full);
+      else if (
+        entry.isFile() ||
+        (entry.isSymbolicLink() && entry.name.endsWith('.transcript.json'))
+      )
+        files.push(full);
     }
   };
   visit(directory);
@@ -498,7 +509,6 @@ function carriesTranscriptSchema(value) {
 function isClaimed(file) {
   const base = path.basename(file);
   if (base.endsWith('.transcript.json')) return true;
-  if (!base.endsWith('.json')) return false;
   let text;
   try {
     text = readFileSync(file, 'utf8');
@@ -515,6 +525,9 @@ function isClaimed(file) {
 function verifyFile(file) {
   let bytes;
   try {
+    if (lstatSync(file).isSymbolicLink()) {
+      return row(fallbackId(file), [{ code: 'verifier-error' }]);
+    }
     bytes = readFileSync(file);
   } catch {
     return row(fallbackId(file), [{ code: 'verifier-error' }]);
