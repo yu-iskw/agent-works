@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { skillManifestSchema } from '@agent-works/domain';
-import { reconcileIncident } from '@agent-works/incident-analysis';
+import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
 import { decide } from '@agent-works/policy';
 
 import { Unavailable } from '../auth/iap.js';
@@ -267,11 +267,8 @@ async function generatePayload(
     { signal },
   );
   if (!response.ok) throw new Error('incident');
-  const incident = (await bounded(response.json(), signal)) as {
-    id: string;
-    title: string;
-    note: string;
-  };
+  const incident: unknown = await bounded(response.json(), signal);
+  if (!isIncident(incident)) throw new Error('incident');
   const summary = await bounded(
     input.model.answer(
       `${skill.prompt}\n\nIncident ${incident.id}: ${incident.title}\n${incident.note}`,

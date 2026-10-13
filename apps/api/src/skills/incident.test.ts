@@ -56,6 +56,49 @@ describe('incident adapter', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(
+    [
+      null,
+      [],
+      'incident',
+      {},
+      { title: 'Latency', note: 'Deployment' },
+      { id: 'inc-1', note: 'Deployment' },
+      { id: 'inc-1', title: 'Latency' },
+      { id: 1, title: 'Latency', note: 'Deployment' },
+      { id: 'inc-1', title: null, note: 'Deployment' },
+      { id: 'inc-1', title: 'Latency', note: {} },
+    ].map((body) => ({ body })),
+  )(
+    'rejects malformed incident response $body before model invocation or posting',
+    async ({ body }) => {
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockImplementation((_url, options) =>
+          Promise.resolve(Response.json(options?.method === 'POST' ? { id: 'ticket-1' } : body)),
+        );
+      vi.stubGlobal('fetch', fetchMock);
+      const model = { answer: vi.fn().mockResolvedValue('summary') };
+      const skill = createIncidentSkill(() => ({
+        incidentsUrl: 'https://incidents.test',
+        ticketsUrl: 'https://tickets.test',
+        model,
+      }));
+      await approveSkill(skill);
+
+      await expect(skill.dispatch(submission, accepted, authorizedCaller)).rejects.toBeInstanceOf(
+        Unavailable,
+      );
+
+      expect(skill.result(accepted.taskId)).toEqual({ kind: 'failed' });
+      expect(model.answer).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock.mock.calls[0][0]).toEqual(new URL('https://incidents.test/incidents/inc-1'));
+      expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
   it.each([true, false])(
     'reconciles an aborted write after expiry (committed: %s)',
     async (committed) => {
