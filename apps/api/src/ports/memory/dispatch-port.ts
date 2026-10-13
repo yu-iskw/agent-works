@@ -159,7 +159,13 @@ function renewTask(
 ): ClaimedDelivery {
   requireLeaseMs(leaseMs);
   const proof = requireProof(lease);
-  return commitLease(state, proof.taskId, { kind: 'renew', lease: proof, leaseMs }, at, (claimed) => claimed);
+  return commitLease(
+    state,
+    proof.taskId,
+    { kind: 'renew', lease: proof, leaseMs },
+    at,
+    (claimed) => claimed,
+  );
 }
 
 function releaseTask(state: MemoryLedgerState, lease: LeaseProof): LeaseProof {

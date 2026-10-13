@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { canonicalPayloadSha256, externalWriteReceipt, transition } from '@agent-works/domain';
 
 import { bodyConflict } from '../dispatch-port.js';
-import { acceptedTask, ConcurrentUpdate, LedgerConflict, queuedTask, taskMissing } from '../ledger-port.js';
+import {
+  acceptedTask,
+  ConcurrentUpdate,
+  LedgerConflict,
+  queuedTask,
+  taskMissing,
+} from '../ledger-port.js';
 
 import type { DeliveryRow } from '../dispatch-port.js';
 import type { TaskLedger, TransitionInput } from '../ledger-port.js';
@@ -181,8 +187,7 @@ function transitionTask(state: MemoryLedgerState, now: () => Date, input: Transi
   const at = now().toISOString();
   return commitSnapshot(state, (current) => {
     const task = current.tasks.get(input.taskId);
-    if (task === undefined || task.createdBySub !== input.subject)
-      throw taskMissing();
+    if (task === undefined || task.createdBySub !== input.subject) throw taskMissing();
     if (task.version !== input.expectedVersion) throw new ConcurrentUpdate();
     const updated = { ...transition(task, input.to), updatedAt: at };
     const next = cloneSnapshot(current);

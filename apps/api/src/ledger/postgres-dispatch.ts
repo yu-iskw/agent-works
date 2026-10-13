@@ -119,7 +119,13 @@ async function acceptTask(
     if (claimed.length === 0) {
       return replayClaim(tx, parsed.subject, parsed.idempotencyKey, parsed.digest);
     }
-    const task = queuedTask(taskId, parsed.subject, parsed.request, at.toISOString(), ledgerVersion);
+    const task = queuedTask(
+      taskId,
+      parsed.subject,
+      parsed.request,
+      at.toISOString(),
+      ledgerVersion,
+    );
     await insertTask(tx, task);
     if (seam?.failAfterTaskInsert) {
       seam.failAfterTaskInsert = false;
