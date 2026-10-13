@@ -5,49 +5,38 @@ import { fileURLToPath } from 'node:url';
 
 import {
   canonicalPayloadSha256,
+  externalWriteReceipt,
   outboxEventSchema,
   taskAcceptedSchema,
   taskSchema,
   transition,
 } from '@agent-works/domain';
 
-import { LedgerConflict } from '../ports/ledger-port.js';
+import { ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
 
-import type { LedgerPort } from '../ports/ledger-port.js';
-import type { OutboxEvent, Task, TaskAccepted, TaskStatus, TaskSubmit } from '@agent-works/domain';
+import type { TaskLedger, TransitionInput } from '../ports/ledger-port.js';
+import type {
+  ExternalWriteReceipt,
+  OutboxEvent,
+  Task,
+  TaskAccepted,
+  TaskSubmit,
+} from '@agent-works/domain';
 import type postgres from 'postgres';
 
-const migrationName = '0006_tasks.sql';
+export { ConcurrentUpdate };
+export type { TaskLedger };
+
+const tasksMigration = '0006_tasks.sql';
+const dispatchMigration = '0007_task_dispatch.sql';
 const migrationLock = 7006;
-const migrationPath = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../migrations/0006_tasks.sql',
-);
+const migrationDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../migrations');
 const ledgerVersion = 'postgres';
 const changedBody = 'task body changed';
 const changedEvent = 'outbox event changed';
 const missingTask = 'task not found';
 
 const migrations = new WeakMap<postgres.Sql, Promise<void>>();
-
-export class ConcurrentUpdate extends Error {
-  constructor() {
-    super('stale version');
-    this.name = 'ConcurrentUpdate';
-  }
-}
-
-type TransitionInput = {
-  readonly subject: string;
-  readonly taskId: string;
-  readonly expectedVersion: number;
-  readonly to: TaskStatus;
-  readonly event: OutboxEvent;
-};
-
-export interface TaskLedger extends LedgerPort {
-  transition(input: TransitionInput): Promise<Task>;
-}
 
 type TaskRow = {
   id: string;
@@ -95,24 +84,37 @@ export function createPostgresLedgerPort(
     transition(input) {
       return ready.then(() => commitTransition(sql, now, input));
     },
+    readReceipt(subject, taskId) {
+      return ready.then(() => selectReceipt(sql, subject, taskId));
+    },
   };
 }
 
+export function taskLedgerReady(sql: postgres.Sql): Promise<void> {
+  return ensureMigration(sql);
+}
+
 export async function applyTaskLedgerMigration(sql: postgres.Sql): Promise<void> {
-  const body = readFileSync(migrationPath, 'utf8');
+  const tasksSql = readFileSync(resolve(migrationDirectory, tasksMigration), 'utf8');
+  const dispatchSql = readFileSync(resolve(migrationDirectory, dispatchMigration), 'utf8');
   await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(${migrationLock})`;
     await tx`create table if not exists schema_migrations (
       name text primary key,
       applied_at timestamptz not null default now()
     )`;
-    const applied = await tx<{ name: string }[]>`
-      select name from schema_migrations where name = ${migrationName}
-    `;
-    if (applied.length > 0) return;
-    await tx.unsafe(body);
-    await tx`insert into schema_migrations (name) values (${migrationName})`;
+    await applyNamed(tx, tasksMigration, tasksSql);
+    await applyNamed(tx, dispatchMigration, dispatchSql);
   });
+}
+
+async function applyNamed(tx: postgres.TransactionSql, name: string, body: string): Promise<void> {
+  const applied = await tx<{ name: string }[]>`
+    select name from schema_migrations where name = ${name}
+  `;
+  if (applied.length > 0) return;
+  await tx.unsafe(body);
+  await tx`insert into schema_migrations (name) values (${name})`;
 }
 
 function ensureMigration(sql: postgres.Sql): Promise<void> {
@@ -147,7 +149,7 @@ async function submitTask(
   });
 }
 
-async function replayClaim(
+export async function replayClaim(
   tx: postgres.TransactionSql,
   subject: string,
   idempotencyKey: string,
@@ -172,17 +174,10 @@ async function commitTransition(
   input: TransitionInput,
 ): Promise<Task> {
   const digest = canonicalPayloadSha256(input.event);
+  const receipt = input.receipt === undefined ? undefined : externalWriteReceipt(input.receipt);
   const at = now();
   return sql.begin(async (tx) => {
-    const rows = await tx<TaskRow[]>`
-      select id, created_by_sub, status, objective_digest, skill_version, agent_version,
-             policy_version, budget, version, created_at, updated_at
-      from tasks
-      where id = ${input.taskId} and created_by_sub = ${input.subject}
-      for update
-    `;
-    if (rows.length === 0) throw new LedgerConflict(missingTask);
-    const current = toTask(rows[0]);
+    const current = await lockTask(tx, input.taskId, input.subject);
     if (current.version !== input.expectedVersion) throw new ConcurrentUpdate();
     const next = transition(current, input.to);
     await tx`
@@ -190,9 +185,53 @@ async function commitTransition(
       set status = ${next.status}, version = ${next.version}, updated_at = ${at}
       where id = ${current.id}
     `;
+    if (receipt !== undefined) await insertReceipt(tx, current.id, next.version, receipt);
     await writeOutbox(tx, input.event, digest);
     return { ...next, updatedAt: at.toISOString() };
   });
+}
+
+async function lockTask(
+  tx: postgres.TransactionSql,
+  taskId: string,
+  subject: string,
+): Promise<Task> {
+  const rows = await tx<TaskRow[]>`
+    select id, created_by_sub, status, objective_digest, skill_version, agent_version,
+           policy_version, budget, version, created_at, updated_at
+    from tasks
+    where id = ${taskId} and created_by_sub = ${subject}
+    for update
+  `;
+  if (rows.length === 0) throw new LedgerConflict(missingTask);
+  return toTask(rows[0]);
+}
+
+async function insertReceipt(
+  tx: postgres.TransactionSql,
+  taskId: string,
+  version: number,
+  receipt: ExternalWriteReceipt,
+): Promise<void> {
+  await tx`
+    insert into task_transition_receipts (task_id, version, ref, digest)
+    values (${taskId}, ${version}, ${receipt.ref}, ${receipt.digestSha256})
+  `;
+}
+
+async function selectReceipt(
+  sql: postgres.Sql,
+  subject: string,
+  taskId: string,
+): Promise<ExternalWriteReceipt | undefined> {
+  const rows = await sql<{ ref: string; digest: string }[]>`
+    select r.ref, r.digest
+    from task_transition_receipts r
+    join tasks t on t.id = r.task_id and t.version = r.version
+    where t.id = ${taskId} and t.created_by_sub = ${subject}
+  `;
+  if (rows.length === 0) return undefined;
+  return externalWriteReceipt({ ref: rows[0].ref, digestSha256: rows[0].digest });
 }
 
 async function appendEvent(sql: postgres.Sql, event: OutboxEvent): Promise<'recorded' | 'replay'> {
@@ -215,7 +254,7 @@ async function selectTask(
   return toTask(rows[0]);
 }
 
-async function insertTask(query: Query, task: Task): Promise<void> {
+export async function insertTask(query: Query, task: Task): Promise<void> {
   await query`
     insert into tasks (
       id, created_by_sub, status, objective_digest, skill_version, agent_version,
@@ -228,7 +267,7 @@ async function insertTask(query: Query, task: Task): Promise<void> {
   `;
 }
 
-async function writeOutbox(
+export async function writeOutbox(
   query: postgres.TransactionSql,
   event: OutboxEvent,
   digest: string,
@@ -247,7 +286,7 @@ async function writeOutbox(
   return 'replay';
 }
 
-function insertedTask(taskId: string, subject: string, request: TaskSubmit, at: Date): Task {
+export function insertedTask(taskId: string, subject: string, request: TaskSubmit, at: Date): Task {
   return taskSchema.parse({
     id: taskId,
     createdBySub: subject,
@@ -263,7 +302,7 @@ function insertedTask(taskId: string, subject: string, request: TaskSubmit, at: 
   });
 }
 
-function toAccepted(task: Task): TaskAccepted {
+export function toAccepted(task: Task): TaskAccepted {
   return taskAcceptedSchema.parse({
     taskId: task.id,
     status: 'QUEUED',

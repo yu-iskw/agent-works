@@ -18,6 +18,21 @@ export {
   taskSubmitSchema,
 } from './ledger.js';
 export type { OutboxEvent, TaskAccepted, TaskApi, TaskSubmit } from './ledger.js';
+export {
+  deliveryPayload,
+  deliveryPayloadSchema,
+  externalWriteReceipt,
+  externalWriteReceiptSchema,
+  fencingToken,
+  fencingTokenSchema,
+} from './dispatch.js';
+export type {
+  ClaimedDelivery,
+  DeliveryPayload,
+  ExternalWriteReceipt,
+  FencingToken,
+  LeaseProof,
+} from './dispatch.js';
 export { POLICY_CLAUSES, policyDecisionSchema } from './policy.js';
 export type { PolicyClause, PolicyDecision } from './policy.js';
 export { runnerLimitsSchema, runnerStop } from './runner.js';

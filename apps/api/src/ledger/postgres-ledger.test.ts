@@ -43,7 +43,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   const query = requireSql();
-  await query`truncate table outbox_events, task_claims, tasks`;
+  await query`truncate table task_transition_receipts, task_deliveries, outbox_events, task_claims, tasks`;
 });
 
 ledgerPortContract(() => port);
@@ -154,6 +154,21 @@ it('an illegal transition writes no outbox event', async () => {
     version: 1,
   });
   expect(await outboxCount(query)).toBe(before);
+});
+
+it('applies dispatch tables when the task migration is already recorded', async () => {
+  const query = requireSql();
+  await query`drop table if exists task_transition_receipts, task_deliveries`;
+  await query`delete from schema_migrations where name = '0007_task_dispatch.sql'`;
+  await applyTaskLedgerMigration(query);
+  const tables = await query<{ name: string }[]>`
+    select table_name as name
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name in ('task_deliveries', 'task_transition_receipts')
+    order by table_name
+  `;
+  expect(tables.map((row) => row.name)).toEqual(['task_deliveries', 'task_transition_receipts']);
 });
 
 function requireSql(): Sql {
