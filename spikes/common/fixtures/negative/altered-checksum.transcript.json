@@ -1,0 +1,43 @@
+{
+  "digest": "2ff69ab859d0e68a06b8848c1cfaab223741da59f21912f9d460257016359030",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.runtime.sessions",
+    "capturedAt": "2026-10-13T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "agent-runtime",
+    "stage": "sessions",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "agentruntime.sessions.create",
+      "httpStatus": null,
+      "observations": []
+    },
+    "response": {
+      "api": "agentruntime.sessions.create",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "authorization",
+          "value": "[redacted]"
+        }
+      ]
+    },
+    "redacted": [
+      {
+        "path": "/response/observations/0/value",
+        "mark": "[redacted]"
+      }
+    ],
+    "omitted": [
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

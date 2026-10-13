@@ -1,0 +1,33 @@
+{
+  "digest": "89ffdaad25857ba26fb16de2a6f5a5ce7d425a8edf44d44c27f75fe8dbf7427e",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.runtime.synthetic-go",
+    "capturedAt": "2026-10-13T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "agent-runtime",
+    "stage": "sessions",
+    "verdict": "go",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "agentruntime.sessions.create",
+      "httpStatus": null,
+      "observations": []
+    },
+    "response": {
+      "api": "agentruntime.sessions.create",
+      "httpStatus": null,
+      "observations": []
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}
