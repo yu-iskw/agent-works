@@ -144,6 +144,24 @@ test('a calendar-invalid timestamp fails schema', () => {
   assert.deepEqual(sealTranscript(body), { ok: false, reasons: [{ code: 'schema' }] });
 });
 
+test('a secret envelope key stays out of the report path', () => {
+  const envelope = readJson(validPath);
+  const transcript = JSON.stringify(envelope.transcript);
+  const digest = JSON.stringify(envelope.digest);
+  const key = `${['s', 'k-'].join('')}keykeykeykey`;
+  const token = `${['s', 'k-'].join('')}abcdefgh12345678`;
+  const hidden = `{"digest":${digest},"transcript":${transcript},"\\u0073${key.slice(1)}":"\\u0073${token.slice(1)}"}`;
+  const checked = verifyTranscriptBytes(hidden);
+  assert.deepEqual(checked, {
+    id: 'c02.runtime.sessions',
+    status: 'failed',
+    reasons: [{ code: 'secret', family: 'sk', path: null }, { code: 'schema' }],
+  });
+  const encoded = JSON.stringify(checked);
+  assert.equal(encoded.includes(key), false);
+  assert.equal(encoded.includes(token), false);
+});
+
 test('a decoded secret outside the transcript fails closed', () => {
   const envelope = readJson(validPath);
   const transcript = JSON.stringify(envelope.transcript);
