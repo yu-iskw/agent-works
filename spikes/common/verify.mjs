@@ -240,9 +240,7 @@ function decodedSecretReasons(rawText, value) {
     }
   }
   if (extras.length === 0) return reasons;
-  return dedupeSecretReasons(
-    [...reasons, ...extras].map((reason) => ({ family: reason.family, path: reason.path })),
-  );
+  return dedupeSecretReasons([...reasons, ...extras]);
 }
 
 function collectValueSecrets(value, pointerText, add) {
