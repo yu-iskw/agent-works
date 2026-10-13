@@ -26,6 +26,7 @@ export type DeliverInput = {
   readonly deadline?: number;
   readonly signal?: AbortSignal;
   readonly ledger: Map<string, string>;
+  readonly issuedWrites?: Set<string>;
 };
 
 export type Delivery =
@@ -54,6 +55,7 @@ export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
       input.model.answer(questionFor(input.skill, incident), execution),
     );
     const ticketId = await execution.run(async () => {
+      input.issuedWrites?.add(input.deliveryId);
       const receipt = await postTicket(
         input.ticketsUrl,
         input.deliveryId,
@@ -73,7 +75,36 @@ export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
   }
 }
 
-function createExecution(input: DeliverInput) {
+export async function reconcileIncident(
+  input: Pick<DeliverInput, 'ticketsUrl' | 'deliveryId' | 'ledger'>,
+): Promise<Delivery> {
+  const execution = createExecution({ timeoutMs: 1000 });
+  try {
+    return await execution.run(async () => {
+      const response = await fetch(new URL('/tickets', input.ticketsUrl), {
+        signal: execution.signal,
+      });
+      if (!response.ok) throw new Error('ticket');
+      const body: unknown = await response.json();
+      if (!isRecord(body) || !Array.isArray(body.tickets)) throw new Error('ticket');
+      const receipt: unknown = body.tickets.find(
+        (ticket: unknown) => isRecord(ticket) && ticket.idempotencyKey === input.deliveryId,
+      );
+      execution.signal.throwIfAborted();
+      if (!isRecord(receipt) || typeof receipt.id !== 'string' || receipt.id.length === 0) {
+        return { kind: 'timeout' };
+      }
+      input.ledger.set(input.deliveryId, receipt.id);
+      return { kind: 'written', ticketId: receipt.id };
+    });
+  } catch {
+    return { kind: execution.failure() };
+  } finally {
+    execution.dispose();
+  }
+}
+
+function createExecution(input: Pick<DeliverInput, 'deadline' | 'timeoutMs' | 'signal'>) {
   const deadline = input.deadline ?? Date.now() + input.timeoutMs;
   const controller = new AbortController();
   const expire = () => controller.abort(new Error('incident deadline'));

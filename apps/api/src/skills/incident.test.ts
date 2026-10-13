@@ -27,13 +27,87 @@ const accepted = {
   traceId: 'trace-1',
 };
 
+function delayedReceipt(ticket: { id: string }, signal?: AbortSignal | null): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(Response.json(ticket)), 1500);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(new Error('aborted'));
+      },
+      { once: true },
+    );
+  });
+}
+
 describe('incident adapter', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(accepted.submittedAt));
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([true, false])(
+    'reconciles an aborted write after expiry (committed: %s)',
+    async (committed) => {
+      const ticket = { id: 'ticket-1', idempotencyKey: accepted.taskId };
+      const tickets: (typeof ticket)[] = [];
+      const fetchMock = vi.fn<typeof fetch>().mockImplementation((url, options) => {
+        if (options?.method === 'POST') {
+          if (committed) tickets.push(ticket);
+          return delayedReceipt(ticket, options.signal);
+        }
+        return Promise.resolve(
+          Response.json(
+            url instanceof URL && url.pathname === '/tickets'
+              ? { tickets }
+              : { id: 'inc-1', title: 'Latency', note: 'Deployment' },
+          ),
+        );
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const model = { answer: vi.fn().mockResolvedValue('summary') };
+      const skill = createIncidentSkill(() => ({
+        incidentsUrl: 'https://incidents.test',
+        ticketsUrl: 'https://tickets.test',
+        model,
+      }));
+      const first = skill
+        .dispatch(submission, accepted, authorizedCaller)
+        .catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(tickets).toHaveLength(committed ? 1 : 0);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await first).toBeInstanceOf(Unavailable);
+      expect(fetchMock.mock.calls[1][1]?.signal?.aborted).toBe(true);
+      expect(skill.result(accepted.taskId)).toEqual({ kind: 'timeout' });
+      if (committed) {
+        await skill.dispatch(submission, accepted, authorizedCaller);
+        expect(skill.result(accepted.taskId)).toEqual({ kind: 'written', ticketId: ticket.id });
+        await skill.dispatch(submission, accepted, authorizedCaller);
+      } else {
+        await expect(skill.dispatch(submission, accepted, authorizedCaller)).rejects.toBeInstanceOf(
+          Unavailable,
+        );
+        expect(skill.result(accepted.taskId)).toEqual({ kind: 'timeout' });
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({
+        method: 'POST',
+        headers: { 'idempotency-key': accepted.taskId },
+      });
+      expect(fetchMock.mock.calls[2][0]).toEqual(new URL('https://tickets.test/tickets'));
+      expect(fetchMock.mock.calls[2][1]?.method).toBeUndefined();
+      expect(model.answer).toHaveBeenCalledOnce();
+      expect(tickets).toHaveLength(committed ? 1 : 0);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
 
   it('passes a fixed task deadline and cancellation signal', async () => {
     const deliver = vi

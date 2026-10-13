@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { deliverIncident } from './deliver.js';
+import { deliverIncident, reconcileIncident } from './deliver.js';
 
 import type { DeliverInput } from './deliver.js';
 
@@ -161,5 +161,28 @@ describe('incident deadline', () => {
     fetchMock.mockRejectedValue(new Error('unavailable'));
     expect(await deliverIncident(inputFor())).toEqual({ kind: 'failed' });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['fetch', 'body'])('bounds a hanging reconciliation %s', async (step) => {
+    const input = inputFor();
+    if (step === 'fetch') fetchMock.mockReturnValue(hanging());
+    else fetchMock.mockResolvedValue({ ok: true, json: () => hanging() } as Response);
+    const result = reconcileIncident(input);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await result).toEqual({ kind: 'timeout' });
+    expect(input.ledger.size).toBe(0);
+    expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('only recovers a receipt matching the delivery key', async () => {
+    const input = inputFor();
+    fetchMock.mockResolvedValue(
+      Response.json({
+        tickets: [{ id: 'ticket-other', idempotencyKey: 'other-task' }],
+      }),
+    );
+    expect(await reconcileIncident(input)).toEqual({ kind: 'timeout' });
+    expect(input.ledger.size).toBe(0);
   });
 });

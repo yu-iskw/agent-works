@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { skillManifestSchema } from '@agent-works/domain';
-import { deliverIncident } from '@agent-works/incident-analysis';
+import { deliverIncident, reconcileIncident } from '@agent-works/incident-analysis';
 
 import { Unavailable } from '../auth/iap.js';
 
@@ -71,6 +71,20 @@ export function createIncidentSkill(
   const ledger = new Map<string, string>();
   const results = new Map<string, Delivery>();
   const deadlines = new Map<string, number>();
+  const issuedWrites = new Set<string>();
+  const recover = async (taskId: string): Promise<boolean> => {
+    if (ledger.has(taskId)) return true;
+    const configured = issuedWrites.has(taskId) ? config() : undefined;
+    if (configured === undefined) return false;
+    const recovered = await reconcileIncident({
+      ticketsUrl: configured.ticketsUrl,
+      deliveryId: taskId,
+      ledger,
+    });
+    if (recovered.kind !== 'written') return false;
+    results.set(taskId, recovered);
+    return true;
+  };
   return {
     manifest: skill.manifest,
     result: (taskId) => {
@@ -86,9 +100,8 @@ export function createIncidentSkill(
         execution?.deadline ?? Infinity,
       );
       deadlines.set(accepted.taskId, deadline);
-      const known = ledger.get(accepted.taskId);
       if (!Number.isFinite(deadline) || Date.now() >= deadline || execution?.signal?.aborted) {
-        if (known !== undefined) return;
+        if (await recover(accepted.taskId)) return;
         results.set(accepted.taskId, {
           kind: execution?.signal?.aborted ? 'cancelled' : 'timeout',
         });
@@ -112,6 +125,7 @@ export function createIncidentSkill(
         deadline,
         signal: execution?.signal,
         ledger,
+        issuedWrites,
       }).catch((): Delivery => ({ kind: 'failed' }));
       results.set(accepted.taskId, result);
       if (result.kind === 'written') ledger.set(accepted.taskId, result.ticketId);
