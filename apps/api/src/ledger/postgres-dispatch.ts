@@ -183,9 +183,8 @@ async function renewTask(
 ): Promise<ClaimedDelivery> {
   requireLeaseMs(leaseMs);
   const proof = requireProof(lease);
-  const at = new Date(now().getTime());
   const row = await mutateLease(sql, proof.taskId, { kind: 'renew', lease: proof, leaseMs }, () => {
-    return at;
+    return new Date(now().getTime());
   });
   return claimedFrom(row);
 }

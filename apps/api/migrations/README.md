@@ -10,5 +10,6 @@
 | 0004   | `workflow`        | Reserved by #51.                                                       |
 | 0005   | `credentials`     | Reserved by #51.                                                       |
 | 0006   | `tasks`           | Reserved by #39 for the task ledger (#46). File name `0006_tasks.sql`. |
+| 0007   | `task_dispatch`   | Task dispatch (#119). File name `0007_task_dispatch.sql`.              |
 
-The next free number after these reservations is `0007`.
+The next free number after these reservations is `0008`.

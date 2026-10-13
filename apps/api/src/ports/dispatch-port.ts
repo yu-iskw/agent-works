@@ -215,7 +215,7 @@ export function claimedFrom(row: DeliveryRow): ClaimedDelivery {
     fencingToken: fencingToken(row.fencingToken),
     leaseUntil: row.leaseUntil.toISOString(),
     attempt: row.attempt,
-    payload: row.payload,
+    payload: structuredClone(row.payload),
   };
 }
 
