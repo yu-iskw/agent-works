@@ -14,6 +14,8 @@ import type { OutboxEvent } from '@agent-works/domain';
 const origin = '2026-10-10T10:00:00.000Z';
 const afterLease = '2026-10-10T10:01:00.000Z';
 const afterRetry = '2026-10-10T10:00:01.000Z';
+const afterDeadline = '2026-10-10T10:06:00.000Z';
+const afterDeadlineRetry = '2026-10-10T10:06:01.000Z';
 
 export function taskDispatcherContract(create: () => DispatchHarness): void {
   describe('durable task dispatcher', () => {
@@ -138,6 +140,7 @@ export function taskDispatcherContract(create: () => DispatchHarness): void {
     });
 
     receiptRecovery(create);
+    lateReceiptRecovery(create);
 
     it('parks unavailable or revoked skill authorization', async () => {
       const harness = create();
@@ -295,7 +298,7 @@ function receiptRecovery(create: () => DispatchHarness): void {
     const harness = create();
     const ports = harness.open();
     const accepted = await ports.dispatch.accept(acceptInput);
-    harness.setNow('2026-10-10T10:06:00.000Z');
+    harness.setNow(afterDeadline);
     const dispatch = vi.fn<RegisteredSkill['dispatch']>().mockResolvedValue();
     const reconcile = vi
       .fn<NonNullable<TaskDispatcherDeps['reconcile']>>()
@@ -305,22 +308,128 @@ function receiptRecovery(create: () => DispatchHarness): void {
       registry: registry(dispatch),
       reconcile,
       maxAttempts: 1,
-      now: () => new Date('2026-10-10T10:06:00.000Z'),
+      now: () => new Date(afterDeadline),
     }).runOnce();
     expect(dispatch).not.toHaveBeenCalled();
     expect(await ports.ledger.read(acceptInput.subject, accepted.taskId)).toMatchObject({
       status: 'RUNNING',
     });
-    harness.setNow('2026-10-10T10:06:01.000Z');
+    harness.setNow(afterDeadlineRetry);
     reconcile.mockResolvedValue(receiptFor(accepted.taskId, 'ticket-before-expiry'));
     await createTaskDispatcher({
       ...harness.restart(),
       registry: registry(dispatch),
       reconcile,
-      now: () => new Date('2026-10-10T10:06:01.000Z'),
+      now: () => new Date(afterDeadlineRetry),
     }).runOnce();
     expect(await ports.ledger.readReceipt(acceptInput.subject, accepted.taskId)).toMatchObject({
       ref: 'ticket-before-expiry',
     });
   });
+}
+
+function lateReceiptRecovery(create: () => DispatchHarness): void {
+  it('preserves a late write receipt and reconciles it after expiry and restart', async () => {
+    const harness = create();
+    const ports = harness.open();
+    const accepted = await ports.dispatch.accept(acceptInput);
+    const receipt = receiptFor(accepted.taskId, 'ticket-late');
+    let external: typeof receipt | undefined;
+    let at = origin;
+    let finishWrite = () => {};
+    const pendingWrite = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    }).then(() => {
+      external = receipt;
+    });
+    const dispatch = vi.fn<RegisteredSkill['dispatch']>().mockImplementation(() => {
+      // The skill times out while its external write is still in flight.
+      at = acceptInput.deadline;
+      harness.setNow(at);
+      return Promise.resolve();
+    });
+    const skill = { ...registered(dispatch), result: () => ({ kind: 'timeout' as const }) };
+    const deps = {
+      registry: createSkillRegistry([skill]),
+      reconcile: vi.fn<NonNullable<TaskDispatcherDeps['reconcile']>>(() =>
+        Promise.resolve(external),
+      ),
+      leaseMs: 600_000,
+      maxAttempts: 3,
+      now: () => new Date(at),
+    };
+    await createTaskDispatcher({ ...ports, ...deps }).runOnce();
+    expect(await ports.ledger.read(acceptInput.subject, accepted.taskId)).toMatchObject({
+      status: 'RUNNING',
+      version: 2,
+    });
+    expect(await ports.dispatch.claim('early', 1000)).toBeUndefined();
+    at = '2026-10-10T10:05:01.000Z';
+    harness.setNow(at);
+    await createTaskDispatcher({ ...harness.restart(), ...deps }).runOnce();
+    expect(await ports.ledger.read(acceptInput.subject, accepted.taskId)).toMatchObject({
+      status: 'RUNNING',
+      version: 2,
+    });
+    expect(await ports.ledger.readOutbox(`dispatch:${accepted.taskId}:3`)).toBeUndefined();
+    finishWrite();
+    await pendingWrite;
+    at = '2026-10-10T10:05:03.000Z';
+    harness.setNow(at);
+    await createTaskDispatcher({ ...harness.restart(), ...deps }).runOnce();
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(await ports.ledger.read(acceptInput.subject, accepted.taskId)).toMatchObject({
+      status: 'COMPLETED',
+      version: 3,
+    });
+    expect(await ports.ledger.readReceipt(acceptInput.subject, accepted.taskId)).toEqual(receipt);
+    expect(await ports.ledger.readOutbox(`dispatch:${accepted.taskId}:3`)).toMatchObject({
+      event: { eventType: 'task.completed', externalObjectRef: receipt.ref },
+    });
+  });
+
+  it.each([false, true])(
+    'bounds absent-receipt reconciliation after expiry (in-flight write: %s)',
+    async (inFlight) => {
+      const harness = create();
+      const ports = harness.open();
+      const accepted = await ports.dispatch.accept(acceptInput);
+      let now = inFlight ? origin : afterDeadline;
+      const dispatch = vi.fn<RegisteredSkill['dispatch']>().mockImplementation(() => {
+        now = afterDeadline;
+        harness.setNow(now);
+        return Promise.resolve();
+      });
+      const reconcile = vi
+        .fn<NonNullable<TaskDispatcherDeps['reconcile']>>()
+        .mockResolvedValue(undefined);
+      const skill = { ...registered(dispatch), result: () => ({ kind: 'timeout' as const }) };
+      const deps = {
+        registry: createSkillRegistry([skill]),
+        reconcile,
+        maxAttempts: 3,
+        leaseMs: 600_000,
+        now: () => new Date(now),
+      };
+      for (const [index, at] of [
+        inFlight ? origin : afterDeadline,
+        afterDeadlineRetry,
+        '2026-10-10T10:06:03.000Z',
+      ].entries()) {
+        harness.setNow(at);
+        now = at;
+        await createTaskDispatcher({
+          ...harness.restart(),
+          ...deps,
+        }).runOnce();
+        expect(await ports.ledger.read(acceptInput.subject, accepted.taskId)).toMatchObject({
+          status: index === 2 ? 'FAILED' : 'RUNNING',
+          version: index === 2 ? 3 : 2,
+        });
+      }
+      expect(reconcile).toHaveBeenCalledTimes(inFlight ? 4 : 3);
+      expect(dispatch).toHaveBeenCalledTimes(inFlight ? 1 : 0);
+      expect(await ports.dispatch.claim('later', 1000)).toBeUndefined();
+    },
+  );
 }

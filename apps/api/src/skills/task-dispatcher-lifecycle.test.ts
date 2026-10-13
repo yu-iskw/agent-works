@@ -151,7 +151,7 @@ describe('worker lifecycle', () => {
     const dispatch = vi.fn<RegisteredSkill['dispatch']>().mockResolvedValue();
     const ports = setup(dispatch);
     const accepted = await ports.dispatch.accept(acceptInput);
-    await createTaskDispatcher(ports).runOnce();
+    await createTaskDispatcher({ ...ports, maxAttempts: 1 }).runOnce();
     expect(dispatch).not.toHaveBeenCalled();
     expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
       status: 'FAILED',

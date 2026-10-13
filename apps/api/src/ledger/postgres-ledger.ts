@@ -16,6 +16,7 @@ import {
   acceptedTask,
   bodyConflict,
   ConcurrentUpdate,
+  isControlPlaneTransition,
   LedgerConflict,
   queuedTask,
   taskMissing,
@@ -209,10 +210,7 @@ async function commitTransition(
     `;
     const current = await lockTask(tx, input.taskId, input.subject);
     const delivery = deliveries.at(0);
-    if (
-      input.lease !== undefined ||
-      (delivery !== undefined && (input.to !== 'CANCELLED' || receipt !== undefined))
-    ) {
+    if (input.lease !== undefined || (delivery !== undefined && !isControlPlaneTransition(input))) {
       assertDeliveryLease(
         delivery === undefined
           ? undefined

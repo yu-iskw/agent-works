@@ -77,6 +77,15 @@ export type TransitionInput = {
   readonly lease?: LeaseProof;
 };
 
+/** Trusted control-plane callers may stop work without holding a worker lease. */
+export function isControlPlaneTransition(input: TransitionInput): boolean {
+  return (
+    input.lease === undefined &&
+    input.receipt === undefined &&
+    (input.to === 'BLOCKED_AUTH' || input.to === 'CANCELLED')
+  );
+}
+
 export interface LedgerPort {
   submit(subject: string, request: TaskSubmit, idempotencyKey: string): Promise<TaskAccepted>;
   read(subject: string, taskId: string): Promise<Task | undefined>;

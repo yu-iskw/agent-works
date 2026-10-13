@@ -7,6 +7,7 @@ import {
   acceptedTask,
   bodyConflict,
   ConcurrentUpdate,
+  isControlPlaneTransition,
   LedgerConflict,
   queuedTask,
   taskMissing,
@@ -198,10 +199,7 @@ function transitionTask(state: MemoryLedgerState, now: () => Date, input: Transi
     const task = current.tasks.get(input.taskId);
     if (task === undefined || task.createdBySub !== input.subject) throw taskMissing();
     const delivery = current.deliveries.get(input.taskId);
-    if (
-      input.lease !== undefined ||
-      (delivery !== undefined && (input.to !== 'CANCELLED' || receipt !== undefined))
-    ) {
+    if (input.lease !== undefined || (delivery !== undefined && !isControlPlaneTransition(input))) {
       assertDeliveryLease(delivery, input.lease, input.taskId, now());
     }
     if (task.version !== input.expectedVersion) throw new ConcurrentUpdate();

@@ -1,8 +1,11 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { describe, expect, it } from 'vitest';
 
+import { createOAuthFlow } from '../credentials/flow.js';
+
 import { DispatchInjectedFault, proofOf } from './dispatch-port.js';
 import { LedgerConflict } from './ledger-port.js';
+import { createMemoryCredentialsPort } from './memory/credentials.js';
 
 import type { AcceptTask, DispatchHarness, DispatchPort } from './dispatch-port.js';
 import type { TaskLedger } from './ledger-port.js';
@@ -112,6 +115,8 @@ export function dispatchPortContract(create: () => DispatchHarness): void {
     cancelledClaim(create);
     badLeaseWritesNothing(create);
     fencedTransitions(create);
+    controlPlaneTransitions(create);
+    credentialAuthBlock(create);
     blockedClaim(create);
     expiredTransition(create);
   });
@@ -497,5 +502,111 @@ function expiredTransition(create: () => DispatchHarness): void {
     ).rejects.toBeInstanceOf(LedgerConflict);
     expect(await ledger.readOutbox('expired')).toBeUndefined();
     expect(await ledger.read(caller, accepted.taskId)).toMatchObject({ version: 1 });
+  });
+}
+
+function controlPlaneTransitions(create: () => DispatchHarness): void {
+  it.each(['BLOCKED_AUTH', 'CANCELLED'] as const)(
+    'records an unleased control-plane %s while rejecting stale workers',
+    async (to) => {
+      const { harness, dispatch, ledger } = opened(create);
+      const accepted = await dispatch.accept(acceptInput);
+      const stale = asProof(await dispatch.claim('old', leaseMs));
+      const running = await ledger.transition({
+        subject: caller,
+        taskId: accepted.taskId,
+        expectedVersion: 1,
+        to: 'RUNNING',
+        lease: stale,
+        event: transitionEvent('running', accepted.taskId),
+      });
+      harness.setNow(leaseEnd);
+      await dispatch.claim('new', leaseMs);
+      const input = {
+        subject: caller,
+        taskId: accepted.taskId,
+        expectedVersion: running.version,
+        to,
+        event: transitionEvent('control', accepted.taskId),
+      };
+      await expect(ledger.transition({ ...input, lease: stale })).rejects.toBeInstanceOf(
+        LedgerConflict,
+      );
+      await expect(
+        ledger.transition({
+          ...input,
+          receipt: { ref: 'late-ticket', digestSha256: 'a'.repeat(64) },
+        }),
+      ).rejects.toBeInstanceOf(LedgerConflict);
+      await expect(ledger.transition({ ...input, subject: 'bob' })).rejects.toBeInstanceOf(
+        LedgerConflict,
+      );
+      expect(await ledger.readOutbox('control')).toBeUndefined();
+      expect(await ledger.readReceipt(caller, accepted.taskId)).toBeUndefined();
+      expect(await ledger.read(caller, accepted.taskId)).toMatchObject(running);
+      expect(await ledger.transition(input)).toMatchObject({ status: to, version: 3 });
+      expect(await harness.restart().ledger.readOutbox('control')).toEqual(input.event);
+      expect(await dispatch.claim('next', leaseMs)).toBeUndefined();
+      await expect(
+        ledger.transition({
+          ...input,
+          expectedVersion: 3,
+          to: 'COMPLETED',
+          lease: stale,
+          event: transitionEvent('late-worker', accepted.taskId),
+        }),
+      ).rejects.toBeInstanceOf(LedgerConflict);
+      expect(await ledger.readOutbox('late-worker')).toBeUndefined();
+    },
+  );
+}
+
+function credentialAuthBlock(create: () => DispatchHarness): void {
+  it('records OAuthFlow.blockIfStale during a live worker lease', async () => {
+    const { dispatch, ledger } = opened(create);
+    const accepted = await dispatch.accept(acceptInput);
+    const lease = asProof(await dispatch.claim('worker', leaseMs));
+    await ledger.transition({
+      subject: caller,
+      taskId: accepted.taskId,
+      expectedVersion: 1,
+      to: 'RUNNING',
+      lease,
+      event: transitionEvent('running', accepted.taskId),
+    });
+    const connection = {
+      subject: caller,
+      provider: 'fake',
+      scope: 'ticket.create',
+      status: 'expired' as const,
+      expiresAt: startedAt,
+      tokenRef: 'token-1',
+    };
+    const credentials = createMemoryCredentialsPort();
+    await credentials.save(connection);
+    const unused = () => {
+      throw new Error('unused OAuth operation');
+    };
+    const flow = createOAuthFlow({
+      ledger,
+      credentials,
+      now: () => new Date(startedAt),
+      grants: { save: unused, read: unused, consume: unused },
+      provider: {
+        authorizationUrl: unused,
+        exchange: unused,
+        revoke: unused,
+        read: () => Promise.resolve(connection),
+      },
+    });
+    expect(await flow.blockIfStale(caller, 'fake', accepted.taskId)).toMatchObject({
+      status: 'BLOCKED_AUTH',
+      version: 3,
+    });
+    expect(await ledger.readOutbox(`auth-${accepted.taskId}-2`)).toMatchObject({
+      event: { eventType: 'oauth.blocked', outcome: 'BLOCKED_AUTH', externalObjectRef: 'token-1' },
+    });
+    await dispatch.release(lease);
+    expect(await dispatch.claim('next', leaseMs)).toBeUndefined();
   });
 }

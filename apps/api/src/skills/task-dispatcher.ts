@@ -110,8 +110,8 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
       return;
     }
     if (now().getTime() >= Date.parse(delivery.payload.deadline)) {
-      await move(delivery, task, 'FAILED');
-      return;
+      // An earlier worker's external write may still settle after the deadline.
+      throw new DeliveryFailed();
     }
     await invokeSkill(skill, delivery, task, signal, shutdown);
   }
@@ -169,7 +169,9 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
     }
     if (result?.kind === 'timeout' || now().getTime() >= Date.parse(delivery.payload.deadline)) {
       const receipt = await deps.reconcile?.(delivery, signal);
-      await move(delivery, task, receipt === undefined ? 'FAILED' : 'COMPLETED', receipt);
+      // Retry reconciliation within maxAttempts before declaring the write absent.
+      if (receipt === undefined) throw new DeliveryFailed();
+      await move(delivery, task, 'COMPLETED', receipt);
       return;
     }
     if (failed || result?.kind === 'failed') {
