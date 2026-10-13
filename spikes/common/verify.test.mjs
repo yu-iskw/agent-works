@@ -127,6 +127,28 @@ test('synthetic go fails closed', () => {
   );
 });
 
+test('a decoded secret outside the transcript fails closed', () => {
+  const envelope = readJson(validPath);
+  const transcript = JSON.stringify(envelope.transcript);
+  const digest = JSON.stringify(envelope.digest);
+  const token = `${['s', 'k-'].join('')}abcdefgh12345678`;
+  const hidden = `{"digest":${digest},"transcript":${transcript},"extra":"\\u0073${token.slice(1)}"}`;
+  assert.equal(hidden.includes(token), false);
+  const checked = verifyTranscriptBytes(hidden);
+  assert.deepEqual(checked, {
+    id: 'c02.runtime.sessions',
+    status: 'failed',
+    reasons: [{ code: 'secret', family: 'sk', path: '/extra' }, { code: 'schema' }],
+  });
+  assert.equal(JSON.stringify(checked).includes(token), false);
+  const benign = `{"digest":${digest},"transcript":${transcript},"extra":"note"}`;
+  assert.deepEqual(verifyTranscriptBytes(benign), {
+    id: 'c02.runtime.sessions',
+    status: 'failed',
+    reasons: [{ code: 'schema' }],
+  });
+});
+
 test('secret ids and mismatch paths stay out of the report', () => {
   const skId = `c02.${['s', 'k-'].join('')}synthetic1`;
   const yaId = `c02.${['ya', '29.'].join('')}synthetic1`;
