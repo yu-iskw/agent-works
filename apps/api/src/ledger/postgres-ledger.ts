@@ -11,9 +11,9 @@ import {
   transition,
 } from '@agent-works/domain';
 
-import { bodyConflict } from '../ports/dispatch-port.js';
 import {
   acceptedTask,
+  bodyConflict,
   ConcurrentUpdate,
   LedgerConflict,
   queuedTask,

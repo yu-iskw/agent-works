@@ -2,19 +2,19 @@ import { randomUUID } from 'node:crypto';
 
 import {
   applyLease,
-  bodyConflict,
+  claimedFrom,
   createDispatchHarness,
   DispatchInjectedFault,
   leaseConflict,
   parseAccept,
-  proofOf,
+  proofFrom,
   requireAttempt,
   requireInstant,
   requireLeaseMs,
   requireProof,
   submittedEvent,
 } from '../dispatch-port.js';
-import { acceptedTask, queuedTask, taskMissing } from '../ledger-port.js';
+import { acceptedTask, bodyConflict, queuedTask, taskMissing } from '../ledger-port.js';
 
 import {
   cloneSnapshot,
@@ -33,7 +33,6 @@ import type {
   DispatchPort,
   DispatchSeam,
   LeaseCommand,
-  LeaseDecision,
 } from '../dispatch-port.js';
 import type { MemoryLedgerState, MemorySnapshot } from './ledger-port.js';
 import type {
@@ -128,8 +127,8 @@ function claimTask(
   if (chosen === undefined) return undefined;
   return commitSnapshot(state, (current) => {
     const next = cloneSnapshot(current);
-    next.deliveries.set(chosen.row.taskId, chosen.decision.row);
-    return { next, value: chosen.decision.claimed };
+    next.deliveries.set(chosen.row.taskId, chosen.next);
+    return { next, value: claimedFrom(chosen.next) };
   });
 }
 
@@ -138,15 +137,15 @@ function earliestClaim(
   at: Date,
   workerId: string,
   leaseMs: number,
-): { row: DeliveryRow; decision: Extract<LeaseDecision, { kind: 'ok' }> } | undefined {
-  let chosen: { row: DeliveryRow; decision: Extract<LeaseDecision, { kind: 'ok' }> } | undefined;
+): { row: DeliveryRow; next: DeliveryRow } | undefined {
+  let chosen: { row: DeliveryRow; next: DeliveryRow } | undefined;
   for (const row of snapshot.deliveries.values()) {
     const task = snapshot.tasks.get(row.taskId);
     if (task === undefined) continue;
     const decision = applyLease(row, task.status, { kind: 'claim', workerId, leaseMs }, at);
     if (decision.kind !== 'ok') continue;
     if (chosen !== undefined && compareDeliveries(row, chosen.row) >= 0) continue;
-    chosen = { row, decision };
+    chosen = { row, next: decision.row };
   }
   return chosen;
 }
@@ -164,7 +163,7 @@ function renewTask(
     proof.taskId,
     { kind: 'renew', lease: proof, leaseMs },
     at,
-    (claimed) => claimed,
+    claimedFrom,
   );
 }
 
@@ -175,7 +174,7 @@ function releaseTask(state: MemoryLedgerState, lease: LeaseProof): LeaseProof {
     proof.taskId,
     { kind: 'release', lease: proof },
     proofAvailableAt(state, proof.taskId),
-    proofOf,
+    (row) => proofFrom(row, proof.workerId),
   );
 }
 
@@ -193,7 +192,7 @@ function retryTask(
     proof.taskId,
     { kind: 'scheduleRetry', lease: proof, at, attempt },
     proofAvailableAt(state, proof.taskId),
-    proofOf,
+    (row) => proofFrom(row, proof.workerId),
   );
 }
 
@@ -202,7 +201,7 @@ function commitLease<T>(
   taskId: string,
   command: LeaseCommand,
   at: Date,
-  valueOf: (claimed: ClaimedDelivery) => T,
+  valueOf: (row: DeliveryRow) => T,
 ): T {
   return commitSnapshot(state, (current) => {
     const loaded = loadDelivery(current, taskId);
@@ -210,7 +209,7 @@ function commitLease<T>(
     if (decision.kind !== 'ok') throw leaseConflict();
     const next = cloneSnapshot(current);
     next.deliveries.set(loaded.row.taskId, decision.row);
-    return { next, value: valueOf(decision.claimed) };
+    return { next, value: valueOf(decision.row) };
   });
 }
 

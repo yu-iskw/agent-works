@@ -28,7 +28,6 @@ import type {
 } from '@agent-works/domain';
 
 const instant = z.iso.datetime();
-const changedBody = 'task body changed';
 const staleFence = 'stale fencing token';
 
 export class DispatchInjectedFault extends Error {
@@ -126,7 +125,7 @@ export type LeaseCommand =
     };
 
 export type LeaseDecision =
-  | { readonly kind: 'ok'; readonly row: DeliveryRow; readonly claimed: ClaimedDelivery }
+  | { readonly kind: 'ok'; readonly row: DeliveryRow }
   | { readonly kind: 'miss' }
   | { readonly kind: 'conflict' };
 
@@ -197,10 +196,26 @@ export function requireProof(lease: LeaseProof): LeaseProof {
 }
 
 export function proofOf(claimed: ClaimedDelivery): LeaseProof {
+  return proofFrom(claimed, claimed.workerId);
+}
+
+export function proofFrom(row: DeliveryRow, workerId: string): LeaseProof {
   return {
-    taskId: claimed.taskId,
-    workerId: claimed.workerId,
-    fencingToken: claimed.fencingToken,
+    taskId: row.taskId,
+    workerId,
+    fencingToken: fencingToken(row.fencingToken),
+  };
+}
+
+export function claimedFrom(row: DeliveryRow): ClaimedDelivery {
+  if (row.workerId === undefined || row.leaseUntil === undefined) throw leaseConflict();
+  return {
+    taskId: row.taskId,
+    workerId: row.workerId,
+    fencingToken: fencingToken(row.fencingToken),
+    leaseUntil: row.leaseUntil.toISOString(),
+    attempt: row.attempt,
+    payload: row.payload,
   };
 }
 
@@ -230,10 +245,6 @@ export function leaseConflict(): LedgerConflict {
   return new LedgerConflict(staleFence);
 }
 
-export function bodyConflict(): LedgerConflict {
-  return new LedgerConflict(changedBody);
-}
-
 function decideClaim(
   row: DeliveryRow,
   status: TaskStatus,
@@ -242,8 +253,10 @@ function decideClaim(
 ): LeaseDecision {
   if (!canClaim(row, status, now)) return { kind: 'miss' };
   const token = fencingToken(row.fencingToken + 1);
-  const next = hold(row, command.workerId, new Date(now.getTime() + command.leaseMs), token);
-  return { kind: 'ok', row: next, claimed: claimedDelivery(next, command.workerId, token) };
+  return {
+    kind: 'ok',
+    row: hold(row, command.workerId, new Date(now.getTime() + command.leaseMs), token),
+  };
 }
 
 function decideRenew(
@@ -253,8 +266,10 @@ function decideRenew(
 ): LeaseDecision {
   if (!sameHolder(row, command.lease) || !liveLease(row, now)) return { kind: 'conflict' };
   const token = command.lease.fencingToken;
-  const next = hold(row, command.lease.workerId, new Date(now.getTime() + command.leaseMs), token);
-  return { kind: 'ok', row: next, claimed: claimedDelivery(next, command.lease.workerId, token) };
+  return {
+    kind: 'ok',
+    row: hold(row, command.lease.workerId, new Date(now.getTime() + command.leaseMs), token),
+  };
 }
 
 function decideRelease(
@@ -263,13 +278,10 @@ function decideRelease(
 ): LeaseDecision {
   if (!sameHolder(row, command.lease)) return { kind: 'conflict' };
   const token = fencingToken(row.fencingToken + 1);
-  const next: DeliveryRow = {
-    ...row,
-    workerId: undefined,
-    leaseUntil: undefined,
-    fencingToken: token,
+  return {
+    kind: 'ok',
+    row: { ...row, workerId: undefined, leaseUntil: undefined, fencingToken: token },
   };
-  return { kind: 'ok', row: next, claimed: claimedDelivery(row, command.lease.workerId, token) };
 }
 
 function decideRetry(
@@ -281,24 +293,15 @@ function decideRetry(
     return { kind: 'conflict' };
   }
   const token = fencingToken(row.fencingToken + 1);
-  const next: DeliveryRow = {
-    ...row,
-    workerId: undefined,
-    leaseUntil: undefined,
-    availableAt: new Date(command.at),
-    attempt: command.attempt,
-    fencingToken: token,
-  };
   return {
     kind: 'ok',
-    row: next,
-    claimed: {
-      taskId: row.taskId,
-      workerId: command.lease.workerId,
-      fencingToken: token,
-      leaseUntil: command.at,
+    row: {
+      ...row,
+      workerId: undefined,
+      leaseUntil: undefined,
+      availableAt: new Date(command.at),
       attempt: command.attempt,
-      payload: row.payload,
+      fencingToken: token,
     },
   };
 }
@@ -324,17 +327,6 @@ function hold(
   token: FencingToken,
 ): DeliveryRow {
   return { ...row, workerId, leaseUntil, fencingToken: token };
-}
-
-function claimedDelivery(row: DeliveryRow, workerId: string, token: FencingToken): ClaimedDelivery {
-  return {
-    taskId: row.taskId,
-    workerId,
-    fencingToken: token,
-    leaseUntil: row.leaseUntil?.toISOString() ?? row.availableAt.toISOString(),
-    attempt: row.attempt,
-    payload: row.payload,
-  };
 }
 
 function definedRequest(request: TaskSubmit): TaskSubmit {

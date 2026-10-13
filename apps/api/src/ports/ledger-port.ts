@@ -10,6 +10,7 @@ import type {
 } from '@agent-works/domain';
 
 const taskNotFound = 'task not found';
+const changedBody = 'task body changed';
 
 export class LedgerConflict extends Error {
   constructor(message: string) {
@@ -20,6 +21,10 @@ export class LedgerConflict extends Error {
 
 export function taskMissing(): LedgerConflict {
   return new LedgerConflict(taskNotFound);
+}
+
+export function bodyConflict(): LedgerConflict {
+  return new LedgerConflict(changedBody);
 }
 
 export function queuedTask(

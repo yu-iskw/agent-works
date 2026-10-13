@@ -9,11 +9,12 @@ import {
 
 import {
   applyLease,
+  claimedFrom,
   createDispatchHarness,
   DispatchInjectedFault,
   leaseConflict,
   parseAccept,
-  proofOf,
+  proofFrom,
   requireAttempt,
   requireInstant,
   requireLeaseMs,
@@ -36,7 +37,7 @@ import type {
   DispatchHarness,
   DispatchPort,
   DispatchSeam,
-  LeaseDecision,
+  LeaseCommand,
 } from '../ports/dispatch-port.js';
 import type {
   ClaimedDelivery,
@@ -167,7 +168,7 @@ async function scanClaim(
     );
     if (decision.kind === 'ok') {
       await saveDelivery(tx, decision.row);
-      return decision.claimed;
+      return claimedFrom(decision.row);
     }
     if (decision.kind === 'conflict') throw leaseConflict();
     skipped.push(locked.row.taskId);
@@ -183,31 +184,18 @@ async function renewTask(
   requireLeaseMs(leaseMs);
   const proof = requireProof(lease);
   const at = new Date(now().getTime());
-  return sql.begin(async (tx) => {
-    const locked = await lockDelivery(tx, proof.taskId);
-    const decision = applyLease(
-      locked.row,
-      locked.status,
-      { kind: 'renew', lease: proof, leaseMs },
-      at,
-    );
-    return finishLease(tx, decision);
+  const row = await mutateLease(sql, proof.taskId, { kind: 'renew', lease: proof, leaseMs }, () => {
+    return at;
   });
+  return claimedFrom(row);
 }
 
 async function releaseTask(sql: postgres.Sql, lease: LeaseProof): Promise<LeaseProof> {
   const proof = requireProof(lease);
-  return sql.begin(async (tx) => {
-    const locked = await lockDelivery(tx, proof.taskId);
-    const decision = applyLease(
-      locked.row,
-      locked.status,
-      { kind: 'release', lease: proof },
-      locked.row.availableAt,
-    );
-    const claimed = await finishLease(tx, decision);
-    return proofOf(claimed);
+  const row = await mutateLease(sql, proof.taskId, { kind: 'release', lease: proof }, (locked) => {
+    return locked.availableAt;
   });
+  return proofFrom(row, proof.workerId);
 }
 
 async function retryTask(
@@ -219,26 +207,28 @@ async function retryTask(
   requireAttempt(attempt);
   requireInstant(at);
   const proof = requireProof(lease);
-  return sql.begin(async (tx) => {
-    const locked = await lockDelivery(tx, proof.taskId);
-    const decision = applyLease(
-      locked.row,
-      locked.status,
-      { kind: 'scheduleRetry', lease: proof, at, attempt },
-      locked.row.availableAt,
-    );
-    const claimed = await finishLease(tx, decision);
-    return proofOf(claimed);
-  });
+  const row = await mutateLease(
+    sql,
+    proof.taskId,
+    { kind: 'scheduleRetry', lease: proof, at, attempt },
+    (locked) => locked.availableAt,
+  );
+  return proofFrom(row, proof.workerId);
 }
 
-async function finishLease(
-  tx: postgres.TransactionSql,
-  decision: LeaseDecision,
-): Promise<ClaimedDelivery> {
-  if (decision.kind !== 'ok') throw leaseConflict();
-  await saveDelivery(tx, decision.row);
-  return decision.claimed;
+async function mutateLease(
+  sql: postgres.Sql,
+  taskId: string,
+  command: LeaseCommand,
+  at: (row: DeliveryRow) => Date,
+): Promise<DeliveryRow> {
+  return sql.begin(async (tx) => {
+    const locked = await lockDelivery(tx, taskId);
+    const decision = applyLease(locked.row, locked.status, command, at(locked.row));
+    if (decision.kind !== 'ok') throw leaseConflict();
+    await saveDelivery(tx, decision.row);
+    return decision.row;
+  });
 }
 
 async function countRows(sql: postgres.Sql): Promise<{

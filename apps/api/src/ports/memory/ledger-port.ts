@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { canonicalPayloadSha256, externalWriteReceipt, transition } from '@agent-works/domain';
 
-import { bodyConflict } from '../dispatch-port.js';
 import {
   acceptedTask,
+  bodyConflict,
   ConcurrentUpdate,
   LedgerConflict,
   queuedTask,
