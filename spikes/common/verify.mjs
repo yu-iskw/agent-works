@@ -475,11 +475,11 @@ function fallbackId(file) {
   return `unreadable:${relative}`;
 }
 
-function isDirectory(file) {
+function scanRootStat(file) {
   try {
-    return lstatSync(file).isDirectory();
+    return lstatSync(file);
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -547,13 +547,19 @@ function applyDuplicates(rows) {
 
 export function verifyCommitted(roots = defaultRoots) {
   const files = [];
+  const rootResults = [];
   for (const root of roots) {
     const directory = path.resolve(repoRoot, root);
-    if (!isDirectory(directory)) continue;
+    const stat = scanRootStat(directory);
+    if (stat?.isSymbolicLink()) {
+      rootResults.push(row(fallbackId(directory), [{ code: 'verifier-error' }]));
+      continue;
+    }
+    if (!stat?.isDirectory()) continue;
     files.push(...listFiles(directory).filter((file) => isClaimed(file)));
   }
   files.sort((left, right) => compareUtf16(repoRelative(left), repoRelative(right)));
-  const results = applyDuplicates(files.map((file) => verifyFile(file)));
+  const results = applyDuplicates([...rootResults, ...files.map((file) => verifyFile(file))]);
   results.sort((left, right) => compareUtf16(left.id, right.id));
   return {
     schemaId: reportSchemaId,

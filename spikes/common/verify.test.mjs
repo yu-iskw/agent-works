@@ -284,6 +284,28 @@ test('missing root is an empty pass', () => {
   });
 });
 
+test('a symlinked scan root containing an invalid transcript is rejected', () => {
+  withTemp('spike-root-symlink-', (directory) => {
+    const targetDirectory = path.join(directory, 'target');
+    mkdirSync(targetDirectory);
+    writeFileSync(path.join(targetDirectory, 'invalid.transcript.json'), '{}\n');
+    const scanDirectory = path.join(directory, 'scan');
+    symlinkSync(targetDirectory, scanDirectory);
+    assert.deepEqual(verifyCommitted([scanDirectory]), {
+      schemaId: 'agent-works.cloud-spike.verify-report',
+      schemaVersion: 1,
+      status: 'failed',
+      results: [
+        {
+          id: `unreadable:${repoRelative(scanDirectory)}`,
+          status: 'failed',
+          reasons: [{ code: 'verifier-error' }],
+        },
+      ],
+    });
+  });
+});
+
 test('unrelated json is ignored and an empty claimed file fails', () => {
   withTemp('spike-empty-', (directory) => {
     writeFileSync(path.join(directory, 'notes.json'), '{"note":"hello"}\n');
