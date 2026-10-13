@@ -2,6 +2,7 @@ import { canonicalPayloadSha256, taskAcceptedSchema, taskSchema } from '@agent-w
 
 import type {
   ExternalWriteReceipt,
+  LeaseProof,
   OutboxEvent,
   Task,
   TaskAccepted,
@@ -73,6 +74,7 @@ export type TransitionInput = {
   readonly to: TaskStatus;
   readonly event: OutboxEvent;
   readonly receipt?: ExternalWriteReceipt;
+  readonly lease?: LeaseProof;
 };
 
 export interface LedgerPort {
@@ -80,11 +82,13 @@ export interface LedgerPort {
   read(subject: string, taskId: string): Promise<Task | undefined>;
   append(event: OutboxEvent): Promise<'recorded' | 'replay'>;
   readOutbox(eventId: string): Promise<OutboxEvent | undefined>;
+  events?(subject: string, taskId: string): Promise<readonly OutboxEvent[]>;
   transition?(input: TransitionInput): Promise<Task>;
   readReceipt?(subject: string, taskId: string): Promise<ExternalWriteReceipt | undefined>;
 }
 
 export interface TaskLedger extends LedgerPort {
+  events(subject: string, taskId: string): Promise<readonly OutboxEvent[]>;
   transition(input: TransitionInput): Promise<Task>;
   readReceipt(subject: string, taskId: string): Promise<ExternalWriteReceipt | undefined>;
 }

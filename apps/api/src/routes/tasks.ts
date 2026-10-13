@@ -1,21 +1,22 @@
-import { IAP_ASSERTION_HEADER, canonicalPayloadSha256, taskApiSchema } from '@agent-works/domain';
+import { IAP_ASSERTION_HEADER, taskApiSchema, terminalStatuses } from '@agent-works/domain';
 import { decide } from '@agent-works/policy';
 
 import { rolesAt } from '../auth/directory.js';
 import { Unauthenticated, Unavailable, createIapVerifier } from '../auth/iap.js';
 import { headerValue } from '../http.js';
-import { LedgerConflict } from '../ports/ledger-port.js';
-import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { askPolicy, contextFor } from '../retrieval/search.js';
 import { createSkillRegistry } from '../skills/registry.js';
 
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
 import type { AskDeps } from './ask.js';
+import type { DispatchPort } from '../ports/dispatch-port.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { AuthorizedCaller, RegisteredSkill } from '../skills/incident.js';
 import type { SkillRegistry } from '../skills/registry.js';
-import type { OutboxEvent, Task, TaskAccepted, TaskApi, TaskSubmit } from '@agent-works/domain';
+import type { Task, TaskApi, TaskSubmit } from '@agent-works/domain';
 
 const unauthenticated = {
   status: 401,
@@ -39,7 +40,6 @@ const eventsSuffix = '/events';
 const trustedFields = new Set(['userId', 'agentIdentity', 'scopes']);
 
 type ApiRequest = Parameters<Route>[0];
-type EventLog = Map<string, readonly OutboxEvent[]>;
 
 export type TaskAuthorization = {
   readonly now: AskDeps['now'];
@@ -50,6 +50,7 @@ export type TaskRoutes = {
   readonly submit: Route;
   readonly read: Route;
   readonly events: Route;
+  readonly cancel?: Route;
 };
 
 export function createTaskRoutes(
@@ -57,24 +58,31 @@ export function createTaskRoutes(
   verify: VerifyAssertion,
   registry: SkillRegistry = createSkillRegistry(),
   authorization?: TaskAuthorization,
+  dispatch?: DispatchPort,
 ): TaskRoutes {
-  const events: EventLog = new Map();
   return {
-    submit: (request) => submitTask(ledger, events, verify, request, { registry, authorization }),
+    submit: (request) => submitTask(dispatch, verify, request, { registry, authorization }),
     read: (request) => readTask(ledger, verify, request),
-    events: (request) => readEvents(ledger, events, verify, request),
+    events: (request) => readEvents(ledger, verify, request),
+    cancel: (request) => cancelTask(ledger, verify, request),
   };
 }
 
-const shared = createTaskRoutes(createMemoryLedgerPort(), envVerifier());
+const memory = createMemoryTaskPorts();
+const shared = createTaskRoutes(
+  memory.ledger,
+  envVerifier(),
+  undefined,
+  undefined,
+  memory.dispatch,
+);
 
 export const taskSubmitRoute = shared.submit;
 export const taskReadRoute = shared.read;
 export const taskEventsRoute = shared.events;
 
 async function submitTask(
-  ledger: LedgerPort,
-  events: EventLog,
+  dispatch: DispatchPort | undefined,
   verify: VerifyAssertion,
   request: ApiRequest,
   options: { readonly registry: SkillRegistry; readonly authorization?: TaskAuthorization },
@@ -95,7 +103,14 @@ async function submitTask(
   if (!skill.validate(submission)) return invalidRequest;
   const authorized = await authorize(caller, submission, skill, options.authorization);
   if (authorized === undefined) return { status: 403, body: { error: 'denied' } };
-  return accept(ledger, events, subject, submission, { idempotencyKey, skill, authorized });
+  if (dispatch === undefined) return unavailable;
+  return accept(
+    dispatch,
+    subject,
+    submission,
+    { idempotencyKey, skill, authorized },
+    acceptanceClock(options.authorization),
+  );
 }
 
 async function authorize(
@@ -133,8 +148,7 @@ async function authorize(
 }
 
 async function accept(
-  ledger: LedgerPort,
-  events: EventLog,
+  port: DispatchPort,
   subject: string,
   request: TaskSubmit,
   dispatch: {
@@ -142,29 +156,31 @@ async function accept(
     readonly skill: RegisteredSkill;
     readonly authorized: AuthorizedCaller;
   },
+  now: () => Date,
 ): Promise<ApiReply> {
   try {
-    const accepted = await ledger.submit(subject, request, dispatch.idempotencyKey);
-    await recordSubmit(ledger, events, subject, accepted, request);
-    await dispatch.skill.dispatch(request, accepted, dispatch.authorized);
+    const accepted = await port.accept({
+      subject,
+      request,
+      idempotencyKey: dispatch.idempotencyKey,
+      policy: dispatch.authorized.decision,
+      context: dispatch.authorized.context,
+      agent: {
+        kind: 'agent',
+        agentId: dispatch.skill.manifest.id,
+        version: dispatch.skill.manifest.version,
+        identityRef: `agent://${dispatch.skill.manifest.id}`,
+      },
+      deadline: new Date(
+        now().getTime() + request.executionPolicy.deadlineSeconds * 1000,
+      ).toISOString(),
+    });
     return { status: 200, body: { kind: 'accepted', ...accepted } };
   } catch (error) {
     if (error instanceof LedgerConflict) return conflict;
     if (error instanceof Unavailable) return unavailable;
     throw error;
   }
-}
-
-async function recordSubmit(
-  ledger: LedgerPort,
-  events: EventLog,
-  subject: string,
-  accepted: TaskAccepted,
-  request: TaskSubmit,
-): Promise<void> {
-  const recorded = submitEvent(subject, accepted, request);
-  await ledger.append(recorded);
-  if (!events.has(accepted.taskId)) events.set(accepted.taskId, [recorded]);
 }
 
 async function readTask(
@@ -179,17 +195,20 @@ async function readTask(
 
 async function readEvents(
   ledger: LedgerPort,
-  events: EventLog,
   verify: VerifyAssertion,
   request: ApiRequest,
 ): Promise<ApiReply> {
   const opened = await openTask(ledger, verify, request);
   if (opened.ok === false) return opened.reply;
-  return { status: 200, body: { events: events.get(opened.task.id) ?? [] } };
+  return {
+    status: 200,
+    body: { events: (await ledger.events?.(opened.task.createdBySub, opened.task.id)) ?? [] },
+  };
 }
 
 type Opened =
-  { readonly ok: true; readonly task: Task } | { readonly ok: false; readonly reply: ApiReply };
+  | { readonly ok: true; readonly task: Task }
+  | { readonly ok: false; readonly reply: ApiReply };
 
 async function openTask(
   ledger: LedgerPort,
@@ -217,32 +236,9 @@ function submitBody(data: Extract<TaskApi, { kind: 'submit' }>): TaskSubmit {
   };
 }
 
-function submitEvent(subject: string, accepted: TaskAccepted, request: TaskSubmit): OutboxEvent {
-  return {
-    destination: 'work',
-    event: {
-      eventId: `submit:${accepted.taskId}`,
-      eventType: 'task.submitted',
-      schemaVersion: '1',
-      occurredAt: accepted.submittedAt,
-      taskId: accepted.taskId,
-      stepId: 'submit',
-      traceId: accepted.traceId,
-      initiatorSubject: subject,
-      agentPrincipal: 'agent:memory',
-      tool: null,
-      policyDecisionId: null,
-      approvalId: null,
-      requestDigestSha256: canonicalPayloadSha256(request),
-      outcome: 'SUCCESS',
-      externalObjectRef: null,
-      prevDigest: null,
-    },
-  };
-}
-
 function pathTaskId(path: string): string | undefined {
-  const trimmed = path.endsWith(eventsSuffix) ? path.slice(0, -eventsSuffix.length) : path;
+  const suffix = path.endsWith(':cancel') ? ':cancel' : eventsSuffix;
+  const trimmed = path.endsWith(suffix) ? path.slice(0, -suffix.length) : path;
   if (!trimmed.startsWith(taskPathPrefix)) return undefined;
   const taskId = trimmed.slice(taskPathPrefix.length);
   if (taskId.length === 0 || taskId.includes('/')) return undefined;
@@ -298,5 +294,47 @@ function parseJson(body: Buffer): unknown {
     return JSON.parse(body.toString('utf8')) as unknown;
   } catch {
     return undefined;
+  }
+}
+
+function acceptanceClock(authorization?: TaskAuthorization): () => Date {
+  return authorization?.now ?? (() => new Date());
+}
+
+async function cancelTask(
+  ledger: LedgerPort,
+  verify: VerifyAssertion,
+  request: ApiRequest,
+): Promise<ApiReply> {
+  const opened = await openTask(ledger, verify, request);
+  if (!opened.ok) return opened.reply;
+  if (!headerValue(request.headers, idempotencyHeader)) return invalidRequest;
+  if (ledger.transition === undefined) return unavailable;
+  const task = opened.task;
+  if (terminalStatuses.includes(task.status))
+    return { status: 200, body: { taskId: task.id, status: task.status } };
+  const submitted = await ledger.readOutbox(`submit:${task.id}`);
+  if (submitted === undefined) return unavailable;
+  try {
+    await ledger.transition({
+      subject: task.createdBySub,
+      taskId: task.id,
+      expectedVersion: task.version,
+      to: 'CANCELLED',
+      event: {
+        ...submitted,
+        event: {
+          ...submitted.event,
+          eventId: `cancel:${task.id}`,
+          eventType: 'task.cancelled',
+          stepId: 'cancel',
+          occurredAt: new Date().toISOString(),
+        },
+      },
+    });
+    return { status: 200, body: { taskId: task.id, status: 'CANCELLED' } };
+  } catch (error) {
+    if (error instanceof ConcurrentUpdate) return conflict;
+    throw error;
   }
 }

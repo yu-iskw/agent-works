@@ -2,9 +2,10 @@ import { IAP_ASSERTION_HEADER, taskApiSchema } from '@agent-works/domain';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
-import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { createIncidentSkill } from '../skills/incident.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { createTaskDispatcher } from '../skills/task-dispatcher.js';
 import { taskAuthorization } from '../testing/task-authorization.js';
 
 import { createSkillsListRoute } from './skills-list.js';
@@ -63,8 +64,9 @@ function setup(
       : vi.fn(authorization.wire.policyInput);
   const wire =
     authorization.wire === undefined ? undefined : { ...authorization.wire, policyInput };
-  const ledger = createMemoryLedgerPort();
-  const save = vi.spyOn(ledger, 'submit');
+  const { ledger, dispatch } = createMemoryTaskPorts();
+  const save = vi.spyOn(dispatch, 'accept');
+  const worker = createTaskDispatcher({ ledger, dispatch, registry });
   return {
     deliver,
     policyInput,
@@ -72,7 +74,8 @@ function setup(
     registry,
     ledger,
     save,
-    routes: createTaskRoutes(ledger, auth, registry, { ...authorization, wire }),
+    worker,
+    routes: createTaskRoutes(ledger, auth, registry, { ...authorization, wire }, dispatch),
   };
 }
 
@@ -99,7 +102,7 @@ describe('registered skills', () => {
   });
 
   it('dispatches task submissions only when the task slot is enabled', async () => {
-    const { registry, routes, deliver } = setup();
+    const { registry, routes, deliver, worker } = setup();
     const deps = { verify, skills: registry, tasks: routes } as AskDeps & {
       skills: typeof registry;
       tasks: typeof routes;
@@ -109,11 +112,13 @@ describe('registered skills', () => {
     expect(deliver).not.toHaveBeenCalled();
     const real = createRouteTable(deps, { AW_TASKS: 'real' })['POST /v1/tasks'];
     expect((await real(request())).status).toBe(200);
+    expect(deliver).not.toHaveBeenCalled();
+    await worker.runOnce();
     expect(deliver).toHaveBeenCalledOnce();
   });
 
   it('dispatches the selected skill with server config and the accepted task id', async () => {
-    const { routes, deliver, model, save, ledger, policyInput } = setup();
+    const { routes, deliver, model, save, ledger, policyInput, worker } = setup();
     const reply = await routes.submit(request());
     expect(reply.status).toBe(200);
     expect(policyInput).toHaveBeenCalledWith(
@@ -131,10 +136,14 @@ describe('registered skills', () => {
     });
     expect(taskApiSchema.safeParse(reply.body).success).toBe(true);
     expect(save).toHaveBeenCalledWith(
-      'alice',
-      expect.objectContaining({ input: submit.input }),
-      'key-1',
+      expect.objectContaining({
+        subject: 'alice',
+        request: expect.objectContaining({ input: submit.input }) as unknown,
+        idempotencyKey: 'key-1',
+      }),
     );
+    expect(deliver).not.toHaveBeenCalled();
+    await worker.runOnce();
     expect(deliver).toHaveBeenCalledOnce();
     const input = deliver.mock.calls[0][0];
     expect(input).toMatchObject({
@@ -157,11 +166,11 @@ describe('registered skills', () => {
       event: { initiatorSubject: 'alice', taskId: input.deliveryId },
     });
     expect(await routes.submit(request())).toEqual(reply);
-    expect(deliver.mock.calls[1][0].deliveryId).toBe(input.deliveryId);
+    expect(await worker.runOnce()).toBe(false);
     expect(
       (await routes.submit(request({ ...submit, input: { incidentId: 'inc-2' } }))).status,
     ).toBe(409);
-    expect(deliver).toHaveBeenCalledTimes(2);
+    expect(deliver).toHaveBeenCalledOnce();
   });
 
   it('denies a caller removed from the group before ledger writes or delivery', async () => {
@@ -251,9 +260,9 @@ describe('registered skills', () => {
   );
 
   it('hides tasks and events from another subject', async () => {
-    const ledger = createMemoryLedgerPort();
+    const { ledger, dispatch } = createMemoryTaskPorts();
     const { registry } = setup();
-    const alice = createTaskRoutes(ledger, verify, registry, taskAuthorization);
+    const alice = createTaskRoutes(ledger, verify, registry, taskAuthorization, dispatch);
     const reply = await alice.submit(request());
     const accepted = taskApiSchema.parse(reply.body);
     if (!('taskId' in accepted)) throw new Error('accepted');

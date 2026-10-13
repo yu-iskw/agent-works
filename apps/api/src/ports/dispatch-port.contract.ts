@@ -66,13 +66,25 @@ export const acceptInput: AcceptTask = {
   policy,
   agent,
   deadline,
+  context: {
+    userSubject: caller,
+    enterpriseId: 'agent-works',
+    authorizedGroups: ['employees'],
+    groupsObservedAt: startedAt,
+    allowedSources: ['drive'],
+    taskPurpose: 'ask',
+    classificationCeiling: 'INTERNAL',
+    allowedRegions: ['us'],
+    resultCountLimit: 3,
+  },
 };
 
 const payload = {
   subject: caller,
   policy,
   agent,
-  input: { incidentId: 'inc-1' },
+  request,
+  context: acceptInput.context,
   deadline,
 };
 
@@ -99,6 +111,9 @@ export function dispatchPortContract(create: () => DispatchHarness): void {
     releaseClearsLease(create);
     cancelledClaim(create);
     badLeaseWritesNothing(create);
+    fencedTransitions(create);
+    blockedClaim(create);
+    expiredTransition(create);
   });
 }
 
@@ -133,17 +148,29 @@ function omitsMissingInput(create: () => DispatchHarness): void {
     const { dispatch } = opened(create);
     await dispatch.accept({ ...acceptInput, idempotencyKey: 'bare-key', request: bareRequest });
     const claimed = await dispatch.claim('worker-a', leaseMs);
-    expect(claimed?.payload).toEqual({ subject: caller, policy, agent, deadline });
+    expect(claimed?.payload).toEqual({
+      subject: caller,
+      policy,
+      agent,
+      deadline,
+      request: bareRequest,
+      context: acceptInput.context,
+    });
   });
 }
 
 function conflictingDeadline(create: () => DispatchHarness): void {
-  it('rejects a different deadline for the same idempotency key', async () => {
+  it('retains the original payload for a fresh deadline and policy decision', async () => {
     const { harness, dispatch } = opened(create);
     const first = await dispatch.accept(acceptInput);
-    await expect(
-      dispatch.accept({ ...acceptInput, deadline: otherDeadline }),
-    ).rejects.toBeInstanceOf(LedgerConflict);
+    expect(
+      await dispatch.accept({
+        ...acceptInput,
+        deadline: otherDeadline,
+        policy: { ...policy, decisionId: '00000000-0000-4000-8000-000000000002' },
+      }),
+    ).toEqual(first);
+    expect((await dispatch.claim('worker', leaseMs))?.payload).toEqual(payload);
     expect(await harness.counts()).toEqual(oneEach);
     expect(await dispatch.accept(acceptInput)).toEqual(first);
   });
@@ -380,4 +407,95 @@ function transitionEvent(eventId: string, taskId: string): OutboxEvent {
       prevDigest: null,
     },
   };
+}
+
+function fencedTransitions(create: () => DispatchHarness): void {
+  it('atomically rejects a reclaimed worker transition and receipt', async () => {
+    const { harness, dispatch, ledger } = opened(create);
+    const accepted = await dispatch.accept(acceptInput);
+    const first = asProof(await dispatch.claim('old', leaseMs));
+    const running = await ledger.transition({
+      subject: caller,
+      taskId: accepted.taskId,
+      expectedVersion: 1,
+      to: 'RUNNING',
+      lease: first,
+      event: transitionEvent('running', accepted.taskId),
+    });
+    harness.setNow(leaseEnd);
+    const second = asProof(await dispatch.claim('new', leaseMs));
+    const input = {
+      subject: caller,
+      taskId: accepted.taskId,
+      expectedVersion: running.version,
+      to: 'COMPLETED' as const,
+      event: transitionEvent('completed', accepted.taskId),
+      receipt: { ref: 'original-ticket', digestSha256: 'a'.repeat(64) },
+    };
+    await expect(ledger.transition({ ...input, lease: first })).rejects.toBeInstanceOf(
+      LedgerConflict,
+    );
+    await expect(ledger.transition(input)).rejects.toBeInstanceOf(LedgerConflict);
+    await expect(ledger.transition({ ...input, to: 'CANCELLED' })).rejects.toBeInstanceOf(
+      LedgerConflict,
+    );
+    expect(await ledger.readOutbox('completed')).toBeUndefined();
+    expect(await ledger.readReceipt(caller, accepted.taskId)).toBeUndefined();
+    expect(await ledger.transition({ ...input, lease: second })).toMatchObject({
+      status: 'COMPLETED',
+      version: 3,
+    });
+    expect(await harness.restart().ledger.readReceipt(caller, accepted.taskId)).toEqual(
+      input.receipt,
+    );
+    expect(await ledger.events('bob', accepted.taskId)).toEqual([]);
+    expect(await harness.restart().ledger.events(caller, accepted.taskId)).toHaveLength(3);
+  });
+}
+
+function blockedClaim(create: () => DispatchHarness): void {
+  it('parks BLOCKED_AUTH until an explicit authorized resume', async () => {
+    const { dispatch, ledger } = opened(create);
+    const accepted = await dispatch.accept(acceptInput);
+    const lease = asProof(await dispatch.claim('worker', leaseMs));
+    await ledger.transition({
+      subject: caller,
+      taskId: accepted.taskId,
+      expectedVersion: 1,
+      to: 'RUNNING',
+      lease,
+      event: transitionEvent('running', accepted.taskId),
+    });
+    await ledger.transition({
+      subject: caller,
+      taskId: accepted.taskId,
+      expectedVersion: 2,
+      to: 'BLOCKED_AUTH',
+      lease,
+      event: transitionEvent('blocked', accepted.taskId),
+    });
+    await dispatch.release(lease);
+    expect(await dispatch.claim('another', leaseMs)).toBeUndefined();
+  });
+}
+
+function expiredTransition(create: () => DispatchHarness): void {
+  it('rejects an expired lease even before another claim', async () => {
+    const { harness, dispatch, ledger } = opened(create);
+    const accepted = await dispatch.accept(acceptInput);
+    const lease = asProof(await dispatch.claim('old', leaseMs));
+    harness.setNow(leaseEnd);
+    await expect(
+      ledger.transition({
+        subject: caller,
+        taskId: accepted.taskId,
+        expectedVersion: 1,
+        to: 'RUNNING',
+        lease,
+        event: transitionEvent('expired', accepted.taskId),
+      }),
+    ).rejects.toBeInstanceOf(LedgerConflict);
+    expect(await ledger.readOutbox('expired')).toBeUndefined();
+    expect(await ledger.read(caller, accepted.taskId)).toMatchObject({ version: 1 });
+  });
 }

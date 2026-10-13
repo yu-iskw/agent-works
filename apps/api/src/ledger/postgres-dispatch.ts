@@ -86,7 +86,7 @@ export function createPostgresDispatchPort(
       return ready.then(() => releaseTask(sql, lease));
     },
     scheduleRetry(lease, at, attempt) {
-      return ready.then(() => retryTask(sql, lease, at, attempt));
+      return ready.then(() => retryTask(sql, now, lease, at, attempt));
     },
   };
 }
@@ -146,25 +146,24 @@ async function claimTask(
   leaseMs: number,
 ): Promise<ClaimedDelivery | undefined> {
   requireLeaseMs(leaseMs);
-  const at = new Date(now().getTime());
-  return sql.begin((tx) => scanClaim(tx, at, workerId, leaseMs));
+  return sql.begin((tx) => scanClaim(tx, now, workerId, leaseMs));
 }
 
 async function scanClaim(
   tx: postgres.TransactionSql,
-  at: Date,
+  now: () => Date,
   workerId: string,
   leaseMs: number,
 ): Promise<ClaimedDelivery | undefined> {
   const skipped: string[] = [];
   for (;;) {
-    const locked = await lockRunnable(tx, at, skipped);
+    const locked = await lockRunnable(tx, new Date(now().getTime()), skipped);
     if (locked === undefined) return undefined;
     const decision = applyLease(
       locked.row,
       locked.status,
       { kind: 'claim', workerId, leaseMs },
-      at,
+      new Date(now().getTime()),
     );
     if (decision.kind === 'ok') {
       await saveDelivery(tx, decision.row);
@@ -199,6 +198,7 @@ async function releaseTask(sql: postgres.Sql, lease: LeaseProof): Promise<LeaseP
 
 async function retryTask(
   sql: postgres.Sql,
+  now: () => Date,
   lease: LeaseProof,
   at: string,
   attempt: number,
@@ -210,7 +210,7 @@ async function retryTask(
     sql,
     proof.taskId,
     { kind: 'scheduleRetry', lease: proof, at, attempt },
-    (locked) => locked.availableAt,
+    () => new Date(now().getTime()),
   );
   return proofFrom(row, proof.workerId);
 }
@@ -270,14 +270,19 @@ async function lockRunnable(
     join tasks t on t.id = d.task_id
     where d.available_at <= ${at}
       and (d.lease_until is null or d.lease_until <= ${at})
+      and t.status <> 'BLOCKED_AUTH'
       and t.status <> all(${pgTextArray(terminalStatuses)}::text[])
       and d.task_id <> all(${pgTextArray(skipped)}::text[])
     order by d.available_at, d.task_id
     limit 1
-    for update of d, t skip locked
+    for update of d skip locked
   `;
   if (rows.length === 0) return undefined;
-  return lockedFrom(rows[0]);
+  const locked = lockedFrom(rows[0]);
+  const tasks = await tx<
+    { status: string }[]
+  >`select status from tasks where id = ${locked.row.taskId} for update`;
+  return { row: locked.row, status: taskStatusSchema.parse(tasks[0].status) };
 }
 
 async function lockDelivery(tx: postgres.TransactionSql, taskId: string): Promise<LockedDelivery> {
@@ -287,10 +292,14 @@ async function lockDelivery(tx: postgres.TransactionSql, taskId: string): Promis
     from task_deliveries d
     join tasks t on t.id = d.task_id
     where d.task_id = ${taskId}
-    for update of d, t
+    for update of d
   `;
   if (rows.length === 0) throw taskMissing();
-  return lockedFrom(rows[0]);
+  const locked = lockedFrom(rows[0]);
+  const tasks = await tx<
+    { status: string }[]
+  >`select status from tasks where id = ${locked.row.taskId} for update`;
+  return { row: locked.row, status: taskStatusSchema.parse(tasks[0].status) };
 }
 
 function lockedFrom(row: DeliverySql): LockedDelivery {

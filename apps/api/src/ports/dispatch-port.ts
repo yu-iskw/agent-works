@@ -5,6 +5,7 @@ import {
   outboxEventSchema,
   policyDecisionSchema,
   principalSchema,
+  searchContextSchema,
   taskSubmitSchema,
   terminalStatuses,
 } from '@agent-works/domain';
@@ -21,6 +22,7 @@ import type {
   OutboxEvent,
   PolicyDecision,
   Principal,
+  SearchContext,
   Task,
   TaskAccepted,
   TaskStatus,
@@ -48,6 +50,7 @@ export type AcceptTask = {
   readonly policy: PolicyDecision;
   readonly agent: Principal;
   readonly deadline: string;
+  readonly context: SearchContext;
 };
 
 export type ParsedAccept = {
@@ -57,6 +60,7 @@ export type ParsedAccept = {
   readonly policy: PolicyDecision;
   readonly agent: Principal;
   readonly deadline: string;
+  readonly context: SearchContext;
   readonly payload: DeliveryPayload;
   readonly digest: string;
 };
@@ -134,8 +138,25 @@ export function parseAccept(input: AcceptTask): ParsedAccept {
   const policy = policyDecisionSchema.parse(input.policy);
   const agent = principalSchema.parse(input.agent);
   const deadline = instant.parse(input.deadline);
-  const payload = deliveryPayload(payloadValue(input.subject, request, policy, agent, deadline));
-  const digest = canonicalPayloadSha256({ request, policy, agent, deadline });
+  const context = searchContextSchema.parse(input.context);
+  if (context.userSubject !== input.subject) throw new RangeError('subject');
+  const payload = deliveryPayload({
+    subject: input.subject,
+    request,
+    policy,
+    agent,
+    deadline,
+    context,
+  });
+  const stablePolicy =
+    policy.effect === 'allow'
+      ? { effect: policy.effect, policyVersion: policy.policyVersion }
+      : {
+          effect: policy.effect,
+          policyVersion: policy.policyVersion,
+          failedClauses: policy.failedClauses,
+        };
+  const digest = canonicalPayloadSha256({ request, policy: stablePolicy, agent });
   return {
     subject: input.subject,
     idempotencyKey: input.idempotencyKey,
@@ -143,6 +164,7 @@ export function parseAccept(input: AcceptTask): ParsedAccept {
     policy,
     agent,
     deadline,
+    context,
     payload,
     digest,
   };
@@ -233,7 +255,7 @@ export function applyLease(
     case 'release':
       return decideRelease(row, command);
     case 'scheduleRetry':
-      return decideRetry(row, status, command);
+      return decideRetry(row, status, command, now);
     default: {
       const unexpected: never = command;
       return unexpected;
@@ -288,8 +310,14 @@ function decideRetry(
   row: DeliveryRow,
   status: TaskStatus,
   command: Extract<LeaseCommand, { kind: 'scheduleRetry' }>,
+  now: Date,
 ): LeaseDecision {
-  if (!sameHolder(row, command.lease) || terminalStatuses.includes(status)) {
+  if (
+    !sameHolder(row, command.lease) ||
+    !liveLease(row, now) ||
+    terminalStatuses.includes(status) ||
+    status === 'BLOCKED_AUTH'
+  ) {
     return { kind: 'conflict' };
   }
   const token = fencingToken(row.fencingToken + 1);
@@ -309,14 +337,17 @@ function decideRetry(
 function canClaim(row: DeliveryRow, status: TaskStatus, now: Date): boolean {
   if (row.availableAt.getTime() > now.getTime()) return false;
   if (liveLease(row, now)) return false;
-  return !terminalStatuses.includes(status);
+  return !terminalStatuses.includes(status) && status !== 'BLOCKED_AUTH';
 }
 
 function liveLease(row: DeliveryRow, now: Date): boolean {
   return row.leaseUntil !== undefined && row.leaseUntil.getTime() > now.getTime();
 }
 
-function sameHolder(row: DeliveryRow, lease: LeaseProof): boolean {
+function sameHolder(
+  row: Pick<DeliveryRow, 'workerId' | 'fencingToken'>,
+  lease: LeaseProof,
+): boolean {
   return row.workerId === lease.workerId && row.fencingToken === lease.fencingToken;
 }
 
@@ -340,19 +371,7 @@ function definedRequest(request: TaskSubmit): TaskSubmit {
   };
 }
 
-function payloadValue(
-  subject: string,
-  request: TaskSubmit,
-  policy: PolicyDecision,
-  agent: Principal,
-  deadline: string,
-): unknown {
-  const base = { subject, policy, agent, deadline };
-  if (request.input === undefined) return base;
-  return { ...base, input: request.input };
-}
-
-function principalRef(agent: Principal): string {
+export function principalRef(agent: Principal): string {
   switch (agent.kind) {
     case 'human':
       return `human:${agent.sub}`;
@@ -365,4 +384,16 @@ function principalRef(agent: Principal): string {
       return unexpected;
     }
   }
+}
+
+export function assertDeliveryLease(
+  row: Pick<DeliveryRow, 'workerId' | 'fencingToken' | 'leaseUntil'> | undefined,
+  lease: LeaseProof | undefined,
+  taskId: string,
+  now: Date,
+): void {
+  if (row === undefined || lease === undefined || lease.taskId !== taskId) throw leaseConflict();
+  if (!sameHolder(row, lease)) throw leaseConflict();
+  if (row.leaseUntil === undefined || row.leaseUntil.getTime() <= now.getTime())
+    throw leaseConflict();
 }

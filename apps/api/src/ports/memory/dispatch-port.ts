@@ -75,7 +75,7 @@ export function createMemoryDispatchPort(
       return settle(() => releaseTask(state, lease));
     },
     scheduleRetry(lease, at, attempt) {
-      return settle(() => retryTask(state, lease, at, attempt));
+      return settle(() => retryTask(state, clock(), lease, at, attempt));
     },
   };
 }
@@ -180,6 +180,7 @@ function releaseTask(state: MemoryLedgerState, lease: LeaseProof): LeaseProof {
 
 function retryTask(
   state: MemoryLedgerState,
+  now: Date,
   lease: LeaseProof,
   at: string,
   attempt: number,
@@ -191,7 +192,7 @@ function retryTask(
     state,
     proof.taskId,
     { kind: 'scheduleRetry', lease: proof, at, attempt },
-    proofAvailableAt(state, proof.taskId),
+    now,
     (row) => proofFrom(row, proof.workerId),
   );
 }

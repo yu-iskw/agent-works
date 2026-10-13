@@ -1,4 +1,4 @@
-import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 
 import { approvalsDecideSlot } from './approvals-decide.js';
 import { approvalsReadSlot } from './approvals-read.js';
@@ -21,6 +21,7 @@ import type { AskDeps } from './ask.js';
 import type { OAuthConnectionsReadDeps } from './oauth-connections-read.js';
 import type { PatternSlot, RouteEnv } from './slot.js';
 import type { TaskRoutes } from './tasks.js';
+import type { DispatchPort } from '../ports/dispatch-port.js';
 import type { SkillRegistry } from '../skills/registry.js';
 
 const patternSlots: readonly PatternSlot[] = [
@@ -38,6 +39,7 @@ const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 
 export type RouteDeps = AskDeps & {
   readonly tasks?: TaskRoutes;
+  readonly dispatch?: DispatchPort;
   readonly skills?: SkillRegistry;
   readonly oauthConnections?: Omit<OAuthConnectionsReadDeps, 'verify'>;
 };
@@ -52,9 +54,16 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       verify: deps.verify,
     });
   }
+  const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??
-    createTaskRoutes(deps.wire?.ledger ?? createMemoryLedgerPort(), deps.verify, deps.skills, deps);
+    createTaskRoutes(
+      deps.dispatch === undefined ? memory.ledger : (deps.wire?.ledger ?? memory.ledger),
+      deps.verify,
+      deps.skills,
+      deps,
+      deps.dispatch ?? memory.dispatch,
+    );
   const routes = new Map<string, Route>([
     ['skills-list', createSkillsListRoute(deps.verify, deps.skills)],
     ['tasks-submit', tasks.submit],

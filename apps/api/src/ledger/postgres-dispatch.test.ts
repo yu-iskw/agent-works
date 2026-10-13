@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { acceptInput, dispatchPortContract } from '../ports/dispatch-port.contract.js';
 import { proofOf } from '../ports/dispatch-port.js';
 import { LedgerConflict } from '../ports/ledger-port.js';
+import { taskDispatcherContract } from '../skills/task-dispatcher.contract.js';
 
 import { openSql, startDisposablePostgres } from './disposable-postgres.js';
 import { createPostgresDispatchHarness, createPostgresDispatchPort } from './postgres-dispatch.js';
@@ -33,6 +34,7 @@ beforeEach(async () => {
 const startedAt = '2026-10-10T10:00:00.000Z';
 
 dispatchPortContract(() => createPostgresDispatchHarness(requireSql()));
+taskDispatcherContract(() => createPostgresDispatchHarness(requireSql()));
 
 it('accepts through a port created without a fault seam', async () => {
   const accepted = await createPostgresDispatchPort(requireSql(), () => new Date(startedAt)).accept(
@@ -62,7 +64,7 @@ it.each([
       const rows = await query<{ count: number }[]>`
         select count(*)::int as count from pg_stat_activity
         where datname = current_database() and wait_event_type = 'Lock'
-          and query like '%for update of d, t%'
+          and query like '%for update of d%'
       `;
       expect(rows[0].count).toBe(1);
     });

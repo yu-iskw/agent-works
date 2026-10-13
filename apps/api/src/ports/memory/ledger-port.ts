@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { canonicalPayloadSha256, externalWriteReceipt, transition } from '@agent-works/domain';
 
+import { assertDeliveryLease } from '../dispatch-port.js';
 import {
   acceptedTask,
   bodyConflict,
@@ -124,6 +125,14 @@ export function createMemoryLedgerPort(
     readOutbox(eventId) {
       return Promise.resolve(readEvent(state, eventId));
     },
+    events(subject, taskId) {
+      if (readTask(state, subject, taskId) === undefined) return Promise.resolve([]);
+      return Promise.resolve(
+        structuredClone(
+          [...state.snapshot.events.values()].filter((item) => item.event.taskId === taskId),
+        ),
+      );
+    },
     transition(input) {
       return settle(() => transitionTask(state, now, input));
     },
@@ -188,6 +197,13 @@ function transitionTask(state: MemoryLedgerState, now: () => Date, input: Transi
   return commitSnapshot(state, (current) => {
     const task = current.tasks.get(input.taskId);
     if (task === undefined || task.createdBySub !== input.subject) throw taskMissing();
+    const delivery = current.deliveries.get(input.taskId);
+    if (
+      input.lease !== undefined ||
+      (delivery !== undefined && (input.to !== 'CANCELLED' || receipt !== undefined))
+    ) {
+      assertDeliveryLease(delivery, input.lease, input.taskId, now());
+    }
     if (task.version !== input.expectedVersion) throw new ConcurrentUpdate();
     const updated = { ...transition(task, input.to), updatedAt: at };
     const next = cloneSnapshot(current);

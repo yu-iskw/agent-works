@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Unavailable } from '../auth/iap.js';
-import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { createTaskRoutes } from '../routes/tasks.js';
 import { authorizedCaller, taskAuthorization } from '../testing/task-authorization.js';
 
 import { createIncidentSkill } from './incident.js';
 import { createSkillRegistry } from './registry.js';
+import { createTaskDispatcher } from './task-dispatcher.js';
 
 import type { Caller } from '../auth/iap.js';
 import type { DeliverInput, Delivery } from '@agent-works/incident-analysis';
@@ -157,7 +158,7 @@ describe('incident adapter', () => {
     expect(deliver).not.toHaveBeenCalled();
   });
 
-  it('allows retry after a delivery timeout using the same task id', async () => {
+  it('accepts independently of a delivery timeout', async () => {
     const deliver = vi
       .fn<(input: DeliverInput) => Promise<Delivery>>()
       .mockResolvedValueOnce({ kind: 'timeout' })
@@ -172,11 +173,14 @@ describe('incident adapter', () => {
         deliver,
       ),
     ]);
+    const ports = createMemoryTaskPorts();
+    const worker = createTaskDispatcher({ ...ports, registry, retryMs: 10 });
     const routes = createTaskRoutes(
-      createMemoryLedgerPort(),
+      ports.ledger,
       () => Promise.resolve({ sub: 'alice' } as Caller),
       registry,
       taskAuthorization,
+      ports.dispatch,
     );
     const request = {
       method: 'POST',
@@ -184,9 +188,12 @@ describe('incident adapter', () => {
       headers: { 'idempotency-key': 'key-1' },
       body: Buffer.from(JSON.stringify({ kind: 'submit', ...submission })),
     };
-    expect(await routes.submit(request)).toEqual({ status: 503, body: { error: 'unavailable' } });
-    expect((await routes.submit(request)).status).toBe(200);
-    expect(deliver.mock.calls[0][0].deliveryId).toBe(deliver.mock.calls[1][0].deliveryId);
+    const reply = await routes.submit(request);
+    expect(reply.status).toBe(200);
+    expect(deliver).not.toHaveBeenCalled();
+    await worker.runOnce();
+    expect((await routes.submit(request)).body).toEqual(reply.body);
+    expect(deliver).toHaveBeenCalledOnce();
   });
   it('does not reset the deadline on retry', async () => {
     const deliver = vi

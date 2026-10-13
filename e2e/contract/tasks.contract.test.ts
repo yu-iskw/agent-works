@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import * as z from 'zod';
 
-import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
+import { createMemoryTaskPorts } from '../../apps/api/src/ports/memory/task-ports.js';
 import { createSkillRegistry } from '../../apps/api/src/skills/registry.js';
+import { createTaskDispatcher } from '../../apps/api/src/skills/task-dispatcher.js';
 import { startStack } from '../../apps/api/src/testing/stack.js';
 import { taskAuthorization } from '../../apps/api/src/testing/task-authorization.js';
 import { appendResult } from '../results.mjs';
@@ -31,27 +32,39 @@ const submit = {
 };
 
 let stack: Stack;
+const ports = createMemoryTaskPorts();
+let worker: ReturnType<typeof createTaskDispatcher>;
+let cancelStarted = () => {};
+let finishCancelled = () => {};
 
 beforeAll(async () => {
   process.env.AW_TASKS = 'real';
   process.env.AW_TASKS_READ = 'real';
   process.env.AW_TASKS_EVENTS = 'real';
-  stack = await startStack({
-    skills: createSkillRegistry([
-      {
-        manifest: {
-          id: 'contract-test',
-          version: '1',
-          state: 'PUBLISHED',
-          tools: ['drive.search'],
-        },
-        validate: () => true,
-        dispatch: () => Promise.resolve(),
+  const skills = createSkillRegistry([
+    {
+      manifest: { id: 'contract-test', version: '1', state: 'PUBLISHED', tools: ['drive.search'] },
+      validate: () => true,
+      dispatch: (request) => {
+        if (request.objective === 'fail') return Promise.reject(new Error('model offline'));
+        if (request.objective === 'cancel') {
+          cancelStarted();
+          return new Promise<void>((resolve) => {
+            finishCancelled = resolve;
+          });
+        }
+        return Promise.resolve();
       },
-    ]),
+    },
+  ]);
+  worker = createTaskDispatcher({ ...ports, registry: skills, maxAttempts: 1 });
+  process.env.AW_TASKS_CANCEL = 'real';
+  stack = await startStack({
+    skills,
+    dispatch: ports.dispatch,
     wire: {
       ...taskAuthorization.wire,
-      ledger: createMemoryLedgerPort(),
+      ledger: ports.ledger,
       search: { search: () => Promise.resolve([]) },
     },
   });
@@ -61,10 +74,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await worker?.stop();
   await stack?.close();
   delete process.env.AW_TASKS;
   delete process.env.AW_TASKS_READ;
   delete process.env.AW_TASKS_EVENTS;
+  delete process.env.AW_TASKS_CANCEL;
 });
 
 it('task.lifecycle', async () => {
@@ -76,19 +91,20 @@ it('task.lifecycle', async () => {
   expect(accepted).toMatchObject({ kind: 'accepted', status: 'QUEUED' });
   const taskId = taskIdOf(accepted);
 
+  expect(await worker.runOnce()).toBe(true);
   const read = await getJson(`/v1/tasks/${taskId}`, 'alice');
   expect(read.status).toBe(200);
   expect(read.body).toMatchObject({
     id: taskId,
-    status: 'QUEUED',
+    status: 'COMPLETED',
     createdBySub: 'alice',
-    version: 1,
+    version: 3,
   });
 
   const events = await getJson(`/v1/tasks/${taskId}/events`, 'alice');
   expect(events.status).toBe(200);
-  expect(events.body).toEqual({
-    events: [
+  expect(events.body).toMatchObject({
+    events: expect.arrayContaining([
       expect.objectContaining({
         destination: 'work',
         event: expect.objectContaining({
@@ -98,7 +114,9 @@ it('task.lifecycle', async () => {
           outcome: 'SUCCESS',
         }),
       }),
-    ],
+      expect.objectContaining({ event: expect.objectContaining({ eventType: 'task.running' }) }),
+      expect.objectContaining({ event: expect.objectContaining({ eventType: 'task.completed' }) }),
+    ]),
   });
 
   const replay = await postTask(submit, 'alice', key);
@@ -202,3 +220,77 @@ function taskIdOf(body: unknown): string {
   if (typeof taskId !== 'string') throw new Error('taskId');
   return taskId;
 }
+
+it('task.failed-lifecycle', async () => {
+  const created = await postTask({ ...submit, objective: 'fail' }, 'alice', randomUUID());
+  const taskId = taskIdOf(created.body);
+  expect(await worker.runOnce()).toBe(true);
+  expect((await getJson(`/v1/tasks/${taskId}`, 'alice')).body).toMatchObject({
+    status: 'FAILED',
+    version: 3,
+  });
+  expect((await getJson(`/v1/tasks/${taskId}/events`, 'alice')).body).toMatchObject({
+    events: expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({ eventType: 'task.failed', outcome: 'FAILURE' }),
+      }),
+    ]),
+  });
+});
+
+it('task.cancel-lifecycle rejects late success', async () => {
+  const created = await postTask({ ...submit, objective: 'cancel' }, 'alice', randomUUID());
+  const taskId = taskIdOf(created.body);
+  const started = new Promise<void>((resolve) => {
+    cancelStarted = resolve;
+  });
+  const running = worker.runOnce();
+  await started;
+  try {
+    const cancelled = await fetch(`${stack.iapUrl}/v1/tasks/${taskId}:cancel`, {
+      method: 'POST',
+      headers: { 'x-fake-user': 'alice', 'idempotency-key': randomUUID() },
+    });
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toMatchObject({ status: 'CANCELLED' });
+  } finally {
+    finishCancelled();
+    await running;
+  }
+  expect((await getJson(`/v1/tasks/${taskId}`, 'alice')).body).toMatchObject({
+    status: 'CANCELLED',
+    version: 3,
+  });
+  expect(await ports.ledger.readOutbox(`dispatch:${taskId}:3`)).toBeUndefined();
+});
+
+it('task.local-load submit-to-persisted-ID p95 is below 3 seconds', async () => {
+  const durations: number[] = [];
+  const ids: string[] = [];
+  for (let batch = 0; batch < 5; batch += 1) {
+    await Promise.all(
+      Array.from({ length: 8 }, async () => {
+        const start = performance.now();
+        const accepted = await postTask(submit, 'alice', randomUUID());
+        const taskId = taskIdOf(accepted.body);
+        const persisted = await ports.ledger.read('alice', taskId);
+        durations.push(performance.now() - start);
+        expect(accepted.status).toBe(200);
+        expect(persisted).toMatchObject({ id: taskId, status: 'QUEUED' });
+        ids.push(taskId);
+      }),
+    );
+  }
+  expect(new Set(ids).size).toBe(40);
+  durations.sort((left, right) => left - right);
+  const p95 = durations[Math.ceil(durations.length * 0.95) - 1];
+  expect(p95).toBeLessThan(3000);
+  console.info(`task.local-load: 40 submissions, concurrency 8, p95 ${p95.toFixed(1)} ms`);
+  appendResult({
+    id: 'task.local-load',
+    status: 'passed',
+    samples: 40,
+    concurrency: 8,
+    p95Ms: p95,
+  });
+});
