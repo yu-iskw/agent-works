@@ -1,0 +1,11 @@
+[
+  {
+    "status": "RUNNING",
+    "stepId": "write-draft",
+    "receipt": "draft:external-1"
+  },
+  {
+    "status": "COMPLETED",
+    "stepId": "done"
+  }
+]

@@ -1,0 +1,108 @@
+{
+  "main": {
+    "params": ["input"],
+    "steps": [
+      {
+        "create_callback": {
+          "call": "events.create_callback_endpoint",
+          "args": {
+            "http_callback_method": "POST"
+          },
+          "result": "callback"
+        }
+      },
+      {
+        "tick": {
+          "try": {
+            "call": "http.post",
+            "args": {
+              "url": "https://broker.example.test/workflow/tick",
+              "auth": {
+                "type": "OIDC",
+                "audience": "https://broker.example.test"
+              },
+              "body": {
+                "taskId": "${input.taskId}"
+              },
+              "timeout": 30
+            },
+            "result": "decision"
+          },
+          "retry": {
+            "predicate": "${http.default_retry_predicate}",
+            "max_retries": 3,
+            "backoff": {
+              "initial_delay": 1,
+              "max_delay": 8,
+              "multiplier": 2
+            }
+          }
+        }
+      },
+      {
+        "dispatch": {
+          "switch": [
+            {
+              "condition": "${decision.body.action == \"done\"}",
+              "next": "finish"
+            },
+            {
+              "condition": "${decision.body.action == \"wait\"}",
+              "next": "wait"
+            },
+            {
+              "condition": "${decision.body.action == \"continue\"}",
+              "next": "tick"
+            }
+          ],
+          "next": "invalid_decision"
+        }
+      },
+      {
+        "invalid_decision": {
+          "raise": "invalid broker decision"
+        }
+      },
+      {
+        "wait": {
+          "try": {
+            "call": "events.await_callback",
+            "args": {
+              "callback": "${callback}",
+              "timeout": 60
+            },
+            "result": "wake"
+          },
+          "except": {
+            "as": "error",
+            "steps": [
+              {
+                "timeout_only": {
+                  "switch": [
+                    {
+                      "condition": "${\"TimeoutError\" in error.tags}",
+                      "next": "tick"
+                    }
+                  ]
+                }
+              },
+              {
+                "rethrow": {
+                  "raise": "${error}"
+                }
+              }
+            ]
+          },
+          "next": "tick"
+        }
+      },
+      {
+        "finish": {
+          "return": {
+            "taskId": "${input.taskId}"
+          }
+        }
+      }
+    ]
+  }
+}
