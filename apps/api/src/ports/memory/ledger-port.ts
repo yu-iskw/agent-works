@@ -1,14 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  canonicalPayloadSha256,
-  externalWriteReceipt,
-  taskAcceptedSchema,
-  taskSchema,
-  transition,
-} from '@agent-works/domain';
+import { canonicalPayloadSha256, externalWriteReceipt, transition } from '@agent-works/domain';
 
-import { ConcurrentUpdate, LedgerConflict } from '../ledger-port.js';
+import { bodyConflict } from '../dispatch-port.js';
+import { acceptedTask, ConcurrentUpdate, LedgerConflict, queuedTask, taskMissing } from '../ledger-port.js';
 
 import type { DeliveryRow } from '../dispatch-port.js';
 import type { TaskLedger, TransitionInput } from '../ledger-port.js';
@@ -21,11 +16,9 @@ import type {
 } from '@agent-works/domain';
 
 const memoryVersion = 'memory';
-const changedBody = 'task body changed';
 const changedEvent = 'outbox event changed';
-const missingTask = 'task not found';
 
-export type MemoryClaim = {
+type MemoryClaim = {
   readonly digest: string;
   readonly accepted: TaskAccepted;
 };
@@ -108,32 +101,6 @@ export function writeMemoryOutbox(draft: MemoryDraft, event: OutboxEvent): void 
   throw new LedgerConflict(changedEvent);
 }
 
-export function memoryTask(taskId: string, subject: string, request: TaskSubmit, at: string): Task {
-  return taskSchema.parse({
-    id: taskId,
-    createdBySub: subject,
-    status: 'QUEUED',
-    objectiveDigest: canonicalPayloadSha256(request.objective),
-    skillVersion: request.skillId,
-    agentVersion: memoryVersion,
-    policyVersion: memoryVersion,
-    budget: request.executionPolicy.budgetUsd,
-    version: 1,
-    createdAt: at,
-    updatedAt: at,
-  });
-}
-
-export function memoryAccepted(task: Task): TaskAccepted {
-  return taskAcceptedSchema.parse({
-    taskId: task.id,
-    status: 'QUEUED',
-    submittedAt: task.createdAt,
-    statusUrl: `/v1/tasks/${task.id}`,
-    traceId: task.id.replaceAll('-', ''),
-  });
-}
-
 export function createMemoryLedgerPort(
   now: () => Date = () => new Date(),
   state: MemoryLedgerState = createMemoryLedgerState(),
@@ -172,12 +139,12 @@ function submitTask(
   return commitSnapshot(state, (current) => {
     const existing = current.claims.get(key);
     if (existing !== undefined) {
-      if (existing.digest !== digest) throw new LedgerConflict(changedBody);
+      if (existing.digest !== digest) throw bodyConflict();
       return { next: current, value: existing.accepted };
     }
     const at = now().toISOString();
-    const task = memoryTask(randomUUID(), subject, request, at);
-    const accepted = memoryAccepted(task);
+    const task = queuedTask(randomUUID(), subject, request, at, memoryVersion);
+    const accepted = acceptedTask(task);
     const next = cloneSnapshot(current);
     next.claims.set(key, { digest, accepted });
     next.tasks.set(task.id, task);
@@ -194,14 +161,11 @@ function readTask(state: MemoryLedgerState, subject: string, taskId: string): Ta
 function appendEvent(state: MemoryLedgerState, event: OutboxEvent): 'recorded' | 'replay' {
   return commitSnapshot(state, (current) => {
     const prior = current.events.get(event.event.eventId);
-    if (prior !== undefined) {
-      if (canonicalPayloadSha256(prior) !== canonicalPayloadSha256(event)) {
-        throw new LedgerConflict(changedEvent);
-      }
+    if (prior !== undefined && canonicalPayloadSha256(prior) === canonicalPayloadSha256(event)) {
       return { next: current, value: 'replay' };
     }
     const next = cloneSnapshot(current);
-    next.events.set(event.event.eventId, structuredClone(event));
+    writeMemoryOutbox(next, event);
     return { next, value: 'recorded' };
   });
 }
@@ -218,7 +182,7 @@ function transitionTask(state: MemoryLedgerState, now: () => Date, input: Transi
   return commitSnapshot(state, (current) => {
     const task = current.tasks.get(input.taskId);
     if (task === undefined || task.createdBySub !== input.subject)
-      throw new LedgerConflict(missingTask);
+      throw taskMissing();
     if (task.version !== input.expectedVersion) throw new ConcurrentUpdate();
     const updated = { ...transition(task, input.to), updatedAt: at };
     const next = cloneSnapshot(current);

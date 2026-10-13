@@ -9,6 +9,7 @@ import {
 
 import {
   applyLease,
+  createDispatchHarness,
   DispatchInjectedFault,
   leaseConflict,
   parseAccept,
@@ -19,15 +20,13 @@ import {
   requireProof,
   submittedEvent,
 } from '../ports/dispatch-port.js';
-import { LedgerConflict } from '../ports/ledger-port.js';
+import { acceptedTask, queuedTask, taskMissing } from '../ports/ledger-port.js';
 
 import {
   createPostgresLedgerPort,
   insertTask,
-  insertedTask,
   replayClaim,
   taskLedgerReady,
-  toAccepted,
   writeOutbox,
 } from './postgres-ledger.js';
 
@@ -48,8 +47,7 @@ import type {
 } from '@agent-works/domain';
 import type postgres from 'postgres';
 
-const missingTask = 'task not found';
-const origin = '2026-10-10T10:00:00.000Z';
+const ledgerVersion = 'postgres';
 
 type DeliverySql = {
   task_id: string;
@@ -93,26 +91,13 @@ export function createPostgresDispatchPort(
 }
 
 export function createPostgresDispatchHarness(sql: postgres.Sql): DispatchHarness {
-  const seam: DispatchSeam = { failAfterTaskInsert: false };
-  let instant = new Date(origin);
-  const now = () => instant;
-  const open = () => ({
-    dispatch: createPostgresDispatchPort(sql, now, seam),
-    ledger: createPostgresLedgerPort(sql, now),
-  });
-  return {
-    open,
-    restart: open,
-    setNow(iso) {
-      instant = new Date(iso);
-    },
-    failNextAcceptAfterTaskInsert() {
-      seam.failAfterTaskInsert = true;
-    },
-    counts() {
-      return countRows(sql);
-    },
-  };
+  return createDispatchHarness(
+    (now, seam) => ({
+      dispatch: createPostgresDispatchPort(sql, now, seam),
+      ledger: createPostgresLedgerPort(sql, now),
+    }),
+    () => countRows(sql),
+  );
 }
 
 async function acceptTask(
@@ -134,7 +119,7 @@ async function acceptTask(
     if (claimed.length === 0) {
       return replayClaim(tx, parsed.subject, parsed.idempotencyKey, parsed.digest);
     }
-    const task = insertedTask(taskId, parsed.subject, parsed.request, at);
+    const task = queuedTask(taskId, parsed.subject, parsed.request, at.toISOString(), ledgerVersion);
     await insertTask(tx, task);
     if (seam?.failAfterTaskInsert) {
       seam.failAfterTaskInsert = false;
@@ -143,7 +128,7 @@ async function acceptTask(
     const event = submittedEvent(parsed, task);
     await writeOutbox(tx, event, canonicalPayloadSha256(event));
     await insertDelivery(tx, task.id, parsed.payload, at);
-    return toAccepted(task);
+    return acceptedTask(task);
   });
 }
 
@@ -261,8 +246,9 @@ async function countRows(sql: postgres.Sql): Promise<{
       (select count(*)::int from outbox_events) as outbox,
       (select count(*)::int from task_deliveries) as deliveries
   `;
-  if (rows.length === 0) return { tasks: 0, outbox: 0, deliveries: 0 };
-  return { tasks: rows[0].tasks, outbox: rows[0].outbox, deliveries: rows[0].deliveries };
+  const row = rows.at(0);
+  if (row === undefined) throw taskMissing();
+  return { tasks: row.tasks, outbox: row.outbox, deliveries: row.deliveries };
 }
 
 async function insertDelivery(
@@ -308,7 +294,7 @@ async function lockDelivery(tx: postgres.TransactionSql, taskId: string): Promis
     where d.task_id = ${taskId}
     for update of d, t
   `;
-  if (rows.length === 0) throw new LedgerConflict(missingTask);
+  if (rows.length === 0) throw taskMissing();
   return lockedFrom(rows[0]);
 }
 

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   applyLease,
   bodyConflict,
+  createDispatchHarness,
   DispatchInjectedFault,
   leaseConflict,
   parseAccept,
@@ -13,17 +14,15 @@ import {
   requireProof,
   submittedEvent,
 } from '../dispatch-port.js';
-import { LedgerConflict } from '../ledger-port.js';
+import { acceptedTask, queuedTask, taskMissing } from '../ledger-port.js';
 
 import {
   cloneSnapshot,
   commitSnapshot,
   createMemoryLedgerPort,
   createMemoryLedgerState,
-  memoryAccepted,
   memoryClaimKey,
   memoryCounts,
-  memoryTask,
   writeMemoryOutbox,
 } from './ledger-port.js';
 
@@ -33,6 +32,8 @@ import type {
   DispatchHarness,
   DispatchPort,
   DispatchSeam,
+  LeaseCommand,
+  LeaseDecision,
 } from '../dispatch-port.js';
 import type { MemoryLedgerState, MemorySnapshot } from './ledger-port.js';
 import type {
@@ -43,9 +44,18 @@ import type {
   TaskStatus,
 } from '@agent-works/domain';
 
-const missingTask = 'task not found';
-const origin = '2026-10-10T10:00:00.000Z';
+const memoryVersion = 'memory';
 
+export function createMemoryDispatchHarness(): DispatchHarness {
+  const state = createMemoryLedgerState();
+  return createDispatchHarness(
+    (now, seam) => ({
+      dispatch: createMemoryDispatchPort(state, now, seam),
+      ledger: createMemoryLedgerPort(now, state),
+    }),
+    () => Promise.resolve(memoryCounts(state)),
+  );
+}
 export function createMemoryDispatchPort(
   state: MemoryLedgerState,
   now: () => Date = () => new Date(),
@@ -71,30 +81,6 @@ export function createMemoryDispatchPort(
   };
 }
 
-export function createMemoryDispatchHarness(): DispatchHarness {
-  const state = createMemoryLedgerState();
-  const seam: DispatchSeam = { failAfterTaskInsert: false };
-  let instant = new Date(origin);
-  const now = () => instant;
-  const open = () => ({
-    dispatch: createMemoryDispatchPort(state, now, seam),
-    ledger: createMemoryLedgerPort(now, state),
-  });
-  return {
-    open,
-    restart: open,
-    setNow(iso) {
-      instant = new Date(iso);
-    },
-    failNextAcceptAfterTaskInsert() {
-      seam.failAfterTaskInsert = true;
-    },
-    counts() {
-      return Promise.resolve(memoryCounts(state));
-    },
-  };
-}
-
 function acceptTask(
   state: MemoryLedgerState,
   now: () => Date,
@@ -110,8 +96,14 @@ function acceptTask(
       if (existing.digest !== parsed.digest) throw bodyConflict();
       return { next: current, value: existing.accepted };
     }
-    const task = memoryTask(randomUUID(), parsed.subject, parsed.request, at.toISOString());
-    const accepted = memoryAccepted(task);
+    const task = queuedTask(
+      randomUUID(),
+      parsed.subject,
+      parsed.request,
+      at.toISOString(),
+      memoryVersion,
+    );
+    const accepted = acceptedTask(task);
     const next = cloneSnapshot(current);
     next.claims.set(key, { digest: parsed.digest, accepted });
     next.tasks.set(task.id, task);
@@ -132,20 +124,31 @@ function claimTask(
   leaseMs: number,
 ): ClaimedDelivery | undefined {
   requireLeaseMs(leaseMs);
-  const rows = [...state.snapshot.deliveries.values()].sort(compareDeliveries);
-  for (const row of rows) {
-    const task = state.snapshot.tasks.get(row.taskId);
+  const chosen = earliestClaim(state.snapshot, at, workerId, leaseMs);
+  if (chosen === undefined) return undefined;
+  return commitSnapshot(state, (current) => {
+    const next = cloneSnapshot(current);
+    next.deliveries.set(chosen.row.taskId, chosen.decision.row);
+    return { next, value: chosen.decision.claimed };
+  });
+}
+
+function earliestClaim(
+  snapshot: MemorySnapshot,
+  at: Date,
+  workerId: string,
+  leaseMs: number,
+): { row: DeliveryRow; decision: Extract<LeaseDecision, { kind: 'ok' }> } | undefined {
+  let chosen: { row: DeliveryRow; decision: Extract<LeaseDecision, { kind: 'ok' }> } | undefined;
+  for (const row of snapshot.deliveries.values()) {
+    const task = snapshot.tasks.get(row.taskId);
     if (task === undefined) continue;
     const decision = applyLease(row, task.status, { kind: 'claim', workerId, leaseMs }, at);
-    if (decision.kind === 'miss') continue;
-    if (decision.kind !== 'ok') throw leaseConflict();
-    return commitSnapshot(state, (current) => {
-      const next = cloneSnapshot(current);
-      next.deliveries.set(row.taskId, decision.row);
-      return { next, value: decision.claimed };
-    });
+    if (decision.kind !== 'ok') continue;
+    if (chosen !== undefined && compareDeliveries(row, chosen.row) >= 0) continue;
+    chosen = { row, decision };
   }
-  return undefined;
+  return chosen;
 }
 
 function renewTask(
@@ -156,36 +159,18 @@ function renewTask(
 ): ClaimedDelivery {
   requireLeaseMs(leaseMs);
   const proof = requireProof(lease);
-  return commitSnapshot(state, (current) => {
-    const loaded = loadDelivery(current, proof.taskId);
-    const decision = applyLease(
-      loaded.row,
-      loaded.status,
-      { kind: 'renew', lease: proof, leaseMs },
-      at,
-    );
-    if (decision.kind !== 'ok') throw leaseConflict();
-    const next = cloneSnapshot(current);
-    next.deliveries.set(loaded.row.taskId, decision.row);
-    return { next, value: decision.claimed };
-  });
+  return commitLease(state, proof.taskId, { kind: 'renew', lease: proof, leaseMs }, at, (claimed) => claimed);
 }
 
 function releaseTask(state: MemoryLedgerState, lease: LeaseProof): LeaseProof {
   const proof = requireProof(lease);
-  return commitSnapshot(state, (current) => {
-    const loaded = loadDelivery(current, proof.taskId);
-    const decision = applyLease(
-      loaded.row,
-      loaded.status,
-      { kind: 'release', lease: proof },
-      loaded.row.availableAt,
-    );
-    if (decision.kind !== 'ok') throw leaseConflict();
-    const next = cloneSnapshot(current);
-    next.deliveries.set(loaded.row.taskId, decision.row);
-    return { next, value: proofOf(decision.claimed) };
-  });
+  return commitLease(
+    state,
+    proof.taskId,
+    { kind: 'release', lease: proof },
+    proofAvailableAt(state, proof.taskId),
+    proofOf,
+  );
 }
 
 function retryTask(
@@ -197,19 +182,34 @@ function retryTask(
   requireAttempt(attempt);
   requireInstant(at);
   const proof = requireProof(lease);
+  return commitLease(
+    state,
+    proof.taskId,
+    { kind: 'scheduleRetry', lease: proof, at, attempt },
+    proofAvailableAt(state, proof.taskId),
+    proofOf,
+  );
+}
+
+function commitLease<T>(
+  state: MemoryLedgerState,
+  taskId: string,
+  command: LeaseCommand,
+  at: Date,
+  valueOf: (claimed: ClaimedDelivery) => T,
+): T {
   return commitSnapshot(state, (current) => {
-    const loaded = loadDelivery(current, proof.taskId);
-    const decision = applyLease(
-      loaded.row,
-      loaded.status,
-      { kind: 'scheduleRetry', lease: proof, at, attempt },
-      loaded.row.availableAt,
-    );
+    const loaded = loadDelivery(current, taskId);
+    const decision = applyLease(loaded.row, loaded.status, command, at);
     if (decision.kind !== 'ok') throw leaseConflict();
     const next = cloneSnapshot(current);
     next.deliveries.set(loaded.row.taskId, decision.row);
-    return { next, value: proofOf(decision.claimed) };
+    return { next, value: valueOf(decision.claimed) };
   });
+}
+
+function proofAvailableAt(state: MemoryLedgerState, taskId: string): Date {
+  return loadDelivery(state.snapshot, taskId).row.availableAt;
 }
 
 function loadDelivery(
@@ -218,7 +218,7 @@ function loadDelivery(
 ): { row: DeliveryRow; status: TaskStatus } {
   const row = snapshot.deliveries.get(taskId);
   const task = snapshot.tasks.get(taskId);
-  if (row === undefined || task === undefined) throw new LedgerConflict(missingTask);
+  if (row === undefined || task === undefined) throw taskMissing();
   return { row, status: task.status };
 }
 
@@ -246,6 +246,6 @@ function settle<T>(run: () => T): Promise<T> {
   try {
     return Promise.resolve(run());
   } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(missingTask));
+    return Promise.reject(error instanceof Error ? error : new Error('task not found'));
   }
 }

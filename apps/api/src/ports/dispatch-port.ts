@@ -78,6 +78,32 @@ export type DispatchHarness = {
   counts(): Promise<{ tasks: number; outbox: number; deliveries: number }>;
 };
 
+const harnessOrigin = '2026-10-10T10:00:00.000Z';
+
+export function createDispatchHarness(
+  openPorts: (
+    now: () => Date,
+    seam: DispatchSeam,
+  ) => { dispatch: DispatchPort; ledger: TaskLedger },
+  counts: () => Promise<{ tasks: number; outbox: number; deliveries: number }>,
+): DispatchHarness {
+  const seam: DispatchSeam = { failAfterTaskInsert: false };
+  let instant = new Date(harnessOrigin);
+  const now = () => instant;
+  const open = () => openPorts(now, seam);
+  return {
+    open,
+    restart: open,
+    setNow(iso) {
+      instant = new Date(iso);
+    },
+    failNextAcceptAfterTaskInsert() {
+      seam.failAfterTaskInsert = true;
+    },
+    counts,
+  };
+}
+
 export type DeliveryRow = {
   readonly taskId: string;
   readonly payload: DeliveryPayload;

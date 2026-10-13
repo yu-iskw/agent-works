@@ -7,12 +7,18 @@ import {
   canonicalPayloadSha256,
   externalWriteReceipt,
   outboxEventSchema,
-  taskAcceptedSchema,
   taskSchema,
   transition,
 } from '@agent-works/domain';
 
-import { ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
+import { bodyConflict } from '../ports/dispatch-port.js';
+import {
+  acceptedTask,
+  ConcurrentUpdate,
+  LedgerConflict,
+  queuedTask,
+  taskMissing,
+} from '../ports/ledger-port.js';
 
 import type { TaskLedger, TransitionInput } from '../ports/ledger-port.js';
 import type {
@@ -31,10 +37,10 @@ const tasksMigration = '0006_tasks.sql';
 const dispatchMigration = '0007_task_dispatch.sql';
 const migrationLock = 7006;
 const migrationDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../migrations');
+const tasksPath = resolve(migrationDirectory, tasksMigration);
+const dispatchPath = resolve(migrationDirectory, dispatchMigration);
 const ledgerVersion = 'postgres';
-const changedBody = 'task body changed';
 const changedEvent = 'outbox event changed';
-const missingTask = 'task not found';
 
 const migrations = new WeakMap<postgres.Sql, Promise<void>>();
 
@@ -95,26 +101,26 @@ export function taskLedgerReady(sql: postgres.Sql): Promise<void> {
 }
 
 export async function applyTaskLedgerMigration(sql: postgres.Sql): Promise<void> {
-  const tasksSql = readFileSync(resolve(migrationDirectory, tasksMigration), 'utf8');
-  const dispatchSql = readFileSync(resolve(migrationDirectory, dispatchMigration), 'utf8');
   await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(${migrationLock})`;
     await tx`create table if not exists schema_migrations (
       name text primary key,
       applied_at timestamptz not null default now()
     )`;
-    await applyNamed(tx, tasksMigration, tasksSql);
-    await applyNamed(tx, dispatchMigration, dispatchSql);
+    const applied = await tx<{ name: string }[]>`
+      select name from schema_migrations
+      where name in (${tasksMigration}, ${dispatchMigration})
+    `;
+    const names = new Set(applied.map((row) => row.name));
+    if (!names.has(tasksMigration)) {
+      await tx.unsafe(readFileSync(tasksPath, 'utf8'));
+      await tx`insert into schema_migrations (name) values (${tasksMigration})`;
+    }
+    if (!names.has(dispatchMigration)) {
+      await tx.unsafe(readFileSync(dispatchPath, 'utf8'));
+      await tx`insert into schema_migrations (name) values (${dispatchMigration})`;
+    }
   });
-}
-
-async function applyNamed(tx: postgres.TransactionSql, name: string, body: string): Promise<void> {
-  const applied = await tx<{ name: string }[]>`
-    select name from schema_migrations where name = ${name}
-  `;
-  if (applied.length > 0) return;
-  await tx.unsafe(body);
-  await tx`insert into schema_migrations (name) values (${name})`;
 }
 
 function ensureMigration(sql: postgres.Sql): Promise<void> {
@@ -143,9 +149,9 @@ async function submitTask(
       returning task_id
     `;
     if (claimed.length === 0) return replayClaim(tx, subject, idempotencyKey, digest);
-    const task = insertedTask(taskId, subject, request, at);
+    const task = queuedTask(taskId, subject, request, at.toISOString(), ledgerVersion);
     await insertTask(tx, task);
-    return toAccepted(task);
+    return acceptedTask(task);
   });
 }
 
@@ -160,12 +166,12 @@ export async function replayClaim(
     from task_claims
     where subject = ${subject} and idempotency_key = ${idempotencyKey}
   `;
-  if (claims.length === 0) throw new LedgerConflict(changedBody);
+  if (claims.length === 0) throw bodyConflict();
   const claim = claims[0];
-  if (claim.body_digest !== digest) throw new LedgerConflict(changedBody);
+  if (claim.body_digest !== digest) throw bodyConflict();
   const task = await selectTask(tx, claim.task_id, subject);
-  if (task === undefined) throw new LedgerConflict(changedBody);
-  return toAccepted(task);
+  if (task === undefined) throw bodyConflict();
+  return acceptedTask(task);
 }
 
 async function commitTransition(
@@ -203,7 +209,7 @@ async function lockTask(
     where id = ${taskId} and created_by_sub = ${subject}
     for update
   `;
-  if (rows.length === 0) throw new LedgerConflict(missingTask);
+  if (rows.length === 0) throw taskMissing();
   return toTask(rows[0]);
 }
 
@@ -284,32 +290,6 @@ export async function writeOutbox(
   `;
   if (prior.length === 0 || prior[0].body_digest !== digest) throw new LedgerConflict(changedEvent);
   return 'replay';
-}
-
-export function insertedTask(taskId: string, subject: string, request: TaskSubmit, at: Date): Task {
-  return taskSchema.parse({
-    id: taskId,
-    createdBySub: subject,
-    status: 'QUEUED',
-    objectiveDigest: canonicalPayloadSha256(request.objective),
-    skillVersion: request.skillId,
-    agentVersion: ledgerVersion,
-    policyVersion: ledgerVersion,
-    budget: request.executionPolicy.budgetUsd,
-    version: 1,
-    createdAt: at.toISOString(),
-    updatedAt: at.toISOString(),
-  });
-}
-
-export function toAccepted(task: Task): TaskAccepted {
-  return taskAcceptedSchema.parse({
-    taskId: task.id,
-    status: 'QUEUED',
-    submittedAt: task.createdAt,
-    statusUrl: `/v1/tasks/${task.id}`,
-    traceId: task.id.replaceAll('-', ''),
-  });
 }
 
 function toTask(row: TaskRow): Task {
