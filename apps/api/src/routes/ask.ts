@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   askRequestSchema,
   auditEventSchema,
@@ -119,6 +121,7 @@ async function answer(deps: AskDeps, caller: Caller, request: AskRequest): Promi
     }
   } catch (error) {
     if (error instanceof AuditWriteError) return { status: 503, body: { error: 'audit_failed' } };
+    if (error instanceof LedgerConflict) return { status: 409, body: { error: 'conflict' } };
     throw error;
   }
 }
@@ -189,6 +192,7 @@ function replyFor(outcome: AskOutcome, requestId: string, retrievedAt: string): 
 }
 
 function auditEvent(input: {
+  readonly eventId?: string;
   readonly agentPrincipal: string;
   readonly caller: Caller;
   readonly request: AskRequest;
@@ -200,7 +204,7 @@ function auditEvent(input: {
   readonly policyDecisionId: string | null;
 }): AuditEvent {
   return auditEventSchema.parse({
-    eventId: input.request.requestId,
+    eventId: input.eventId ?? input.request.requestId,
     eventType: 'ask',
     schemaVersion: '1',
     occurredAt: input.now.toISOString(),
@@ -250,19 +254,31 @@ async function runWired(
   request: AskRequest,
   requestDigestSha256: string,
 ): Promise<{ readonly event: AuditEvent; readonly reply: ApiReply }> {
+  const persisted = await wire.ledger.readOutbox(request.requestId);
+  if (
+    persisted !== undefined &&
+    (persisted.destination !== 'audit' ||
+      persisted.event.eventType !== 'ask' ||
+      persisted.event.initiatorSubject !== caller.sub ||
+      persisted.event.requestDigestSha256 !== requestDigestSha256)
+  ) {
+    throw new LedgerConflict('outbox event changed');
+  }
+  const eventId = persisted === undefined ? request.requestId : randomUUID();
   const authorization = await authorize(wire, caller, deps.now());
   const decision = decidePolicy(authorization.input);
   if (decision.effect === 'deny') {
     const now = deps.now();
     return {
       event: auditEvent({
+        eventId,
         agentPrincipal: deps.agentPrincipal,
         caller,
         request,
         outcome: 'denied',
         now,
         requestDigestSha256,
-        taskId: request.requestId,
+        taskId: persisted?.event.taskId ?? request.requestId,
         tool: null,
         policyDecisionId: decision.decisionId,
       }),
@@ -276,30 +292,21 @@ async function runWired(
     request.requestId,
   );
   const now = deps.now();
-  const persisted = await wire.ledger.readOutbox(request.requestId);
-  if (
-    persisted !== undefined &&
-    (persisted.destination !== 'audit' ||
-      persisted.event.eventType !== 'ask' ||
-      persisted.event.initiatorSubject !== caller.sub ||
-      persisted.event.taskId !== accepted.taskId ||
-      persisted.event.requestDigestSha256 !== requestDigestSha256)
-  ) {
+  if (persisted !== undefined && persisted.event.taskId !== accepted.taskId) {
     throw new LedgerConflict('outbox event changed');
   }
-  const event =
-    persisted?.event ??
-    auditEvent({
-      agentPrincipal: deps.agentPrincipal,
-      caller,
-      request,
-      outcome: outcome.kind,
-      now,
-      requestDigestSha256,
-      taskId: accepted.taskId,
-      tool: searchTool,
-      policyDecisionId: decision.decisionId,
-    });
+  const event = auditEvent({
+    eventId,
+    agentPrincipal: deps.agentPrincipal,
+    caller,
+    request,
+    outcome: outcome.kind,
+    now,
+    requestDigestSha256,
+    taskId: accepted.taskId,
+    tool: searchTool,
+    policyDecisionId: decision.decisionId,
+  });
   await wire.ledger.append({ destination: 'audit', event });
   return { event, reply: replyFor(outcome, request.requestId, now.toISOString()) };
 }
