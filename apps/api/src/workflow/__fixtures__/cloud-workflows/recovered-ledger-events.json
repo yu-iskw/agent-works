@@ -1,0 +1,7 @@
+[
+  {
+    "status": "RUNNING",
+    "stepId": "write-draft",
+    "receipt": "draft:external-1"
+  }
+]

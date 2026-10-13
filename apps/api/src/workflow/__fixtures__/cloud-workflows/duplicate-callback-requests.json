@@ -1,0 +1,34 @@
+[
+  {
+    "method": "GET",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions?pageSize=100&view=FULL"
+  },
+  {
+    "method": "GET",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions/execution-1/callbacks?pageSize=100"
+  },
+  {
+    "method": "POST",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions/execution-1/callbacks/callback-1",
+    "body": {
+      "taskId": "task-1",
+      "signalId": "signal-1"
+    }
+  },
+  {
+    "method": "GET",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions?pageSize=100&view=FULL"
+  },
+  {
+    "method": "GET",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions/execution-1/callbacks?pageSize=100"
+  },
+  {
+    "method": "POST",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions/execution-1/callbacks/callback-1",
+    "body": {
+      "taskId": "task-1",
+      "signalId": "signal-1"
+    }
+  }
+]

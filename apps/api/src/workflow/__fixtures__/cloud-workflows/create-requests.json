@@ -1,0 +1,17 @@
+[
+  {
+    "method": "GET",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions?pageSize=100&view=FULL"
+  },
+  {
+    "method": "POST",
+    "url": "https://workflowexecutions.googleapis.com/v1/projects/pilot-dev/locations/asia-northeast1/workflows/pilot-durable-tasks/executions",
+    "body": {
+      "argument": "{\"taskId\":\"task-1\"}",
+      "labels": {
+        "task": "7afaa346b4bf92bf9dc21e9ae809887412a86beb766842e99df7fee6573a478"
+      },
+      "callLogLevel": "LOG_NONE"
+    }
+  }
+]
