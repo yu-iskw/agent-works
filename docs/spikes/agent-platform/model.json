@@ -1,0 +1,25 @@
+{
+  "probe": "model",
+  "issue": 108,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Use a verified approved regional endpoint or evaluate an alternative deployment under RFC \u00a74.3; deny inference if no compliant model exists (\u00a76).",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "model.md"
+}

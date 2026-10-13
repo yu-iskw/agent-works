@@ -1,0 +1,29 @@
+{
+  "probe": "memory",
+  "issue": 107,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Leave Memory Bank disabled under Phase 4; use short-lived authorized session context without personalization (RFC \u00a7\u00a74.3, 9).",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "memory.md",
+  "phase": "Phase 4",
+  "enabled": false,
+  "deletion": "unverified",
+  "retention": "unverified"
+}

@@ -1,0 +1,145 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "component": "gateway",
+    "registered": true,
+    "publication-approved": true,
+    "user-context": "active",
+    "tool": "read",
+    "path": "gateway",
+    "principal-proof": true
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "unregistered-tool",
+      "patch": {
+        "registered": false
+      },
+      "description": "Synthetic unregistered-tool control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "unapproved-publication",
+      "patch": {
+        "component": "registry",
+        "publication-approved": false
+      },
+      "description": "Synthetic unapproved-publication control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "registry-publish",
+      "patch": {
+        "component": "registry"
+      },
+      "description": "Synthetic registry-publish control challenge.",
+      "response": {
+        "outcome": "allowed",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "absent-authority",
+      "patch": {
+        "user-context": "absent"
+      },
+      "description": "Synthetic absent-authority control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "revoked-authority",
+      "patch": {
+        "user-context": "revoked"
+      },
+      "description": "Synthetic revoked-authority control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "denied-tool",
+      "patch": {
+        "tool": "denied-tool"
+      },
+      "description": "Synthetic denied-tool control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "direct-egress",
+      "patch": {
+        "path": "direct",
+        "tool": "denied-tool"
+      },
+      "description": "Synthetic direct-egress control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "missing-principal-proof",
+      "patch": {
+        "principal-proof": false
+      },
+      "description": "Synthetic missing-principal-proof control challenge.",
+      "response": {
+        "outcome": "denied",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "registered": false
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "publication-enforced": true,
+        "egress-enforced": true
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

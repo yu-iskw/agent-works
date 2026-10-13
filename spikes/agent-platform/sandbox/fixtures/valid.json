@@ -1,0 +1,94 @@
+{
+  "digest": "e6cce97bc6f71d57570dba9f411f930b35ea6b5bbdc9cbccb67870679cd5d8d4",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.sandbox.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "sandbox",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "sandbox.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "network",
+          "value": "blocked"
+        },
+        {
+          "name": "ambient-creds",
+          "value": false
+        },
+        {
+          "name": "filesystem",
+          "value": "scratch"
+        },
+        {
+          "name": "elapsed-ms",
+          "value": 10
+        },
+        {
+          "name": "memory-mib",
+          "value": 16
+        },
+        {
+          "name": "cpu-ms",
+          "value": 5
+        },
+        {
+          "name": "storage-mib",
+          "value": 1
+        },
+        {
+          "name": "isolation",
+          "value": true
+        }
+      ]
+    },
+    "response": {
+      "api": "sandbox.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "network-blocked",
+          "value": true
+        },
+        {
+          "name": "credentials-absent",
+          "value": true
+        },
+        {
+          "name": "filesystem-restricted",
+          "value": true
+        },
+        {
+          "name": "isolated",
+          "value": true
+        },
+        {
+          "name": "limits-enforced",
+          "value": true
+        }
+      ]
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

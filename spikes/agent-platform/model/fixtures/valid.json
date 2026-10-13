@@ -1,0 +1,91 @@
+{
+  "digest": "9a0a5d82299ee22e046718a2e831e2b614463c952db0751c3f5073d9ada1d0a8",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.model.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "model",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "model.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "region",
+          "value": "asia-northeast1"
+        },
+        {
+          "name": "model",
+          "value": "synthetic-model-v1"
+        },
+        {
+          "name": "endpoint",
+          "value": "regional"
+        },
+        {
+          "name": "endpoint-healthy",
+          "value": true
+        },
+        {
+          "name": "user-context",
+          "value": "active"
+        },
+        {
+          "name": "prompt",
+          "value": "[redacted]"
+        },
+        {
+          "name": "prompt-redacted",
+          "value": true
+        },
+        {
+          "name": "read-only",
+          "value": true
+        }
+      ]
+    },
+    "response": {
+      "api": "model.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "policy-bypassed",
+          "value": false
+        },
+        {
+          "name": "prompt-retained",
+          "value": false
+        },
+        {
+          "name": "regional-processing",
+          "value": true
+        }
+      ]
+    },
+    "redacted": [
+      {
+        "path": "/request/observations/5/value",
+        "mark": "[redacted]"
+      }
+    ],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

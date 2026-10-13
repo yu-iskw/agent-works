@@ -1,0 +1,90 @@
+{
+  "digest": "0bdb6f4c807a06b37b3605c172bb803ad04c7dc4e07812135120efd30c4ca0ef",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.agent-identity.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "agent-identity",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "agent-identity.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "caller",
+          "value": "user-a"
+        },
+        {
+          "name": "owner",
+          "value": "user-a"
+        },
+        {
+          "name": "agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "bound-agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "user-context",
+          "value": "active"
+        },
+        {
+          "name": "scope",
+          "value": "read"
+        },
+        {
+          "name": "static-key",
+          "value": false
+        },
+        {
+          "name": "direct-source",
+          "value": false
+        }
+      ]
+    },
+    "response": {
+      "api": "agent-identity.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "unique-principal",
+          "value": true
+        },
+        {
+          "name": "least-privilege",
+          "value": true
+        },
+        {
+          "name": "implicit-user-authority",
+          "value": false
+        },
+        {
+          "name": "static-key-used",
+          "value": false
+        }
+      ]
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

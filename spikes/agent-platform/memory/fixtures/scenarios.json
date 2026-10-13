@@ -1,0 +1,157 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "caller": "user-a",
+    "owner": "user-a",
+    "agent": "agent-a",
+    "memory-agent": "agent-a",
+    "user-context": "active",
+    "operation": "read",
+    "deleted": false,
+    "retention-expired": false,
+    "deletion-supported": true,
+    "retention-evidence": true
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "memory-visible": true,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "cross-user-memory",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic cross-user-memory control challenge.",
+      "response": {
+        "outcome": "denied",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "cross-agent-memory",
+      "patch": {
+        "agent": "agent-b"
+      },
+      "description": "Synthetic cross-agent-memory control challenge.",
+      "response": {
+        "outcome": "denied",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "revoked-read",
+      "patch": {
+        "user-context": "revoked"
+      },
+      "description": "Synthetic revoked-read control challenge.",
+      "response": {
+        "outcome": "denied",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "delete-request",
+      "patch": {
+        "operation": "delete"
+      },
+      "description": "Synthetic delete-request control challenge.",
+      "response": {
+        "outcome": "deleted",
+        "memory-visible": false,
+        "deletion-confirmed": true,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "read-after-deletion",
+      "patch": {
+        "deleted": true
+      },
+      "description": "Synthetic read-after-deletion control challenge.",
+      "response": {
+        "outcome": "denied",
+        "memory-visible": false,
+        "deletion-confirmed": true,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "retention-expired",
+      "patch": {
+        "retention-expired": true
+      },
+      "description": "Synthetic retention-expired control challenge.",
+      "response": {
+        "outcome": "denied",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "deletion-unsupported",
+      "patch": {
+        "operation": "delete",
+        "deletion-supported": false
+      },
+      "description": "Synthetic deletion-unsupported control challenge.",
+      "response": {
+        "outcome": "unavailable",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "retention-unverified",
+      "patch": {
+        "retention-evidence": false
+      },
+      "description": "Synthetic retention-unverified control challenge.",
+      "response": {
+        "outcome": "allowed",
+        "memory-visible": true,
+        "deletion-confirmed": false,
+        "retention-demonstrated": false
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "memory-visible": false,
+        "deletion-confirmed": false,
+        "retention-demonstrated": true
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

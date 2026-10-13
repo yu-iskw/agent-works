@@ -1,0 +1,150 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "caller": "user-a",
+    "owner": "user-a",
+    "agent": "agent-a",
+    "bound-agent": "agent-a",
+    "user-context": "active",
+    "scope": "read",
+    "static-key": false,
+    "direct-source": false
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "caller-substitution",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic caller-substitution control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "agent-substitution",
+      "patch": {
+        "agent": "agent-b"
+      },
+      "description": "Synthetic agent-substitution control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": false,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "absent-user",
+      "patch": {
+        "user-context": "absent"
+      },
+      "description": "Synthetic absent-user control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "revoked-user",
+      "patch": {
+        "user-context": "revoked"
+      },
+      "description": "Synthetic revoked-user control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "direct-source-no-user",
+      "patch": {
+        "direct-source": true,
+        "user-context": "absent"
+      },
+      "description": "Synthetic direct-source-no-user control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "excess-scope",
+      "patch": {
+        "scope": "admin"
+      },
+      "description": "Synthetic excess-scope control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": false,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "static-key",
+      "patch": {
+        "static-key": true
+      },
+      "description": "Synthetic static-key control challenge.",
+      "response": {
+        "outcome": "denied",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "unique-principal": true,
+        "least-privilege": true,
+        "implicit-user-authority": false,
+        "static-key-used": false
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

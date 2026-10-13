@@ -1,0 +1,174 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "network": "blocked",
+    "ambient-creds": false,
+    "filesystem": "scratch",
+    "elapsed-ms": 10,
+    "memory-mib": 16,
+    "cpu-ms": 5,
+    "storage-mib": 1,
+    "isolation": true
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "network-exfiltration",
+      "patch": {
+        "network": "exfiltration"
+      },
+      "description": "Synthetic network-exfiltration control challenge.",
+      "response": {
+        "outcome": "denied",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "ambient-credentials",
+      "patch": {
+        "ambient-creds": true
+      },
+      "description": "Synthetic ambient-credentials control challenge.",
+      "response": {
+        "outcome": "denied",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "restricted-filesystem",
+      "patch": {
+        "filesystem": "restricted"
+      },
+      "description": "Synthetic restricted-filesystem control challenge.",
+      "response": {
+        "outcome": "denied",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "time-limit",
+      "patch": {
+        "elapsed-ms": 101
+      },
+      "description": "Synthetic time-limit control challenge.",
+      "response": {
+        "outcome": "terminated",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "memory-limit",
+      "patch": {
+        "memory-mib": 65
+      },
+      "description": "Synthetic memory-limit control challenge.",
+      "response": {
+        "outcome": "terminated",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "cpu-limit",
+      "patch": {
+        "cpu-ms": 51
+      },
+      "description": "Synthetic cpu-limit control challenge.",
+      "response": {
+        "outcome": "terminated",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "storage-limit",
+      "patch": {
+        "storage-mib": 9
+      },
+      "description": "Synthetic storage-limit control challenge.",
+      "response": {
+        "outcome": "terminated",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "failed-isolation",
+      "patch": {
+        "isolation": false
+      },
+      "description": "Synthetic failed-isolation control challenge.",
+      "response": {
+        "outcome": "denied",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "network": "exfiltration"
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "network-blocked": true,
+        "credentials-absent": true,
+        "filesystem-restricted": true,
+        "isolated": true,
+        "limits-enforced": true
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

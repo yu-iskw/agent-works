@@ -1,0 +1,94 @@
+{
+  "digest": "25d9483e39a29801f3f1477958b24d571dc18f8c82fb365f82a13f4fb8141825",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.memory.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "memory",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "memory.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "caller",
+          "value": "user-a"
+        },
+        {
+          "name": "owner",
+          "value": "user-a"
+        },
+        {
+          "name": "agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "memory-agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "user-context",
+          "value": "active"
+        },
+        {
+          "name": "operation",
+          "value": "read"
+        },
+        {
+          "name": "deleted",
+          "value": false
+        },
+        {
+          "name": "retention-expired",
+          "value": false
+        },
+        {
+          "name": "deletion-supported",
+          "value": true
+        },
+        {
+          "name": "retention-evidence",
+          "value": true
+        }
+      ]
+    },
+    "response": {
+      "api": "memory.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "memory-visible",
+          "value": true
+        },
+        {
+          "name": "deletion-confirmed",
+          "value": false
+        },
+        {
+          "name": "retention-demonstrated",
+          "value": true
+        }
+      ]
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

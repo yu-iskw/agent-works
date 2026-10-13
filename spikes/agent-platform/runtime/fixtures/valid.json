@@ -1,0 +1,94 @@
+{
+  "digest": "2992f28067b4bd6a7db222998870ada4bc32ebff204f801252897be4f185d8a5",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.runtime.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "runtime",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "runtime.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "caller",
+          "value": "user-a"
+        },
+        {
+          "name": "owner",
+          "value": "user-a"
+        },
+        {
+          "name": "agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "session-agent",
+          "value": "agent-a"
+        },
+        {
+          "name": "user-context",
+          "value": "active"
+        },
+        {
+          "name": "operation",
+          "value": "read"
+        },
+        {
+          "name": "region-available",
+          "value": true
+        },
+        {
+          "name": "sdk-compatible",
+          "value": true
+        },
+        {
+          "name": "quota-available",
+          "value": true
+        },
+        {
+          "name": "checkpoint",
+          "value": true
+        }
+      ]
+    },
+    "response": {
+      "api": "runtime.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "session-isolated",
+          "value": true
+        },
+        {
+          "name": "bounded",
+          "value": true
+        },
+        {
+          "name": "recovered",
+          "value": false
+        }
+      ]
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

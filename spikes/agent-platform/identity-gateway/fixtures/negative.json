@@ -1,0 +1,42 @@
+{
+  "provenance": "synthetic",
+  "description": "Invalid evidence mutation recipes applied to valid.json; no actual credentials.",
+  "cases": [
+    {
+      "id": "malformed",
+      "operation": "remove-field",
+      "field": "capturedAt",
+      "reason": "schema"
+    },
+    {
+      "id": "altered",
+      "operation": "alter-checksum",
+      "reason": "checksum"
+    },
+    {
+      "id": "synthetic-go",
+      "operation": "synthetic-go",
+      "reason": "synthetic-go"
+    },
+    {
+      "id": "wrong-probe",
+      "operation": "wrong-feature",
+      "reason": "probe-binding"
+    },
+    {
+      "id": "duplicate-field",
+      "operation": "duplicate-observation",
+      "reason": "fields"
+    },
+    {
+      "id": "unknown-field",
+      "operation": "unknown-observation",
+      "reason": "fields"
+    },
+    {
+      "id": "email",
+      "operation": "email",
+      "reason": "sensitive-content"
+    }
+  ]
+}
