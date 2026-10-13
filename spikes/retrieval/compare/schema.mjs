@@ -11,7 +11,7 @@ import { summarizeRevocation } from './revocation.mjs';
 const label = z.string().trim().min(1).max(500);
 const timestamp = z.iso.datetime();
 const measurement = z.number().finite().nonnegative().nullable();
-export const hitSchema = z.strictObject({
+const hitSchema = z.strictObject({
   sourceObjectId: label,
   title: z.string().max(10000),
   snippet: z.string().max(10000),
@@ -46,7 +46,7 @@ export const caseSchema = z.strictObject({
     .max(120)
     .default([]),
 });
-export const evidenceShapeSchema = z.strictObject({
+const evidenceShapeSchema = z.strictObject({
   schemaId: z.literal('agent-works.retrieval.evidence'),
   schemaVersion: z.literal(1),
   matrixId: z.literal(matrixId),
@@ -157,7 +157,7 @@ export const evidenceSchema = evidenceShapeSchema.superRefine((value, context) =
   ];
   for (const message of errors) context.addIssue({ code: 'custom', message });
 });
-export const evidenceEnvelopeSchema = z.strictObject({
+const evidenceEnvelopeSchema = z.strictObject({
   evidence: evidenceSchema,
   digest: z.string().regex(/^[a-f0-9]{64}$/),
   /** #98 envelope, required for observed runs. Its evidence-sha256 observation binds the payload. */

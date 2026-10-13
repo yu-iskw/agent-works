@@ -9,7 +9,7 @@ const metadata = z.object({
   trashed: z.boolean(),
   capabilities: z.object({ canDownload: z.boolean() }),
 });
-export const exchangeSchema = z.strictObject({
+const exchangeSchema = z.strictObject({
   operation: z.enum(['list', 'metadata', 'content']),
   objectId: z.string().nullable(),
   status: z.number().int().min(100).max(599),

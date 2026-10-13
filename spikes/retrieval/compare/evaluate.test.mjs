@@ -9,6 +9,7 @@ import { baseline, bindEvidence, readJson } from './fixture-tools.mjs';
 import { matrix } from './matrix.mjs';
 import { evidenceSchema, parseEvidence, sealEvidence } from './schema.mjs';
 import { replayManaged } from '../managed/replay.mjs';
+import { runComparison } from './run.mjs';
 
 const approved = { ...proposedThresholds, status: 'approved', approvedBy: 'test-only-owner' };
 const repository = fileURLToPath(new URL('../../../', import.meta.url));
@@ -283,6 +284,13 @@ test('CLI replay is deterministic, read-only, and refuses malformed inputs', () 
   const second = execFileSync(process.execPath, args, { encoding: 'utf8', cwd: repository });
   assert.equal(first, second);
   assert.equal(JSON.parse(first).outcome, 'DEFER');
+  assert.deepEqual(
+    runComparison(
+      new URL('docs/spikes/retrieval/managed.json', `file://${repository}`).pathname,
+      new URL('docs/spikes/retrieval/drive.json', `file://${repository}`).pathname,
+    ),
+    JSON.parse(first),
+  );
   assert.throws(() =>
     execFileSync(process.execPath, ['spikes/retrieval/compare/run.mjs'], {
       stdio: 'pipe',

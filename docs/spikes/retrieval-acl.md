@@ -58,7 +58,7 @@ pnpm test apps/api/src/retrieval/drive-adapter.test.ts
 pnpm exec tsc --noEmit -p apps/api/tsconfig.json
 pnpm exec tsc --noEmit -p spikes/retrieval/compare/tsconfig.json
 pnpm exec eslint apps/api/src/retrieval/drive-adapter.ts apps/api/src/retrieval/drive-adapter.test.ts
-pnpm exec eslint --config spikes/retrieval/compare/eslint.config.mjs 'spikes/retrieval/**/*.mjs'
+pnpm exec eslint 'spikes/retrieval/**/*.mjs'
 node spikes/common/verify.mjs
 ```
 

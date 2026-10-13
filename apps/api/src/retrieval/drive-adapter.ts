@@ -40,13 +40,13 @@ const metadataSchema = z.object({
 });
 
 export type DelegatedCredential = z.infer<typeof credentialSchema>;
-export type DriveFileMetadata = z.infer<typeof metadataSchema>;
-export type DriveDocumentPolicy = {
+type DriveFileMetadata = z.infer<typeof metadataSchema>;
+type DriveDocumentPolicy = {
   readonly enterpriseId: string;
   readonly classification: Classification;
   readonly region: string;
 };
-export type DriveAccessEvent = {
+type DriveAccessEvent = {
   readonly decision:
     'allowed' | 'permission-denied' | 'not-found-or-denied' | 'policy-denied' | 'changed';
   readonly sourceObjectId: string;
