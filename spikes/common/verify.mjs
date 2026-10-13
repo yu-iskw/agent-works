@@ -158,9 +158,9 @@ function readId(value) {
 }
 
 function isEnvelope(value) {
-  return (
-    isPlainObject(value) && Object.hasOwn(value, 'digest') && Object.hasOwn(value, 'transcript')
-  );
+  if (!isPlainObject(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === 2 && keys.every((key) => key === 'digest' || key === 'transcript');
 }
 
 function familyOf(scan, match) {
@@ -216,6 +216,28 @@ function secretReasons(rawText, value) {
     }
   }
   return dedupeSecretReasons(hits);
+}
+
+function prefixSecretPath(key, path) {
+  if (path === null) return null;
+  return `/${encodePointerToken(key)}${path}`;
+}
+
+function decodedSecretReasons(rawText, value) {
+  if (!isPlainObject(value) || !Object.hasOwn(value, 'transcript'))
+    return secretReasons(rawText, value);
+  const reasons = secretReasons(rawText, value.transcript);
+  const extras = [];
+  for (const key of Object.keys(value)) {
+    if (key === 'transcript') continue;
+    for (const reason of secretReasons(undefined, value[key])) {
+      extras.push({ ...reason, path: prefixSecretPath(key, reason.path) });
+    }
+  }
+  if (extras.length === 0) return reasons;
+  return dedupeSecretReasons(
+    [...reasons, ...extras].map((reason) => ({ family: reason.family, path: reason.path })),
+  );
 }
 
 function collectValueSecrets(value, pointerText, add) {
@@ -392,12 +414,12 @@ function withChecksumUnlessSecret(reasons, digestCheck, transcript) {
   return [...reasons, ...checksumReasons(digestCheck.digest, transcript)];
 }
 
-function assessTranscript(transcript, rawText, digestCheck) {
-  const reasons = withChecksumUnlessSecret(
-    secretReasons(rawText, transcript),
-    digestCheck,
-    transcript,
-  );
+function assessTranscript(transcript, rawText, digestCheck, decoded) {
+  const secrets =
+    decoded === undefined
+      ? secretReasons(rawText, transcript)
+      : decodedSecretReasons(rawText, decoded);
+  const reasons = withChecksumUnlessSecret(secrets, digestCheck, transcript);
   reasons.push(...parseReasons(transcript));
   return reasons;
 }
@@ -423,11 +445,11 @@ export function verifyTranscriptBytes(bytes) {
   }
   if (!isEnvelope(value)) {
     const transcript = isPlainObject(value) ? value.transcript : undefined;
-    return row(readId(transcript), [...secretReasons(text, transcript), { code: 'schema' }]);
+    return row(readId(transcript), [...decodedSecretReasons(text, value), { code: 'schema' }]);
   }
   return row(
     readId(value.transcript),
-    assessTranscript(value.transcript, text, { digest: value.digest }),
+    assessTranscript(value.transcript, text, { digest: value.digest }, value),
   );
 }
 
