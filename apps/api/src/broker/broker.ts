@@ -24,6 +24,7 @@ export type ExecuteInput = {
   readonly actorSub: string;
   readonly traceId: string;
   readonly facts: PolicyFacts;
+  readonly signal?: AbortSignal;
 };
 
 type BrokerCode =
@@ -93,6 +94,7 @@ async function execute(deps: BrokerDeps, input: ExecuteInput): Promise<BrokerRes
   if (body === undefined) return denial('APPROVAL_REQUIRED');
   const decision = deps.decide({ facts: input.facts });
   if (decision.effect !== 'allow') return denial('POLICY_DENIED');
+  input.signal?.throwIfAborted();
   const at = deps.now();
   const claim = await deps.store.claim({
     approvalId: input.approvalId,
@@ -112,9 +114,11 @@ async function execute(deps: BrokerDeps, input: ExecuteInput): Promise<BrokerRes
   });
   const settled = settle(claim);
   if (settled !== undefined) return settled;
+  input.signal?.throwIfAborted();
   const recorded = recordedCall(input, claim);
   const intent = intentStamp(claim, decision.decisionId, at);
   await deps.ledger.append(intendedEvent(recorded, hashed.digest, intent.decisionId, intent.at));
+  input.signal?.throwIfAborted();
   const receipt = await deps.postTicket(body, input.idempotencyKey);
   await deps.store.complete(input.id, receipt);
   return { ok: true, receipt, replay: false };

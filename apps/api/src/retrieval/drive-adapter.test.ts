@@ -452,3 +452,14 @@ it('runs all offline retrieval spike suites through the existing Vitest gate', (
   );
   expect(output).toContain('# fail 0');
 }, 65_000);
+
+it('downloads shared-drive plain text with supportsAllDrives', async () => {
+  const plain = { ...metadata, mimeType: 'text/plain', driveId: 'shared-drive' };
+  const load = responses([{ files: [{ id: plain.id }] }, plain, 'shared content', plain]);
+  const adapter = createDriveAdapter(options({ fetch: load }));
+  expect(await adapter.search(context, 'shared')).toHaveLength(1);
+  const download = load.mock.calls
+    .map(([url]) => requestUrl(url))
+    .find((url) => url.searchParams.get('alt') === 'media');
+  expect(download?.searchParams.get('supportsAllDrives')).toBe('true');
+});

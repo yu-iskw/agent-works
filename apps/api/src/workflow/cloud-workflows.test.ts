@@ -903,3 +903,117 @@ describe('additional recovery boundaries', () => {
     });
   });
 });
+
+it('cancels in the ledger while an external write holds the shared task lock', async () => {
+  const ctx = setup();
+  const lock = serialLock();
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const external = externalStep();
+  const execute = external.step.execute;
+  const step = {
+    ...external.step,
+    execute: async (input: Parameters<CloudStep['execute']>[0]) => {
+      entered();
+      await gate;
+      return execute(input);
+    },
+  };
+  const worker = { ...ctx.worker, withTaskLock: lock, steps: [step] };
+  const port = createCloudWorkflowsPort({ ...ctx.deps, withTaskLock: lock });
+  const running = advanceCloudWorkflow(worker, taskId);
+  try {
+    await started;
+    let cancelled = false;
+    const cancelling = port.signal({ ...cancel, signalId: 'cancel-held-write' }).then(() => {
+      cancelled = true;
+    });
+    await vi.waitFor(() => expect(cancelled).toBe(true), { timeout: 1000 });
+    await cancelling;
+    expect(ctx.current().status).toBe('CANCELLED');
+    release();
+    expect(await running).toMatchObject({ action: 'done' });
+    expect(ctx.current().status).toBe('CANCELLED');
+    expect(await ctx.worker.log.list(taskId)).toMatchObject([{ body: 'draft:external-1' }]);
+  } finally {
+    release();
+    await running;
+  }
+});
+
+describe('remote execution creation racing with cancellation', () => {
+  it.each(['save', 'recover', 'resume'] as const)(
+    'rechecks terminal state after %s lists stale executions',
+    async (operation) => {
+      const env = setup();
+      const original = env.deps.transport.request;
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      env.deps.transport.request = vi.fn(async (request: CloudRequest) => {
+        if (request.method === 'GET' && request.url.includes('/executions?')) {
+          env.deps.transport.request = original;
+          started();
+          await gate;
+          return { executions: [] };
+        }
+        return original(request);
+      });
+      const pending =
+        operation === 'save'
+          ? env.port.save({ taskId, status: 'RUNNING', stepId: 'ticket' })
+          : operation === 'recover'
+            ? recoverCloudWorkflow(env.deps, taskId)
+            : env.port.signal(resume);
+      await entered;
+      await env.port.signal(cancel);
+      expect(env.current().status).toBe('CANCELLED');
+      release();
+      await pending;
+      expect(env.calls.filter((request) => request.url.endsWith('/executions'))).toHaveLength(0);
+    },
+  );
+
+  it.each([false, true])(
+    'cancels an execution created after cancellation (lost response: %s)',
+    async (lost) => {
+      const env = setup();
+      if (lost) env.loseCreateResponse();
+      const original = env.deps.transport.request;
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      env.deps.transport.request = vi.fn(async (request: CloudRequest) => {
+        if (request.method === 'POST' && request.url.endsWith('/executions')) {
+          started();
+          await gate;
+        }
+        return original(request);
+      });
+      const pending = recoverCloudWorkflow(env.deps, taskId).catch((error: unknown) => error);
+      await entered;
+      await env.port.signal(cancel);
+      expect(env.current().status).toBe('CANCELLED');
+      release();
+      const result = await pending;
+      if (lost) expect(result).toBeInstanceOf(Error);
+      expect(env.calls.filter((request) => request.url.endsWith(':cancel'))).toHaveLength(1);
+    },
+  );
+});

@@ -70,6 +70,9 @@ function startDocker(): Promise<DisposablePostgres> {
       name,
       '-e',
       'POSTGRES_HOST_AUTH_METHOD=trust',
+      // Disposable test clusters live in memory; avoid consuming the Docker disk.
+      '--tmpfs',
+      '/var/lib/postgresql/data:rw,size=512m',
       '-p',
       '127.0.0.1::5432',
       'postgres:16-alpine',

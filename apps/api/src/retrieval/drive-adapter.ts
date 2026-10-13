@@ -344,5 +344,6 @@ function contentUrl(file: DriveFileMetadata): URL | undefined {
     origin,
   );
   url.searchParams.set(isDoc ? 'mimeType' : 'alt', isDoc ? 'text/plain' : 'media');
+  if (!isDoc) url.searchParams.set('supportsAllDrives', 'true');
   return url;
 }

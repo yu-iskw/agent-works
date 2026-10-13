@@ -1,11 +1,16 @@
 import { readFileSync } from 'node:fs';
 
 import { skillManifestSchema } from '@agent-works/domain';
-import { deliverIncident, reconcileIncident } from '@agent-works/incident-analysis';
+import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
+import { decide } from '@agent-works/policy';
 
 import { Unavailable } from '../auth/iap.js';
+import { createBroker, TICKET_TOOL } from '../broker/broker.js';
 
 import type { Caller } from '../auth/iap.js';
+import type { ApprovalStore } from '../broker/approvals.js';
+import type { Broker } from '../broker/broker.js';
+import type { LedgerPort } from '../ports/ledger-port.js';
 import type {
   PolicyDecision,
   SearchContext,
@@ -19,6 +24,7 @@ import type {
   IncidentExecution,
   IncidentModel,
 } from '@agent-works/incident-analysis';
+import type { PolicyFacts } from '@agent-works/policy';
 
 export type AuthorizedCaller = {
   readonly caller: Caller;
@@ -26,8 +32,19 @@ export type AuthorizedCaller = {
   readonly decision: Extract<PolicyDecision, { effect: 'allow' }>;
 };
 
+export type IncidentApprovalDeps = {
+  readonly store: ApprovalStore;
+  readonly ledger: LedgerPort;
+  readonly now: () => Date;
+  readonly reauthorize: (
+    request: TaskSubmit,
+    authorized: AuthorizedCaller,
+  ) => Promise<{ facts: PolicyFacts; approverAuthorized: (sub: string) => boolean }>;
+};
+
 export type RegisteredSkill = {
   readonly manifest: SkillManifest;
+  configureApprovals?(deps: IncidentApprovalDeps): void;
   validate(request: TaskSubmit): boolean;
   dispatch(
     request: TaskSubmit,
@@ -66,12 +83,29 @@ const skill = {
 
 export function createIncidentSkill(
   config: () => IncidentConfig | undefined = () => undefined,
-  deliver: (input: DeliverInput) => Promise<Delivery> = deliverIncident,
+  deliver?: (input: DeliverInput) => Promise<Delivery>,
 ): IncidentSkill {
+  let approvalDeps: IncidentApprovalDeps | undefined;
   const ledger = new Map<string, string>();
   const results = new Map<string, Delivery>();
   const deadlines = new Map<string, number>();
+  const inFlight = new Map<string, Promise<Delivery>>();
   const issuedWrites = new Set<string>();
+  async function runDelivery(
+    taskId: string,
+    input: DeliverInput,
+    operation: (input: DeliverInput) => Promise<Delivery>,
+  ): Promise<Delivery> {
+    const pending = inFlight.get(taskId);
+    if (pending !== undefined) return pending;
+    const started = operation(input);
+    inFlight.set(taskId, started);
+    try {
+      return await started;
+    } finally {
+      inFlight.delete(taskId);
+    }
+  }
   const recover = async (taskId: string): Promise<boolean> => {
     if (ledger.has(taskId)) return true;
     const configured = issuedWrites.has(taskId) ? config() : undefined;
@@ -87,6 +121,9 @@ export function createIncidentSkill(
   };
   return {
     manifest: skill.manifest,
+    configureApprovals: (deps) => {
+      approvalDeps = deps;
+    },
     result: (taskId) => {
       const receipt = ledger.get(taskId);
       return receipt === undefined ? results.get(taskId) : { kind: 'written', ticketId: receipt };
@@ -100,7 +137,7 @@ export function createIncidentSkill(
         execution?.deadline ?? Infinity,
       );
       deadlines.set(accepted.taskId, deadline);
-      if (!Number.isFinite(deadline) || Date.now() >= deadline || execution?.signal?.aborted) {
+      if (executionStopped(deadline, execution)) {
         if (await recover(accepted.taskId)) return;
         results.set(accepted.taskId, {
           kind: execution?.signal?.aborted ? 'cancelled' : 'timeout',
@@ -115,21 +152,157 @@ export function createIncidentSkill(
       const incidentId = request.input?.incidentId;
       if (typeof incidentId !== 'string' || incidentId.length === 0)
         throw new Error('incident input');
-      const result = await deliver({
-        ...configured,
-        callerContext: authorized.context,
-        skill,
-        deliveryId: accepted.taskId,
-        incidentId,
-        timeoutMs: request.executionPolicy.deadlineSeconds * 1000,
-        deadline,
-        signal: execution?.signal,
-        ledger,
-        issuedWrites,
-      }).catch((): Delivery => ({ kind: 'failed' }));
+      function brokerFor(
+        input: DeliverInput,
+        signal: AbortSignal,
+        binding: Awaited<ReturnType<IncidentApprovalDeps['reauthorize']>> | undefined,
+      ): Broker | undefined {
+        if (approvalDeps === undefined || binding === undefined) return undefined;
+        return createBroker({
+          store: approvalDeps.store,
+          ledger: approvalDeps.ledger,
+          now: approvalDeps.now,
+          decide,
+          approverAuthorized: binding.approverAuthorized,
+          postTicket: async (body, key) => {
+            signal.throwIfAborted();
+            issuedWrites.add(accepted.taskId);
+            const posted = await fetch(new URL('/tickets', input.ticketsUrl), {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', 'idempotency-key': key },
+              body: JSON.stringify(body),
+              signal,
+            });
+            if (!posted.ok) throw new Error('ticket');
+            const receipt = (await posted.json()) as { id: string };
+            if (typeof receipt.id !== 'string' || receipt.id.length === 0)
+              throw new Error('ticket');
+            return receipt.id;
+          },
+        });
+      }
+      async function approvedDelivery(input: DeliverInput): Promise<Delivery> {
+        const known = ledger.get(accepted.taskId);
+        if (known !== undefined) return { kind: 'written', ticketId: known };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()));
+        const signal = AbortSignal.any([
+          controller.signal,
+          ...(execution?.signal === undefined ? [] : [execution.signal]),
+        ]);
+        try {
+          const approvalId = request.input?.approvalId;
+          const deps = approvalDeps;
+          let payload =
+            typeof approvalId === 'string' && deps !== undefined
+              ? await bounded(deps.store.readPayload(approvalId), signal)
+              : undefined;
+          payload ??= await generatePayload(input, incidentId as string, deadline, signal);
+          if (typeof approvalId !== 'string' || deps === undefined)
+            throw new Error('approval required');
+          await bounded(deps.store.savePayload(approvalId, payload), signal);
+          const binding = await bounded(deps.reauthorize(request, authorized), signal);
+          signal.throwIfAborted();
+          const broker = brokerFor(input, signal, binding);
+          if (broker === undefined) throw new Error('approval broker unavailable');
+          const result = await bounded(
+            broker.execute({
+              id: `incident:${accepted.taskId}`,
+              taskId: accepted.taskId,
+              stepId: 'ticket',
+              toolRef: TICKET_TOOL,
+              idempotencyKey: accepted.taskId,
+              targetResource: 'incidents',
+              payload,
+              approvalId,
+              actorSub: authorized.caller.sub,
+              traceId: accepted.traceId,
+              facts: binding.facts,
+              signal,
+            }),
+            signal,
+          );
+          if (!result.ok) throw new Error(result.code);
+          ledger.set(accepted.taskId, result.receipt);
+          return { kind: 'written', ticketId: result.receipt };
+        } catch {
+          return {
+            kind: deliveryFailure(deadline, execution?.signal),
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      const result = await runDelivery(
+        accepted.taskId,
+        {
+          ...configured,
+          callerContext: authorized.context,
+          skill,
+          deliveryId: accepted.taskId,
+          incidentId,
+          timeoutMs: request.executionPolicy.deadlineSeconds * 1000,
+          deadline,
+          signal: execution?.signal,
+          ledger,
+          issuedWrites,
+        },
+        deliver ?? approvedDelivery,
+      ).catch((): Delivery => ({ kind: 'failed' }));
       results.set(accepted.taskId, result);
       if (result.kind === 'written') ledger.set(accepted.taskId, result.ticketId);
       else throw new Unavailable('incident');
     },
   };
+}
+
+async function generatePayload(
+  input: DeliverInput,
+  incidentId: string,
+  deadline: number,
+  signal: AbortSignal,
+) {
+  const response = await fetch(
+    new URL(`/incidents/${encodeURIComponent(incidentId)}`, input.incidentsUrl),
+    { signal },
+  );
+  if (!response.ok) throw new Error('incident');
+  const incident: unknown = await bounded(response.json(), signal);
+  if (!isIncident(incident)) throw new Error('incident');
+  const summary = await bounded(
+    input.model.answer(
+      `${skill.prompt}\n\nIncident ${incident.id}: ${incident.title}\n${incident.note}`,
+      { deadline, signal },
+    ),
+    signal,
+  );
+  signal.throwIfAborted();
+  return { summary: summary.trim(), project: 'incidents' };
+}
+
+async function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+  let abort = () => {};
+  const stopped = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(new Error('incident stopped'));
+    signal.addEventListener('abort', abort, { once: true });
+  });
+  try {
+    return await Promise.race([operation, stopped]);
+  } finally {
+    signal.removeEventListener('abort', abort);
+  }
+}
+
+function deliveryFailure(
+  deadline: number,
+  signal?: AbortSignal,
+): 'cancelled' | 'timeout' | 'failed' {
+  if (signal?.aborted) return 'cancelled';
+  return Date.now() >= deadline ? 'timeout' : 'failed';
+}
+function executionStopped(deadline: number, execution?: IncidentExecution): boolean {
+  return (
+    !Number.isFinite(deadline) || Date.now() >= deadline || execution?.signal?.aborted === true
+  );
 }

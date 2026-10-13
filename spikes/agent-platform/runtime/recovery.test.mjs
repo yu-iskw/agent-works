@@ -54,3 +54,16 @@ test('missing checkpoint, wrong order and incomplete recordings defer', () => {
   records[0].digest = '0'.repeat(64);
   assert.equal(verifyRecovery(records).reason, 'invalid-evidence');
 });
+
+test('out-of-order recovery cannot hide a failed control', () => {
+  const records = recovery();
+  records[1] = makeEvidence(
+    'failed-abort',
+    { ...fixtures.baseline, operation: 'abort' },
+    { outcome: 'allowed', 'session-isolated': true, bounded: false, recovered: false },
+  );
+  assert.equal(
+    verifyRecovery([records[1], records[0], records[2]]).reason,
+    'recovery-control-failure',
+  );
+});

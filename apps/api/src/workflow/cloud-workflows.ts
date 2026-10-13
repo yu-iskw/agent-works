@@ -89,7 +89,7 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
     },
     async signal(signal) {
       const parsed = workflowSignalSchema.parse(signal);
-      return deps.withTaskLock(parsed.taskId, async () => {
+      const apply = async () => {
         let task = await readTask(deps, parsed.taskId);
         if (parsed.kind === 'resume' && !terminalStatuses.includes(task.status)) {
           await deps.authorizeResume(task);
@@ -106,7 +106,9 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
           await wakeExecution(deps, task, parsed);
         }
         return outcome;
-      });
+      };
+      // Cancellation is a control-plane transition and must not queue behind an external write.
+      return parsed.kind === 'cancel' ? apply() : deps.withTaskLock(parsed.taskId, apply);
     },
   };
 }
@@ -206,17 +208,39 @@ async function listExecutions(deps: CloudWorkflowDeps, taskId: string): Promise<
 async function ensureExecution(deps: CloudWorkflowDeps, task: Task): Promise<void> {
   if (!dispatchStatuses.has(task.status)) return;
   if ((await listExecutions(deps, task.id)).length > 0) return;
+  if (terminalStatuses.includes((await readTask(deps, task.id)).status)) {
+    await cancelExecutions(deps, task.id);
+    return;
+  }
   // POST create has no client-selected execution id. Never retry an ambiguous POST here.
   // A recovery scan lists remote executions before attempting another create.
-  await deps.transport.request({
-    method: 'POST',
-    url: `${executionBase}${deps.workflowName}/executions`,
-    body: {
-      argument: JSON.stringify({ taskId: task.id }),
-      labels: { task: cloudTaskLabel(task.id) },
-      callLogLevel: 'LOG_NONE',
-    },
-  });
+  let created: Execution | undefined;
+  try {
+    created = execution(
+      await deps.transport.request({
+        method: 'POST',
+        url: `${executionBase}${deps.workflowName}/executions`,
+        body: {
+          argument: JSON.stringify({ taskId: task.id }),
+          labels: { task: cloudTaskLabel(task.id) },
+          callLogLevel: 'LOG_NONE',
+        },
+      }),
+      deps.workflowName,
+    );
+  } finally {
+    // Cancel the returned resource directly; a new execution may not be listed yet.
+    // A lost create response instead requires discovery by its task label.
+    if (terminalStatuses.includes((await readTask(deps, task.id)).status)) {
+      if (created === undefined) await cancelExecutions(deps, task.id);
+      else
+        await deps.transport.request({
+          method: 'POST',
+          url: `${executionBase}${created.name}:cancel`,
+          body: {},
+        });
+    }
+  }
 }
 
 async function cancelExecutions(deps: CloudWorkflowDeps, taskId: string): Promise<void> {

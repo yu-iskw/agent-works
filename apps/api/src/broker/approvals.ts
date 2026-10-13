@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { approvalDecidedSchema, approvalSchema } from '@agent-works/domain';
+import { approvalDecidedSchema, approvalSchema, canonicalPayloadSha256 } from '@agent-works/domain';
 
 import type { Approval, ApprovalDecided } from '@agent-works/domain';
 import type postgres from 'postgres';
@@ -63,6 +63,8 @@ export type ClaimOutcome =
 export type ApprovalStore = {
   save(approval: Approval): Promise<void>;
   read(id: string): Promise<Approval | undefined>;
+  readPayload(id: string): Promise<unknown>;
+  savePayload(id: string, payload: unknown): Promise<void>;
   bind(id: string, command: DecisionCommand): Promise<BindResult>;
   claim(request: ClaimRequest): Promise<ClaimOutcome>;
   complete(callId: string, receipt: string): Promise<void>;
@@ -123,6 +125,8 @@ type Query = postgres.Sql | postgres.TransactionSql;
 
 export async function applyApprovalsMigration(sql: postgres.Sql): Promise<void> {
   const body = readFileSync(migrationPath, 'utf8');
+  const payloadMigration = '0009_approval_payload.sql';
+  const payloadBody = readFileSync(resolve(dirname(migrationPath), payloadMigration), 'utf8');
   await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(${migrationLock})`;
     await tx`create table if not exists schema_migrations (
@@ -132,9 +136,17 @@ export async function applyApprovalsMigration(sql: postgres.Sql): Promise<void> 
     const applied = await tx<{ name: string }[]>`
       select name from schema_migrations where name = ${migrationName}
     `;
-    if (applied.length > 0) return;
-    await tx.unsafe(body);
-    await tx`insert into schema_migrations (name) values (${migrationName})`;
+    if (applied.length === 0) {
+      await tx.unsafe(body);
+      await tx`insert into schema_migrations (name) values (${migrationName})`;
+    }
+    const payloadApplied = await tx<{ name: string }[]>`
+      select name from schema_migrations where name = ${payloadMigration}
+    `;
+    if (payloadApplied.length === 0) {
+      await tx.unsafe(payloadBody);
+      await tx`insert into schema_migrations (name) values (${payloadMigration})`;
+    }
   });
 }
 
@@ -146,6 +158,27 @@ export function createPostgresApprovalStore(sql: postgres.Sql): ApprovalStore {
     },
     read(id) {
       return ready.then(() => selectApproval(sql, id));
+    },
+    readPayload(id) {
+      return ready.then(async () => {
+        const rows = await sql<
+          { payload: string | null }[]
+        >`select payload::text as payload from approvals where id = ${id}`;
+        const payload = rows.at(0)?.payload;
+        return payload == null ? undefined : (JSON.parse(payload) as unknown);
+      });
+    },
+    savePayload(id, payload) {
+      const digest = canonicalPayloadSha256(payload);
+      const json = JSON.stringify(payload);
+      return ready.then(async () => {
+        const rows = await sql`update approvals set payload = ${json}::text::jsonb
+          where id = ${id} and payload_sha256 = ${digest} and payload is null returning id`;
+        if (rows.length === 0) {
+          const approval = await selectApproval(sql, id);
+          if (approval?.payloadSha256 !== digest) throw new Error('approval payload mismatch');
+        }
+      });
     },
     bind(id, command) {
       return ready.then(() => bindPostgres(sql, id, command));
@@ -161,6 +194,7 @@ export function createPostgresApprovalStore(sql: postgres.Sql): ApprovalStore {
 
 export function createMemoryApprovalStore(): ApprovalStore {
   const approvals = new Map<string, Approval>();
+  const payloads = new Map<string, unknown>();
   const calls = new Map<string, CallRow>();
   const callsByKey = new Map<string, CallRow>();
   const exclusive = serialize();
@@ -172,6 +206,16 @@ export function createMemoryApprovalStore(): ApprovalStore {
     },
     read(id) {
       return exclusive(() => approvals.get(id));
+    },
+    readPayload(id) {
+      return exclusive(() => structuredClone(payloads.get(id)));
+    },
+    savePayload(id, payload) {
+      return exclusive(() => {
+        if (approvals.get(id)?.payloadSha256 !== canonicalPayloadSha256(payload))
+          throw new Error('approval payload mismatch');
+        if (!payloads.has(id)) payloads.set(id, structuredClone(payload));
+      });
     },
     bind(id, command) {
       return exclusive(() => {
@@ -247,7 +291,7 @@ function claimCall(input: {
     return { kind: 'duplicate' };
   }
   const existing = byId ?? byKey;
-  if (existing !== undefined) return existingCall(existing, input.request);
+  if (existing !== undefined) return existingCall(existing, input.request, input.approval);
   if (input.approval === undefined) return { kind: 'missing' };
   const verdict = classify(input.approval, input.request);
   if (verdict !== 'bound') return { kind: 'deny', code: verdict };
@@ -276,11 +320,17 @@ function claimCall(input: {
   };
 }
 
-function existingCall(existing: CallRow, request: ClaimRequest): ClaimEffect {
+function existingCall(
+  existing: CallRow,
+  request: ClaimRequest,
+  approval: Approval | undefined,
+): ClaimEffect {
   if (!sameCall(existing, request)) return { kind: 'deny', code: 'APPROVAL_REQUIRED' };
   if (existing.status === 'COMPLETED' && existing.externalReceipt !== null) {
     return { kind: 'replay', receipt: existing.externalReceipt };
   }
+  if (approval?.approverSub == null || !request.approverAuthorized(approval.approverSub))
+    return { kind: 'deny', code: 'APPROVAL_REQUIRED' };
   return {
     kind: 'resume',
     policyDecisionId: existing.policyDecisionId,

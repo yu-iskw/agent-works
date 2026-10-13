@@ -239,6 +239,16 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
     to: TaskStatus,
     receipt?: ExternalWriteReceipt,
   ) {
+    if (receipt !== undefined && delivery.payload.request.skillId === 'incident-analysis') {
+      const intended = await deps.ledger.readOutbox(`intended:incident:${task.id}`);
+      if (
+        intended?.event.eventType !== 'tool.intended' ||
+        intended.event.approvalId === null ||
+        intended.event.requestDigestSha256 === null
+      )
+        throw new Error('approved incident receipt missing');
+      receipt = { ref: receipt.ref, digestSha256: intended.event.requestDigestSha256 };
+    }
     return deps.ledger.transition({
       subject: delivery.payload.subject,
       taskId: task.id,

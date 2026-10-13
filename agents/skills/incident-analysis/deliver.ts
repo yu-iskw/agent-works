@@ -182,7 +182,7 @@ async function postTicket(
   return body.id;
 }
 
-function isIncident(value: unknown): value is Incident {
+export function isIncident(value: unknown): value is Incident {
   if (!isRecord(value)) return false;
   return (
     typeof value.id === 'string' &&

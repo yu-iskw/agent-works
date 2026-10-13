@@ -1,6 +1,10 @@
+import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { createIncidents, createTicket, listen } from '@agent-works/fakes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createMemoryApprovalStore } from '../broker/approvals.js';
+import { allowedFacts } from '../broker/broker-harness.js';
+import { TICKET_TOOL } from '../broker/broker.js';
 import { acceptInput } from '../ports/dispatch-port.contract.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 
@@ -65,6 +69,29 @@ describe('ticket receipt reconciliation', () => {
     ).rejects.toThrow();
   });
 
+  it('cannot turn an unapproved provider ticket into an approved task receipt', async () => {
+    const tickets = await listen(createTicket(), 0);
+    closers.push(tickets.close);
+    const ports = createMemoryTaskPorts();
+    const accepted = await ports.dispatch.accept({
+      ...acceptInput,
+      request: { ...acceptInput.request, skillId: 'incident-analysis' },
+    });
+    await fetch(`${tickets.url}/tickets`, {
+      method: 'POST',
+      headers: { 'idempotency-key': accepted.taskId },
+      body: JSON.stringify({ summary: 'unapproved', project: 'incidents' }),
+    });
+    await createTaskDispatcher({
+      ...ports,
+      registry: createSkillRegistry([]),
+      reconcile: createTicketReconciler(tickets.url),
+    }).runOnce();
+    expect(await ports.ledger.readReceipt('alice', accepted.taskId)).toBeUndefined();
+    expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({ status: 'RUNNING' });
+    expect(await ports.ledger.readOutbox(`intended:incident:${accepted.taskId}`)).toBeUndefined();
+  });
+
   it('recovers a real incident write using a fresh skill and worker after completion failure', async () => {
     const incidents = await listen(createIncidents(), 0);
     const tickets = await listen(createTicket(), 0);
@@ -79,9 +106,39 @@ describe('ticket receipt reconciliation', () => {
         identityRef: 'agent://incident-analysis',
       },
       deadline: new Date(Date.now() + 30_000).toISOString(),
-      request: { ...acceptInput.request, skillId: 'incident-analysis' },
+      request: {
+        ...acceptInput.request,
+        skillId: 'incident-analysis',
+        input: { ...acceptInput.request.input, approvalId: 'recovery-approval' },
+      },
     };
     const accepted = await ports.dispatch.accept(input);
+    const store = createMemoryApprovalStore();
+    await store.save({
+      id: 'recovery-approval',
+      taskId: accepted.taskId,
+      stepId: 'ticket',
+      tool: TICKET_TOOL,
+      targetResource: 'incidents',
+      payloadSha256: canonicalPayloadSha256({ summary: 'summary', project: 'incidents' }),
+      requestedBySub: 'alice',
+      approverSub: 'bob',
+      state: 'approved',
+      expiresAt: new Date(Date.now() + 30000).toISOString(),
+      maxExecutions: 1,
+      executionsUsed: 0,
+    });
+    const configuredSkill = () => {
+      const skill = createIncidentSkill(config);
+      skill.configureApprovals?.({
+        store,
+        ledger: ports.ledger,
+        now: () => new Date(),
+        reauthorize: () =>
+          Promise.resolve({ facts: allowedFacts, approverAuthorized: (sub) => sub === 'bob' }),
+      });
+      return skill;
+    };
     const answer = vi.fn().mockResolvedValue('summary');
     const config = () => ({
       incidentsUrl: incidents.url,
@@ -103,7 +160,7 @@ describe('ticket receipt reconciliation', () => {
     await createTaskDispatcher({
       dispatch: ports.dispatch,
       ledger: faultyLedger,
-      registry: createSkillRegistry([createIncidentSkill(config)]),
+      registry: createSkillRegistry([configuredSkill()]),
       reconcile,
       retryMs: 1,
     }).runOnce();
@@ -112,7 +169,7 @@ describe('ticket receipt reconciliation', () => {
     await vi.waitFor(async () => {
       await createTaskDispatcher({
         ...ports,
-        registry: createSkillRegistry([createIncidentSkill(config)]),
+        registry: createSkillRegistry([configuredSkill()]),
         reconcile,
       }).runOnce();
       expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
@@ -120,9 +177,10 @@ describe('ticket receipt reconciliation', () => {
       });
     });
     expect(answer).toHaveBeenCalledOnce();
-    expect(await ports.ledger.readReceipt('alice', accepted.taskId)).toEqual(
-      receiptFor(accepted.taskId, 'FAKE-1'),
-    );
+    expect(await ports.ledger.readReceipt('alice', accepted.taskId)).toEqual({
+      ref: 'FAKE-1',
+      digestSha256: canonicalPayloadSha256({ summary: 'summary', project: 'incidents' }),
+    });
     const body: unknown = await (await fetch(`${tickets.url}/tickets`)).json();
     expect(body).toMatchObject({
       tickets: [expect.objectContaining({ id: 'FAKE-1', idempotencyKey: accepted.taskId })],
