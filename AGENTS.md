@@ -110,6 +110,23 @@ When you want durable fixes (not one-off chat advice):
 - If a better approach appears, stop implementing the old decision; use `manage-adr` **Challenge** (Proposed ADR). Do not rewrite an Accepted Decision in place. Do not use `adr new -s` until **Accept**.
 - Leave proposals **Proposed** for a human (draft PR). Use `manage-adr` Accept / Reject only when the user explicitly decides.
 
+## Dev stack
+
+`pnpm dev:up --wait` builds the workspace and starts the Docker Compose stack in `compose.dev.yml`. `pnpm dev:down` stops it. On the host, services listen on `127.0.0.1`:
+
+| Port | Service |
+| --- | --- |
+| 8081 | fake IAP (front door for the web app) |
+| 8082 | fake Drive |
+| 8083 | fake LLM |
+| 8084 | API |
+| 8085 | web |
+| 8086 | fake directory |
+
+Sign in through fake IAP with header `x-fake-user: alice` or `x-fake-user: bob`. A working ask is `POST /` with form fields `question` and `requestId` (a UUID from `GET /`).
+
+Cloud Agent setup pulls `postgres:16-alpine` and `node:24.13.0-bookworm-slim` from `public.ecr.aws/docker/library/` and retags them for Compose. Docker Hub's image-blob host is not on the default egress allowlist. Node **24.13.0** (`.node-version`) is installed at `/usr/local/node` and prepended to `PATH` for login shells.
+
 ## Common gotchas
 
 - Always use **pnpm**, not npm or yarn
