@@ -37,7 +37,7 @@ Mark each line unmet. Do not mark a line done because a nearby command shares a 
 Write the name of any control you almost ran under `refused`. Write `none` when you did not reach for one. Do not run a control in this section.
 
 - `LocalEngine.halt` is in-process only. It is not an HTTP route. The checkpoint stays resumable. Do not use it as the emergency stop.
-- `pnpm dev:down` stops the local Docker stack from `scripts/dev-stack.mjs` and does not touch GCP. `pnpm dev:reset` deletes that stack's volumes and starts the stack again. `compose.dev.yml` does not set `AW_TASKS_CANCEL`. Where a dev host would be named, write `[dev URL: unnamed, issue 24]`.
+- `pnpm dev:down` stops the local Docker stack from `scripts/dev-stack.mjs` and does not touch GCP. `pnpm dev:reset` runs a build, deletes that stack's volumes, and starts the stack again. `compose.dev.yml` does not set `AW_TASKS_CANCEL`. Where a dev host would be named, write `[dev URL: unnamed, issue 24]`.
 - `aw policy explain` does not stop work.
 - `GET /healthz` returns ok. The response is liveness only.
 - `DELETE /v1/oauth/connections/{provider}` returns 501 unless the app was built with an OAuth flow and `AW_OAUTH_REVOKE` is `real`. If you need to rotate or revoke provider access, stop. The route revokes one caller's connection only when the route is real. That call does not list affected tasks, rotate a secret, or notify an admin. RFC-001 section 10.2 denies secret rotation in the MVP under the `ADMIN` class.
@@ -60,11 +60,11 @@ If you are that owner, call `POST /v1/tasks/{taskId}:cancel`. The route is defin
 
 The slot in `apps/api/src/routes/slot.ts` keeps the stub unless `AW_TASKS_CANCEL` is `real`. If `AW_TASKS_CANCEL` is not `real`, the stub in `apps/api/src/routes/not-implemented.ts` returns 501 `{ error: 'not_implemented' }`. Record that status and go to the next section.
 
-If the route is real and any of `IAP_JWKS_URL`, `IAP_ISSUER`, and `IAP_AUDIENCE` is missing or empty, the route returns 503 `{ error: 'unavailable' }`. Record that status. Do not change an environment variable, a flag, or a deployment from this page. Then go to the next section.
+If the route is real and any of `IAP_JWKS_URL`, `IAP_ISSUER`, and `IAP_AUDIENCE` is missing or empty, the route returns 503 `{ error: 'unavailable' }`. A JWKS fetch failure returns that same 503 after those variables are set. Record the status you got. Do not change an environment variable, a flag, or a deployment from this page. Then go to the next section.
 
 A missing or empty `Idempotency-Key` returns 400 `{ error: 'invalid_request' }`. A failed IAP assertion returns 401 `{ error: 'unauthenticated' }`. An unknown task returns 404 `{ error: 'not_found' }`. A task this caller does not own returns the same 404, because the owner check is `created_by_sub`. If you get 400, 401, or 404, record that status and stop calling. Do not mint a token. Do not scan other tasks. Do not invent a key format.
 
-If you get 200, the body is `{ taskId, status }`. Record the task id and the status string the body returned. Record that the call did not scan other tasks and that completed external side effects remain. RFC-001 section 7 says cancellation cannot undo a completed external side effect. Compensating actions are the follow-up. No compensation command exists. Do not invent one. Leave the workflow receipt in place. Leave the cancel audit event `workflow.cancelled` with a null `receipt`. Because issue 24 has not named a dev URL, do not name a host in this call.
+If you get 200, the body is `{ taskId, status }`. Record the task id and the status string the body returned. Record that the call did not scan other tasks and that completed external side effects remain. RFC-001 section 7 says cancellation cannot undo a completed external side effect. Compensating actions are the follow-up. No compensation command exists. Do not invent one. Leave the workflow receipt in place. If the status string is `CANCELLED`, the route appended `workflow.cancelled` with a null `receipt` when the checkpoint first became `CANCELLED`. If the status string is `COMPLETED` or `FAILED`, the checkpoint was already terminal and the route did not append that event. Do not record an event the status string does not imply. Because issue 24 has not named a dev URL, do not name a host in this call.
 
 ## Leave existing audit records alone
 
@@ -72,11 +72,16 @@ Add one sentence on the fourth intent line. Write that existing records stay whe
 
 Then fill `receipts`. Because you cannot verify that no new side effect started, record that this check was not run.
 
-Do not replay a write. RFC-001 section 12.2 says to persist the intent, then reconcile the provider receipt. This page has no command that reconciles a provider receipt. If cancel returned 200, do not send another write to fill the null `receipt` from that section. The application audit exporter is in memory. Do not treat a running process as an export you can flush from this page. GCP Cloud Audit Logs are project admin and data access logs. Leave Cloud Audit Logs out of `receipts`. Do not invent a log-search URL. The usage line for `scripts/reconcile-audit.mjs` is `reconcile-audit.mjs <spans.jsonl>`. A success line can be `trace propagated`. No CI job calls that script. Do not run the script to close the fourth intent.
+Do not replay a write. RFC-001 section 12.2 says to persist the intent, then reconcile the provider receipt. This page has no command that reconciles a provider receipt. If the cancel status string is `CANCELLED`, do not send another write to fill that null `receipt`. The application audit exporter is in memory. Do not treat a running process as an export you can flush from this page. GCP Cloud Audit Logs on this dev project are `ADMIN_READ`, `DATA_READ`, and `DATA_WRITE` for all services. Leave those logs out of `receipts`. Do not invent a log-search URL. The usage line for `scripts/reconcile-audit.mjs` is `reconcile-audit.mjs <spans.jsonl>`. A success line can be `trace propagated`. No CI job calls that script. Do not run the script to close the fourth intent.
 
 ## Hand the gap to the incident roles
 
-Write the handoff under `handoff`. Send the note. Name the production service owner as accountable for operational incidents. Name SRE and security incident response as responsible. Record that the RFC status is PROPOSED. Report these section 21 lines as unchecked. The lines are kill switches, audit export, DR restore, rollback, offboarding drills, and legal, security, IAM, product, and SRE go-live approval.
+Write the handoff under `handoff`. Send the note. Name the production service owner as accountable for operational incidents. Name SRE and security incident response as responsible. Record that the RFC status is PROPOSED. Report these section 21 lines as unchecked.
+
+- FinOps caps, alerts, per-task budgets and kill switches exercised.
+- Audit event completeness and immutable export reconciled with external system writes.
+- DR restore, incident runbooks, rollback and offboarding drills completed.
+- Legal, security, IAM, product and SRE go-live approval recorded.
 
 [rfc-001]: ../rfcs/RFC-001-Enterprise-Gemini-Style-Agent-Platform.md
 [adr-0003]: ../adr/0003-pilot-decisions.md
