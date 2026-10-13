@@ -8,24 +8,26 @@ import { z } from 'zod';
 import {
   canonicalPayloadSha256,
   NonCanonicalPayload,
-  sha256DigestSchema,
 } from '../../packages/domain/src/canonical-hash.ts';
 
 const transcriptSchemaId = 'agent-works.cloud-spike.transcript';
 const reportSchemaId = 'agent-works.cloud-spike.verify-report';
 const redactedMark = '[redacted]';
-const idPattern = /^c0[234](?:\.[a-z0-9-]+)+$/;
-const slug = z
-  .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  .max(64);
-const pointer = z.string().regex(/^(\/[A-Za-z0-9-]+)+$/);
 const spikePrefix = {
   'C-02': 'c02.',
   'C-03': 'c03.',
   'C-04': 'c04.',
 };
-const secretFamilyOrder = ['bearer', 'ya29', 'oauth-token', 'access-token', 'sk', 'ghp'];
+const idPattern = new RegExp(
+  `^(?:${Object.values(spikePrefix)
+    .map((prefix) => prefix.slice(0, -1))
+    .join('|')})(?:\\.[a-z0-9-]+)+$`,
+);
+const slug = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  .max(64);
+const pointer = z.string().regex(/^(\/[A-Za-z0-9-]+)+$/);
 const closedVerdicts = ['no-go', 'defer', 'defer/unavailable', 'unverified'];
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const defaultRoots = [
@@ -71,7 +73,7 @@ const transcriptFields = {
     .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/)
     .refine((value) => Number.isFinite(Date.parse(value))),
   region: z.string().regex(/^[a-z][a-z0-9-]{1,30}[0-9]$/),
-  spike: z.enum(['C-02', 'C-03', 'C-04']),
+  spike: z.enum(Object.keys(spikePrefix)),
   feature: slug,
   stage: slug,
   request: exchangeSchema,
@@ -106,15 +108,33 @@ const transcriptSchema = z.union([
   }),
 ]);
 
-function secretPatterns() {
+function secretScans() {
   return [
-    /(?<![A-Za-z0-9])Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
-    /(?<![A-Za-z0-9])ya29\.[A-Za-z0-9._-]+/g,
-    /(?<![A-Za-z0-9])(?:oauth_token|access_token)(?:"\s*:\s*"[^"]*"|\s*[:=]\s*\S+|\s*%3D\S+)/gi,
-    /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}/g,
-    /(?<![A-Za-z0-9])ghp_[A-Za-z0-9]{8,}/g,
+    {
+      families: ['bearer'],
+      pattern: /(?<![A-Za-z0-9])Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+    },
+    {
+      families: ['ya29'],
+      pattern: /(?<![A-Za-z0-9])ya29\.[A-Za-z0-9._-]+/g,
+    },
+    {
+      families: ['oauth-token', 'access-token'],
+      pattern:
+        /(?<![A-Za-z0-9])(?:oauth_token|access_token)(?:"\s*:\s*"[^"]*"|\s*[:=]\s*\S+|\s*%3D\S+)/gi,
+    },
+    {
+      families: ['sk'],
+      pattern: /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}/g,
+    },
+    {
+      families: ['ghp'],
+      pattern: /(?<![A-Za-z0-9])ghp_[A-Za-z0-9]{8,}/g,
+    },
   ];
 }
+
+const secretFamilyOrder = secretScans().flatMap((scan) => scan.families);
 
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -144,29 +164,22 @@ function isEnvelope(value) {
   );
 }
 
-function familyOf(index, match) {
-  if (index === 0) return 'bearer';
-  if (index === 1) return 'ya29';
-  if (index === 2) {
-    const lower = match.toLowerCase();
-    if (lower.startsWith('oauth_token')) return 'oauth-token';
-    if (lower.startsWith('access_token')) return 'access-token';
-    return null;
-  }
-  if (index === 3) return 'sk';
-  if (index === 4) return 'ghp';
+function familyOf(scan, match) {
+  if (scan.families.length === 1) return scan.families[0];
+  const lower = match.toLowerCase();
+  if (lower.startsWith('oauth_token')) return 'oauth-token';
+  if (lower.startsWith('access_token')) return 'access-token';
   return null;
 }
 
 function scanSecrets(text) {
   const hits = [];
-  const patterns = secretPatterns();
-  for (let index = 0; index < patterns.length; index += 1) {
-    const pattern = patterns[index];
+  for (const scan of secretScans()) {
+    const { pattern } = scan;
     const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
     const expression = new RegExp(pattern.source, flags);
     for (const match of text.matchAll(expression)) {
-      const family = familyOf(index, match[0]);
+      const family = familyOf(scan, match[0]);
       if (family) hits.push({ family, match: match[0] });
     }
   }
@@ -243,17 +256,20 @@ function dedupeSecretReasons(hits) {
   return reasons;
 }
 
-function checksumReasons(digest, transcript) {
+function digestOrReason(transcript) {
   try {
-    const actual = canonicalPayloadSha256(transcript);
-    if (!sha256DigestSchema.safeParse(digest).success || digest !== actual) {
-      return [{ code: 'checksum' }];
-    }
-    return [];
+    return { digest: canonicalPayloadSha256(transcript) };
   } catch (error) {
-    if (error instanceof NonCanonicalPayload) return [{ code: 'non-canonical' }];
-    return [{ code: 'verifier-error' }];
+    if (error instanceof NonCanonicalPayload) return { reasons: [{ code: 'non-canonical' }] };
+    return { reasons: [{ code: 'verifier-error' }] };
   }
+}
+
+function checksumReasons(digest, transcript) {
+  const checked = digestOrReason(transcript);
+  if (checked.reasons) return checked.reasons;
+  if (digest !== checked.digest) return [{ code: 'checksum' }];
+  return [];
 }
 
 function idMatchesSpike(id, spike) {
@@ -261,11 +277,10 @@ function idMatchesSpike(id, spike) {
   return typeof prefix === 'string' && id.startsWith(prefix);
 }
 
-function hasIdSpike(value) {
-  if (!isPlainObject(value) || typeof value.id !== 'string' || !idPattern.test(value.id))
-    return false;
-  if (!Object.hasOwn(spikePrefix, value.spike)) return false;
-  return !value.id.startsWith(spikePrefix[value.spike]);
+function idSpikeMismatch(value) {
+  const id = readId(value);
+  if (id === null || !Object.hasOwn(spikePrefix, value.spike)) return false;
+  return !idMatchesSpike(id, value.spike);
 }
 
 function isSyntheticGo(value) {
@@ -289,15 +304,16 @@ function parseReasons(value) {
 function failureReasons(value) {
   const reasons = [];
   if (isSyntheticGo(value)) {
-    const retried = transcriptSchema.safeParse({ ...value, verdict: 'unverified' });
-    if (retried.success) {
-      reasons.push({ code: 'synthetic-go' });
-      if (!idMatchesSpike(retried.data.id, retried.data.spike)) reasons.push({ code: 'id-spike' });
+    reasons.push({ code: 'synthetic-go' });
+    const parsedAsUnverified = transcriptSchema.safeParse({ ...value, verdict: 'unverified' });
+    if (parsedAsUnverified.success) {
+      if (!idMatchesSpike(parsedAsUnverified.data.id, parsedAsUnverified.data.spike)) {
+        reasons.push({ code: 'id-spike' });
+      }
       return reasons;
     }
-    reasons.push({ code: 'synthetic-go' });
   }
-  if (hasIdSpike(value)) reasons.push({ code: 'id-spike' });
+  if (idSpikeMismatch(value)) reasons.push({ code: 'id-spike' });
   reasons.push({ code: 'schema' });
   return reasons;
 }
@@ -311,8 +327,8 @@ function contentReasons(transcript) {
       reasons.push({ code: 'redaction-mismatch', path: item.path });
     }
   }
-  for (const secretPath of redactedStrings(transcript)) {
-    if (!listed.has(secretPath)) reasons.push({ code: 'redaction-mismatch', path: secretPath });
+  for (const redactedPath of redactedStrings(transcript)) {
+    if (!listed.has(redactedPath)) reasons.push({ code: 'redaction-mismatch', path: redactedPath });
   }
   for (const item of transcript.omitted) {
     if (readPointer(transcript, item.path)) {
@@ -394,13 +410,9 @@ function assessTranscript(transcript, rawText, digestCheck) {
 export function sealTranscript(input) {
   const reasons = assessTranscript(input, rawTextOf(input), null);
   if (reasons.length > 0) return { ok: false, reasons };
-  try {
-    return { ok: true, envelope: { digest: canonicalPayloadSha256(input), transcript: input } };
-  } catch (error) {
-    if (error instanceof NonCanonicalPayload)
-      return { ok: false, reasons: [{ code: 'non-canonical' }] };
-    return { ok: false, reasons: [{ code: 'verifier-error' }] };
-  }
+  const checked = digestOrReason(input);
+  if (checked.reasons) return { ok: false, reasons: checked.reasons };
+  return { ok: true, envelope: { digest: checked.digest, transcript: input } };
 }
 
 export function verifyTranscriptBytes(bytes) {
@@ -485,14 +497,10 @@ function verifyFile(file) {
   try {
     bytes = readFileSync(file);
   } catch {
-    return { id: fallbackId(file), status: 'failed', reasons: [{ code: 'verifier-error' }] };
+    return row(fallbackId(file), [{ code: 'verifier-error' }]);
   }
   const checked = verifyTranscriptBytes(bytes);
-  return {
-    id: checked.id ?? fallbackId(file),
-    status: checked.status,
-    reasons: checked.reasons,
-  };
+  return row(checked.id ?? fallbackId(file), checked.reasons);
 }
 
 function applyDuplicates(rows) {
@@ -500,8 +508,7 @@ function applyDuplicates(rows) {
   for (const entry of rows) counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1);
   return rows.map((entry) => {
     if (counts.get(entry.id) < 2) return entry;
-    const reasons = [...entry.reasons, { code: 'duplicate-id' }];
-    return { id: entry.id, status: 'failed', reasons };
+    return row(entry.id, [...entry.reasons, { code: 'duplicate-id' }]);
   });
 }
 

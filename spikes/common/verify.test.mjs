@@ -248,7 +248,7 @@ test('secret pattern sources match the audit exporter', () => {
     path.join(repoRoot, 'apps/api/src/audit/exporter.ts'),
     'utf8',
   );
-  const verifyLiterals = regexLiterals(verifySource, 'secretPatterns');
+  const verifyLiterals = regexLiterals(verifySource, 'secretScans');
   const exporterLiterals = regexLiterals(exporterSource, 'secretPatterns');
   assert.equal(verifyLiterals.length, 5);
   assert.deepEqual(verifyLiterals, exporterLiterals);
