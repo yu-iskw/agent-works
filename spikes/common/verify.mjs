@@ -225,7 +225,7 @@ function secretReasons(rawText, value) {
 
 function prefixSecretPath(key, path) {
   if (path === null) return null;
-  return `/${encodePointerToken(key)}${path}`;
+  return pointerForSecret(`/${encodePointerToken(key)}${path}`);
 }
 
 function decodedSecretReasons(rawText, value) {
