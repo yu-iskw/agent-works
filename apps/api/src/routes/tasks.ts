@@ -207,8 +207,7 @@ async function readEvents(
 }
 
 type Opened =
-  | { readonly ok: true; readonly task: Task }
-  | { readonly ok: false; readonly reply: ApiReply };
+  { readonly ok: true; readonly task: Task } | { readonly ok: false; readonly reply: ApiReply };
 
 async function openTask(
   ledger: LedgerPort,
