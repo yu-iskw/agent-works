@@ -15,14 +15,14 @@ export function verifyRecovery(envelopes) {
       reason: 'recovery-owner-substitution',
       liveValidation: 'UNVERIFIED',
     };
+  if (records.some((record) => record.assessment.verdict === 'no-go'))
+    return { verdict: 'NO-GO', reason: 'recovery-control-failure', liveValidation: 'UNVERIFIED' };
   if (
     start.request.operation !== 'read' ||
     abort.request.operation !== 'abort' ||
     restart.request.operation !== 'restart'
   )
     return defer('recovery-order');
-  if (records.some((record) => record.assessment.verdict === 'no-go'))
-    return { verdict: 'NO-GO', reason: 'recovery-control-failure', liveValidation: 'UNVERIFIED' };
   if (
     start.response.outcome !== 'allowed' ||
     abort.response.outcome !== 'aborted' ||

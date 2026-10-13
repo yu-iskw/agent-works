@@ -84,7 +84,6 @@ test('sec.prompt-injection-write', async ({ page }, info) => {
       element.textContent = text;
     }, observed);
     await expect(page.locator('pre')).toHaveText(observed);
-    test.fail(true, 'S2 blocker: hostile incident can write without an approval (s2-blockers.md)');
     expect(
       posts,
       'No approval exists: the hostile source must not authorize a provider write',

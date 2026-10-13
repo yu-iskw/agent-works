@@ -903,3 +903,46 @@ describe('additional recovery boundaries', () => {
     });
   });
 });
+
+it('cancels in the ledger while an external write holds the shared task lock', async () => {
+  const ctx = setup();
+  const lock = serialLock();
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const external = externalStep();
+  const execute = external.step.execute;
+  const step = {
+    ...external.step,
+    execute: async (input: Parameters<CloudStep['execute']>[0]) => {
+      entered();
+      await gate;
+      return execute(input);
+    },
+  };
+  const worker = { ...ctx.worker, withTaskLock: lock, steps: [step] };
+  const port = createCloudWorkflowsPort({ ...ctx.deps, withTaskLock: lock });
+  const running = advanceCloudWorkflow(worker, taskId);
+  try {
+    await started;
+    let cancelled = false;
+    const cancelling = port.signal({ ...cancel, signalId: 'cancel-held-write' }).then(() => {
+      cancelled = true;
+    });
+    await vi.waitFor(() => expect(cancelled).toBe(true), { timeout: 1000 });
+    await cancelling;
+    expect(ctx.current().status).toBe('CANCELLED');
+    release();
+    expect(await running).toMatchObject({ action: 'done' });
+    expect(ctx.current().status).toBe('CANCELLED');
+    expect(await ctx.worker.log.list(taskId)).toMatchObject([{ body: 'draft:external-1' }]);
+  } finally {
+    release();
+    await running;
+  }
+});

@@ -25,10 +25,20 @@ export function summarizeRevocation(changedAt, checks) {
   /** @type {number | null} */
   let firstDenial = null;
   let deniedCount = 0;
+  const seen = new Map();
+  /** @type {RevocationCheck[]} */
+  const samples = [];
   for (const check of checks) {
     const at = Date.parse(check.checkedAt);
     if (!Number.isFinite(at) || at < previous) throw new Error('invalid polling order');
     previous = at;
+    const prior = seen.get(at);
+    if (prior !== undefined) {
+      if (prior !== check.denied) throw new Error('conflicting polling samples');
+      continue;
+    }
+    seen.set(at, check.denied);
+    samples.push(check);
     if (check.denied) {
       firstDenial ??= at;
       deniedCount += 1;
@@ -40,7 +50,7 @@ export function summarizeRevocation(changedAt, checks) {
   const stable = deniedCount >= 2;
   return {
     changedAt,
-    checks: [...checks],
+    checks: samples,
     stable,
     revocationLagMs: stable && firstDenial !== null ? firstDenial - changed : null,
   };

@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { expect, test } from '@playwright/test';
 
+import type * as Approvals from '../../apps/api/src/broker/approvals.js';
 import type * as Ports from '../../apps/api/src/ports/memory/task-ports.js';
 import type * as Incident from '../../apps/api/src/skills/incident.js';
 import type * as Registry from '../../apps/api/src/skills/registry.js';
@@ -21,6 +22,8 @@ function load<T>(path: string): Promise<T> {
 // Use the shipped incident adapter, never a test adapter that secretly inserts a broker.
 test('incident.end-to-end', async ({ page }, info) => {
   test.setTimeout(70_000);
+  const approvalsModule = await load<typeof Approvals>('apps/api/dist/broker/approvals.js');
+  const approvals = approvalsModule.createMemoryApprovalStore();
   const portsModule = await load<typeof Ports>('apps/api/dist/ports/memory/task-ports.js');
   const incidentModule = await load<typeof Incident>('apps/api/dist/skills/incident.js');
   const registryModule = await load<typeof Registry>('apps/api/dist/skills/registry.js');
@@ -65,6 +68,7 @@ test('incident.end-to-end', async ({ page }, info) => {
   const stack = await stackModule.startStack({
     skills: registry,
     dispatch: ports.dispatch,
+    approvals: { store: approvals, rolesFor: () => Promise.resolve(['Reviewer']) },
     wire: {
       ...authorization.taskAuthorization.wire,
       ledger: ports.ledger,
@@ -87,7 +91,7 @@ test('incident.end-to-end', async ({ page }, info) => {
           kind: 'submit',
           objective: 'Analyze checkout incident',
           skillId: 'incident-analysis',
-          input: { incidentId: 'inc-1' },
+          input: { incidentId: 'inc-1', approvalId: 'incident-approval' },
           sourceAllowlist: ['incidents'],
           requestedOutputs: ['ticket'],
           executionPolicy: { mode: 'interactive', budgetUsd: 1, deadlineSeconds: 60 },
@@ -105,6 +109,27 @@ test('incident.end-to-end', async ({ page }, info) => {
       createdBySub: 'alice',
     });
     expect(posts).toBe(0);
+    await approvals.save({
+      id: 'incident-approval',
+      taskId: accepted.taskId,
+      stepId: 'ticket',
+      tool: 'ticket.create@1.0.0',
+      targetResource: 'incidents',
+      payloadSha256: domain.canonicalPayloadSha256(payload),
+      requestedBySub: 'alice',
+      approverSub: null,
+      state: 'pending',
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
+      maxExecutions: 1,
+      executionsUsed: 0,
+    });
+    expect(
+      await approvals.bind('incident-approval', {
+        actorSub: 'bob',
+        decision: 'approve',
+        expectedPayloadSha256: domain.canonicalPayloadSha256(payload),
+      }),
+    ).toMatchObject({ ok: true });
     running = worker.runOnce();
     expect(await domain.taskApiSchema.parseAsync(await (await submit()).json())).toEqual(accepted);
     release();
@@ -113,7 +138,10 @@ test('incident.end-to-end', async ({ page }, info) => {
     const task = await ports.ledger.read('alice', accepted.taskId);
     expect(task).toMatchObject({ status: 'COMPLETED', createdBySub: 'alice', version: 3 });
     const receipt = await ports.ledger.readReceipt('alice', accepted.taskId);
-    expect(receipt).toMatchObject({ ref: 'FAKE-1' });
+    expect(receipt).toEqual({
+      ref: 'FAKE-1',
+      digestSha256: domain.canonicalPayloadSha256(payload),
+    });
     expect(posts).toBe(1);
     const external = await (await fetch(`${tickets.url}/tickets`)).json();
     expect(external).toEqual({
@@ -165,8 +193,7 @@ test('incident.end-to-end', async ({ page }, info) => {
     }, observed);
     await expect(page.locator('pre')).toHaveText(observed);
     expect(completionMs).toBeLessThanOrEqual(60_000);
-    test.fail(true, 'S2 blocker: incident delivery bypasses approval broker (s2-blockers.md)');
-    // This is the missing acceptance boundary, not a fabricated approval in the fake provider.
+    // The shipped adapter must bind the approved payload and record broker provenance.
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

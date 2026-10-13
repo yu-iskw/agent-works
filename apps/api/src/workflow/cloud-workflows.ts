@@ -89,7 +89,7 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
     },
     async signal(signal) {
       const parsed = workflowSignalSchema.parse(signal);
-      return deps.withTaskLock(parsed.taskId, async () => {
+      const apply = async () => {
         let task = await readTask(deps, parsed.taskId);
         if (parsed.kind === 'resume' && !terminalStatuses.includes(task.status)) {
           await deps.authorizeResume(task);
@@ -106,7 +106,9 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
           await wakeExecution(deps, task, parsed);
         }
         return outcome;
-      });
+      };
+      // Cancellation is a control-plane transition and must not queue behind an external write.
+      return parsed.kind === 'cancel' ? apply() : deps.withTaskLock(parsed.taskId, apply);
     },
   };
 }

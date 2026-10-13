@@ -9,6 +9,7 @@ import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { askPolicy, contextFor } from '../retrieval/search.js';
 import { createSkillRegistry } from '../skills/registry.js';
 
+import type { ApprovalsDeps } from './approvals.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
 import type { AskDeps } from './ask.js';
@@ -43,6 +44,7 @@ type ApiRequest = Parameters<Route>[0];
 
 export type TaskAuthorization = {
   readonly now: AskDeps['now'];
+  readonly approvals?: Omit<ApprovalsDeps, 'verify'>;
   readonly wire?: Pick<NonNullable<AskDeps['wire']>, 'groups' | 'policyInput'>;
 };
 
@@ -60,6 +62,53 @@ export function createTaskRoutes(
   authorization?: TaskAuthorization,
   dispatch?: DispatchPort,
 ): TaskRoutes {
+  if (authorization?.approvals !== undefined)
+    registry.configureApprovals?.({
+      store: authorization.approvals.store,
+      ledger,
+      now: authorization.now,
+      reauthorize: async (request, prior) => {
+        const skill = registry.get(request.skillId);
+        const refreshed =
+          skill === undefined
+            ? undefined
+            : await authorize(prior.caller, request, skill, authorization);
+        if (skill === undefined || refreshed === undefined) throw new Unavailable('authorization');
+        const approvalId = request.input?.approvalId;
+        const approval =
+          typeof approvalId === 'string'
+            ? await authorization.approvals?.store.read(approvalId)
+            : undefined;
+        if (approval === undefined || approval.requestedBySub !== prior.caller.sub)
+          throw new Unavailable('approval');
+        const task = await ledger.read(prior.caller.sub, approval.taskId);
+        if (task === undefined || terminalStatuses.includes(task.status))
+          throw new Unavailable('task');
+        const approver = approval.approverSub;
+        const roles =
+          approver === null
+            ? []
+            : authorization.approvals?.rolesFor !== undefined
+              ? await authorization.approvals.rolesFor(approver)
+              : rolesAt(
+                  await authorization.wire!.groups({ sub: approver, assertion: '' } as Caller),
+                  authorization.now().getTime(),
+                );
+        const input = await authorization.wire?.policyInput?.(prior.caller, refreshed.context, {
+          request,
+          manifest: skill.manifest,
+        });
+        return {
+          facts: {
+            ...input?.facts,
+            authenticated_actor: true,
+            active_org_membership: true,
+            permitted_app_role: true,
+          },
+          approverAuthorized: (sub) => sub === approver && roles.includes('Reviewer'),
+        };
+      },
+    });
   return {
     submit: (request) => submitTask(dispatch, verify, request, { registry, authorization }),
     read: (request) => readTask(ledger, verify, request),

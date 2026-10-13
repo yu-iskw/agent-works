@@ -401,3 +401,42 @@ test('comparison rejects unknown nested evidence fields instead of stripping dis
     assert.throws(() => bindEvidence(evidence), /Unrecognized key/);
   }
 });
+
+test('file IDs must match a complete provenance path segment', () => {
+  const valid = observed();
+  assert.equal(evaluateArm(valid, approved).verdict, 'GO');
+  for (const uri of [
+    'https://drive.google.com/file/d/prefix-alice-private-suffix/view',
+    'https://drive.google.com/file/d/other/view?file=alice-private',
+  ]) {
+    const changed = rebind(valid, (evidence) => {
+      evidence.cases[0].hits[0].provenance.sourceUri = uri;
+    });
+    assert.equal(evaluateArm(changed, approved).verdict, 'NO-GO');
+  }
+});
+
+test('duplicate timestamps cannot establish stable revocation', async () => {
+  const { summarizeRevocation } = await import('./revocation.mjs');
+  const changedAt = '2026-10-13T00:00:00Z';
+  const check = {
+    checkedAt: '2026-10-13T00:00:01Z',
+    denied: true,
+    sourceObjectId: 'alice-private',
+  };
+  const duplicated = summarizeRevocation(changedAt, [check, { ...check }]);
+  assert.equal(duplicated.stable, false);
+  assert.equal(duplicated.checks.length, 1);
+  assert.equal(
+    summarizeRevocation(changedAt, [
+      check,
+      { ...check },
+      { ...check, checkedAt: '2026-10-13T00:00:02Z' },
+    ]).stable,
+    true,
+  );
+  assert.throws(
+    () => summarizeRevocation(changedAt, [check, { ...check, denied: false }]),
+    /conflicting/,
+  );
+});
