@@ -191,39 +191,37 @@ export function createIncidentSkill(
           ...(execution?.signal === undefined ? [] : [execution.signal]),
         ]);
         try {
-          const response = await fetch(
-            new URL(`/incidents/${encodeURIComponent(incidentId as string)}`, input.incidentsUrl),
-            { signal },
-          );
-          if (!response.ok) throw new Error('incident');
-          const incident = (await response.json()) as { id: string; title: string; note: string };
-          const summary = await bounded(
-            input.model.answer(
-              `${skill.prompt}\n\nIncident ${incident.id}: ${incident.title}\n${incident.note}`,
-              { deadline, signal },
-            ),
-            signal,
-          );
-          signal.throwIfAborted();
-          const payload = { summary: summary.trim(), project: 'incidents' };
           const approvalId = request.input?.approvalId;
-          if (typeof approvalId !== 'string') throw new Error('approval required');
-          const binding = await approvalDeps?.reauthorize(request, authorized);
+          const deps = approvalDeps;
+          let payload =
+            typeof approvalId === 'string' && deps !== undefined
+              ? await bounded(deps.store.readPayload(approvalId), signal)
+              : undefined;
+          payload ??= await generatePayload(input, incidentId as string, deadline, signal);
+          if (typeof approvalId !== 'string' || deps === undefined)
+            throw new Error('approval required');
+          await bounded(deps.store.savePayload(approvalId, payload), signal);
+          const binding = await bounded(deps.reauthorize(request, authorized), signal);
+          signal.throwIfAborted();
           const broker = brokerFor(input, signal, binding);
           if (broker === undefined) throw new Error('approval broker unavailable');
-          const result = await broker.execute({
-            id: `incident:${accepted.taskId}`,
-            taskId: accepted.taskId,
-            stepId: 'ticket',
-            toolRef: TICKET_TOOL,
-            idempotencyKey: accepted.taskId,
-            targetResource: 'incidents',
-            payload,
-            approvalId,
-            actorSub: authorized.caller.sub,
-            traceId: accepted.traceId,
-            facts: binding?.facts ?? {},
-          });
+          const result = await bounded(
+            broker.execute({
+              id: `incident:${accepted.taskId}`,
+              taskId: accepted.taskId,
+              stepId: 'ticket',
+              toolRef: TICKET_TOOL,
+              idempotencyKey: accepted.taskId,
+              targetResource: 'incidents',
+              payload,
+              approvalId,
+              actorSub: authorized.caller.sub,
+              traceId: accepted.traceId,
+              facts: binding.facts,
+              signal,
+            }),
+            signal,
+          );
           if (!result.ok) throw new Error(result.code);
           ledger.set(accepted.taskId, result.receipt);
           return { kind: 'written', ticketId: result.receipt };
@@ -256,6 +254,33 @@ export function createIncidentSkill(
       else throw new Unavailable('incident');
     },
   };
+}
+
+async function generatePayload(
+  input: DeliverInput,
+  incidentId: string,
+  deadline: number,
+  signal: AbortSignal,
+) {
+  const response = await fetch(
+    new URL(`/incidents/${encodeURIComponent(incidentId)}`, input.incidentsUrl),
+    { signal },
+  );
+  if (!response.ok) throw new Error('incident');
+  const incident = (await bounded(response.json(), signal)) as {
+    id: string;
+    title: string;
+    note: string;
+  };
+  const summary = await bounded(
+    input.model.answer(
+      `${skill.prompt}\n\nIncident ${incident.id}: ${incident.title}\n${incident.note}`,
+      { deadline, signal },
+    ),
+    signal,
+  );
+  signal.throwIfAborted();
+  return { summary: summary.trim(), project: 'incidents' };
 }
 
 async function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {

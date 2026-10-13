@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 
+import { createPostgresApprovalStore } from './approvals.js';
 import { createApprovalHarness, useApprovalDatabase } from './broker-harness.js';
 
 const database = useApprovalDatabase();
@@ -184,6 +185,44 @@ it('policy-down does not call the tool', async () => {
     expect(harness.posts()).toBe(0);
     expect(await harness.tickets()).toBe(0);
     expect(await harness.read('apr-1')).toMatchObject({ executionsUsed: 0 });
+  } finally {
+    await harness.stop();
+  }
+});
+
+it('rejects a revoked reviewer on resume but allows completed receipt replay', async () => {
+  let active = true;
+  const harness = await createApprovalHarness(database.sql(), () => active);
+  try {
+    await harness.save(harness.row());
+    harness.failNextPost();
+    await expect(harness.execute()).rejects.toThrow('ticket transport');
+    active = false;
+    expect(await harness.execute()).toEqual({ ok: false, status: 422, code: 'APPROVAL_REQUIRED' });
+    expect(harness.posts()).toBe(0);
+    active = true;
+    expect(await harness.execute()).toMatchObject({ ok: true, replay: false });
+    active = false;
+    expect(await harness.execute()).toEqual({ ok: true, receipt: 'FAKE-1', replay: true });
+    expect(harness.posts()).toBe(1);
+  } finally {
+    await harness.stop();
+  }
+});
+
+it('persists only the approval-bound payload across store instances', async () => {
+  const harness = await createApprovalHarness(database.sql());
+  try {
+    await harness.save(harness.row());
+    const store = createPostgresApprovalStore(database.sql());
+    await expect(
+      store.savePayload('apr-1', { summary: 'changed', project: 'PROJ' }),
+    ).rejects.toThrow('approval payload mismatch');
+    expect(await store.readPayload('apr-1')).toBeUndefined();
+    const payload = { summary: 'Ship the fix', project: 'PROJ' };
+    await store.savePayload('apr-1', payload);
+    await store.savePayload('apr-1', payload);
+    expect(await createPostgresApprovalStore(database.sql()).readPayload('apr-1')).toEqual(payload);
   } finally {
     await harness.stop();
   }

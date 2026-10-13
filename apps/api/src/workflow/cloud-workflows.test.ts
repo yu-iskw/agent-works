@@ -946,3 +946,74 @@ it('cancels in the ledger while an external write holds the shared task lock', a
     await running;
   }
 });
+
+describe('remote execution creation racing with cancellation', () => {
+  it.each(['save', 'recover', 'resume'] as const)(
+    'rechecks terminal state after %s lists stale executions',
+    async (operation) => {
+      const env = setup();
+      const original = env.deps.transport.request;
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      env.deps.transport.request = vi.fn(async (request: CloudRequest) => {
+        if (request.method === 'GET' && request.url.includes('/executions?')) {
+          env.deps.transport.request = original;
+          started();
+          await gate;
+          return { executions: [] };
+        }
+        return original(request);
+      });
+      const pending =
+        operation === 'save'
+          ? env.port.save({ taskId, status: 'RUNNING', stepId: 'ticket' })
+          : operation === 'recover'
+            ? recoverCloudWorkflow(env.deps, taskId)
+            : env.port.signal(resume);
+      await entered;
+      await env.port.signal(cancel);
+      expect(env.current().status).toBe('CANCELLED');
+      release();
+      await pending;
+      expect(env.calls.filter((request) => request.url.endsWith('/executions'))).toHaveLength(0);
+    },
+  );
+
+  it.each([false, true])(
+    'cancels an execution created after cancellation (lost response: %s)',
+    async (lost) => {
+      const env = setup();
+      if (lost) env.loseCreateResponse();
+      const original = env.deps.transport.request;
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      env.deps.transport.request = vi.fn(async (request: CloudRequest) => {
+        if (request.method === 'POST' && request.url.endsWith('/executions')) {
+          started();
+          await gate;
+        }
+        return original(request);
+      });
+      const pending = recoverCloudWorkflow(env.deps, taskId).catch((error: unknown) => error);
+      await entered;
+      await env.port.signal(cancel);
+      expect(env.current().status).toBe('CANCELLED');
+      release();
+      const result = await pending;
+      if (lost) expect(result).toBeInstanceOf(Error);
+      expect(env.calls.filter((request) => request.url.endsWith(':cancel'))).toHaveLength(1);
+    },
+  );
+});

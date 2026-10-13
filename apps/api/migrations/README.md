@@ -15,4 +15,6 @@
 
 The task ledger applies `0006`–`0008` under its migration lock. `0008` indexes task history stored in the existing JSON outbox; dispatch envelopes use the existing `task_deliveries.payload` column. No public API schema changes.
 
-The next free number after these reservations is `0009`.
+`0009_approval_payload.sql` persists the canonical approval-bound delivery payload. The approval store applies it under its migration lock after `0003`.
+
+The next free number after these reservations is `0010`.
