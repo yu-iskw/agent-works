@@ -114,14 +114,14 @@ When you want durable fixes (not one-off chat advice):
 
 `pnpm dev:up --wait` builds the workspace and starts the Docker Compose stack in `compose.dev.yml`. `pnpm dev:down` stops it. On the host, services listen on `127.0.0.1`:
 
-| Port | Service |
-| --- | --- |
+| Port | Service                               |
+| ---- | ------------------------------------- |
 | 8081 | fake IAP (front door for the web app) |
-| 8082 | fake Drive |
-| 8083 | fake LLM |
-| 8084 | API |
-| 8085 | web |
-| 8086 | fake directory |
+| 8082 | fake Drive                            |
+| 8083 | fake LLM                              |
+| 8084 | API                                   |
+| 8085 | web                                   |
+| 8086 | fake directory                        |
 
 Sign in through fake IAP with header `x-fake-user: alice` or `x-fake-user: bob`. A working ask is `POST /` with form fields `question` and `requestId` (a UUID from `GET /`).
 
