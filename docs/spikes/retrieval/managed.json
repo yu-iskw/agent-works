@@ -1,0 +1,70 @@
+{
+  "evidence": {
+    "schemaId": "agent-works.retrieval.evidence",
+    "schemaVersion": 1,
+    "matrixId": "bundle-b-acl-v1",
+    "arm": "A",
+    "service": "gemini-enterprise",
+    "provenance": "synthetic",
+    "verdict": "DEFER",
+    "availability": "unavailable",
+    "capturedAt": "2026-10-13T00:00:00Z",
+    "featureScope": "Document search, snippets, answer and extra response surfaces; no trial access",
+    "region": "asia-northeast1",
+    "configuration": {
+      "sourceAclMode": "unverified",
+      "identityMapping": "unverified",
+      "featureStage": "operator-gated"
+    },
+    "reason": "DEFER/unavailable: no Gemini Enterprise trial evidence supplied",
+    "costUsd": null,
+    "cases": [],
+    "omitted": ["credentials", "real-subjects", "customer-content"]
+  },
+  "digest": "da76e81058bdcdc2a2e58df0ed93a0c920a5d54f38d5b80cf339dcb4be69b57c",
+  "transcript": {
+    "digest": "9d8182ca301bf3d2a449f41225ab10e28d98fe977fead064bbeb543154f3985b",
+    "transcript": {
+      "schemaId": "agent-works.cloud-spike.transcript",
+      "schemaVersion": 1,
+      "id": "c04.managed.offline",
+      "capturedAt": "2026-10-13T00:00:00Z",
+      "region": "asia-northeast1",
+      "spike": "C-04",
+      "feature": "gemini-enterprise",
+      "stage": "acl-matrix",
+      "request": {
+        "api": "discoveryengine.search",
+        "httpStatus": null,
+        "observations": []
+      },
+      "response": {
+        "api": "discoveryengine.search",
+        "httpStatus": null,
+        "observations": [
+          {
+            "name": "evidence-sha256",
+            "value": "da76e81058bdcdc2a2e58df0ed93a0c920a5d54f38d5b80cf339dcb4be69b57c"
+          },
+          {
+            "name": "live-probed",
+            "value": false
+          }
+        ]
+      },
+      "verdict": "defer/unavailable",
+      "provenance": {
+        "kind": "synthetic"
+      },
+      "redacted": [],
+      "omitted": [
+        {
+          "path": "/request/headers"
+        },
+        {
+          "path": "/request/identities"
+        }
+      ]
+    }
+  }
+}

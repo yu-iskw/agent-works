@@ -1,0 +1,52 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "after-403",
+  "caller": "alice",
+  "expectedIds": [],
+  "expectedError": null,
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "bob-private"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "bob-private",
+      "status": 200,
+      "body": {
+        "id": "bob-private",
+        "name": "C04_BOB_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "bob-private",
+      "status": 200,
+      "body": "C04_BOB_CONTENT C04_BOB_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "bob-private",
+      "status": 403,
+      "body": {
+        "error": "C04_BOB_TITLE C04_BOB_SNIPPET C04_BOB_CONTENT"
+      }
+    }
+  ]
+}

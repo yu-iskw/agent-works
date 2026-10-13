@@ -1,0 +1,70 @@
+{
+  "evidence": {
+    "schemaId": "agent-works.retrieval.evidence",
+    "schemaVersion": 1,
+    "matrixId": "bundle-b-acl-v1",
+    "arm": "B",
+    "service": "drive-delegated",
+    "provenance": "synthetic",
+    "verdict": "UNVERIFIED",
+    "availability": "not-probed",
+    "capturedAt": "2026-10-13T00:00:00Z",
+    "featureScope": "Drive v3 files.list, files.get metadata/media, Google Docs text export; offline only",
+    "region": "asia-northeast1",
+    "configuration": {
+      "sourceAclMode": "unverified",
+      "identityMapping": "unverified",
+      "featureStage": "operator-gated"
+    },
+    "reason": "UNVERIFIED: no live caller-delegated Drive evidence supplied",
+    "costUsd": null,
+    "cases": [],
+    "omitted": ["credentials", "real-subjects", "customer-content"]
+  },
+  "digest": "8ad5dee439718f8e472aa5afcc0e5b56ed30b0d9fa95273df7a7f0a12b686e3a",
+  "transcript": {
+    "digest": "92d3383317ab2433aa14ced5258ecb5a27e1db4243628ec06cb84a5a05c85fd3",
+    "transcript": {
+      "schemaId": "agent-works.cloud-spike.transcript",
+      "schemaVersion": 1,
+      "id": "c04.drive.offline",
+      "capturedAt": "2026-10-13T00:00:00Z",
+      "region": "asia-northeast1",
+      "spike": "C-04",
+      "feature": "drive-delegated",
+      "stage": "acl-matrix",
+      "request": {
+        "api": "drive.files",
+        "httpStatus": null,
+        "observations": []
+      },
+      "response": {
+        "api": "drive.files",
+        "httpStatus": null,
+        "observations": [
+          {
+            "name": "evidence-sha256",
+            "value": "8ad5dee439718f8e472aa5afcc0e5b56ed30b0d9fa95273df7a7f0a12b686e3a"
+          },
+          {
+            "name": "live-probed",
+            "value": false
+          }
+        ]
+      },
+      "verdict": "unverified",
+      "provenance": {
+        "kind": "synthetic"
+      },
+      "redacted": [],
+      "omitted": [
+        {
+          "path": "/request/headers"
+        },
+        {
+          "path": "/request/identities"
+        }
+      ]
+    }
+  }
+}

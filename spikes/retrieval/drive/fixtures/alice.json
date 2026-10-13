@@ -1,0 +1,137 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "alice",
+  "caller": "alice",
+  "expectedIds": ["alice-private", "reviewer-shared", "public"],
+  "expectedError": null,
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "alice-private"
+          },
+          {
+            "id": "reviewer-shared"
+          },
+          {
+            "id": "public"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "alice-private",
+      "status": 200,
+      "body": {
+        "id": "alice-private",
+        "name": "C04_ALICE_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "alice-private",
+      "status": 200,
+      "body": "C04_ALICE_CONTENT C04_ALICE_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "alice-private",
+      "status": 200,
+      "body": {
+        "id": "alice-private",
+        "name": "C04_ALICE_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "reviewer-shared",
+      "status": 200,
+      "body": {
+        "id": "reviewer-shared",
+        "name": "C04_SHARED_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "reviewer-shared",
+      "status": 200,
+      "body": "C04_SHARED_CONTENT C04_SHARED_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "reviewer-shared",
+      "status": 200,
+      "body": {
+        "id": "reviewer-shared",
+        "name": "C04_SHARED_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "public",
+      "status": 200,
+      "body": "C04_PUBLIC_CONTENT C04_PUBLIC_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    }
+  ]
+}

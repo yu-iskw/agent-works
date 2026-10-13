@@ -1,0 +1,98 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "bob",
+  "caller": "bob",
+  "expectedIds": ["bob-private", "public"],
+  "expectedError": null,
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "bob-private"
+          },
+          {
+            "id": "public"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "bob-private",
+      "status": 200,
+      "body": {
+        "id": "bob-private",
+        "name": "C04_BOB_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "bob-private",
+      "status": 200,
+      "body": "C04_BOB_CONTENT C04_BOB_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "bob-private",
+      "status": 200,
+      "body": {
+        "id": "bob-private",
+        "name": "C04_BOB_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "public",
+      "status": 200,
+      "body": "C04_PUBLIC_CONTENT C04_PUBLIC_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    }
+  ]
+}

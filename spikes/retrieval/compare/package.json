@@ -1,0 +1,8 @@
+{
+  "name": "@agent-works/spike-retrieval-compare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test evaluate.test.mjs"
+  }
+}

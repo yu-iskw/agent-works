@@ -1,0 +1,76 @@
+{
+  "schemaId": "agent-works.retrieval.managed-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "alice",
+  "caseId": "alice",
+  "subject": "alice",
+  "status": 200,
+  "response": {
+    "results": [
+      {
+        "document": {
+          "id": "alice-private",
+          "structData": {
+            "title": "C04_ALICE_TITLE",
+            "content": "C04_ALICE_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/alice-private/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-alice-private",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_ALICE_SNIPPET"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "document": {
+          "id": "reviewer-shared",
+          "structData": {
+            "title": "C04_SHARED_TITLE",
+            "content": "C04_SHARED_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/reviewer-shared/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-reviewer-shared",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_SHARED_SNIPPET"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "document": {
+          "id": "public",
+          "structData": {
+            "title": "C04_PUBLIC_TITLE",
+            "content": "C04_PUBLIC_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/public/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-public",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_PUBLIC_SNIPPET"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
