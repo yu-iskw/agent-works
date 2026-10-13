@@ -13,7 +13,12 @@ import type {
   TaskAccepted,
   TaskSubmit,
 } from '@agent-works/domain';
-import type { Delivery, DeliverInput, IncidentModel } from '@agent-works/incident-analysis';
+import type {
+  Delivery,
+  DeliverInput,
+  IncidentExecution,
+  IncidentModel,
+} from '@agent-works/incident-analysis';
 
 export type AuthorizedCaller = {
   readonly caller: Caller;
@@ -28,7 +33,12 @@ export type RegisteredSkill = {
     request: TaskSubmit,
     accepted: TaskAccepted,
     authorized: AuthorizedCaller,
+    execution?: IncidentExecution,
   ): Promise<void>;
+};
+
+export type IncidentSkill = RegisteredSkill & {
+  result(taskId: string): Delivery | undefined;
 };
 
 export type IncidentConfig = {
@@ -57,15 +67,38 @@ const skill = {
 export function createIncidentSkill(
   config: () => IncidentConfig | undefined = () => undefined,
   deliver: (input: DeliverInput) => Promise<Delivery> = deliverIncident,
-): RegisteredSkill {
+): IncidentSkill {
   const ledger = new Map<string, string>();
+  const results = new Map<string, Delivery>();
+  const deadlines = new Map<string, number>();
   return {
     manifest: skill.manifest,
+    result: (taskId) => {
+      const receipt = ledger.get(taskId);
+      return receipt === undefined ? results.get(taskId) : { kind: 'written', ticketId: receipt };
+    },
     validate: (request) =>
       typeof request.input?.incidentId === 'string' && request.input.incidentId.length > 0,
-    async dispatch(request, accepted, authorized) {
+    async dispatch(request, accepted, authorized, execution) {
+      const deadline = Math.min(
+        deadlines.get(accepted.taskId) ?? Infinity,
+        Date.parse(accepted.submittedAt) + request.executionPolicy.deadlineSeconds * 1000,
+        execution?.deadline ?? Infinity,
+      );
+      deadlines.set(accepted.taskId, deadline);
+      const known = ledger.get(accepted.taskId);
+      if (!Number.isFinite(deadline) || Date.now() >= deadline || execution?.signal?.aborted) {
+        if (known !== undefined) return;
+        results.set(accepted.taskId, {
+          kind: execution?.signal?.aborted ? 'cancelled' : 'timeout',
+        });
+        throw new Unavailable('incident');
+      }
       const configured = config();
-      if (configured === undefined) throw new Unavailable('incident');
+      if (configured === undefined) {
+        results.set(accepted.taskId, { kind: 'failed' });
+        throw new Unavailable('incident');
+      }
       const incidentId = request.input?.incidentId;
       if (typeof incidentId !== 'string' || incidentId.length === 0)
         throw new Error('incident input');
@@ -76,9 +109,13 @@ export function createIncidentSkill(
         deliveryId: accepted.taskId,
         incidentId,
         timeoutMs: request.executionPolicy.deadlineSeconds * 1000,
+        deadline,
+        signal: execution?.signal,
         ledger,
-      });
-      if (result.kind !== 'written') throw new Unavailable('incident');
+      }).catch((): Delivery => ({ kind: 'failed' }));
+      results.set(accepted.taskId, result);
+      if (result.kind === 'written') ledger.set(accepted.taskId, result.ticketId);
+      else throw new Unavailable('incident');
     },
   };
 }

@@ -5,8 +5,13 @@ export type SkillPackage = {
   readonly prompt: string;
 };
 
+export type IncidentExecution = {
+  readonly deadline: number;
+  readonly signal?: AbortSignal;
+};
+
 export type IncidentModel = {
-  answer(question: string): Promise<string>;
+  answer(this: void, question: string, execution: IncidentExecution): Promise<string>;
 };
 
 export type DeliverInput = {
@@ -18,13 +23,17 @@ export type DeliverInput = {
   readonly ticketsUrl: string;
   readonly model: IncidentModel;
   readonly timeoutMs: number;
+  readonly deadline?: number;
+  readonly signal?: AbortSignal;
   readonly ledger: Map<string, string>;
 };
 
 export type Delivery =
   | { readonly kind: 'written'; readonly ticketId: string }
   | { readonly kind: 'timeout' }
-  | { readonly kind: 'revoked' };
+  | { readonly kind: 'revoked' }
+  | { readonly kind: 'cancelled' }
+  | { readonly kind: 'failed' };
 
 type Incident = {
   readonly id: string;
@@ -33,32 +42,86 @@ type Incident = {
 };
 
 export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
-  if (input.skill.manifest.state === 'REVOKED') return { kind: 'revoked' };
   const known = input.ledger.get(input.deliveryId);
   if (known !== undefined) return { kind: 'written', ticketId: known };
-  const incident = await readIncident(input.incidentsUrl, input.incidentId);
-  const answer = await input.model.answer(questionFor(input.skill, incident));
+  if (input.skill.manifest.state === 'REVOKED') return { kind: 'revoked' };
+  const execution = createExecution(input);
   try {
-    const ticketId = await postTicket(
-      input.ticketsUrl,
-      input.deliveryId,
-      answer.trim(),
-      input.timeoutMs,
+    const incident = await execution.run(() =>
+      readIncident(input.incidentsUrl, input.incidentId, execution.signal),
     );
-    input.ledger.set(input.deliveryId, ticketId);
+    const answer = await execution.run(() =>
+      input.model.answer(questionFor(input.skill, incident), execution),
+    );
+    const ticketId = await execution.run(async () => {
+      const receipt = await postTicket(
+        input.ticketsUrl,
+        input.deliveryId,
+        answer.trim(),
+        execution.signal,
+      );
+      input.ledger.set(input.deliveryId, receipt);
+      return receipt;
+    });
     return { kind: 'written', ticketId };
-  } catch (error) {
-    if (isTimeout(error)) return { kind: 'timeout' };
-    throw error;
+  } catch {
+    const receipt = input.ledger.get(input.deliveryId);
+    if (receipt !== undefined) return { kind: 'written', ticketId: receipt };
+    return { kind: execution.failure() };
+  } finally {
+    execution.dispose();
   }
+}
+
+function createExecution(input: DeliverInput) {
+  const deadline = input.deadline ?? Date.now() + input.timeoutMs;
+  const controller = new AbortController();
+  const expire = () => controller.abort(new Error('incident deadline'));
+  const cancel = () => controller.abort(new Error('incident cancelled'));
+  const timer = setTimeout(expire, Math.max(0, deadline - Date.now()));
+  input.signal?.addEventListener('abort', cancel, { once: true });
+  const check = () => {
+    if (!Number.isFinite(deadline) || Date.now() >= deadline) expire();
+    if (input.signal?.aborted) cancel();
+    controller.signal.throwIfAborted();
+  };
+  return {
+    deadline,
+    signal: controller.signal,
+    failure(): 'timeout' | 'cancelled' | 'failed' {
+      if (!Number.isFinite(deadline) || Date.now() >= deadline) return 'timeout';
+      return input.signal?.aborted ? 'cancelled' : 'failed';
+    },
+    async run<T>(operation: () => Promise<T>): Promise<T> {
+      check();
+      let abort = () => {};
+      const stopped = new Promise<never>((_resolve, reject) => {
+        abort = () => reject(new Error('incident stopped'));
+        controller.signal.addEventListener('abort', abort, { once: true });
+      });
+      try {
+        return await Promise.race([operation(), stopped]);
+      } finally {
+        controller.signal.removeEventListener('abort', abort);
+      }
+    },
+    dispose() {
+      clearTimeout(timer);
+      input.signal?.removeEventListener('abort', cancel);
+    },
+  };
 }
 
 function questionFor(skill: SkillPackage, incident: Incident): string {
   return `${skill.prompt}\n\nIncident ${incident.id}: ${incident.title}\n${incident.note}`;
 }
 
-async function readIncident(incidentsUrl: string, incidentId: string): Promise<Incident> {
-  const response = await fetch(new URL(`/incidents/${incidentId}`, incidentsUrl));
+async function readIncident(
+  incidentsUrl: string,
+  incidentId: string,
+  signal: AbortSignal,
+): Promise<Incident> {
+  const response = await fetch(new URL(`/incidents/${incidentId}`, incidentsUrl), { signal });
   if (!response.ok) throw new Error('incident');
   const body: unknown = await response.json();
   if (!isIncident(body)) throw new Error('incident');
@@ -69,7 +132,7 @@ async function postTicket(
   ticketsUrl: string,
   deliveryId: string,
   summary: string,
-  timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<string> {
   const response = await fetch(new URL('/tickets', ticketsUrl), {
     method: 'POST',
@@ -78,7 +141,7 @@ async function postTicket(
       'idempotency-key': deliveryId,
     },
     body: JSON.stringify({ summary, project: 'incidents' }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal,
   });
   if (!response.ok) throw new Error('ticket');
   const body: unknown = await response.json();
@@ -86,10 +149,6 @@ async function postTicket(
     throw new Error('ticket');
   }
   return body.id;
-}
-
-function isTimeout(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
 }
 
 function isIncident(value: unknown): value is Incident {

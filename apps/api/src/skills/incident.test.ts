@@ -1,5 +1,4 @@
-import { createIncidents, createTicket, listen } from '@agent-works/fakes';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Unavailable } from '../auth/iap.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
@@ -29,33 +28,50 @@ const accepted = {
 };
 
 describe('incident adapter', () => {
-  it('runs S1 delivery and replays without creating a second ticket', async () => {
-    const incidents = await listen(createIncidents(), 0);
-    const tickets = await listen(createTicket(), 0);
-    const answer = vi.fn().mockResolvedValue('Incident summary');
-    try {
-      const skill = createIncidentSkill(() => ({
-        incidentsUrl: incidents.url,
-        ticketsUrl: tickets.url,
-        model: { answer },
-      }));
-      await skill.dispatch(submission, accepted, authorizedCaller);
-      await skill.dispatch(submission, accepted, authorizedCaller);
-      expect(answer).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('inc-1'));
-      const response = await fetch(`${tickets.url}/tickets`);
-      expect(await response.json()).toEqual({
-        tickets: [
-          {
-            id: 'FAKE-1',
-            summary: 'Incident summary',
-            project: 'incidents',
-            idempotencyKey: 'task-1',
-          },
-        ],
-      });
-    } finally {
-      await Promise.all([incidents.close(), tickets.close()]);
-    }
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(accepted.submittedAt));
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('passes a fixed task deadline and cancellation signal', async () => {
+    const deliver = vi
+      .fn<(input: DeliverInput) => Promise<Delivery>>()
+      .mockResolvedValue({ kind: 'written', ticketId: 'ticket-1' });
+    const skill = createIncidentSkill(
+      () => ({
+        incidentsUrl: 'https://incidents.test',
+        ticketsUrl: 'https://tickets.test',
+        model: { answer: () => Promise.resolve('summary') },
+      }),
+      deliver,
+    );
+    const controller = new AbortController();
+    await skill.dispatch(submission, accepted, authorizedCaller, {
+      deadline: Date.now() + 500,
+      signal: controller.signal,
+    });
+    expect(deliver.mock.calls[0][0]).toMatchObject({
+      deadline: Date.now() + 500,
+      signal: controller.signal,
+    });
+    expect(skill.result(accepted.taskId)).toEqual({ kind: 'written', ticketId: 'ticket-1' });
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.abort();
+    await skill.dispatch(submission, accepted, authorizedCaller);
+    expect(deliver).toHaveBeenCalledOnce();
+  });
+
+  it('does not deliver an expired task', async () => {
+    const deliver = vi.fn();
+    const skill = createIncidentSkill(() => undefined, deliver);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(skill.dispatch(submission, accepted, authorizedCaller)).rejects.toBeInstanceOf(
+      Unavailable,
+    );
+    expect(deliver).not.toHaveBeenCalled();
+    expect(skill.result(accepted.taskId)).toEqual({ kind: 'timeout' });
   });
 
   it('reports missing configuration without delivering', async () => {
@@ -97,5 +113,27 @@ describe('incident adapter', () => {
     expect(await routes.submit(request)).toEqual({ status: 503, body: { error: 'unavailable' } });
     expect((await routes.submit(request)).status).toBe(200);
     expect(deliver.mock.calls[0][0].deliveryId).toBe(deliver.mock.calls[1][0].deliveryId);
+  });
+  it('does not reset the deadline on retry', async () => {
+    const deliver = vi
+      .fn<(input: DeliverInput) => Promise<Delivery>>()
+      .mockResolvedValue({ kind: 'timeout' });
+    const skill = createIncidentSkill(
+      () => ({
+        incidentsUrl: 'https://incidents.test',
+        ticketsUrl: 'https://tickets.test',
+        model: { answer: () => Promise.resolve('summary') },
+      }),
+      deliver,
+    );
+    await expect(skill.dispatch(submission, accepted, authorizedCaller)).rejects.toBeInstanceOf(
+      Unavailable,
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(
+      skill.dispatch(submission, accepted, authorizedCaller, { deadline: Date.now() + 1000 }),
+    ).rejects.toBeInstanceOf(Unavailable);
+    expect(deliver).toHaveBeenCalledOnce();
+    expect(skill.result(accepted.taskId)).toEqual({ kind: 'timeout' });
   });
 });
