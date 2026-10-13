@@ -32,6 +32,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+const resolvedDispatch = (): Promise<void> => Promise.resolve();
+
 describe('worker lifecycle', () => {
   it('renews leases throughout a slow delivery and stops its heartbeat afterwards', async () => {
     vi.useFakeTimers();
@@ -160,8 +162,7 @@ describe('worker lifecycle', () => {
   });
 
   it.each([0, -1, 0.5])('rejects invalid lease configuration %s', (leaseMs) => {
-    expect(() => createTaskDispatcher({ ...setup(() => Promise.resolve()), leaseMs })).toThrow(
-      RangeError,
-    );
+    const ports = setup(resolvedDispatch);
+    expect(() => createTaskDispatcher({ ...ports, leaseMs })).toThrow(RangeError);
   });
 });
