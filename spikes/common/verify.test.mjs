@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -284,6 +284,28 @@ test('missing root is an empty pass', () => {
   });
 });
 
+test('a symlinked scan root containing an invalid transcript is rejected', () => {
+  withTemp('spike-root-symlink-', (directory) => {
+    const targetDirectory = path.join(directory, 'target');
+    mkdirSync(targetDirectory);
+    writeFileSync(path.join(targetDirectory, 'invalid.transcript.json'), '{}\n');
+    const scanDirectory = path.join(directory, 'scan');
+    symlinkSync(targetDirectory, scanDirectory);
+    assert.deepEqual(verifyCommitted([scanDirectory]), {
+      schemaId: 'agent-works.cloud-spike.verify-report',
+      schemaVersion: 1,
+      status: 'failed',
+      results: [
+        {
+          id: `unreadable:${repoRelative(scanDirectory)}`,
+          status: 'failed',
+          reasons: [{ code: 'verifier-error' }],
+        },
+      ],
+    });
+  });
+});
+
 test('unrelated json is ignored and an empty claimed file fails', () => {
   withTemp('spike-empty-', (directory) => {
     writeFileSync(path.join(directory, 'notes.json'), '{"note":"hello"}\n');
@@ -314,6 +336,73 @@ test('unrelated json is ignored and an empty claimed file fails', () => {
     });
   });
 });
+
+test('schema-claimed files are verified regardless of extension', () => {
+  withTemp('spike-extension-', (directory) => {
+    const file = path.join(directory, 'probe.txt');
+    writeFileSync(file, '{"schemaId":"agent-works.cloud-spike.transcript"}');
+    const report = verifyCommitted([directory]);
+    assert.equal(report.status, 'failed');
+    assert.deepEqual(report.results, [
+      {
+        id: `unreadable:${repoRelative(file)}`,
+        status: 'failed',
+        reasons: [{ code: 'schema' }],
+      },
+    ]);
+
+    const token = `${['s', 'k-'].join('')}abcdefgh12345678`;
+    writeFileSync(
+      file,
+      JSON.stringify({ transcript: { schemaId: 'agent-works.cloud-spike.transcript', token } }),
+    );
+    const secretReport = verifyCommitted([directory]);
+    assert.equal(secretReport.status, 'failed');
+    assert.deepEqual(secretReport.results, [
+      {
+        id: `unreadable:${repoRelative(file)}`,
+        status: 'failed',
+        reasons: [{ code: 'secret', family: 'sk', path: '/token' }, { code: 'schema' }],
+      },
+    ]);
+    assert.equal(JSON.stringify(secretReport).includes(token), false);
+
+    writeFileSync(file, readFileSync(path.join(repoRoot, validPath)));
+    const validReport = verifyCommitted([directory]);
+    assert.equal(validReport.status, 'passed');
+    assert.deepEqual(validReport.results, [
+      { id: 'c02.runtime.sessions', status: 'passed', reasons: [] },
+    ]);
+  });
+});
+
+for (const target of ['valid', 'invalid', 'dangling']) {
+  test(`a claimed transcript symlink with ${target} target is rejected`, () => {
+    withTemp('spike-symlink-', (directory) => {
+      const scanDirectory = path.join(directory, 'scan');
+      mkdirSync(scanDirectory);
+      const file = path.join(scanDirectory, 'probe.transcript.json');
+      const targetFile = path.join(directory, 'target.txt');
+      const token = `${['s', 'k-'].join('')}abcdefgh12345678`;
+      if (target === 'valid') {
+        writeFileSync(targetFile, readFileSync(path.join(repoRoot, validPath)));
+      } else if (target === 'invalid') {
+        writeFileSync(targetFile, JSON.stringify({ token }));
+      }
+      symlinkSync(targetFile, file);
+      const report = verifyCommitted([scanDirectory]);
+      assert.equal(report.status, 'failed');
+      assert.deepEqual(report.results, [
+        {
+          id: `unreadable:${repoRelative(file)}`,
+          status: 'failed',
+          reasons: [{ code: 'verifier-error' }],
+        },
+      ]);
+      assert.equal(JSON.stringify(report).includes(token), false);
+    });
+  });
+}
 
 test('duplicate ids fail the report', () => {
   withTemp('spike-dup-', (directory) => {
