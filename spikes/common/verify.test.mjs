@@ -101,6 +101,30 @@ test('synthetic go fails closed', () => {
     ok: false,
     reasons: [{ code: 'synthetic-go' }],
   });
+  const mismatched = structuredClone(envelope.transcript);
+  mismatched.id = 'c03.runtime.synthetic-go';
+  assert.deepEqual(
+    verifyTranscriptBytes(
+      JSON.stringify({ digest: canonicalPayloadSha256(mismatched), transcript: mismatched }),
+    ),
+    {
+      id: 'c03.runtime.synthetic-go',
+      status: 'failed',
+      reasons: [{ code: 'synthetic-go' }, { code: 'id-spike' }],
+    },
+  );
+  const broken = structuredClone(envelope.transcript);
+  delete broken.region;
+  assert.deepEqual(
+    verifyTranscriptBytes(
+      JSON.stringify({ digest: canonicalPayloadSha256(broken), transcript: broken }),
+    ),
+    {
+      id: 'c02.runtime.synthetic-go',
+      status: 'failed',
+      reasons: [{ code: 'synthetic-go' }, { code: 'schema' }],
+    },
+  );
 });
 
 test('secret bodies are refused without echoing the token', () => {

@@ -95,18 +95,11 @@ const transcriptFields = {
     .max(32),
 };
 
-const transcriptSchema = z.union([
-  z.strictObject({
-    ...transcriptFields,
-    verdict: z.enum(closedVerdicts),
-    provenance: z.strictObject({ kind: z.literal('synthetic') }),
-  }),
-  z.strictObject({
-    ...transcriptFields,
-    verdict: z.enum([...closedVerdicts, 'go']),
-    provenance: z.strictObject({ kind: z.literal('observed') }),
-  }),
-]);
+const transcriptSchema = z.strictObject({
+  ...transcriptFields,
+  verdict: z.enum([...closedVerdicts, 'go']),
+  provenance: z.strictObject({ kind: z.enum(['synthetic', 'observed']) }),
+});
 
 function secretScans() {
   return [
@@ -294,25 +287,19 @@ function isSyntheticGo(value) {
 
 function parseReasons(value) {
   const parsed = transcriptSchema.safeParse(value);
-  if (parsed.success) {
-    if (!idMatchesSpike(parsed.data.id, parsed.data.spike)) return [{ code: 'id-spike' }];
-    return contentReasons(parsed.data);
+  if (!parsed.success) return failureReasons(value);
+  if (isSyntheticGo(parsed.data)) {
+    const reasons = [{ code: 'synthetic-go' }];
+    if (!idMatchesSpike(parsed.data.id, parsed.data.spike)) reasons.push({ code: 'id-spike' });
+    return reasons;
   }
-  return failureReasons(value);
+  if (!idMatchesSpike(parsed.data.id, parsed.data.spike)) return [{ code: 'id-spike' }];
+  return contentReasons(parsed.data);
 }
 
 function failureReasons(value) {
   const reasons = [];
-  if (isSyntheticGo(value)) {
-    reasons.push({ code: 'synthetic-go' });
-    const parsedAsUnverified = transcriptSchema.safeParse({ ...value, verdict: 'unverified' });
-    if (parsedAsUnverified.success) {
-      if (!idMatchesSpike(parsedAsUnverified.data.id, parsedAsUnverified.data.spike)) {
-        reasons.push({ code: 'id-spike' });
-      }
-      return reasons;
-    }
-  }
+  if (isSyntheticGo(value)) reasons.push({ code: 'synthetic-go' });
   if (idSpikeMismatch(value)) reasons.push({ code: 'id-spike' });
   reasons.push({ code: 'schema' });
   return reasons;
