@@ -31,7 +31,11 @@ resource "google_workflows_workflow" "tasks" {
   call_log_level      = "LOG_NONE"
   deletion_protection = true
   labels              = { component = "durable-tasks", environment = "dev" }
-  depends_on          = [google_project_service.workflows, google_cloud_run_v2_service_iam_member.broker]
+  depends_on = [
+    google_project_service.workflows,
+    google_cloud_run_v2_service_iam_member.broker,
+    google_service_account_iam_member.deployer,
+  ]
 }
 resource "google_project_iam_custom_role" "adapter" {
   project     = var.project_id

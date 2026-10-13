@@ -13,6 +13,21 @@ import type { Task, TaskStatus, WorkflowSignal } from '@agent-works/domain';
 
 const executionBase = 'https://workflowexecutions.googleapis.com/v1/';
 const activeStates = new Set(['ACTIVE', 'QUEUED']);
+const dispatchStatuses = new Set<TaskStatus>([
+  'QUEUED',
+  'RUNNING',
+  'WAITING_APPROVAL',
+  'WAITING_INPUT',
+  'BLOCKED_AUTH',
+  'PAUSED',
+  'RETRYING',
+]);
+
+function mustWait(status: TaskStatus): boolean {
+  // Only an explicit ledger resume may release a pause; callbacks are wake-up hints.
+  return status === 'PAUSED' || status === 'CREATED' || status === 'AUTHORIZED';
+}
+
 const waitingStatuses = new Set<TaskStatus>([
   'WAITING_APPROVAL',
   'WAITING_INPUT',
@@ -189,6 +204,7 @@ async function listExecutions(deps: CloudWorkflowDeps, taskId: string): Promise<
 }
 
 async function ensureExecution(deps: CloudWorkflowDeps, task: Task): Promise<void> {
+  if (!dispatchStatuses.has(task.status)) return;
   if ((await listExecutions(deps, task.id)).length > 0) return;
   // POST create has no client-selected execution id. Never retry an ambiguous POST here.
   // A recovery scan lists remote executions before attempting another create.
@@ -314,13 +330,15 @@ export async function advanceCloudWorkflow(
   return deps.withTaskLock(taskId, async () => {
     const task = await workerTask(deps, taskId);
     if (terminalStatuses.includes(task.status)) return repairTerminalReceipt(deps, task);
+    if (mustWait(task.status)) return { action: 'wait', taskId };
     const receipts = await deps.log.list(taskId);
     const step = deps.steps.find(
       (candidate) => !receipts.some((receipt) => receipt.stepId === candidate.id),
     );
     if (step === undefined) {
       const ready = await runningTask(deps, task, 'done');
-      if (!terminalStatuses.includes(ready.status))
+      if (mustWait(ready.status)) return { action: 'wait', taskId };
+      if (ready.status === 'RUNNING')
         await deps.commit(ready, { status: 'COMPLETED', stepId: 'done' });
       return { action: 'done', taskId };
     }
@@ -354,6 +372,7 @@ async function repairTerminalReceipt(deps: CloudWorkerDeps, task: Task): Promise
 
 async function runningTask(deps: CloudWorkerDeps, task: Task, stepId: string): Promise<Task> {
   const fresh = await workerTask(deps, task.id);
+  if (mustWait(fresh.status)) return fresh;
   if (!terminalStatuses.includes(fresh.status) && fresh.status !== 'RUNNING') {
     await deps.commit(fresh, { status: 'RUNNING', stepId });
   }
@@ -389,8 +408,7 @@ async function advanceStep(
     const status = verdict === 'deny' ? 'BLOCKED_AUTH' : 'WAITING_APPROVAL';
     if (task.status !== status) {
       const ready = await runningTask(deps, task, step.id);
-      if (!terminalStatuses.includes(ready.status))
-        await deps.commit(ready, { status, stepId: step.id });
+      if (ready.status === 'RUNNING') await deps.commit(ready, { status, stepId: step.id });
     }
     return { action: 'wait', taskId: task.id };
   }
@@ -403,13 +421,10 @@ async function executeStep(
   step: CloudStep,
   key: string,
 ): Promise<CloudTickResult> {
-  const before = await workerTask(deps, task.id);
-  if (terminalStatuses.includes(before.status)) return { action: 'done', taskId: task.id };
-  if (before.status !== 'RUNNING')
-    await deps.commit(before, { status: 'RUNNING', stepId: step.id });
-  const fresh = await workerTask(deps, task.id);
+  const fresh = await runningTask(deps, task, step.id);
   if (terminalStatuses.includes(fresh.status)) return { action: 'done', taskId: task.id };
-  if (waitingStatuses.has(fresh.status)) return { action: 'wait', taskId: task.id };
+  if (mustWait(fresh.status) || waitingStatuses.has(fresh.status))
+    return { action: 'wait', taskId: task.id };
   const attempts = await deps.log.bump(task.id, step.id);
   if (attempts > (deps.maxAttempts ?? 3)) {
     await deps.commit(fresh, { status: 'FAILED', stepId: step.id });
@@ -436,6 +451,7 @@ async function recoverAttempt(
   if (recovered.kind === 'unknown') return { action: 'wait', taskId: task.id };
   const current = await workerTask(deps, task.id);
   if (terminalStatuses.includes(current.status)) return { action: 'done', taskId: task.id };
+  if (mustWait(current.status)) return { action: 'wait', taskId: task.id };
   const exhausted = attempts >= (deps.maxAttempts ?? 3);
   await deps.commit(current, { status: exhausted ? 'FAILED' : 'RETRYING', stepId: step.id });
   return { action: exhausted ? 'done' : 'continue', taskId: task.id };

@@ -442,6 +442,119 @@ describe('Cloud WorkflowPort and dispatch recovery', () => {
 });
 
 describe('ledger-authoritative broker ticks and external receipts', () => {
+  it.each(['PAUSED', 'CREATED', 'AUTHORIZED'] as const)(
+    'leaves %s ticks unchanged with pending steps, completed receipts, or no steps',
+    async (status) => {
+      for (const progress of ['pending', 'receipted', 'empty'] as const) {
+        const initial = task(status);
+        const ctx = setup(initial);
+        const external = externalStep();
+        if (progress === 'receipted')
+          await ctx.worker.log.put(taskId, external.step.id, 'draft:external-1');
+        const checkpointSave = vi.spyOn(ctx.checkpoints, 'save');
+        const logPut = vi.spyOn(ctx.worker.log, 'put');
+        const logBump = vi.spyOn(ctx.worker.log, 'bump');
+        const deps = { ...ctx.worker, steps: progress === 'empty' ? [] : [external.step] };
+        expect(await advanceCloudWorkflow(deps, taskId)).toEqual({ action: 'wait', taskId });
+        expect(await advanceCloudWorkflow(deps, taskId)).toEqual({ action: 'wait', taskId });
+        expect(ctx.current()).toEqual(initial);
+        expect(ctx.commit).not.toHaveBeenCalled();
+        expect(checkpointSave).not.toHaveBeenCalled();
+        expect(logPut).not.toHaveBeenCalled();
+        expect(logBump).not.toHaveBeenCalled();
+        expect(external.step.reconcile).not.toHaveBeenCalled();
+        expect(external.step.authorize).not.toHaveBeenCalled();
+        expect(external.step.execute).not.toHaveBeenCalled();
+      }
+    },
+  );
+  it('requires an explicit ledger resume before a paused task advances', async () => {
+    const ctx = setup(task('PAUSED'));
+    const external = externalStep();
+    const deps = { ...ctx.worker, steps: [external.step] };
+    await ctx.port.signal(resume);
+    expect(await advanceCloudWorkflow(deps, taskId)).toEqual({ action: 'wait', taskId });
+    expect(ctx.commit).not.toHaveBeenCalled();
+    await ctx.commit(ctx.current(), { status: 'RUNNING', stepId: 'resume' });
+    expect(await advanceCloudWorkflow(deps, taskId)).toEqual({ action: 'continue', taskId });
+    expect(external.writes()).toBe(1);
+  });
+  it.each(['allow', 'wait', 'deny'] as const)(
+    'preserves a pause arriving during %s authorization before any status change',
+    async (verdict) => {
+      const ctx = setup();
+      const external = externalStep();
+      vi.mocked(external.step.authorize).mockImplementation(() => {
+        ctx.replace(transition(ctx.current(), 'PAUSED'));
+        return Promise.resolve(verdict);
+      });
+      expect(await advanceCloudWorkflow({ ...ctx.worker, steps: [external.step] }, taskId)).toEqual(
+        {
+          action: 'wait',
+          taskId,
+        },
+      );
+      expect(ctx.current().status).toBe('PAUSED');
+      expect(ctx.commit).not.toHaveBeenCalled();
+      expect(external.step.execute).not.toHaveBeenCalled();
+    },
+  );
+  it('preserves a pause arriving before completion from persisted receipts', async () => {
+    const ctx = setup();
+    const external = externalStep();
+    await ctx.worker.log.put(taskId, external.step.id, 'draft:external-1');
+    vi.spyOn(ctx.worker.log, 'list').mockImplementation(() => {
+      ctx.replace(transition(ctx.current(), 'PAUSED'));
+      return Promise.resolve([{ stepId: external.step.id, body: 'draft:external-1' }]);
+    });
+    expect(await advanceCloudWorkflow({ ...ctx.worker, steps: [external.step] }, taskId)).toEqual({
+      action: 'wait',
+      taskId,
+    });
+    expect(ctx.current().status).toBe('PAUSED');
+    expect(ctx.commit).not.toHaveBeenCalled();
+  });
+  it('preserves a pause arriving during a failed external attempt', async () => {
+    const ctx = setup();
+    const external = externalStep();
+    vi.mocked(external.step.execute).mockImplementation(() => {
+      ctx.replace(transition(ctx.current(), 'PAUSED'));
+      return Promise.reject(new Error('write rejected'));
+    });
+    expect(await advanceCloudWorkflow({ ...ctx.worker, steps: [external.step] }, taskId)).toEqual({
+      action: 'wait',
+      taskId,
+    });
+    expect(ctx.current().status).toBe('PAUSED');
+    expect(ctx.commit).not.toHaveBeenCalled();
+    expect(await ctx.worker.log.list(taskId)).toEqual([]);
+  });
+  it.each(['CREATED', 'AUTHORIZED'] as const)(
+    'does not dispatch %s through recovery, checkpoint save, or a wake-up signal',
+    async (status) => {
+      const initial = task(status);
+      const ctx = setup(initial);
+      await recoverCloudWorkflow(ctx.deps, taskId);
+      await ctx.port.save({ taskId, status, stepId: 'write-draft' });
+      await ctx.port.signal(resume);
+      expect(ctx.calls.filter((call) => call.method === 'POST')).toEqual([]);
+      expect(ctx.current()).toEqual(initial);
+      expect(ctx.commit).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    'QUEUED',
+    'RUNNING',
+    'RETRYING',
+    'WAITING_APPROVAL',
+    'WAITING_INPUT',
+    'BLOCKED_AUTH',
+    'PAUSED',
+  ] as const)('recovers an execution for dispatch-eligible ledger status %s', async (status) => {
+    const ctx = setup(task(status));
+    await recoverCloudWorkflow(ctx.deps, taskId);
+    expect(ctx.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
   it('writes once and completes from ledger and receipts', async () => {
     const ctx = setup();
     const external = externalStep();

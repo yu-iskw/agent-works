@@ -78,6 +78,17 @@ run "deployer_can_only_attach_identity" {
     error_message = "No token creation, keys, or human deployment principal is granted."
   }
 }
+run "workflow_waits_for_deployer_act_as" {
+  command = plan
+  # Dependency edges are not resource attributes; inspect the workflow declaration.
+  assert {
+    condition = length(regexall(
+      "(?s)resource \"google_workflows_workflow\" \"tasks\" \\{.*?depends_on\\s*=\\s*\\[[^]]*google_service_account_iam_member\\.deployer",
+      file("${path.module}/main.tf"),
+    )) == 1
+    error_message = "Workflow creation must explicitly depend on the deployer's actAs grant."
+  }
+}
 run "resource_safety" {
   command = plan
   assert {
