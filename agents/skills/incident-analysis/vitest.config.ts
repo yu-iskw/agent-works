@@ -15,6 +15,6 @@ export default defineProject({
   },
   test: {
     name: 'incident-analysis',
-    include: ['incident.test.ts'],
+    include: ['*.test.ts'],
   },
 });
