@@ -1,0 +1,31 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "bad-shape",
+  "caller": "alice",
+  "expectedIds": [],
+  "expectedError": "response",
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "alice-private"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "alice-private",
+      "status": 200,
+      "body": {
+        "id": "alice-private"
+      }
+    }
+  ]
+}

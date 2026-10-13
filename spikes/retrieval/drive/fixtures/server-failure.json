@@ -1,0 +1,23 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "server-failure",
+  "caller": "alice",
+  "expectedIds": [],
+  "expectedError": "transport",
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 503,
+      "body": {
+        "files": [
+          {
+            "id": "alice-private"
+          }
+        ]
+      }
+    }
+  ]
+}

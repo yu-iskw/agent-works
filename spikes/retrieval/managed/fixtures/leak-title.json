@@ -1,0 +1,34 @@
+{
+  "schemaId": "agent-works.retrieval.managed-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "leak-title",
+  "caseId": "alice",
+  "subject": "alice",
+  "status": 200,
+  "response": {
+    "results": [
+      {
+        "document": {
+          "id": "alice-private",
+          "structData": {
+            "title": "C04_BOB_TITLE",
+            "content": "C04_ALICE_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/alice-private/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-alice-private",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_ALICE_SNIPPET"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

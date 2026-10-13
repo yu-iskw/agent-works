@@ -1,0 +1,13 @@
+{
+  "schemaId": "agent-works.retrieval.managed-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "leak-error",
+  "caseId": "alice",
+  "subject": "alice",
+  "status": 403,
+  "response": {
+    "results": [],
+    "error": "C04_BOB_TITLE"
+  }
+}

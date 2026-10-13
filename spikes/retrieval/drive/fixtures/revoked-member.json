@@ -1,0 +1,59 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "revoked-member",
+  "caller": "reviewer",
+  "expectedIds": ["public"],
+  "expectedError": null,
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "public"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    },
+    {
+      "operation": "content",
+      "objectId": "public",
+      "status": 200,
+      "body": "C04_PUBLIC_CONTENT C04_PUBLIC_SNIPPET"
+    },
+    {
+      "operation": "metadata",
+      "objectId": "public",
+      "status": 200,
+      "body": {
+        "id": "public",
+        "name": "C04_PUBLIC_TITLE",
+        "mimeType": "application/vnd.google-apps.document",
+        "version": "1",
+        "trashed": false,
+        "capabilities": {
+          "canDownload": true
+        }
+      }
+    }
+  ]
+}

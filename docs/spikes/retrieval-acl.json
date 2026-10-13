@@ -1,0 +1,118 @@
+{
+  "schemaId": "agent-works.retrieval.comparison",
+  "schemaVersion": 1,
+  "matrixId": "bundle-b-acl-v1",
+  "outcome": "DEFER",
+  "thresholds": {
+    "status": "proposed",
+    "approvedBy": null,
+    "minimumRecall": 0.9,
+    "maximumP95LatencyMs": 5000,
+    "maximumRevocationLagMs": 60000
+  },
+  "arms": [
+    {
+      "arm": "A",
+      "evidenceProvenance": "synthetic",
+      "capturedAt": "2026-10-13T00:00:00Z",
+      "featureScope": "Document search, snippets, answer and extra response surfaces; no trial access",
+      "availability": "unavailable",
+      "accessIsolation": "UNVERIFIED",
+      "sourceProvenance": "UNVERIFIED",
+      "eligible": false,
+      "verdict": "DEFER",
+      "findings": [
+        {
+          "caseId": "alice",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "bob",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "shared-group",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "outsider",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "revoked-member",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "source-deletion",
+          "code": "missing-case",
+          "surface": null
+        }
+      ],
+      "measurements": {
+        "recall": null,
+        "p95LatencyMs": null,
+        "revocationLagMs": null,
+        "deletionLagMs": null,
+        "costUsd": null
+      }
+    },
+    {
+      "arm": "B",
+      "evidenceProvenance": "synthetic",
+      "capturedAt": "2026-10-13T00:00:00Z",
+      "featureScope": "Drive v3 files.list, files.get metadata/media, Google Docs text export; offline only",
+      "availability": "not-probed",
+      "accessIsolation": "UNVERIFIED",
+      "sourceProvenance": "UNVERIFIED",
+      "eligible": false,
+      "verdict": "DEFER",
+      "findings": [
+        {
+          "caseId": "alice",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "bob",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "shared-group",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "outsider",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "revoked-member",
+          "code": "missing-case",
+          "surface": null
+        },
+        {
+          "caseId": "source-deletion",
+          "code": "missing-case",
+          "surface": null
+        }
+      ],
+      "measurements": {
+        "recall": null,
+        "p95LatencyMs": null,
+        "revocationLagMs": null,
+        "deletionLagMs": null,
+        "costUsd": null
+      }
+    }
+  ],
+  "relativeLatencyBOverA": null,
+  "blocksIssues": [23, 24],
+  "observed": false
+}

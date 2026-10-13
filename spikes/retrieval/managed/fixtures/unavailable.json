@@ -1,0 +1,12 @@
+{
+  "schemaId": "agent-works.retrieval.managed-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "unavailable",
+  "caseId": "alice",
+  "subject": "alice",
+  "status": 503,
+  "response": {
+    "error": "trial unavailable"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "schemaId": "agent-works.retrieval.managed-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "bob",
+  "caseId": "bob",
+  "subject": "bob",
+  "status": 200,
+  "response": {
+    "results": [
+      {
+        "document": {
+          "id": "bob-private",
+          "structData": {
+            "title": "C04_BOB_TITLE",
+            "content": "C04_BOB_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/bob-private/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-bob-private",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_BOB_SNIPPET"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "document": {
+          "id": "public",
+          "structData": {
+            "title": "C04_PUBLIC_TITLE",
+            "content": "C04_PUBLIC_CONTENT",
+            "sourceUri": "https://drive.google.com/file/d/public/view",
+            "version": "1",
+            "retrievedAt": "2026-10-13T00:00:00Z",
+            "accessDecisionId": "synthetic-public",
+            "sourceAccessChecked": true
+          },
+          "derivedStructData": {
+            "snippets": [
+              {
+                "snippet": "C04_PUBLIC_SNIPPET"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

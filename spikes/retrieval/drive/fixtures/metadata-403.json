@@ -1,0 +1,31 @@
+{
+  "schemaId": "agent-works.retrieval.drive-recording",
+  "schemaVersion": 1,
+  "provenance": "synthetic",
+  "scenario": "metadata-403",
+  "caller": "alice",
+  "expectedIds": [],
+  "expectedError": null,
+  "exchanges": [
+    {
+      "operation": "list",
+      "objectId": null,
+      "status": 200,
+      "body": {
+        "files": [
+          {
+            "id": "bob-private"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "metadata",
+      "objectId": "bob-private",
+      "status": 403,
+      "body": {
+        "error": "C04_BOB_TITLE C04_BOB_SNIPPET C04_BOB_CONTENT"
+      }
+    }
+  ]
+}
