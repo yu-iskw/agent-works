@@ -4,6 +4,7 @@ import { createDirectory, createDrive, listen } from '@agent-works/fakes';
 import * as policy from '@agent-works/policy';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { RunnerError } from '../agent/runner-port.js';
 import { createGroupResolver } from '../auth/directory.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createHttpDrive } from '../retrieval/http-drive.js';
@@ -171,29 +172,196 @@ describe('wired ask authorization', () => {
     ]);
   });
 
-  it('reuses the committed outbox event after an append acknowledgement is lost', async () => {
+  it.each(['answered', 'runner_failed'] as const)(
+    'audits a fresh attempt after %s loses its ACK instead of pairing the old event with a new answer',
+    async (outcome) => {
+      const ledger = createMemoryLedgerPort(() => new Date(at));
+      const append = ledger.append.bind(ledger);
+      const lostAck = vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+        await append(event);
+        throw new Error('lost acknowledgement');
+      });
+      let now = new Date(at);
+      const ports = await open(
+        { ledger, search: { search: () => Promise.resolve([citation]) } },
+        () => now,
+      );
+      if (outcome === 'answered') {
+        ports.runner.run.mockResolvedValueOnce({
+          answer: 'original answer',
+          citedSourceIds: ['source'],
+        });
+      } else {
+        ports.runner.run.mockRejectedValueOnce(new RunnerError('original failure'));
+      }
+      ports.runner.run.mockResolvedValue({
+        answer: 'regenerated answer',
+        citedSourceIds: ['source'],
+      });
+      const requestId = randomUUID();
+      expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
+      const persisted = await ledger.readOutbox(requestId);
+      expect(persisted?.event.outcome).toBe(outcome);
+      expect(ports.stack.audit.rows()).toEqual([]);
+      now = new Date('2026-10-10T10:01:00.000Z');
+      const response = await post(ports.stack, 'question', requestId);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ requestId, answer: 'regenerated answer' });
+      const event = ports.stack.audit.rows()[0];
+      const decisions = ports.decision.mock.results.map((result) => result.value as PolicyDecision);
+      expect(event).toMatchObject({
+        traceId: requestId.replaceAll('-', ''),
+        taskId: persisted?.event.taskId,
+        requestDigestSha256: persisted?.event.requestDigestSha256,
+        agentPrincipal: 'agent:scripted-runner',
+        policyDecisionId: decisions[1].decisionId,
+        outcome: 'answered',
+        occurredAt: now.toISOString(),
+      });
+      expect(event.eventId).not.toBe(requestId);
+      expect(event.policyDecisionId).not.toBe(persisted?.event.policyDecisionId);
+      expect(lostAck).toHaveBeenCalledTimes(2);
+      expect(lostAck.mock.calls[1][0]).toEqual({ destination: 'audit', event });
+      expect(await ledger.readOutbox(event.eventId)).toEqual({ destination: 'audit', event });
+      expect(await ledger.readOutbox(requestId)).toEqual(persisted);
+      expect(ports.runner.run).toHaveBeenCalledTimes(2);
+      expect((await post(ports.stack, 'question', requestId)).status).toBe(409);
+    },
+  );
+
+  it('records the current runner identity when a lost ACK retry changes runners', async () => {
+    const model = await listen(
+      () => ({
+        status: 200,
+        body: { candidates: [{ content: { parts: [{ text: 'original source answer' }] } }] },
+      }),
+      0,
+    );
+    closers.push(model.close);
+    vi.stubEnv('AGENT_RUNNER', 'adk');
+    vi.stubEnv('LLM_URL', model.url);
     const ledger = createMemoryLedgerPort(() => new Date(at));
     const append = ledger.append.bind(ledger);
-    const lostAck = vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+    vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
       await append(event);
       throw new Error('lost acknowledgement');
     });
-    let now = new Date(at);
-    const ports = await open({ ledger }, () => now);
+    const ports = await open({ ledger, search: { search: () => Promise.resolve([citation]) } });
     const requestId = randomUUID();
     expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
-    const persisted = await ledger.readOutbox(requestId);
-    expect(persisted).toBeDefined();
+    const original = await ledger.readOutbox(requestId);
+    expect(original?.event.agentPrincipal).toBe('agent:adk-runner');
+    vi.stubEnv('LLM_URL', undefined);
+    ports.runner.run.mockResolvedValue({ answer: 'fallback answer', citedSourceIds: ['source'] });
+    const response = await post(ports.stack, 'question', requestId);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ answer: 'fallback answer' });
+    const event = ports.stack.audit.rows()[0];
+    expect(event).toMatchObject({ agentPrincipal: 'agent:scripted-runner', outcome: 'answered' });
+    expect(event.eventId).not.toBe(requestId);
+    expect(await ledger.readOutbox(event.eventId)).toEqual({ destination: 'audit', event });
+    expect(await ledger.readOutbox(requestId)).toEqual(original);
+  });
+
+  it.each([
+    { question: 'changed question', user: 'alice' },
+    { question: 'question', user: 'bob' },
+  ])('rejects changed retry identity after a lost ACK: %j', async ({ question, user }) => {
+    const ledger = createMemoryLedgerPort(() => new Date(at));
+    const append = ledger.append.bind(ledger);
+    vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+      await append(event);
+      throw new Error('lost acknowledgement');
+    });
+    const ports = await open({ ledger });
+    const requestId = randomUUID();
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
+    const original = await ledger.readOutbox(requestId);
+    const response = await post(ports.stack, question, requestId, user);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'conflict' });
+    expect(await ledger.readOutbox(requestId)).toEqual(original);
     expect(ports.stack.audit.rows()).toEqual([]);
-    now = new Date('2026-10-10T10:01:00.000Z');
-    expect((await post(ports.stack, 'question', requestId)).status).toBe(200);
-    expect(lostAck).toHaveBeenCalledTimes(2);
-    expect(lostAck.mock.calls[1][0]).toEqual(persisted);
-    expect(await ledger.readOutbox(requestId)).toEqual(persisted);
-    expect(ports.stack.audit.rows()).toEqual([persisted?.event]);
-    const decisions = ports.decision.mock.results.map((result) => result.value as PolicyDecision);
-    expect(decisions[1].decisionId).not.toBe(decisions[0].decisionId);
-    expect((await post(ports.stack, 'question', requestId)).status).toBe(409);
+    expect(ports.groups).toHaveBeenCalledTimes(1);
+    expect(ports.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('reserves two concurrent retries after a lost ACK so only one new attempt returns an answer', async () => {
+    const ledger = createMemoryLedgerPort(() => new Date(at));
+    const append = ledger.append.bind(ledger);
+    const submit = vi.spyOn(ledger, 'submit');
+    vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+      await append(event);
+      throw new Error('lost acknowledgement');
+    });
+    const ports = await open({ ledger, search: { search: () => Promise.resolve([citation]) } });
+    ports.runner.run.mockResolvedValueOnce({ answer: 'original', citedSourceIds: ['source'] });
+    const secondRoute = await startStack({
+      now: () => new Date(at),
+      audit: ports.stack.audit,
+      runner: ports.runner,
+      wire: {
+        ledger,
+        search: { search: ports.search },
+        groups: ports.groups,
+        policyInput: ports.policyInput,
+      },
+    });
+    stacks.push(secondRoute);
+    const requestId = randomUUID();
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
+    const original = await ledger.readOutbox(requestId);
+    const entered = deferred();
+    const release = deferred();
+    ports.runner.run.mockImplementationOnce(async () => {
+      entered.resolve();
+      await release.promise;
+      return { answer: 'retry', citedSourceIds: ['source'] };
+    });
+    const first = post(ports.stack, 'question', requestId);
+    await entered.promise;
+    try {
+      const second = await post(secondRoute, 'question', requestId);
+      expect(second.status).toBe(409);
+      expect(await second.json()).toEqual({ error: 'conflict' });
+    } finally {
+      release.resolve();
+    }
+    const response = await first;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ requestId, answer: 'retry' });
+    expect(ports.runner.run).toHaveBeenCalledTimes(2);
+    expect(ports.stack.audit.rows()).toHaveLength(1);
+    const event = ports.stack.audit.rows()[0];
+    expect(event.eventId).not.toBe(requestId);
+    expect(event).toMatchObject({ outcome: 'answered', taskId: original?.event.taskId });
+    expect(await ledger.readOutbox(event.eventId)).toEqual({ destination: 'audit', event });
+    expect(await ledger.readOutbox(requestId)).toEqual(original);
+    expect(await submit.mock.results[0].value).toEqual(await submit.mock.results[1].value);
+  });
+
+  it('reauthorizes a retry after a lost ACK and audits denial as a distinct attempt', async () => {
+    const ledger = createMemoryLedgerPort(() => new Date(at));
+    const append = ledger.append.bind(ledger);
+    vi.spyOn(ledger, 'append').mockImplementationOnce(async (event) => {
+      await append(event);
+      throw new Error('lost acknowledgement');
+    });
+    const ports = await open({ ledger });
+    const requestId = randomUUID();
+    expect((await post(ports.stack, 'question', requestId)).status).toBe(500);
+    const original = await ledger.readOutbox(requestId);
+    ports.groups.mockResolvedValue({ groups: [], observedAt: at });
+    const response = await post(ports.stack, 'question', requestId);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'denied' });
+    const decision = ports.decision.mock.results[1].value as PolicyDecision;
+    expect(ports.stack.audit.rows()).toMatchObject([
+      { outcome: 'denied', policyDecisionId: decision.decisionId, taskId: original?.event.taskId },
+    ]);
+    expect(ports.stack.audit.rows()[0].eventId).not.toBe(requestId);
+    expect(await ledger.readOutbox(requestId)).toEqual(original);
+    expect(ports.search).toHaveBeenCalledTimes(1);
   });
 
   it('denies a caller without Employee even if policy inputs claim the role', async () => {
@@ -318,10 +486,29 @@ describe('wired ask authorization', () => {
   });
 });
 
-function post(stack: Stack, question = 'question', requestId = randomUUID()) {
+function post(stack: Stack, question = 'question', requestId = randomUUID(), user = 'alice') {
   return fetch(`${stack.iapUrl}/v1/ask`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-fake-user': 'alice' },
+    headers: { 'content-type': 'application/json', 'x-fake-user': user },
     body: JSON.stringify({ requestId, question }),
   });
+}
+
+const citation = {
+  sourceObjectId: 'source',
+  title: 'source',
+  sourceUri: 'https://drive.fake.test/d/source',
+  excerpt: 'source text',
+  text: 'source full text',
+  retrievedAt: at,
+  etag: 'source',
+  accessDecisionId: 'access',
+};
+
+function deferred() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
