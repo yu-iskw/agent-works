@@ -19,7 +19,7 @@ function load<T>(path: string): Promise<T> {
 }
 
 // Use the shipped incident adapter, never a test adapter that secretly inserts a broker.
-test('incident.end-to-end', async ({}, info) => {
+test('incident.end-to-end', async ({ page }, info) => {
   test.setTimeout(70_000);
   const portsModule = await load<typeof Ports>('apps/api/dist/ports/memory/task-ports.js');
   const incidentModule = await load<typeof Incident>('apps/api/dist/skills/incident.js');
@@ -156,6 +156,14 @@ test('incident.end-to-end', async ({}, info) => {
       path: evidencePath,
       contentType: 'application/json',
     });
+    const observed = JSON.stringify(evidence, null, 2);
+    await page.setContent(
+      '<main><h1>Incident delivery observed results</h1><pre style="white-space: pre-wrap"></pre></main>',
+    );
+    await page.locator('pre').evaluate((element, text) => {
+      element.textContent = text;
+    }, observed);
+    await expect(page.locator('pre')).toHaveText(observed);
     expect(completionMs).toBeLessThanOrEqual(60_000);
     test.fail(true, 'S2 blocker: incident delivery bypasses approval broker (s2-blockers.md)');
     // This is the missing acceptance boundary, not a fabricated approval in the fake provider.

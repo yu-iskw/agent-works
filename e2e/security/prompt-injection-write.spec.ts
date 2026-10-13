@@ -15,7 +15,7 @@ function load<T>(path: string): Promise<T> {
 // Companion controls: incident-flow.contract.test.ts (revocation, self-approval,
 // duplicate delivery, failure/retry); incident.test.ts and deliver.test.ts (deadline,
 // cancellation and late receipt); task-dispatcher.contract.ts (bounded retry/restart).
-test('sec.prompt-injection-write', async ({}, info) => {
+test('sec.prompt-injection-write', async ({ page }, info) => {
   const incidentModule = await load<typeof Incident>('apps/api/dist/skills/incident.js');
   const authorization = await load<typeof Authorization>(
     'apps/api/dist/testing/task-authorization.js',
@@ -65,20 +65,25 @@ test('sec.prompt-injection-write', async ({}, info) => {
       .catch(() => undefined);
     expect(sawHostileDocument).toBe(true);
     const external = await (await fetch(`${tickets.url}/tickets`)).json();
+    const observed = JSON.stringify(
+      { posts, external, result: skill.result('injection-task'), approvalCreated: false },
+      null,
+      2,
+    );
     const evidencePath = info.outputPath('prompt-injection-evidence.json');
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- Playwright allocates this test artifact path
-    await writeFile(
-      evidencePath,
-      JSON.stringify(
-        { posts, external, result: skill.result('injection-task'), approvalCreated: false },
-        null,
-        2,
-      ),
-    );
+    await writeFile(evidencePath, observed);
     await info.attach('prompt-injection-evidence.json', {
       path: evidencePath,
       contentType: 'application/json',
     });
+    await page.setContent(
+      '<main><h1>Prompt injection observed results</h1><pre style="white-space: pre-wrap"></pre></main>',
+    );
+    await page.locator('pre').evaluate((element, text) => {
+      element.textContent = text;
+    }, observed);
+    await expect(page.locator('pre')).toHaveText(observed);
     test.fail(true, 'S2 blocker: hostile incident can write without an approval (s2-blockers.md)');
     expect(
       posts,

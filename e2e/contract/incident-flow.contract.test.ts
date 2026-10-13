@@ -108,7 +108,7 @@ async function world() {
   };
 }
 
-it('incident.broker-reconciliation binds digest, requester, reviewer, policy and external receipt exactly once', async () => {
+it('contract.incident.broker-reconciliation binds digest, requester, reviewer, policy and external receipt exactly once', async () => {
   const app = await world();
   try {
     expect(await app.approve()).toMatchObject({ ok: true });
@@ -152,7 +152,7 @@ it('incident.broker-reconciliation binds digest, requester, reviewer, policy and
 });
 
 it.each(['missing', 'mutated', 'revoked', 'self-approval', 'policy-denied', 'expired'] as const)(
-  'incident.broker denies %s without any provider write',
+  'contract.incident.broker denies %s without any provider write',
   async (scenario) => {
     const app = await world();
     try {
@@ -207,7 +207,7 @@ it.each(['missing', 'mutated', 'revoked', 'self-approval', 'policy-denied', 'exp
   },
 );
 
-it('incident.broker retries a lost receipt with one intent, one approval use and one external object', async () => {
+it('contract.incident.broker retries a lost receipt with one intent, one approval use and one external object', async () => {
   const app = await world();
   try {
     await app.approve();
