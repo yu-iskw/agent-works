@@ -7,6 +7,9 @@ export function verifyDeletionLifecycle(envelopes) {
   if (records.some((record) => !record.ok))
     return { verdict: 'DEFER', reason: 'invalid-evidence', liveValidation: 'UNVERIFIED' };
   const [before, deletion, after] = records;
+  // A demonstrated control failure is NO-GO even when lifecycle binding is incomplete.
+  if (records.some((record) => record.assessment.verdict === 'no-go'))
+    return { verdict: 'NO-GO', reason: 'deletion-control-failure', liveValidation: 'UNVERIFIED' };
   const ownership = ['caller', 'owner', 'agent', 'memory-agent'];
   const sameOwner = ownership.every((key) =>
     records.every((record) => record.request[key] === before.request[key]),
@@ -19,9 +22,7 @@ export function verifyDeletionLifecycle(envelopes) {
     !after.request.deleted
   )
     return { verdict: 'DEFER', reason: 'lifecycle-binding', liveValidation: 'UNVERIFIED' };
-  const failed =
-    records.some((record) => record.assessment.verdict === 'no-go') ||
-    after.response['memory-visible'];
+  const failed = after.response['memory-visible'];
   const demonstrated =
     before.response['memory-visible'] &&
     deletion.response['deletion-confirmed'] &&

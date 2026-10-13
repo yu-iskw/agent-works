@@ -15,7 +15,7 @@ function failure(code) {
   return { ok: false, reasons: [{ code }] };
 }
 
-export function checkFields(value, shape) {
+function checkFields(value, shape) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value);
   if (keys.length !== Object.keys(shape).length) return false;
@@ -38,7 +38,7 @@ function unpack(exchange, shape) {
   return checkFields(fields, shape) ? fields : null;
 }
 
-export function assess(request, response) {
+function assess(request, response) {
   const expected = expectedResponse(request);
   const violations = Object.keys(expected).filter((key) => expected[key] !== response[key]);
   return {
@@ -175,7 +175,9 @@ export function recordedBackend(envelopes) {
   });
 }
 
-export async function runProbe(caseId, request, backend) {
+export async function runProbe(caseId, input, backend) {
+  // Snapshot before awaiting so caller mutation cannot change the sealed evidence.
+  const request = structuredClone(input);
   if (!checkFields(request, requestShape)) throw new Error('Invalid request');
   if (!backend || typeof backend.exchange !== 'function')
     throw new Error('Missing offline adapter');

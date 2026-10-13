@@ -71,3 +71,10 @@ test('lifecycle rejects substituted ownership and corrupted evidence', () => {
   records[2].digest = '0'.repeat(64);
   assert.equal(verifyDeletionLifecycle(records).reason, 'invalid-evidence');
 });
+
+test('unauthorized post-deletion read stays NO-GO despite broken lifecycle binding', () => {
+  const records = lifecycle();
+  const bypass = fixtures.cases.find((scenario) => scenario.expectedVerdict === 'no-go');
+  records[2] = makeEvidence(bypass.id, { ...fixtures.baseline, ...bypass.patch }, bypass.response);
+  assert.equal(verifyDeletionLifecycle(records).verdict, 'NO-GO');
+});
