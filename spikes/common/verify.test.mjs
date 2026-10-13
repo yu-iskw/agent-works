@@ -127,6 +127,52 @@ test('synthetic go fails closed', () => {
   );
 });
 
+test('secret ids and mismatch paths stay out of the report', () => {
+  const skId = `c02.${['s', 'k-'].join('')}synthetic1`;
+  const yaId = `c02.${['ya', '29.'].join('')}synthetic1`;
+  const secretPath = `/response/${['s', 'k-'].join('')}abcdefgh`;
+  const envelope = readJson(validPath);
+  const skBody = structuredClone(envelope.transcript);
+  skBody.id = skId;
+  skBody.response.observations = [];
+  skBody.redacted = [];
+  const skChecked = verifyTranscriptBytes(
+    JSON.stringify({ digest: '0'.repeat(64), transcript: skBody }),
+  );
+  assert.deepEqual(skChecked, {
+    id: `unreadable:${createHash('sha256').update(skId).digest('hex')}`,
+    status: 'failed',
+    reasons: [{ code: 'secret', family: 'sk', path: '/id' }],
+  });
+  const yaBody = structuredClone(skBody);
+  yaBody.id = yaId;
+  const yaChecked = verifyTranscriptBytes(
+    JSON.stringify({ digest: '0'.repeat(64), transcript: yaBody }),
+  );
+  assert.deepEqual(yaChecked, {
+    id: `unreadable:${createHash('sha256').update(yaId).digest('hex')}`,
+    status: 'failed',
+    reasons: [{ code: 'secret', family: 'ya29', path: '/id' }],
+  });
+  const listed = structuredClone(skBody);
+  listed.id = 'c02.runtime.secret-path';
+  listed.redacted = [{ path: secretPath, mark: '[redacted]' }];
+  const listedChecked = verifyTranscriptBytes(
+    JSON.stringify({ digest: '0'.repeat(64), transcript: listed }),
+  );
+  assert.deepEqual(listedChecked, {
+    id: 'c02.runtime.secret-path',
+    status: 'failed',
+    reasons: [
+      { code: 'secret', family: 'sk', path: '/redacted/0/path' },
+      { code: 'redaction-mismatch', path: null },
+    ],
+  });
+  const encoded =
+    JSON.stringify(skChecked) + JSON.stringify(yaChecked) + JSON.stringify(listedChecked);
+  for (const token of [skId, yaId, secretPath]) assert.equal(encoded.includes(token), false);
+});
+
 test('secret bodies are refused without echoing the token', () => {
   const bearer = ['Be', 'arer'].join('') + ' ' + 'synthetic1';
   const ya = ['ya', '29.'].join('') + 'synthetic1';

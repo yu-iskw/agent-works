@@ -145,10 +145,16 @@ function row(id, reasons) {
   return { id, status: reasons.length === 0 ? 'passed' : 'failed', reasons };
 }
 
-function readId(value) {
+function matchingId(value) {
   if (!isPlainObject(value) || typeof value.id !== 'string' || !idPattern.test(value.id))
     return null;
   return value.id;
+}
+
+function readId(value) {
+  const id = matchingId(value);
+  if (id === null || scanSecrets(id).length === 0) return id;
+  return `unreadable:${createHash('sha256').update(id).digest('hex')}`;
 }
 
 function isEnvelope(value) {
@@ -271,7 +277,7 @@ function idMatchesSpike(id, spike) {
 }
 
 function idSpikeMismatch(value) {
-  const id = readId(value);
+  const id = matchingId(value);
   if (id === null || !Object.hasOwn(spikePrefix, value.spike)) return false;
   return !idMatchesSpike(id, value.spike);
 }
@@ -311,15 +317,17 @@ function contentReasons(transcript) {
   for (const item of transcript.redacted) {
     const found = readPointer(transcript, item.path);
     if (!found || found.value !== redactedMark) {
-      reasons.push({ code: 'redaction-mismatch', path: item.path });
+      reasons.push({ code: 'redaction-mismatch', path: pointerForSecret(item.path) });
     }
   }
   for (const redactedPath of redactedStrings(transcript)) {
-    if (!listed.has(redactedPath)) reasons.push({ code: 'redaction-mismatch', path: redactedPath });
+    if (!listed.has(redactedPath)) {
+      reasons.push({ code: 'redaction-mismatch', path: pointerForSecret(redactedPath) });
+    }
   }
   for (const item of transcript.omitted) {
     if (readPointer(transcript, item.path)) {
-      reasons.push({ code: 'omission-mismatch', path: item.path });
+      reasons.push({ code: 'omission-mismatch', path: pointerForSecret(item.path) });
     }
   }
   return reasons;
