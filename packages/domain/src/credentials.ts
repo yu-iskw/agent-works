@@ -36,11 +36,23 @@ export const oauthStartedSchema = z.strictObject({
 export const oauthCallbackSchema = z.strictObject(callbackFields);
 export const oauthConnectionSchema = z.strictObject(connectionFields);
 
+export const oauthConnectionSummarySchema = z.strictObject({
+  provider: label,
+  scope: label,
+  status,
+  expiresAt: instant,
+});
+export const oauthConnectionsSchema = z.strictObject({
+  kind: z.literal('connections'),
+  connections: z.array(oauthConnectionSummarySchema),
+});
+
 export const oauthApiSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('start'), ...startFields }),
   oauthStartedSchema.extend({ kind: z.literal('started') }),
   z.strictObject({ kind: z.literal('callback'), ...callbackFields }),
   z.strictObject({ kind: z.literal('connection'), ...connectionFields }),
+  oauthConnectionsSchema,
 ]);
 
 export type OAuthStart = z.infer<typeof oauthStartSchema>;

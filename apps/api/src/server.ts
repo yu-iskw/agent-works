@@ -14,6 +14,7 @@ import { openDatabase } from './db.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
+import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 import { createIncidentSkill } from './skills/incident.js';
 import { createSkillRegistry } from './skills/registry.js';
 
@@ -57,6 +58,7 @@ createServer(
     audit: createPostgresAuditLog(sql),
     now,
     oauth,
+    oauthConnections: { read: createPostgresOAuthConnectionsReader(sql), now },
     approvals: { store: createPostgresApprovalStore(sql) },
     wire: {
       groups: (caller) => groups(caller.sub),

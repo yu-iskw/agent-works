@@ -26,7 +26,7 @@ export function createOAuthConnectRoute(deps: OAuthRouteDeps): Route {
     const provider = pathProvider(request.path);
     if (provider === undefined) return notFound;
     const parsed = oauthApiSchema.safeParse(parseJson(request.body));
-    if (!parsed.success) return invalidRequest;
+    if (!parsed.success || parsed.data.kind === 'connections') return invalidRequest;
     if (parsed.data.provider !== provider) return invalidRequest;
     switch (parsed.data.kind) {
       case 'start':

@@ -64,6 +64,8 @@ export {
   oauthApiSchema,
   oauthCallbackSchema,
   oauthConnectionSchema,
+  oauthConnectionSummarySchema,
+  oauthConnectionsSchema,
   oauthStartSchema,
   oauthStartedSchema,
 } from './credentials.js';
