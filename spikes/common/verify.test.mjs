@@ -127,6 +127,23 @@ test('synthetic go fails closed', () => {
   );
 });
 
+test('a calendar-invalid timestamp fails schema', () => {
+  const envelope = readJson(validPath);
+  const body = structuredClone(envelope.transcript);
+  body.capturedAt = '2026-02-30T00:00:00Z';
+  assert.deepEqual(
+    verifyTranscriptBytes(
+      JSON.stringify({ digest: canonicalPayloadSha256(body), transcript: body }),
+    ),
+    {
+      id: 'c02.runtime.sessions',
+      status: 'failed',
+      reasons: [{ code: 'schema' }],
+    },
+  );
+  assert.deepEqual(sealTranscript(body), { ok: false, reasons: [{ code: 'schema' }] });
+});
+
 test('a decoded secret outside the transcript fails closed', () => {
   const envelope = readJson(validPath);
   const transcript = JSON.stringify(envelope.transcript);
