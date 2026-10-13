@@ -1,0 +1,78 @@
+{
+  "digest": "3bc9657d2c8457aa1900cdde87539b4368d679be4fcc39ff34189a94f5373b11",
+  "transcript": {
+    "schemaId": "agent-works.cloud-spike.transcript",
+    "schemaVersion": 1,
+    "id": "c02.identity-gateway.bounded-read",
+    "capturedAt": "2000-01-01T00:00:00Z",
+    "region": "asia-northeast1",
+    "spike": "C-02",
+    "feature": "identity-gateway",
+    "stage": "bounded-read",
+    "verdict": "unverified",
+    "provenance": {
+      "kind": "synthetic"
+    },
+    "request": {
+      "api": "identity-gateway.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "component",
+          "value": "gateway"
+        },
+        {
+          "name": "registered",
+          "value": true
+        },
+        {
+          "name": "publication-approved",
+          "value": true
+        },
+        {
+          "name": "user-context",
+          "value": "active"
+        },
+        {
+          "name": "tool",
+          "value": "read"
+        },
+        {
+          "name": "path",
+          "value": "gateway"
+        },
+        {
+          "name": "principal-proof",
+          "value": true
+        }
+      ]
+    },
+    "response": {
+      "api": "identity-gateway.evaluate",
+      "httpStatus": null,
+      "observations": [
+        {
+          "name": "outcome",
+          "value": "allowed"
+        },
+        {
+          "name": "publication-enforced",
+          "value": true
+        },
+        {
+          "name": "egress-enforced",
+          "value": true
+        }
+      ]
+    },
+    "redacted": [],
+    "omitted": [
+      {
+        "path": "/request/body"
+      },
+      {
+        "path": "/response/body"
+      }
+    ]
+  }
+}

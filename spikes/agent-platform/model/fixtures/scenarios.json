@@ -1,0 +1,140 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "region": "asia-northeast1",
+    "model": "synthetic-model-v1",
+    "endpoint": "regional",
+    "endpoint-healthy": true,
+    "user-context": "active",
+    "prompt": "[redacted]",
+    "prompt-redacted": true,
+    "read-only": true
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "disallowed-region",
+      "patch": {
+        "region": "disallowed-region"
+      },
+      "description": "Synthetic disallowed-region control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "disallowed-model",
+      "patch": {
+        "model": "disallowed-model"
+      },
+      "description": "Synthetic disallowed-model control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "global-endpoint",
+      "patch": {
+        "endpoint": "global"
+      },
+      "description": "Synthetic global-endpoint control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "endpoint-failure",
+      "patch": {
+        "endpoint-healthy": false
+      },
+      "description": "Synthetic endpoint-failure control challenge.",
+      "response": {
+        "outcome": "unavailable",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "prompt-not-redacted",
+      "patch": {
+        "prompt-redacted": false
+      },
+      "description": "Synthetic prompt-not-redacted control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "revoked-user",
+      "patch": {
+        "user-context": "revoked"
+      },
+      "description": "Synthetic revoked-user control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "write-request",
+      "patch": {
+        "read-only": false
+      },
+      "description": "Synthetic write-request control challenge.",
+      "response": {
+        "outcome": "denied",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "region": "disallowed-region"
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "policy-bypassed": false,
+        "prompt-retained": false,
+        "regional-processing": true
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

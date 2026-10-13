@@ -1,0 +1,25 @@
+{
+  "probe": "runtime",
+  "issue": 105,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Run the bounded ADK TypeScript read-only agent on Cloud Run with application session ownership checks and durable task state (RFC \u00a74.3).",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "runtime.md"
+}

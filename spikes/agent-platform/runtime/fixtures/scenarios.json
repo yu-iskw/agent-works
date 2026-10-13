@@ -1,0 +1,157 @@
+{
+  "provenance": "synthetic",
+  "liveValidation": "UNVERIFIED",
+  "baseline": {
+    "caller": "user-a",
+    "owner": "user-a",
+    "agent": "agent-a",
+    "session-agent": "agent-a",
+    "user-context": "active",
+    "operation": "read",
+    "region-available": true,
+    "sdk-compatible": true,
+    "quota-available": true,
+    "checkpoint": true
+  },
+  "cases": [
+    {
+      "id": "bounded-read",
+      "patch": {},
+      "description": "Synthetic authorized read; no cloud behavior is asserted.",
+      "response": {
+        "outcome": "allowed",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "cross-user-session",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic cross-user-session control challenge.",
+      "response": {
+        "outcome": "denied",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "cross-agent-session",
+      "patch": {
+        "agent": "agent-b"
+      },
+      "description": "Synthetic cross-agent-session control challenge.",
+      "response": {
+        "outcome": "denied",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "bounded-abort",
+      "patch": {
+        "operation": "abort"
+      },
+      "description": "Synthetic bounded-abort control challenge.",
+      "response": {
+        "outcome": "aborted",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "restart-recovery",
+      "patch": {
+        "operation": "restart"
+      },
+      "description": "Synthetic restart-recovery control challenge.",
+      "response": {
+        "outcome": "recovered",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": true
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "restart-without-checkpoint",
+      "patch": {
+        "operation": "restart",
+        "checkpoint": false
+      },
+      "description": "Synthetic restart-without-checkpoint control challenge.",
+      "response": {
+        "outcome": "denied",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "unverified"
+    },
+    {
+      "id": "region-unavailable",
+      "patch": {
+        "region-available": false
+      },
+      "description": "Synthetic region-unavailable control challenge.",
+      "response": {
+        "outcome": "unavailable",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "sdk-incompatible",
+      "patch": {
+        "sdk-compatible": false
+      },
+      "description": "Synthetic sdk-incompatible control challenge.",
+      "response": {
+        "outcome": "unavailable",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "quota-exhausted",
+      "patch": {
+        "quota-available": false
+      },
+      "description": "Synthetic quota-exhausted control challenge.",
+      "response": {
+        "outcome": "unavailable",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "defer"
+    },
+    {
+      "id": "successful-control-bypass",
+      "patch": {
+        "caller": "user-b"
+      },
+      "description": "Synthetic unauthorized success; must produce NO-GO.",
+      "response": {
+        "outcome": "allowed",
+        "session-isolated": true,
+        "bounded": true,
+        "recovered": false
+      },
+      "expectedVerdict": "no-go"
+    }
+  ]
+}

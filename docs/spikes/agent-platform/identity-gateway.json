@@ -1,0 +1,28 @@
+{
+  "probe": "identity-gateway",
+  "issue": 106,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Use the existing local tool broker and IAM; deny alternate egress for every governed tool (RFC \u00a7\u00a74.3, 5.4, 10).",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "identity-gateway.md",
+  "registryVerdict": "DEFER",
+  "gatewayVerdict": "DEFER",
+  "principalProof": "UNVERIFIED"
+}

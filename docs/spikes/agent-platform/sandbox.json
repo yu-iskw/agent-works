@@ -1,0 +1,25 @@
+{
+  "probe": "sandbox",
+  "issue": 111,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Disable code execution until isolation is proved; use reviewed bounded application operations, or evaluate isolated Cloud Run/GKE execution per RFC \u00a7\u00a74.3, 6.5.",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "sandbox.md"
+}

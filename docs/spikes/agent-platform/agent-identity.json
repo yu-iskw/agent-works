@@ -1,0 +1,25 @@
+{
+  "probe": "agent-identity",
+  "issue": 112,
+  "evidenceKind": "synthetic-offline",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "live": {
+    "date": "unverified",
+    "region": "unverified",
+    "maturity": "unverified",
+    "product": "unverified",
+    "api": "unverified",
+    "processingRegion": "unverified",
+    "storageRegion": "unverified",
+    "quotaSource": "unverified",
+    "pricingSource": "unverified",
+    "latency": "unverified",
+    "cost": "unverified",
+    "iamBehavior": "unverified"
+  },
+  "requestedRegion": "asia-northeast1",
+  "fallback": "Separate short-lived workload IAM identities and the existing local broker with current per-user authorization.",
+  "syntheticFixturesAreLiveEvidence": false,
+  "operatorRunbook": "agent-identity.md"
+}
