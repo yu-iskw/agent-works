@@ -3,11 +3,12 @@ import { decide } from '@agent-works/policy';
 import { checkAuthority, pinnedContext, ScheduleDenied } from './authority.js';
 
 import type { AuthorityResolver, ConsentRegistry } from './authority.js';
-import type { ScheduleRun } from '../../../../packages/domain/dist/schedule-run.js';
-import type { ScheduleRecord } from '../../../../packages/domain/dist/schedule.js';
 import type { BudgetPolicy, BudgetPort } from '../finops/budget-port.js';
 import type { AcceptTask } from '../ports/dispatch-port.js';
 import type { SuspensionEnforcer } from '../suspension/enforcement.js';
+import type { ScheduleRecord, ScheduleRun } from '@agent-works/domain';
+export const runtimeAgentPin = { kind: 'agent', id: 'api', version: '1' } as const;
+
 export type AdmissionDeps = {
   authority: AuthorityResolver;
   consent: ConsentRegistry;
@@ -28,7 +29,7 @@ export async function admit(
     {
       subject: spec.sponsor.sub,
       teams: current.teams,
-      agent: { kind: 'agent', ...spec.maxPrivilege.skill },
+      agent: runtimeAgentPin,
       skill: { kind: 'skill', ...spec.maxPrivilege.skill },
       model: deps.model,
       taskId: run.id,
@@ -74,9 +75,9 @@ export async function admit(
     policy,
     agent: {
       kind: 'agent',
-      agentId: spec.maxPrivilege.skill.id,
-      version: spec.maxPrivilege.skill.version,
-      identityRef: `agent://${spec.maxPrivilege.skill.id}`,
+      agentId: runtimeAgentPin.id,
+      version: runtimeAgentPin.version,
+      identityRef: `agent://${runtimeAgentPin.id}`,
     },
     context: pinnedContext(spec, current),
     deadline: new Date(

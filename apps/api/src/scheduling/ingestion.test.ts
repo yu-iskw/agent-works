@@ -137,7 +137,7 @@ test('adversarial body asking for extra scopes never changes task authority even
   expect(dispatch).toHaveBeenCalledTimes(1);
   const input = dispatch.mock.calls[0][0];
   expect(input.request).toEqual(f.spec.task);
-  expect(input.agent).toMatchObject({ agentId: 'incident-analysis', version: '1.0.0' });
+  expect(input.agent).toMatchObject({ agentId: 'api', version: '1' });
   expect(input.context.allowedSources).toEqual(['incidents']);
   expect(input.request.input).not.toHaveProperty('scopes');
   expect((await f.store.received(f.trigger.source, 'event-1'))?.trust).toBe('untrusted');

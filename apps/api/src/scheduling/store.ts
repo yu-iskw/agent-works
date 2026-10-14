@@ -1,25 +1,18 @@
-import { canonicalPayloadSha256 } from '@agent-works/domain';
-
 import {
+  canonicalPayloadSha256,
   eventTriggerSchema,
   receivedEventSchema,
   sourceEventKey,
-} from '../../../../packages/domain/dist/event-trigger.js';
-import {
   scheduleRunId,
   scheduleRunSchema,
   scheduleAuditSchema,
-} from '../../../../packages/domain/dist/schedule-run.js';
-import {
   scheduleHash,
   scheduleSpecSchema,
   scheduleRecordSchema,
-} from '../../../../packages/domain/dist/schedule.js';
+} from '@agent-works/domain';
+
 import { ScheduleConflict } from '../ports/schedule-port.js';
 
-import type { EventTrigger } from '../../../../packages/domain/dist/event-trigger.js';
-import type { ScheduleRun, ScheduleAudit } from '../../../../packages/domain/dist/schedule-run.js';
-import type { ScheduleSpec, ScheduleRecord } from '../../../../packages/domain/dist/schedule.js';
 import type {
   ClaimRun,
   ScheduleDriver,
@@ -27,6 +20,13 @@ import type {
   ScheduleState,
   RunCompletion,
 } from '../ports/schedule-port.js';
+import type {
+  EventTrigger,
+  ScheduleRun,
+  ScheduleAudit,
+  ScheduleSpec,
+  ScheduleRecord,
+} from '@agent-works/domain';
 
 export function createSchedulePort(driver: ScheduleDriver): SchedulePort {
   const tx = <T>(operation: (state: ScheduleState) => T) => driver.transaction(operation);

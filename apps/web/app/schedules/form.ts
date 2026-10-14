@@ -1,4 +1,4 @@
-import { scheduleSpecSchema } from '../../../../packages/domain/dist/schedule.js';
+import { scheduleSpecSchema } from '@agent-works/domain';
 
 import type { IncomingMessage } from 'node:http';
 export async function readScheduleForm(

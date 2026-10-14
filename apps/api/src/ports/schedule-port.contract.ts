@@ -1,8 +1,6 @@
+import { sourceEventKey, scheduleRunId, scheduleHash } from '@agent-works/domain';
 import { describe, expect, test } from 'vitest';
 
-import { sourceEventKey } from '../../../../packages/domain/dist/event-trigger.js';
-import { scheduleRunId } from '../../../../packages/domain/dist/schedule-run.js';
-import { scheduleHash } from '../../../../packages/domain/dist/schedule.js';
 import { scheduleFixture, eventTriggerFixture } from '../scheduling/test-fixtures.js';
 
 import { ScheduleConflict } from './schedule-port.js';

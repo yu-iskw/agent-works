@@ -1,5 +1,4 @@
-import { eventTriggerCreateSchema } from '../../../../packages/domain/dist/event-trigger.js';
-import { scheduleSpecSchema, privilegeWithin } from '../../../../packages/domain/dist/schedule.js';
+import { eventTriggerCreateSchema, scheduleSpecSchema, privilegeWithin } from '@agent-works/domain';
 
 import { scheduleJson, scheduleRoute } from './schedules-auth.js';
 

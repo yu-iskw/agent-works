@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 
+import { schedulePrivilegeSchema } from '@agent-works/domain';
 import * as z from 'zod';
 
-import { schedulePrivilegeSchema } from '../../../../packages/domain/dist/schedule.js';
 const label = z.string().min(1).max(256);
 const configurationSchema = z.strictObject({
   authorities: z.array(z.strictObject({ subject: label, privilege: schedulePrivilegeSchema })),

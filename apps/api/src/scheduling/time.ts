@@ -1,6 +1,6 @@
-import { cronMatches, parseCron } from '../../../../packages/domain/dist/schedule-cron.js';
+import { cronMatches, parseCron } from '@agent-works/domain';
 
-import type { ScheduleSpec } from '../../../../packages/domain/dist/schedule.js';
+import type { ScheduleSpec } from '@agent-works/domain';
 type LocalTime = { minute: number; hour: number; day: number; month: number; weekday: number };
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function localTime(at: Date, timezone: string): LocalTime {

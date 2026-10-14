@@ -1,26 +1,30 @@
-import { taskAcceptedSchema } from '@agent-works/domain';
+import {
+  taskAcceptedSchema,
+  eventTriggerSchema,
+  scheduleHash,
+  scheduleSpecSchema,
+} from '@agent-works/domain';
 
-import { eventTriggerSchema } from '../../../../packages/domain/dist/event-trigger.js';
-import { scheduleHash, scheduleSpecSchema } from '../../../../packages/domain/dist/schedule.js';
 import { ScheduleConflict } from '../ports/schedule-port.js';
 import { InvocationStopped } from '../suspension/enforcement.js';
 
-import { admit } from './admission.js';
+import { admit, runtimeAgentPin } from './admission.js';
 import { checkAuthority, ScheduleDenied } from './authority.js';
 import { dueSlot, inAllowedWindow } from './time.js';
 
 import type { AdmissionDeps } from './admission.js';
 import type { ScheduleCancel } from './cancel.js';
-import type {
-  EventTrigger,
-  ReceivedEvent,
-} from '../../../../packages/domain/dist/event-trigger.js';
-import type { ScheduleRun } from '../../../../packages/domain/dist/schedule-run.js';
-import type { ScheduleSpec, ScheduleRecord } from '../../../../packages/domain/dist/schedule.js';
 import type { DispatchPort } from '../ports/dispatch-port.js';
 import type { SchedulePort } from '../ports/schedule-port.js';
 import type { LocalEngine } from '../workflow/local-engine.js';
-import type { TaskStatus } from '@agent-works/domain';
+import type {
+  EventTrigger,
+  ReceivedEvent,
+  ScheduleRun,
+  ScheduleSpec,
+  ScheduleRecord,
+  TaskStatus,
+} from '@agent-works/domain';
 export type SchedulerDeps = AdmissionDeps & {
   engine: Pick<LocalEngine, 'run'>;
   store: SchedulePort;
@@ -63,7 +67,17 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       return row;
     },
     async tick() {
-      for (const row of await deps.store.all()) await tickSchedule(deps, row);
+      const failures: unknown[] = [];
+      for (const row of await deps.store.all()) {
+        try {
+          await tickSchedule(deps, row);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      // Report to the worker after every row has had a chance to progress.
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) throw new AggregateError(failures, 'schedule polling failed');
     },
     async fireEvent(event) {
       const row = (await deps.store.all()).find((v) => v.spec.id === event.scheduleId);
@@ -80,6 +94,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
 }
 async function tickSchedule(deps: SchedulerDeps, row: ScheduleRecord): Promise<void> {
   const now = deps.now();
+  await releaseTerminalRuns(deps, row);
   const stop = await stopReason(deps, row, now);
   if (stop !== undefined) {
     if (row.state === 'active') await revoke(deps, row, stop);
@@ -160,15 +175,24 @@ async function fire(
     return stored;
   } catch (error) {
     if (error instanceof ScheduleDenied || error instanceof InvocationStopped) {
-      if (
-        (await deps.budget.events()).some((v) => v.operationId === run.id && v.kind === 'charged')
-      )
-        await deps.budget.release(run.id);
-      return deps.store.finish(
+      // Admission may now fail after an earlier dispatch committed without an acknowledgement.
+      const taskId = await deps.findTask(row.spec.sponsor.sub, `schedule:${run.id}`);
+      if (taskId !== undefined) {
+        const accepted = await deps.store.finish(
+          run,
+          { status: 'accepted', taskId, reason: error.code },
+          deps.now().toISOString(),
+        );
+        await cancelRun(deps, row, accepted, error.code);
+        return (await deps.store.runs(row.spec.id)).find((v) => v.id === run.id);
+      }
+      const denied = await deps.store.finish(
         run,
         { status: 'denied', taskId: null, reason: error.code },
         deps.now().toISOString(),
       );
+      await releaseTerminalRuns(deps, row);
+      return denied;
     }
     throw error; // Lease recovery retries uncertain dispatch with the same idempotency key.
   }
@@ -214,7 +238,7 @@ async function cancelRun(
 ): Promise<void> {
   if (run.taskId === null) return;
   const status = await deps.taskStatus(row.spec.sponsor.sub, run.taskId);
-  if (status !== undefined && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status)) {
+  if (isTerminalTask(status)) {
     await deps.store.finish(
       run,
       {
@@ -238,8 +262,12 @@ async function cancelRun(
 async function settleRuns(deps: SchedulerDeps, row: ScheduleRecord): Promise<void> {
   for (const run of await deps.store.runs(row.spec.id)) {
     if (run.status !== 'accepted' || run.taskId === null) continue;
+    if (run.reason !== null) {
+      await cancelRun(deps, row, run, run.reason);
+      continue;
+    }
     const status = await deps.taskStatus(row.spec.sponsor.sub, run.taskId);
-    if (status !== undefined && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status)) {
+    if (isTerminalTask(status)) {
       await deps.store.finish(
         run,
         {
@@ -249,10 +277,7 @@ async function settleRuns(deps: SchedulerDeps, row: ScheduleRecord): Promise<voi
         },
         deps.now().toISOString(),
       );
-      if (
-        (await deps.budget.events()).some((v) => v.operationId === run.id && v.kind === 'charged')
-      )
-        await deps.budget.release(run.id);
+      await releaseReservation(deps, run.id);
     }
   }
 }
@@ -293,7 +318,7 @@ async function finalAdmission(
     {
       subject: row.spec.sponsor.sub,
       teams: authority.teams,
-      agent: { kind: 'agent', ...row.spec.maxPrivilege.skill },
+      agent: runtimeAgentPin,
       skill: { kind: 'skill', ...row.spec.maxPrivilege.skill },
       model: deps.model,
       taskId: run.id,
@@ -325,4 +350,36 @@ async function cancelPendingRun(
     deps.now().toISOString(),
   );
   await cancelRun(deps, row, accepted, reason);
+}
+
+// Terminal run state is the durable release obligation, including paused/revoked schedules.
+async function releaseTerminalRuns(deps: SchedulerDeps, row: ScheduleRecord): Promise<void> {
+  const terminal = (await deps.store.runs(row.spec.id)).filter((run) =>
+    ['denied', 'cancelled', 'completed'].includes(run.status),
+  );
+  if (terminal.length === 0) return;
+  const events = await deps.budget.events();
+  for (const run of terminal) {
+    const evidence = events.filter((event) => event.operationId === run.id);
+    if (
+      evidence.some((event) => event.kind === 'charged') &&
+      !evidence.some((event) => event.kind === 'released')
+    )
+      await deps.budget.release(run.id);
+  }
+}
+
+function isTerminalTask(
+  status: TaskStatus | undefined,
+): status is 'COMPLETED' | 'FAILED' | 'CANCELLED' {
+  return status !== undefined && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status);
+}
+
+async function releaseReservation(deps: SchedulerDeps, id: string): Promise<void> {
+  if (
+    (await deps.budget.events()).some(
+      (event) => event.operationId === id && event.kind === 'charged',
+    )
+  )
+    await deps.budget.release(id);
 }

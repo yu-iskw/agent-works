@@ -1,17 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  scheduleFixture,
-  eventTriggerFixture,
-} from '../../../../packages/domain/dist/schedule-fixtures.js';
-import { scheduleHash } from '../../../../packages/domain/dist/schedule.js';
+import { scheduleFixture, eventTriggerFixture, scheduleHash } from '@agent-works/domain';
+
 import { createMemoryBudgetPort } from '../finops/memory-budget.js';
 import { createMemorySchedulePort } from '../ports/memory/schedule-port.js';
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { createMemoryWorkflowPort } from '../ports/memory/workflow.js';
+import { createIncidentSkill } from '../skills/incident.js';
 import { publishBundledCapabilities } from '../suspension/bootstrap.js';
 import { createSuspensionEnforcer } from '../suspension/enforcement.js';
+import { bundledVersionBaseline } from '../suspension/runtime.js';
 import { createLocalEngine } from '../workflow/local-engine.js';
 import { createMemoryWorkflowLog } from '../workflow/workflow-log.js';
 
@@ -22,7 +21,7 @@ import { createScheduler } from './service.js';
 
 import type { SponsorAuthority } from './authority.js';
 import type { SchedulerDeps } from './service.js';
-import type { ScheduleSpec } from '../../../../packages/domain/dist/schedule.js';
+import type { ScheduleSpec } from '@agent-works/domain';
 export { scheduleFixture, eventTriggerFixture };
 export async function schedulerFixture(overrides: Partial<ScheduleSpec> = {}) {
   const spec = scheduleFixture(overrides);
@@ -31,10 +30,10 @@ export async function schedulerFixture(overrides: Partial<ScheduleSpec> = {}) {
   const budget = createMemoryBudgetPort();
   const suspensionLedger = createMemorySuspensionLedger();
   const tasks = createMemoryTaskPorts(clock.now);
-  await publishBundledCapabilities(suspensionLedger, [
-    { pin: { kind: 'agent', ...spec.maxPrivilege.skill }, reason: 'test' },
-    { pin: { kind: 'skill', ...spec.maxPrivilege.skill }, reason: 'test' },
-  ]);
+  await publishBundledCapabilities(
+    suspensionLedger,
+    bundledVersionBaseline(createIncidentSkill().manifest),
+  );
   const consent = createLocalConsentRegistry([
     {
       ref: spec.consentRef,
@@ -112,16 +111,15 @@ export async function suspendFixture(
   f: Awaited<ReturnType<typeof schedulerFixture>>,
   scope: 'global' | 'team' | 'skill' | 'user' | 'agent' | 'model',
 ) {
-  const id =
-    scope === 'global'
-      ? '*'
-      : scope === 'team'
-        ? 'team-a'
-        : scope === 'user'
-          ? 'alice'
-          : scope === 'model'
-            ? 'gemini'
-            : f.spec.maxPrivilege.skill.id;
+  const ids = new Map([
+    ['global', '*'],
+    ['team', 'team-a'],
+    ['user', 'alice'],
+    ['model', 'gemini'],
+    ['agent', 'api'],
+    ['skill', f.spec.maxPrivilege.skill.id],
+  ]);
+  const id = ids.get(scope)!;
   await f.suspensionLedger.change(
     {
       kind: 'suspension',

@@ -1,7 +1,7 @@
 import { h, renderDocument } from '../html.js';
 
-import type { ScheduleRecord, ScheduleSpec } from '../../../../packages/domain/dist/schedule.js';
 import type { Html } from '../html.js';
+import type { ScheduleRecord, ScheduleSpec } from '@agent-works/domain';
 const schedulesPath = '/schedules';
 function hidden(name: string, value: string | number): Html {
   return h('input', { type: 'hidden', name, value });

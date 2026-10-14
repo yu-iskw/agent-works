@@ -6,7 +6,7 @@ test('GET forwards only the verified assertion and renders list with CSRF cookie
   const load = vi.fn<typeof fetch>(() => json({ schedules: [scheduleWebRecord()] }));
   const server = await openSchedulesServer(load);
   try {
-    const reply = await fetch(`${server.url}/schedules`, {
+    const reply = await server.fetch(`${server.url}/schedules`, {
       headers: { 'x-goog-iap-jwt-assertion': 'assertion' },
     });
     expect(reply.status).toBe(200);
@@ -26,7 +26,7 @@ test.each(['/schedules/preview', '/schedules/create', '/schedules/change'])(
     const load = vi.fn<typeof fetch>(() => json({ schedules: [] }));
     const server = await openSchedulesServer(load);
     try {
-      const reply = await fetch(`${server.url}${path}`, {
+      const reply = await server.fetch(`${server.url}${path}`, {
         method: 'POST',
         body: new URLSearchParams({ spec: '{}' }),
       });
@@ -51,19 +51,19 @@ test('privilege preview followed by creation and pause/resume uses authenticated
   });
   const server = await openSchedulesServer(load);
   try {
-    const page = await fetch(`${server.url}/schedules`);
+    const page = await server.fetch(`${server.url}/schedules`);
     const cookie = page.headers.get('set-cookie')!.split(';')[0];
     const token = cookie.split('=')[1];
     const headers = { cookie, origin: server.url, 'x-goog-iap-jwt-assertion': 'assertion' };
     const form = new URLSearchParams({ csrfToken: token, spec: JSON.stringify(row.spec) });
-    const preview = await fetch(`${server.url}/schedules/preview`, {
+    const preview = await server.fetch(`${server.url}/schedules/preview`, {
       method: 'POST',
       headers,
       body: form,
     });
     expect(preview.status).toBe(200);
     expect(await preview.text()).toContain('Schedule privilege preview');
-    const created = await fetch(`${server.url}/schedules/create`, {
+    const created = await server.fetch(`${server.url}/schedules/create`, {
       method: 'POST',
       headers,
       body: form,
@@ -71,7 +71,7 @@ test('privilege preview followed by creation and pause/resume uses authenticated
     expect(created.status).toBe(200);
     expect(await created.text()).toContain('Schedule created.');
     for (const action of ['pause', 'resume']) {
-      const reply = await fetch(`${server.url}/schedules/change`, {
+      const reply = await server.fetch(`${server.url}/schedules/change`, {
         method: 'POST',
         headers,
         body: new URLSearchParams({ csrfToken: token, id: row.spec.id, revision: '1', action }),
@@ -88,7 +88,7 @@ test('cross-origin mutation fails CSRF even with matching double-submit token', 
   const server = await openSchedulesServer(load);
   try {
     const token = 'a'.repeat(64);
-    const reply = await fetch(`${server.url}/schedules/create`, {
+    const reply = await server.fetch(`${server.url}/schedules/create`, {
       method: 'POST',
       headers: { cookie: `aw_schedules_csrf=${token}`, origin: 'https://evil.example' },
       body: new URLSearchParams({ csrfToken: token }),
@@ -103,7 +103,7 @@ test('API unavailable and forbidden states remain visible to the user', async ()
   for (const status of [403, 503]) {
     const server = await openSchedulesServer(() => json({ error: 'unavailable' }, status));
     try {
-      const reply = await fetch(`${server.url}/schedules`);
+      const reply = await server.fetch(`${server.url}/schedules`);
       expect(reply.status).toBe(status);
       expect(await reply.text()).toContain('Schedules are unavailable');
     } finally {
@@ -117,13 +117,13 @@ test('invalid and oversized forms never mutate API', async () => {
   try {
     const token = 'a'.repeat(64);
     const headers = { cookie: `aw_schedules_csrf=${token}` };
-    const reply = await fetch(`${server.url}/schedules/create`, {
+    const reply = await server.fetch(`${server.url}/schedules/create`, {
       method: 'POST',
       headers,
       body: new URLSearchParams({ csrfToken: token, spec: 'not-json' }),
     });
     expect(reply.status).toBe(400);
-    const oversized = await fetch(`${server.url}/schedules/create`, {
+    const oversized = await server.fetch(`${server.url}/schedules/create`, {
       method: 'POST',
       headers,
       body: 'x'.repeat(40000),

@@ -1,12 +1,11 @@
 import {
   eventTriggerSchema,
   receivedEventSchema,
-} from '../../../../packages/domain/dist/event-trigger.js';
-import {
   scheduleRunSchema,
   scheduleAuditSchema,
-} from '../../../../packages/domain/dist/schedule-run.js';
-import { scheduleRecordSchema } from '../../../../packages/domain/dist/schedule.js';
+  scheduleRecordSchema,
+} from '@agent-works/domain';
+
 import { schedulesReady } from '../scheduling/migration.js';
 import { createSchedulePort } from '../scheduling/store.js';
 

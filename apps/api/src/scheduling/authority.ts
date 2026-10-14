@@ -1,7 +1,6 @@
-import { privilegeWithin } from '../../../../packages/domain/dist/schedule.js';
+import { privilegeWithin } from '@agent-works/domain';
 
-import type { ScheduleSpec, SchedulePrivilege } from '../../../../packages/domain/dist/schedule.js';
-import type { SearchContext } from '@agent-works/domain';
+import type { ScheduleSpec, SchedulePrivilege, SearchContext } from '@agent-works/domain';
 export type SponsorAuthority = {
   active: boolean;
   subject: string;

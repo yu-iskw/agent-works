@@ -1,6 +1,4 @@
-import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
-
-import { scheduleRecordSchema } from '../../../../packages/domain/dist/schedule.js';
+import { IAP_ASSERTION_HEADER, scheduleRecordSchema } from '@agent-works/domain';
 
 import type { WebAppOptions } from '../web-app.js';
 import type { IncomingMessage } from 'node:http';

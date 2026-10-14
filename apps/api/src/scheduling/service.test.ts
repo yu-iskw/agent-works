@@ -1,6 +1,5 @@
+import { scheduleHash } from '@agent-works/domain';
 import { describe, expect, test, vi } from 'vitest';
-
-import { scheduleHash } from '../../../../packages/domain/dist/schedule.js';
 
 import { createScheduler } from './service.js';
 import { schedulerFixture, suspendFixture } from './test-fixtures.js';

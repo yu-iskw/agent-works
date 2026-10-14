@@ -1,5 +1,4 @@
-import type { EventTrigger } from '../../../../packages/domain/dist/event-trigger.js';
-import type { ScheduleSpec } from '../../../../packages/domain/dist/schedule.js';
+import type { EventTrigger, ScheduleSpec } from '@agent-works/domain';
 type OfflineCloudResult = {
   kind: 'offline';
   provider: 'cloud-scheduler' | 'pubsub' | 'eventarc';

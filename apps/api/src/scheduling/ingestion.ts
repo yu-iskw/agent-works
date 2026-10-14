@@ -1,8 +1,9 @@
-import { canonicalPayloadSha256 } from '@agent-works/domain';
-
-import { validEventPayload } from '../../../../packages/domain/dist/event-trigger-payload.js';
-import { sourceEventKey } from '../../../../packages/domain/dist/event-trigger.js';
-import { scheduleRunId } from '../../../../packages/domain/dist/schedule-run.js';
+import {
+  canonicalPayloadSha256,
+  validEventPayload,
+  sourceEventKey,
+  scheduleRunId,
+} from '@agent-works/domain';
 
 import { ScheduleDenied } from './authority.js';
 import { verifyEventSignature } from './signature.js';
@@ -10,8 +11,8 @@ import { verifyEventSignature } from './signature.js';
 import type { SigningKeyRegistry } from './keys.js';
 import type { Scheduler } from './service.js';
 import type { SignedEvent } from './signature.js';
-import type { ScheduleRun } from '../../../../packages/domain/dist/schedule-run.js';
 import type { SchedulePort } from '../ports/schedule-port.js';
+import type { ScheduleRun } from '@agent-works/domain';
 export type EventIngestor = { ingest(event: SignedEvent): Promise<ScheduleRun> };
 export function createEventIngestor(deps: {
   store: SchedulePort;

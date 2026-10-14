@@ -1,9 +1,11 @@
 import type {
   EventTrigger,
   ReceivedEvent,
-} from '../../../../packages/domain/dist/event-trigger.js';
-import type { ScheduleAudit, ScheduleRun } from '../../../../packages/domain/dist/schedule-run.js';
-import type { ScheduleRecord, ScheduleSpec } from '../../../../packages/domain/dist/schedule.js';
+  ScheduleAudit,
+  ScheduleRun,
+  ScheduleRecord,
+  ScheduleSpec,
+} from '@agent-works/domain';
 export class ScheduleConflict extends Error {
   constructor(message = 'schedule conflict') {
     super(message);

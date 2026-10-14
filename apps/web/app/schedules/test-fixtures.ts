@@ -1,7 +1,8 @@
-import { createServer } from 'node:http';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
+import { PassThrough } from 'node:stream';
 
-import { scheduleFixture } from '../../../../packages/domain/dist/schedule-fixtures.js';
-import { scheduleHash } from '../../../../packages/domain/dist/schedule.js';
+import { scheduleFixture, scheduleHash } from '@agent-works/domain';
 
 import { createSchedulesHandler } from './handler.js';
 
@@ -18,18 +19,43 @@ export function scheduleWebRecord() {
     cursor: at,
   };
 }
-export async function openSchedulesServer(load: typeof fetch) {
-  const server = createServer(createSchedulesHandler({ apiUrl: 'http://api.local', fetch: load }));
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('address');
-  const url = `http://127.0.0.1:${address.port}`;
-  return {
-    url,
-    async close() {
-      await new Promise<void>((resolve, reject) =>
-        server.close((error) => (error === undefined ? resolve() : reject(error))),
-      );
-    },
+// Drive the real Node handler without opening a listening socket.
+export function openSchedulesServer(load: typeof fetch) {
+  const handler = createSchedulesHandler({ apiUrl: 'http://api.local', fetch: load });
+  const url = 'http://schedules.local';
+  const fetchPage = async (input: string, init?: RequestInit): Promise<Response> => {
+    const page = new Request(input, init);
+    const request = new IncomingMessage(new Socket());
+    request.method = page.method;
+    request.url = new URL(page.url).pathname;
+    request.headers = Object.fromEntries(page.headers);
+    request.headers.host = new URL(page.url).host;
+    const body = Buffer.from(await page.arrayBuffer());
+    request.push(body.length === 0 ? null : body);
+    if (body.length !== 0) request.push(null);
+    const response = new ServerResponse(request);
+    response.useChunkedEncodingByDefault = false;
+    response.shouldKeepAlive = false;
+    const output = new PassThrough();
+    const chunks: Buffer[] = [];
+    output.on('data', (chunk: Buffer) => chunks.push(chunk));
+    // ServerResponse only needs the writable stream interface exercised here.
+    response.assignSocket(output as unknown as Socket);
+    return new Promise<Response>((resolve, reject) => {
+      response.on('error', reject);
+      response.on('finish', () => {
+        const raw = Buffer.concat(chunks).toString();
+        const boundary = raw.indexOf('\r\n\r\n');
+        const lines = raw.slice(0, boundary).split('\r\n');
+        const headers = new Headers();
+        for (const line of lines.slice(1)) {
+          const colon = line.indexOf(':');
+          headers.append(line.slice(0, colon), line.slice(colon + 1).trim());
+        }
+        resolve(new Response(raw.slice(boundary + 4), { status: response.statusCode, headers }));
+      });
+      handler(request, response);
+    });
   };
+  return Promise.resolve({ url, fetch: fetchPage, close: () => Promise.resolve() });
 }
