@@ -26,3 +26,39 @@ variable "breakglass_member" {
     error_message = "Invalid breakglass_member: use the approved interface and pilot region."
   }
 }
+
+variable "enable_network" {
+  description = "Enable bootstrap provisioning for network; match the dev root flag."
+  type        = bool
+  default     = false
+}
+
+variable "enable_nat" {
+  description = "Enable bootstrap provisioning for nat; match the dev root flag."
+  type        = bool
+  default     = false
+}
+
+variable "enable_cloud_sql" {
+  description = "Enable bootstrap provisioning for cloud_sql; match the dev root flag."
+  type        = bool
+  default     = false
+}
+
+variable "enable_kms" {
+  description = "Enable bootstrap provisioning for kms; match the dev root flag."
+  type        = bool
+  default     = false
+}
+
+variable "enable_bigquery_analytics" {
+  description = "Enable bootstrap provisioning for bigquery_analytics; match the dev root flag."
+  type        = bool
+  default     = false
+}
+
+variable "enable_workflows" {
+  description = "Enable bootstrap provisioning for workflows; match the dev root flag."
+  type        = bool
+  default     = false
+}

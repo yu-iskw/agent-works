@@ -1,14 +1,11 @@
 locals {
-  workflow_name = "projects/${var.project_id}/locations/${var.region}/workflows/${var.name}"
-  # Workflows IAM is project-scoped. Use a dedicated pilot project and an explicit
-  # permission set rather than the broader built-in invoker role.
+  # Metadata contract only; bootstrap owns the role with this exact permission set.
   adapter_permissions = [
-    "workflows.executions.create",
-    "workflows.executions.list",
-    "workflows.executions.cancel",
-    "workflows.callbacks.list",
-    "workflows.callbacks.send",
+    "workflows.executions.create", "workflows.executions.list",
+    "workflows.executions.cancel", "workflows.callbacks.list", "workflows.callbacks.send",
   ]
+  workflow_name = "projects/${var.project_id}/locations/${var.region}/workflows/${var.name}"
+
 }
 resource "google_project_service" "workflows" {
   for_each           = toset(["workflows.googleapis.com", "workflowexecutions.googleapis.com"])
@@ -32,16 +29,9 @@ resource "google_workflows_workflow" "tasks" {
     google_cloud_run_v2_service_iam_member.broker,
   ]
 }
-resource "google_project_iam_custom_role" "adapter" {
-  project     = var.project_id
-  role_id     = "${replace(var.name, "-", "_")}_adapter"
-  title       = "Pilot workflow dispatcher and callback sender"
-  description = "Only execution control and callback delivery, without workflow deployment or IAM administration."
-  permissions = local.adapter_permissions
-}
 resource "google_project_iam_member" "adapter" {
   project = var.project_id
-  role    = google_project_iam_custom_role.adapter.name
+  role    = "projects/${var.project_id}/roles/pilot_durable_tasks_adapter"
   member  = "serviceAccount:${var.adapter_service_account_email}"
 }
 

@@ -1,6 +1,6 @@
 # Terraform dev infrastructure
 
-[DESIGN.md](DESIGN.md) is the approved design and remains unchanged. Terraform is
+[DESIGN.md](DESIGN.md) is the approved design. Terraform is
 pinned to >=1.16.5,<1.17.0 and the GA Google provider to 8.5.0.
 
 Three rules apply throughout:
@@ -11,16 +11,15 @@ Three rules apply throughout:
 3. Impersonation is mandatory for both providers and GCS state. Bootstrap is the
    one provider exception because it creates the initial accounts. Keys are forbidden.
 
-| Root                | Execution identity                    | Responsibility                                                                         |
-| ------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
-| `bootstrap/`        | Human operator, initially local state | Project, guard policies, default-SA deprivilege, state bucket, aw-tf-identity/dev/plan |
-| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF, dev IAM role allowlist                         |
-| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                  |
+| Root                | Execution identity                    | Responsibility                                                                                                               |
+| ------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap/`        | Human operator, initially local state | Project, guard policies, default-SA deprivilege, state bucket, aw-tf-identity/dev/plan, conditioned dev IAM and custom roles |
+| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF                                                                                       |
+| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                                                        |
 
 `modules/environment` is retired. `project_baseline` hardens an existing project;
 bootstrap alone sets its guard and default-account inputs. `budget` is alerts
-only, and `project_iam` owns additive project grants. Workflows retains its existing
-custom adapter role and binding. Resource IAM lives beside each resource.
+only, and `project_iam` owns additive standard project grants; bootstrap custom provisioning grants are colocated with their roles. Bootstrap owns the Workflows custom adapter role; the Workflows module assigns it. Resource IAM lives beside each resource.
 
 Dev reads the identity email map using impersonated `terraform_remote_state`.
 Supplying `service_account_emails` bypasses that data source for offline tests.
@@ -28,7 +27,7 @@ Every optional module defaults off. `images = {}` creates foundations without Ru
 revisions, supporting the design's two-pass rollout. Supply digest-pinned `web`,
 `api` and `tool_broker` entries after operator secret setup and image publication.
 Web uses direct IAP and its service agent; API and broker use internal ingress and
-explicit SA invokers. Optional networking attaches Direct VPC egress. Cloud SQL
+explicit SA invokers. Web/API images require networking with Direct VPC ALL_TRAFFIC and Private Google Access. Enable matching bootstrap flags first for optional provisioning permissions and the Workflows adapter role. Cloud SQL
 requires networking and stays disabled for the off-cloud pilot database (D1).
 
 Use only `terraform.tfvars.example` as tracked operator templates. All ids and

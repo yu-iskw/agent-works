@@ -14,8 +14,12 @@ run "approved_interface" {
     error_message = "Existing identity, no payload logs, protected workflow."
   }
   assert {
+    condition     = google_project_iam_member.adapter.role == "projects/aw-test-project/roles/pilot_durable_tasks_adapter" && length(regexall("resource\\s+\"google_project_iam_custom_role\"", file("${path.module}/main.tf"))) == 0
+    error_message = "Use the bootstrap adapter role without custom-role administration."
+  }
+  assert {
     condition     = toset(output.permissions) == toset(["workflows.executions.create", "workflows.executions.list", "workflows.executions.cancel", "workflows.callbacks.list", "workflows.callbacks.send"])
-    error_message = "Exact dispatcher permissions."
+    error_message = "Adapter metadata must match the exact bootstrap role permissions."
   }
   assert {
     condition     = google_cloud_run_v2_service_iam_member.broker.member == "serviceAccount:${var.workflow_service_account_email}" && google_cloud_run_v2_service_iam_member.broker.name == var.broker_service_name

@@ -1,4 +1,8 @@
 mock_provider "google" {
+  mock_resource "google_project_iam_custom_role" {
+    override_during = plan
+    defaults        = { name = "projects/aw-test-project/roles/mock" }
+  }
   mock_resource "google_service_account" {
     override_during = plan
     defaults        = { name = "projects/aw-test-project/serviceAccounts/mock@aw-test-project.iam.gserviceaccount.com" }
@@ -52,5 +56,216 @@ run "bootstrap_contract" {
   assert {
     condition     = google_storage_bucket_iam_member.plan.role == "roles/storage.objectViewer" && google_storage_bucket_iam_member.applier["aw-tf-dev"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/dev/')"
     error_message = "State writes must be prefix scoped; plan reads only."
+  }
+}
+
+run "conditioned_dev_iam_in_bootstrap" {
+  command = plan
+  assert {
+    condition     = module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].member == "serviceAccount:aw-tf-dev@aw-test-project.iam.gserviceaccount.com" && module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].scope == "aw-test-project" && module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].role == "roles/resourcemanager.projectIamAdmin"
+    error_message = "Bootstrap grants the guarded project IAM role only to the dev applier."
+  }
+  assert {
+    condition     = alltrue([for role in output.grantable_roles : !contains(["roles/owner", "roles/editor"], role) && !can(regex("^roles/iam\\..*Admin$", role))])
+    error_message = "D6 must forbid basic and IAM admin roles."
+  }
+  assert {
+    condition     = module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].condition.expression == "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(${jsonencode(sort(tolist(output.grantable_roles)))})"
+    error_message = "Guard must use the exact role allowlist."
+  }
+  assert {
+    condition     = toset([for binding in values(module.terraform_roles.iam_bindings) : binding.role if binding.member == "serviceAccount:aw-tf-identity@aw-test-project.iam.gserviceaccount.com"]) == toset(["roles/iam.serviceAccountAdmin", "roles/iam.workloadIdentityPoolAdmin"])
+    error_message = "Identity applier retains exactly SA and WIF administration."
+  }
+}
+run "literal_grant_allowlist" {
+  command = plan
+  assert {
+    condition = output.grantable_roles == toset([
+      "roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/cloudtrace.agent",
+      "roles/aiplatform.user", "roles/cloudsql.client", "roles/cloudsql.instanceUser",
+      "roles/bigquery.jobUser", "roles/bigquery.dataViewer", "roles/artifactregistry.writer",
+      "roles/run.developer", "roles/run.invoker", "roles/iam.serviceAccountUser",
+      "roles/secretmanager.secretAccessor", "roles/cloudkms.cryptoKeyEncrypterDecrypter",
+      "roles/workflows.invoker", "projects/aw-test-project/roles/pilot_durable_tasks_adapter",
+    ])
+    error_message = "D6 roles must match the literal approved runtime/deployer allowlist."
+  }
+}
+
+run "optional_provisioning_permissions" {
+  command = plan
+  variables {
+    enable_network            = true
+    enable_nat                = true
+    enable_cloud_sql          = true
+    enable_kms                = true
+    enable_bigquery_analytics = true
+    enable_workflows          = true
+  }
+  assert {
+    condition = toset(google_project_iam_custom_role.provisioning["network"].permissions) == toset([
+      "compute.networks.create",
+      "compute.networks.delete",
+      "compute.networks.get",
+      "compute.networks.update",
+      "compute.networks.updatePolicy",
+      "compute.networks.use",
+      "compute.subnetworks.create",
+      "compute.subnetworks.delete",
+      "compute.subnetworks.get",
+      "compute.subnetworks.update",
+      "compute.subnetworks.use",
+      "compute.regionOperations.get",
+      "compute.globalOperations.get",
+    ])
+    error_message = "Exact network provisioning permissions only."
+  }
+  assert {
+    condition = toset(google_project_iam_custom_role.provisioning["nat"].permissions) == toset([
+      "compute.routers.create",
+      "compute.routers.delete",
+      "compute.routers.get",
+      "compute.routers.update",
+      "compute.networks.use",
+      "compute.subnetworks.get",
+      "compute.subnetworks.use",
+      "compute.regionOperations.get",
+    ])
+    error_message = "Exact nat provisioning permissions only."
+  }
+  assert {
+    condition = toset(google_project_iam_custom_role.provisioning["cloud_sql"].permissions) == toset([
+      "cloudsql.instances.create",
+      "cloudsql.instances.delete",
+      "cloudsql.instances.get",
+      "cloudsql.instances.update",
+      "cloudsql.users.create",
+      "cloudsql.users.delete",
+      "cloudsql.users.list",
+      "cloudsql.users.update",
+      "compute.globalAddresses.create",
+      "compute.globalAddresses.createInternal",
+      "compute.globalAddresses.delete",
+      "compute.globalAddresses.deleteInternal",
+      "compute.globalAddresses.get",
+      "compute.globalAddresses.list",
+      "compute.globalAddresses.use",
+      "compute.networks.get",
+      "compute.networks.use",
+      "compute.networks.addPeering",
+      "compute.networks.removePeering",
+      "compute.networks.updatePeering",
+      "compute.globalOperations.get",
+      "servicenetworking.services.addPeering",
+      "servicenetworking.services.get",
+      "servicenetworking.services.use",
+      "servicenetworking.services.deleteConnection",
+      "servicenetworking.operations.get",
+    ])
+    error_message = "Exact cloud_sql provisioning permissions only."
+  }
+  assert {
+    condition = toset(google_project_iam_custom_role.provisioning["kms"].permissions) == toset([
+      "cloudkms.keyRings.create",
+      "cloudkms.keyRings.get",
+      "cloudkms.cryptoKeys.create",
+      "cloudkms.cryptoKeys.get",
+      "cloudkms.cryptoKeys.update",
+      "cloudkms.cryptoKeys.getIamPolicy",
+      "cloudkms.cryptoKeys.setIamPolicy",
+    ])
+    error_message = "Exact kms provisioning permissions only."
+  }
+  assert {
+    condition = toset(google_project_iam_custom_role.provisioning["bigquery_analytics"].permissions) == toset([
+      "bigquery.datasets.create",
+      "bigquery.datasets.get",
+      "bigquery.datasets.update",
+      "bigquery.datasets.delete",
+      "bigquery.datasets.getIamPolicy",
+      "bigquery.datasets.setIamPolicy",
+    ])
+    error_message = "Exact bigquery_analytics provisioning permissions only."
+  }
+  assert {
+    condition     = toset(keys(google_project_iam_member.provisioning)) == toset(["network", "nat", "cloud_sql", "kms", "bigquery_analytics"]) && alltrue([for binding in google_project_iam_member.provisioning : binding.member == "serviceAccount:aw-tf-dev@aw-test-project.iam.gserviceaccount.com" && binding.project == var.project_id])
+    error_message = "Optional provisioning grants belong only to the dev applier in its project."
+  }
+  assert {
+    condition     = google_project_iam_custom_role.workflow_adapter[0].role_id == "pilot_durable_tasks_adapter" && toset(google_project_iam_custom_role.workflow_adapter[0].permissions) == toset(["workflows.executions.create", "workflows.executions.list", "workflows.executions.cancel", "workflows.callbacks.list", "workflows.callbacks.send"])
+    error_message = "Bootstrap owns the exact adapter role, without granting role management to dev."
+  }
+}
+run "optional_permissions_default_off" {
+  command = plan
+  assert {
+    condition     = length(google_project_iam_custom_role.provisioning) == 0 && length(google_project_iam_member.provisioning) == 0 && length(google_project_iam_custom_role.workflow_adapter) == 0
+    error_message = "No optional provisioning rights unless enabled."
+  }
+}
+run "workspace_listing_and_prefix_isolation" {
+  command = plan
+  assert {
+    condition     = toset(google_project_iam_custom_role.state_list.permissions) == toset(["storage.objects.list"]) && toset(keys(google_storage_bucket_iam_member.applier_list)) == toset(["aw-tf-identity", "aw-tf-dev"]) && alltrue([for key, binding in google_storage_bucket_iam_member.applier_list : binding.bucket == "aw-test-project-tfstate" && binding.role == google_project_iam_custom_role.state_list.name && binding.member == "serviceAccount:${key}@aw-test-project.iam.gserviceaccount.com" && length(binding.condition) == 0])
+    error_message = "Both appliers can list only the state bucket with a list-only custom role."
+  }
+  assert {
+    condition     = google_storage_bucket_iam_member.applier["aw-tf-identity"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/identity/')" && google_storage_bucket_iam_member.applier["aw-tf-dev"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/dev/')" && google_storage_bucket_iam_member.dev_identity_reader.condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/identity/')"
+    error_message = "Listing must not broaden object read/write or identity read grants."
+  }
+}
+
+run "only_network_provisioning" {
+  command = plan
+  variables { enable_network = true }
+  assert {
+    condition     = toset(keys(google_project_iam_member.provisioning)) == toset(["network"]) && length(google_project_iam_custom_role.workflow_adapter) == 0
+    error_message = "A single feature must grant only its provisioning role."
+  }
+}
+
+run "only_cloud_sql_provisioning" {
+  command = plan
+  variables { enable_cloud_sql = true }
+  assert {
+    condition     = toset(keys(google_project_iam_member.provisioning)) == toset(["cloud_sql"]) && length(google_project_iam_custom_role.workflow_adapter) == 0
+    error_message = "A single feature must grant only its provisioning role."
+  }
+}
+
+run "only_kms_provisioning" {
+  command = plan
+  variables { enable_kms = true }
+  assert {
+    condition     = toset(keys(google_project_iam_member.provisioning)) == toset(["kms"]) && length(google_project_iam_custom_role.workflow_adapter) == 0
+    error_message = "A single feature must grant only its provisioning role."
+  }
+}
+
+run "only_bigquery_analytics_provisioning" {
+  command = plan
+  variables { enable_bigquery_analytics = true }
+  assert {
+    condition     = toset(keys(google_project_iam_member.provisioning)) == toset(["bigquery_analytics"]) && length(google_project_iam_custom_role.workflow_adapter) == 0
+    error_message = "A single feature must grant only its provisioning role."
+  }
+}
+
+run "nat_requires_network" {
+  command = plan
+  variables { enable_nat = true }
+  assert {
+    condition     = length(google_project_iam_member.provisioning) == 0
+    error_message = "NAT flag alone must grant no network permissions."
+  }
+}
+
+run "only_workflow_adapter" {
+  command = plan
+  variables { enable_workflows = true }
+  assert {
+    condition     = length(google_project_iam_custom_role.workflow_adapter) == 1 && length(google_project_iam_member.provisioning) == 0
+    error_message = "Workflows opt-in creates the adapter role without granting custom-role management."
   }
 }

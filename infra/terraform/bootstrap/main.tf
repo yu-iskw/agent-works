@@ -99,3 +99,19 @@ resource "google_storage_bucket_iam_member" "dev_identity_reader" {
   }
   depends_on = [google_service_account.terraform]
 }
+
+# Workspace discovery lists the bucket, even when object access is prefix scoped.
+resource "google_project_iam_custom_role" "state_list" {
+  project     = google_project.dev.project_id
+  role_id     = "aw_state_list"
+  title       = "Terraform state workspace discovery"
+  permissions = ["storage.objects.list"]
+  depends_on  = [module.baseline]
+}
+resource "google_storage_bucket_iam_member" "applier_list" {
+  for_each   = toset(["aw-tf-identity", "aw-tf-dev"])
+  bucket     = google_storage_bucket.state.name
+  role       = google_project_iam_custom_role.state_list.name
+  member     = "serviceAccount:${local.terraform_emails[each.key]}"
+  depends_on = [google_service_account.terraform]
+}

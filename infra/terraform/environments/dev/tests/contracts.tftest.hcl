@@ -66,8 +66,25 @@ run "infra-no-sa-keys" {
 run "runtime_bindings" {
   command = plan
   variables {
-    images      = { web = "example.invalid/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", api = "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", tool_broker = "example.invalid/broker@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }
-    iap_members = ["user:alice@example.test", "user:bob@example.test", "group:reviewers@example.test"]
+    enable_network = true
+    images         = { web = "example.invalid/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", api = "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", tool_broker = "example.invalid/broker@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }
+    iap_members    = ["user:alice@example.test", "user:bob@example.test", "group:reviewers@example.test"]
+  }
+  override_module {
+    target = module.network[0]
+    outputs = {
+      network    = "projects/aw-test-project/global/networks/aw-dev"
+      subnetwork = "projects/aw-test-project/regions/asia-northeast1/subnetworks/aw-dev-direct"
+      direct_vpc_egress = {
+        network    = "projects/aw-test-project/global/networks/aw-dev"
+        subnetwork = "projects/aw-test-project/regions/asia-northeast1/subnetworks/aw-dev-direct"
+      }
+      iam_bindings = {}
+    }
+  }
+  assert {
+    condition     = module.web[0].vpc_access[0].egress == "ALL_TRAFFIC" && module.api[0].vpc_access[0].egress == "ALL_TRAFFIC" && module.web[0].vpc_access[0].network_interfaces[0].network == "projects/aw-test-project/global/networks/aw-dev" && module.web[0].vpc_access[0].network_interfaces[0].subnetwork == "projects/aw-test-project/regions/asia-northeast1/subnetworks/aw-dev-direct" && module.api[0].vpc_access[0].network_interfaces == module.web[0].vpc_access[0].network_interfaces
+    error_message = "Web and API must share the supported Direct VPC path and route all traffic."
   }
   assert {
     condition     = toset([for binding in values(module.api[0].iam_bindings) : binding.member if binding.role == "roles/run.invoker"]) == toset(["serviceAccount:${local.sa.web}", "serviceAccount:${local.sa.scheduler}"])
@@ -159,4 +176,19 @@ run "read_only_executor_does_not_change_deployment_grants" {
     condition     = alltrue([for binding in values(output.iam_bindings) : binding.member != "serviceAccount:aw-tf-plan@aw-test-project.iam.gserviceaccount.com"])
     error_message = "The read-only executor must gain no workload binding."
   }
+}
+
+run "reject_web_without_network" {
+  command = plan
+  variables {
+    images = { web = "example.invalid/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+  }
+  expect_failures = [var.images]
+}
+run "reject_api_without_network" {
+  command = plan
+  variables {
+    images = { api = "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+  }
+  expect_failures = [var.images]
 }

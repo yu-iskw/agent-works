@@ -3,3 +3,11 @@ folder_id = "FOLDER_ID"
 billing_account_id = "BILLING_ACCOUNT_ID"
 operator_member = "user:yu@example.invalid"
 breakglass_member = "group:aw-breakglass@example.invalid"
+
+# Enable matching bootstrap flags BEFORE enabling optional dev modules.
+enable_network = false
+enable_nat = false
+enable_cloud_sql = false
+enable_kms = false
+enable_bigquery_analytics = false
+enable_workflows = false

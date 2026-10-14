@@ -10,7 +10,7 @@ output "adapter" {
   }
 }
 output "permissions" {
-  description = "Reviewable exact project-level dispatcher permission set."
+  description = "Expected bootstrap-owned dispatcher permissions; this module does not manage the role."
   value       = local.adapter_permissions
 }
 output "iam_bindings" {

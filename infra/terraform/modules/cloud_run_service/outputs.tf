@@ -12,3 +12,8 @@ output "iam_bindings" {
     }, { deployer = { member = google_cloud_run_v2_service_iam_member.deployer.member, role = google_cloud_run_v2_service_iam_member.deployer.role, scope = var.name }
   })
 }
+
+output "vpc_access" {
+  description = "Reviewable Direct VPC route from the service template."
+  value       = google_cloud_run_v2_service.service.template[0].vpc_access
+}

@@ -16,7 +16,7 @@ variable "region" {
   }
 }
 variable "name" {
-  description = "Workflow resource name and IAM role namespace."
+  description = "Workflow resource name; the bootstrap adapter role namespace is fixed."
   type        = string
   default     = "pilot-durable-tasks"
   validation {

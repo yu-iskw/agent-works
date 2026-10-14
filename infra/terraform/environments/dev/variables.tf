@@ -33,6 +33,10 @@ variable "service_account_emails" {
   }
 }
 variable "images" {
+  validation {
+    condition     = !contains(keys(var.images), "web") && !contains(keys(var.images), "api") || var.enable_network
+    error_message = "Web/API deployment requires enable_network: Direct VPC ALL_TRAFFIC plus Private Google Access for internal API ingress."
+  }
   description = "Digest-pinned web, api and tool_broker images. Empty provisions foundations only."
   type        = map(string)
   default     = {}

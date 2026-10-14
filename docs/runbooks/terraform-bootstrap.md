@@ -38,7 +38,7 @@ The state bucket lives in the dev project, has uniform access, public-access
 prevention, versioning retaining thirty noncurrent versions, and Google-managed
 encryption (D7). aw-tf-identity may write only identity/ objects, aw-tf-dev only dev/
 objects and may read identity/ to consume the map. aw-tf-plan may read objects only.
-No state key material or CMEK is provisioned.
+Both appliers also have bucket-scoped `storage.objects.list` for workspace discovery; object reads/writes remain prefix conditioned. No state key material or CMEK is provisioned.
 
 After reviewing/bootstrap applying locally, the operator migrates bootstrap state
 to prefix bootstrap/. Add a protected bootstrap backend configuration whose GCS
@@ -66,7 +66,7 @@ only web and API. Nobody receives human tokenCreator on runtime accounts.
 The GitHub pool accepts only yu-iskw/agent-works. The dev principalSet additionally
 requires environment dev and main; the separate plan principalSet accepts PRs or
 manual-main plan events. Review WIF outputs before handing them to issue #24.
-The conditional dev projectIamAdmin permits only the single runtime role allowlist,
+Bootstrap owns the conditioned dev projectIamAdmin grant; identity/dev never writes project IAM. The conditional dev projectIamAdmin permits only the single runtime role allowlist,
 including the exact workflow adapter custom role. Never add Owner, Editor or any
 IAM administrator role. Review the condition in the console when the operator
 first deploys it; offline mocks cannot prove IAM's live enforcement.
@@ -102,14 +102,14 @@ for web/API/broker and plain non-secret env separately from pinned secret_env.
 Web uses direct IAP on run.app; its IAP service agent gets invocation. API invokers
 are exactly web and scheduler. Workflow invokes only the broker. Cloud Run internal
 ingress requires callers to use a supported internal path; review Direct VPC egress
-before cloud acceptance. D10 networking remains off until that review. Do not
+before cloud acceptance. Web/API images require enable_network with Direct VPC ALL_TRAFFIC and subnet Private Google Access. Foundations-only plans keep networking off. Do not
 open ingress or public invocation to bypass a failing probe.
 
 The operator manages the OAuth brand/client, Workspace scopes, test users/groups,
 Drive corpus and GitHub dev environment. Run the outsider 403 probe under #21;
 mock plans do not prove it. Optional Cloud SQL, network/NAT, KMS, Scheduler,
 BigQuery and Workflows remain off until their respective gates are approved.
-Enabling SQL requires enable_network; enabling BigQuery requires the identity-root
+Before enabling optional dev modules, enable matching bootstrap flags and review their exact custom provisioning permission sets. Bootstrap creates the fixed workflow adapter role with enable_workflows; aw-tf-dev cannot create custom roles. NAT permissions are gated separately by enable_network plus enable_nat. Enabling SQL requires enable_network; enabling BigQuery requires the identity-root
 analytics account and explicitly approved datasets. Scheduler uses HTTPS Run OIDC;
 Workflows API targets need OAuth instead and must not be supplied to this OIDC job.
 
@@ -145,3 +145,10 @@ Record incident authorization, investigate allServices audit logs, time-limit gr
 membership and remove it after recovery. Bootstrap maintenance or new privileged
 roles need a separately reviewed recovery change; do not recreate standing Owner
 or grant tokenCreator on the project.
+
+For an already applied issue #153 tree, an operator must transfer the conditioned
+project IAM member from identity/dev's `module.dev_iam` into bootstrap's
+`module.dev_iam`, and any existing workflow adapter custom role into bootstrap's
+`google_project_iam_custom_role.workflow_adapter[0]`. Back up both states and use
+reviewed state remove/import operations without deleting the live grant or role.
+Do not apply an identity/workload destruction plan for these ownership changes.

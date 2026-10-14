@@ -15,7 +15,7 @@ requires a reviewed definition and an existing authenticated broker service.
 | -------------------------------- | --------------------- | --------------------------------------------------------- |
 | `project_id`                     | Required              | Existing isolated pilot project                           |
 | `region`                         | `asia-northeast1`     | Accepted ADR 0003 region; other regions rejected          |
-| `name`                           | `pilot-durable-tasks` | Workflow name and custom-role namespace                   |
+| `name`                           | `pilot-durable-tasks` | Workflow name (adapter role is fixed)                     |
 | `workflow_service_account_email` | Required              | Existing dedicated aw-workflow execution identity         |
 | `adapter_service_account_email`  | Required              | Existing keyless task-service dispatcher                  |
 | `deployer_service_account_email` | Required              | Existing operator-approved deployer                       |
@@ -34,7 +34,7 @@ OAuth credentials, a Cloud Run service, a database, or a broker endpoint.
 | Existing task-service adapter identity | Custom dispatcher role         | Pilot project                           |
 | aw-tf-dev (identity root binding)      | `roles/iam.serviceAccountUser` | Dedicated workflow service account only |
 
-The custom role contains exactly the five permissions used by the adapter:
+Bootstrap creates `pilot_durable_tasks_adapter` with `enable_workflows = true` before this module is enabled. This module assigns the existing role and never manages custom roles. The custom role contains exactly the five permissions used by the adapter:
 
 - `workflows.executions.create`
 - `workflows.executions.list`
@@ -70,8 +70,7 @@ binding belongs to identity/dev; aw-tf-dev is passed as the deployment identity.
 `execution_api_base_url`, `service_account_email`, and `dispatcher_email`.
 The TypeScript adapter consumes `workflow_name`; its injected transport uses
 keyless OAuth to contact the Workflow Executions API. These outputs are metadata,
-not credentials. `permissions` and `iam_bindings` expose the exact permission and
-principal sets for review. The dev environment exposes `workflow_adapter`, which
+not credentials. `permissions` retains the expected permission metadata and `iam_bindings` exposes the exact principal and role sets; bootstrap tests assert the role permissions. The dev environment exposes `workflow_adapter`, which
 is null while disabled.
 
 ## Offline verification

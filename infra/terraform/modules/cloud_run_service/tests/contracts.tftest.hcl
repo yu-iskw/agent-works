@@ -46,3 +46,14 @@ run "reject_latest_secret" {
   }
   expect_failures = [var.secret_env]
 }
+
+run "direct_vpc_routes_all_traffic" {
+  command = plan
+  variables {
+    network = { network = "aw-dev", subnetwork = "aw-dev-direct" }
+  }
+  assert {
+    condition     = google_cloud_run_v2_service.service.template[0].vpc_access[0].egress == "ALL_TRAFFIC" && google_cloud_run_v2_service.service.template[0].vpc_access[0].network_interfaces[0].network == "aw-dev" && google_cloud_run_v2_service.service.template[0].vpc_access[0].network_interfaces[0].subnetwork == "aw-dev-direct"
+    error_message = "The configured subnet must carry all traffic including internal Run calls."
+  }
+}
