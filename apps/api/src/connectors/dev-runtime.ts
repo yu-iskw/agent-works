@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { outboxEventSchema } from '@agent-works/domain';
+import { outboxEventSchema, searchContextSchema } from '@agent-works/domain';
 
 import { createPostgresApprovalStore } from '../broker/approvals.js';
 import { createPostgresCredentialStore } from '../credentials/postgres.js';
@@ -57,7 +57,18 @@ export function createDevWorkspaceRuntime(deps: DevWorkspaceDeps) {
       !skill ||
       skill.manifest.state !== 'PUBLISHED' ||
       !skill.manifest.tools.includes(tool) ||
-      ['CANCELLED', 'BLOCKED_AUTH', 'FAILED', 'PAUSED'].includes(task.status)
+      ['COMPLETED', 'CANCELLED', 'BLOCKED_AUTH', 'FAILED', 'PAUSED'].includes(task.status)
+    )
+      return false;
+    const rows = await deps.sql<{ context: unknown }[]>`
+      select payload->'context' as context from task_deliveries where task_id = ${taskId}
+    `;
+    const context = searchContextSchema.safeParse(rows.at(0)?.context);
+    if (
+      !context.success ||
+      context.data.userSubject !== subject ||
+      (task.skillVersion === 'workspace-task' &&
+        !context.data.allowedSources.includes(tool.split('.')[0]))
     )
       return false;
     await deps.enforcement.check(

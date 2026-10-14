@@ -33,6 +33,7 @@ function harness(
   patch: Partial<Approval> = {},
   changedPayload: unknown = payload,
   mounted = false,
+  returnedState = 'approved',
 ) {
   const calls: { path: string; body: unknown; headers: Headers }[] = [];
   const load: typeof fetch = (url, options) => {
@@ -45,7 +46,7 @@ function harness(
     return Promise.resolve(
       Response.json(
         path.endsWith('/decide')
-          ? { id: row.id, state: 'approved', executionsUsed: 0 }
+          ? { id: row.id, state: returnedState, executionsUsed: 0 }
           : { approval: { ...row, ...patch }, payload: changedPayload },
       ),
     );
@@ -187,6 +188,31 @@ describe('workspace approval web handler', () => {
       expectedPayloadSha256: row.payloadSha256,
     });
   });
+  it.each([
+    { decision: 'approve', state: 'rejected' },
+    { decision: 'reject', state: 'approved' },
+  ])(
+    'renders a concurrent $state decision after submitting $decision',
+    async ({ decision, state }) => {
+      const h = harness({}, payload, false, state);
+      const token = 'a'.repeat(64);
+      const result = await h.request(
+        'POST',
+        new URLSearchParams({
+          decision,
+          csrfToken: token,
+          expectedPayloadSha256: row.payloadSha256,
+        }).toString(),
+        { cookie: `workspace-approval-csrf=${token}` },
+        '/approvals/workspace/approval-1/decide',
+      );
+      expect(result.status).toBe(200);
+      expect(result.body).toContain(`State: ${state}`);
+      expect(result.body).toContain('existing conflicting decision');
+      expect(result.body).not.toContain('Decision saved.');
+      expect(result.body).not.toContain('<button');
+    },
+  );
   it('refuses to render a payload whose digest does not match', async () => {
     const h = harness({}, { ...payload, body: 'edited' });
     const result = await h.request();

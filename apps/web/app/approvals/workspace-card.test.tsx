@@ -52,6 +52,29 @@ describe('workspace approval payload diff', () => {
     expect(view.html).toContain('2026-10-15T10:00:00Z');
     expect(view.html).toContain('notifications are disabled');
   });
+  it('displays Gmail thread binding changes and absence explicitly', () => {
+    const payload = {
+      tool: 'gmail.createDraft' as const,
+      subject: 'Review',
+      to: ['alice@example.test'],
+      body: 'Draft',
+    };
+    const view = WorkspaceApprovalCard({
+      payload: { ...payload, threadId: '<thread-new>' },
+      previous: { ...payload, threadId: 'thread-old' },
+      payloadSha256: digest,
+    });
+    expect(view.html).toContain('Thread ID');
+    expect(view.html).toContain('thread-old');
+    expect(view.html).toContain('&lt;thread-new&gt;');
+    expect(
+      WorkspaceApprovalCard({
+        payload,
+        previous: { ...payload, threadId: 'thread-old' },
+        payloadSha256: digest,
+      }).html,
+    ).toMatch(/<pre[^>]*>Not present<\/pre>/);
+  });
   it('escapes hostile markup in all payload fields', () => {
     const view = WorkspaceApprovalCard({
       payload: {

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  docsPayload,
   draftPayload,
   eventPayload,
   fixtureNow,
@@ -17,6 +18,7 @@ import { createWorkspaceTaskSkill } from './workspace-task.js';
 import type { TaskSubmit } from '@agent-works/domain';
 
 const cases = [
+  { tool: 'docs.createDraft', payload: docsPayload },
   { tool: 'calendar.createEvent', payload: eventPayload },
   { tool: 'gmail.createDraft', payload: draftPayload },
   { tool: 'gmail.searchThreads', payload: { query: 'Meeting', limit: 10 } },
@@ -78,11 +80,39 @@ describe('workspace task dispatcher workflows', () => {
             approvals: h.approvals,
             now: () => fixtureNow,
           }));
+          const transition = ports.ledger.transition.bind(ports.ledger);
+          const failCompletion = vi.fn<typeof transition>((input) => {
+            if (input.to === 'COMPLETED')
+              return Promise.reject(new Error('worker lost completion'));
+            return transition(input);
+          });
           await createTaskDispatcher({
-            ...harness.restart(),
+            ...ports,
+            ledger: { ...ports.ledger, transition: failCompletion },
             ...deps,
             registry: createSkillRegistry([restarted]),
           }).runOnce();
+          expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
+            status: 'RUNNING',
+          });
+          const execute = vi.spyOn(h.broker, 'execute');
+          execute.mockClear();
+          const afterDeadline = new Date(fixtureNow.getTime() + 3_600_000);
+          harness.setNow(afterDeadline.toISOString());
+          await createTaskDispatcher({
+            ...harness.restart(),
+            ...deps,
+            now: () => afterDeadline,
+            registry: createSkillRegistry([
+              createWorkspaceTaskSkill(() => ({
+                broker: h.broker,
+                approvals: h.approvals,
+                now: () => afterDeadline,
+              })),
+            ]),
+          }).runOnce();
+          expect(execute).not.toHaveBeenCalled();
+          expect(await ports.ledger.readReceipt('alice', accepted.taskId)).toBeDefined();
         }
         expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
           status: 'COMPLETED',
@@ -168,11 +198,36 @@ describe('workspace task dispatcher workflows', () => {
           expectedPayloadSha256: approval.payloadSha256,
         });
         harness.setNow(new Date(fixtureNow.getTime() + 2000).toISOString());
+        const transition = ports.ledger.transition.bind(ports.ledger);
         await createTaskDispatcher({
           ...harness.restart(),
+          ledger: {
+            ...ports.ledger,
+            transition: (input) =>
+              input.to === 'COMPLETED'
+                ? Promise.reject(new Error('worker lost completion'))
+                : transition(input),
+          },
           ...deps,
           registry: createSkillRegistry([createMeetingPrepSkill(config)]),
         }).runOnce();
+        if (decision === 'approve') {
+          expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
+            status: 'RUNNING',
+          });
+          const execute = vi.spyOn(h.broker, 'execute');
+          execute.mockClear();
+          const afterDeadline = new Date(fixtureNow.getTime() + 3_600_000);
+          harness.setNow(afterDeadline.toISOString());
+          await createTaskDispatcher({
+            ...harness.restart(),
+            ...deps,
+            now: () => afterDeadline,
+            registry: createSkillRegistry([createMeetingPrepSkill(config)]),
+          }).runOnce();
+          expect(execute).not.toHaveBeenCalled();
+          expect(await ports.ledger.readReceipt('alice', accepted.taskId)).toBeDefined();
+        }
         expect(await ports.ledger.read('alice', accepted.taskId)).toMatchObject({
           status: decision === 'approve' ? 'COMPLETED' : 'CANCELLED',
         });

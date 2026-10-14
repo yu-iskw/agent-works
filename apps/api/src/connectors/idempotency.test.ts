@@ -1,3 +1,5 @@
+import { canonicalPayloadSha256 } from '@agent-works/domain';
+import { workspaceToolRef } from '@agent-works/domain/workspace-tools';
 import { googleFakeTransport } from '@agent-works/fakes';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -16,6 +18,29 @@ afterEach(async () => {
 });
 
 describe('recover writes after lost responses', () => {
+  it('reads only completed receipts with matching call identity and payload binding', async () => {
+    const call = await h.approved();
+    const query = {
+      callId: call.callId,
+      idempotencyKey: call.idempotencyKey,
+      taskId: call.taskId,
+      stepId: call.stepId,
+      toolRef: workspaceToolRef(call.tool),
+      approvalId: call.approvalId,
+      actorSub: call.subject,
+      payloadSha256: canonicalPayloadSha256(call.payload),
+    };
+    expect(await h.approvals.readCompleted(query)).toBeUndefined();
+    h.docsFailures.push(503, 503, 503);
+    await expect(h.broker.execute(call)).rejects.toThrow();
+    expect(await h.approvals.readCompleted(query)).toBeUndefined();
+    await h.broker.execute(call);
+    expect(await h.approvals.readCompleted(query)).toBe('doc-1');
+    for (const key of Object.keys(query)) {
+      expect(await h.approvals.readCompleted({ ...query, [key]: 'different' })).toBeUndefined();
+    }
+    expect(h.docs.documents()).toHaveLength(1);
+  });
   it('creates exactly one document after committed timeout', async () => {
     h.lostDocs.remaining = 1;
     const call = await h.approved();

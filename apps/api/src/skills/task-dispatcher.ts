@@ -21,6 +21,8 @@ import type {
 } from '@agent-works/domain';
 import type { Delivery } from '@agent-works/incident-analysis';
 
+const meetingPrepSkill = 'meeting-prep';
+
 export type TaskDispatcherDeps = {
   readonly dispatch: DispatchPort;
   readonly ledger: TaskLedger;
@@ -104,6 +106,7 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
     if (task.status !== 'RUNNING') return;
     const receipt =
       (await deps.ledger.readReceipt(delivery.payload.subject, delivery.taskId)) ??
+      (await workspaceReceipt(deps.approvals, delivery)) ??
       (await deps.reconcile?.(delivery, signal));
     if (receipt !== undefined) {
       await move(delivery, task, 'COMPLETED', receipt);
@@ -477,11 +480,43 @@ function deliveryResult(
 }
 
 function completionTool(delivery: ClaimedDelivery): string {
-  if (delivery.payload.request.skillId === 'meeting-prep') return 'docs.createDraft';
+  if (delivery.payload.request.skillId === meetingPrepSkill) return 'docs.createDraft';
   if (delivery.payload.request.skillId === 'workspace-task') {
     const tool = delivery.payload.request.input?.tool;
     if (typeof tool !== 'string') throw new Error('workspace tool missing');
     return tool;
   }
   return 'ticket.create';
+}
+
+async function workspaceReceipt(
+  approvals: ApprovalStore | undefined,
+  delivery: ClaimedDelivery,
+): Promise<ExternalWriteReceipt | undefined> {
+  const skill = delivery.payload.request.skillId;
+  if (!approvals || !['workspace-task', meetingPrepSkill].includes(skill)) return undefined;
+  const approvalId = delivery.payload.request.input?.approvalId;
+  if (typeof approvalId !== 'string') return undefined;
+  const approval = await approvals.read(approvalId);
+  const tool =
+    skill === meetingPrepSkill ? 'docs.createDraft' : delivery.payload.request.input?.tool;
+  if (
+    !approval ||
+    approval.requestedBySub !== delivery.payload.subject ||
+    typeof tool !== 'string' ||
+    approval.tool !== `${tool}@1.0.0`
+  )
+    return undefined;
+  const prefix = skill === meetingPrepSkill ? meetingPrepSkill : 'workspace';
+  const ref = await approvals.readCompleted({
+    callId: `${prefix}:${delivery.taskId}`,
+    idempotencyKey: `${prefix}:${delivery.taskId}`,
+    taskId: delivery.taskId,
+    stepId: skill === meetingPrepSkill ? 'docs-draft' : 'workspace',
+    toolRef: approval.tool,
+    approvalId,
+    payloadSha256: approval.payloadSha256,
+    actorSub: delivery.payload.subject,
+  });
+  return ref === undefined ? undefined : receiptFor(delivery.taskId, ref);
 }

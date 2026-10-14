@@ -1,6 +1,7 @@
 import { h } from '../html.js';
 
 import type { Html } from '../html.js';
+const notPresent = 'Not present';
 export type WorkspaceApprovalPayload =
   | {
       readonly tool: 'docs.createDraft';
@@ -19,6 +20,7 @@ export type WorkspaceApprovalPayload =
     }
   | {
       readonly tool: 'gmail.createDraft';
+      readonly threadId?: string;
       readonly subject: string;
       readonly to: readonly string[];
       readonly body: string;
@@ -60,9 +62,7 @@ export function WorkspaceApprovalCard({
           {fields(payload).map(([name, value]) => (
             <tr>
               <th>{name}</th>
-              <td>
-                {previous ? (new Map(fields(previous)).get(name) ?? 'Not present') : 'Not present'}
-              </td>
+              <td>{previous ? (new Map(fields(previous)).get(name) ?? notPresent) : notPresent}</td>
               <td>
                 <pre>{value}</pre>
               </td>
@@ -92,6 +92,7 @@ function fields(payload: WorkspaceApprovalPayload): readonly (readonly [string, 
       ];
     case 'gmail.createDraft':
       return [
+        ['Thread ID', payload.threadId ?? notPresent],
         ['Subject', payload.subject],
         ['To', payload.to.join(', ')],
         ['Body', payload.body],

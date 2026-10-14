@@ -111,10 +111,15 @@ async function decide(
     !['approved', 'rejected'].includes(String(fields.get('state')))
   )
     throw new Error('invalid decision reply');
+  const state = fields.get('state') as 'approved' | 'rejected';
+  const requestedState = decision === 'approve' ? 'approved' : 'rejected';
   sendPage(response, 200, {
     ...view,
-    approval: { ...view.approval, state: decision === 'approve' ? 'approved' : 'rejected' },
-    message: 'Decision saved.',
+    approval: { ...view.approval, state },
+    message:
+      state === requestedState
+        ? 'Decision saved.'
+        : 'An existing conflicting decision was already saved.',
   });
 }
 function apiPost(

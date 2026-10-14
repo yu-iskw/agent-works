@@ -65,8 +65,13 @@ function harness() {
       port: { search: () => Promise.resolve([]) },
     }),
   );
+  const context = {
+    ...authorizedCaller.context,
+    allowedSources: ['docs', 'calendar', 'gmail', 'drive'],
+  };
+  const sql = vi.fn(() => Promise.resolve([{ context }]));
   createDevWorkspaceRuntime({
-    sql: {} as Parameters<typeof createDevWorkspaceRuntime>[0]['sql'],
+    sql: sql as unknown as Parameters<typeof createDevWorkspaceRuntime>[0]['sql'],
     baseUrl: 'http://127.0.0.1:8087',
     redirectUri: 'http://localhost/oauth/callback',
     flow: {} as OAuthFlow,
@@ -85,10 +90,52 @@ function harness() {
     now: () => new Date('2026-10-15T00:00:00Z'),
   });
   const deps: WorkspaceRuntimeDeps = vi.mocked(createWorkspaceRuntime).mock.calls[0][0];
-  return { deps, read, held, task, check, openWorker };
+  return { deps, read, held, task, check, openWorker, context, sql };
 }
 
 describe('dev connector authorization wiring', () => {
+  it.each(['calendar.listEvents', 'calendar.createEvent', 'gmail.createDraft'] as const)(
+    'denies direct preparation and execution of non-admitted source: %s',
+    async (tool) => {
+      const h = harness();
+      h.read.mockResolvedValue({ ...h.task, skillVersion: 'workspace-task' });
+      h.context.allowedSources = ['docs'];
+      expect(await h.deps.routes.authorizePreparation('alice', 'task-1', tool)).toBe(false);
+      expect(
+        await h.deps.broker.authorize({
+          subject: 'alice',
+          taskId: 'task-1',
+          stepId: 'workspace',
+          tool,
+          payload: {},
+          callId: 'direct-call',
+          idempotencyKey: 'direct-call',
+          traceId: 'trace',
+        }),
+      ).toMatchObject({ allowed: false });
+      expect(h.check).not.toHaveBeenCalled();
+    },
+  );
+  it('denies new preparation and execution on completed tasks', async () => {
+    const h = harness();
+    h.read.mockResolvedValue({ ...h.task, status: 'COMPLETED' });
+    expect(await h.deps.routes.authorizePreparation('alice', 'task-1', 'docs.createDraft')).toBe(
+      false,
+    );
+    expect(
+      await h.deps.broker.authorize({
+        subject: 'alice',
+        taskId: 'task-1',
+        stepId: 'workspace',
+        tool: 'docs.createDraft',
+        payload: {},
+        callId: 'new-call',
+        idempotencyKey: 'new-call',
+        traceId: 'trace',
+      }),
+    ).toMatchObject({ allowed: false });
+    expect(h.check).not.toHaveBeenCalled();
+  });
   it('checks Drive suspension before opening the worker source', async () => {
     const h = harness();
     h.check.mockRejectedValueOnce(new Error('drive suspended'));
