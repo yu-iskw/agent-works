@@ -4,7 +4,7 @@ import { skillManifestSchema } from '@agent-works/domain';
 import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
 import { decide } from '@agent-works/policy';
 
-import { Unavailable } from '../auth/iap.js';
+import { AuthorizationDenied, Unavailable } from '../auth/iap.js';
 import { createBroker, TICKET_TOOL } from '../broker/broker.js';
 
 import type { Caller } from '../auth/iap.js';
@@ -222,12 +222,19 @@ export function createIncidentSkill(
             }),
             signal,
           );
-          if (!result.ok) throw new Error(result.code);
+          if (!result.ok) {
+            if (['POLICY_DENIED', 'APPROVAL_REQUIRED', 'APPROVAL_EXPIRED'].includes(result.code))
+              return { kind: 'revoked' };
+            throw new Error(result.code);
+          }
           ledger.set(accepted.taskId, result.receipt);
           return { kind: 'written', ticketId: result.receipt };
-        } catch {
+        } catch (error) {
           return {
-            kind: deliveryFailure(deadline, execution?.signal),
+            kind:
+              error instanceof AuthorizationDenied
+                ? 'revoked'
+                : deliveryFailure(deadline, execution?.signal),
           };
         } finally {
           clearTimeout(timer);

@@ -405,6 +405,9 @@ describe('incident approval boundary', () => {
       });
       active = false;
       await createTaskDispatcher({ ...ports, registry, maxAttempts: 1 }).runOnce();
+      expect(skill.result(taskId)).toEqual({ kind: 'revoked' });
+      expect(await ports.ledger.read('alice', taskId)).toMatchObject({ status: 'BLOCKED_AUTH' });
+      expect(await ports.dispatch.claim('retry', 1000)).toBeUndefined();
       expect(posts).toBe(0);
       expect(await ports.ledger.readOutbox(`intended:incident:${taskId}`)).toBeUndefined();
       expect(await store.read('approval-1')).toMatchObject({ executionsUsed: 0 });
@@ -539,6 +542,7 @@ describe('incident delivery retries and bounds', () => {
       Unavailable,
     );
     expect(load.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    expect(skill.result(accepted.taskId)).toEqual({ kind: 'revoked' });
   });
 
   it('cancels a stalled reauthorization promptly without issuing a write', async () => {

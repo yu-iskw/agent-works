@@ -10,6 +10,21 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./budget": {
+      "types": "./src/budget.ts",
+      "development": "./src/budget.ts",
+      "import": "./dist/budget.js"
+    },
+    "./error-class": {
+      "types": "./src/error-class.ts",
+      "development": "./src/error-class.ts",
+      "import": "./dist/error-class.js"
+    },
+    "./error-class-retry": {
+      "types": "./src/error-class-retry.ts",
+      "development": "./src/error-class-retry.ts",
+      "import": "./dist/error-class-retry.js"
     }
   },
   "scripts": {

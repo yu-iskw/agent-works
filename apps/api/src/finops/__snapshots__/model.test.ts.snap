@@ -1,0 +1,100 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RFC capacity formula and full accepted-result cost > produces a deterministic cost report (snapshot) 1`] = `
+{
+  "accepted": 2160,
+  "approval": "PLACEHOLDER",
+  "capacity": {
+    "artifactGiB": 0.3,
+    "averageConcurrentJobs": 0.011574074074074073,
+    "changedIndexDocuments": 300,
+    "modelTurnsPerSecond": 0.013888888888888888,
+    "peakConcurrentJobs": 1,
+    "toolCallsPerSecond": 0.009259259259259259,
+  },
+  "completed": 2700,
+  "currency": "USD",
+  "direct": [
+    {
+      "component": "model_input",
+      "estimatedMicros": 6750000,
+    },
+    {
+      "component": "model_output",
+      "estimatedMicros": 3600000,
+    },
+    {
+      "component": "model_cache",
+      "estimatedMicros": 562500,
+    },
+    {
+      "component": "grounding",
+      "estimatedMicros": 300000,
+    },
+    {
+      "component": "runtime_sandbox",
+      "estimatedMicros": 300000,
+    },
+    {
+      "component": "search",
+      "estimatedMicros": 84000,
+    },
+    {
+      "component": "index_ingestion",
+      "estimatedMicros": 3000,
+    },
+    {
+      "component": "orchestration",
+      "estimatedMicros": 30000,
+    },
+    {
+      "component": "sql_storage_kms_logging",
+      "estimatedMicros": 90000,
+    },
+    {
+      "component": "artifacts",
+      "estimatedMicros": 300,
+    },
+    {
+      "component": "network",
+      "estimatedMicros": 300,
+    },
+    {
+      "component": "third_party",
+      "estimatedMicros": 0,
+    },
+    {
+      "component": "licensing",
+      "estimatedMicros": 0,
+    },
+    {
+      "component": "security_observability",
+      "estimatedMicros": 30000,
+    },
+  ],
+  "directMicros": 11750100,
+  "labor": [
+    {
+      "component": "engineering",
+      "estimatedMicros": 10000000,
+    },
+    {
+      "component": "sre",
+      "estimatedMicros": 5000000,
+    },
+    {
+      "component": "security_review",
+      "estimatedMicros": 2000000,
+    },
+    {
+      "component": "human_approval",
+      "estimatedMicros": 30000000,
+    },
+  ],
+  "laborMicros": 47000000,
+  "perAcceptedMicros": 27199,
+  "perCompletedMicros": 21759,
+  "submitted": 3000,
+  "totalMicros": 58750100,
+}
+`;

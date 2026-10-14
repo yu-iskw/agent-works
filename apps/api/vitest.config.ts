@@ -5,6 +5,15 @@ import { defineProject } from 'vitest/config';
 export default defineProject({
   resolve: {
     alias: {
+      '@agent-works/domain/budget': fileURLToPath(
+        new URL('../../packages/domain/src/budget.ts', import.meta.url),
+      ),
+      '@agent-works/domain/error-class': fileURLToPath(
+        new URL('../../packages/domain/src/error-class.ts', import.meta.url),
+      ),
+      '@agent-works/domain/error-class-retry': fileURLToPath(
+        new URL('../../packages/domain/src/error-class-retry.ts', import.meta.url),
+      ),
       '@agent-works/incident-analysis': fileURLToPath(
         new URL('../../agents/skills/incident-analysis/deliver.ts', import.meta.url),
       ),

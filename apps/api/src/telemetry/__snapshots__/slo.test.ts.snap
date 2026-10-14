@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`recorded offline SLO evidence > reports deterministic fixture latency, receipts and duplicates (snapshot) 1`] = `
+{
+  "acceptance": {
+    "p95Ms": 1200,
+    "samples": 24,
+    "targetMs": 3000,
+    "verdict": "pass",
+  },
+  "approval": "PLACEHOLDER",
+  "approvalPersistence": {
+    "p95Ms": 600,
+    "samples": 24,
+    "targetMs": 2000,
+    "verdict": "pass",
+  },
+  "auditCapture": {
+    "matched": 24,
+    "missing": [],
+    "ratio": 1,
+    "receipts": 24,
+    "unexpected": [],
+    "verdict": "pass",
+  },
+  "duplicateSideEffects": {
+    "count": 0,
+    "keys": [],
+    "verdict": "pass",
+  },
+  "events": 144,
+}
+`;
