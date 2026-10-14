@@ -5,6 +5,8 @@ import {
   ticketCreateManifest,
 } from '@agent-works/domain';
 
+import { beforeToolCall } from '../suspension/runtime.js';
+
 import type { ApprovalStore, BindResult, ClaimOutcome, DecisionCommand } from './approvals.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { PolicyDecision } from '@agent-works/domain';
@@ -53,6 +55,7 @@ type PayloadHash =
   | { readonly ok: false; readonly status: number; readonly code: BrokerCode };
 
 export type BrokerDeps = {
+  readonly beforeToolCall?: typeof beforeToolCall;
   readonly store: ApprovalStore;
   readonly decide: (input: { readonly facts: PolicyFacts }) => PolicyDecision;
   readonly ledger: LedgerPort;
@@ -119,6 +122,7 @@ async function execute(deps: BrokerDeps, input: ExecuteInput): Promise<BrokerRes
   const intent = intentStamp(claim, decision.decisionId, at);
   await deps.ledger.append(intendedEvent(recorded, hashed.digest, intent.decisionId, intent.at));
   input.signal?.throwIfAborted();
+  await (deps.beforeToolCall ?? beforeToolCall)(input);
   const receipt = await deps.postTicket(body, input.idempotencyKey);
   await deps.store.complete(input.id, receipt);
   return { ok: true, receipt, replay: false };

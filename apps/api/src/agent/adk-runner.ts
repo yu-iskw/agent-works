@@ -2,6 +2,8 @@ import { runnerStop } from '@agent-works/domain';
 import { Gemini } from '@google/adk';
 import * as z from 'zod';
 
+import { beforeModelCall } from '../suspension/runtime.js';
+
 import { RunnerError } from './runner-port.js';
 
 import type { AgentRunner, RunnerInput, RunnerOutput } from './runner-port.js';
@@ -97,6 +99,7 @@ async function runBounded(
   const ceiling = limits.maxSteps + limits.maxToolCalls + 1;
   for (let attempt = 0; attempt < ceiling; attempt += 1) {
     if (runnerStop(limits, usage) !== 'ok') throw new RunnerError(budgetExceeded);
+    await (input.beforeModelCall ?? beforeModelCall)(model.model);
     const turn = classify(await model.complete(prompt));
     usage = { ...usage, steps: usage.steps + 1 };
     switch (turn.kind) {

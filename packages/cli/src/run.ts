@@ -1,12 +1,21 @@
 import { readFileSync } from 'node:fs';
 
+import { runAdmin } from './admin.js';
 import { explainFixture } from './explain.js';
 
 type Stdout = {
   write(data: string): void;
 };
 
-export function run(argv: readonly string[], stdout: Stdout): number {
+export function run(
+  argv: readonly [string, string, 'admin', ...string[]],
+  stdout: Stdout,
+): Promise<number>;
+export function run(argv: readonly string[], stdout: Stdout): number;
+export function run(argv: readonly string[], stdout: Stdout): number | Promise<number> {
+  if (argv[2] === 'admin') {
+    return runAdmin(argv, stdout, { assertion: process.env.AW_IAP_ASSERTION });
+  }
   if (argv.length !== 5) return 1;
   const command = argv[2];
   const sub = argv[3];

@@ -1,5 +1,7 @@
 import * as z from 'zod';
 
+import { beforeModelCall } from '../suspension/runtime.js';
+
 import { RunnerError } from './runner-port.js';
 
 import type { AgentRunner, RunnerInput, RunnerOutput } from './runner-port.js';
@@ -35,6 +37,7 @@ export function createScriptedRunner(options: ScriptedRunnerOptions): AgentRunne
   const model = options.model ?? 'gemini';
   return {
     async run(input) {
+      await (input.beforeModelCall ?? beforeModelCall)(model);
       return generate(load, options.baseUrl, model, input);
     },
   };

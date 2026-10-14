@@ -1,6 +1,7 @@
 import type { SourceDocument } from '../retrieval/drive-port.js';
 
 export type RunnerInput = {
+  readonly beforeModelCall?: (model: string) => Promise<void>;
   readonly question: string;
   readonly sources: readonly SourceDocument[];
 };

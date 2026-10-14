@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "global"
+        },
+        "id": {
+          "type": "string",
+          "const": "*"
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "team"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "user"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "agent"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "skill"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "model"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "const": "tool"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["scope", "id", "version"],
+      "additionalProperties": false
+    }
+  ]
+}

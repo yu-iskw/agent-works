@@ -1,5 +1,7 @@
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 
+import { adminChangeRoutes } from './admin-change.js';
+import { adminReadRoutes } from './admin-read.js';
 import { approvalsDecideSlot } from './approvals-decide.js';
 import { approvalsReadSlot } from './approvals-read.js';
 import { artifactsReadSlot } from './artifacts-read.js';
@@ -16,6 +18,7 @@ import { tasksReadSlot } from './tasks-read.js';
 import { tasksSubmitSlot } from './tasks-submit.js';
 import { createTaskRoutes } from './tasks.js';
 
+import type { AdminDeps } from './admin-auth.js';
 import type { Route } from '../http.js';
 import type { AskDeps } from './ask.js';
 import type { OAuthConnectionsReadDeps } from './oauth-connections-read.js';
@@ -38,6 +41,7 @@ const patternSlots: readonly PatternSlot[] = [
 const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 
 export type RouteDeps = AskDeps & {
+  readonly admin?: Omit<AdminDeps, 'verify'>;
   readonly tasks?: TaskRoutes;
   readonly dispatch?: DispatchPort;
   readonly skills?: SkillRegistry;
@@ -54,6 +58,12 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       verify: deps.verify,
     });
   }
+  if (deps.admin !== undefined)
+    Object.assign(
+      table,
+      adminReadRoutes({ ...deps.admin, verify: deps.verify }),
+      adminChangeRoutes({ ...deps.admin, verify: deps.verify }),
+    );
   const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??
