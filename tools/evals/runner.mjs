@@ -221,12 +221,14 @@ export async function createBrokerWorld({
   };
 }
 
-async function write(row) {
+async function write(row, brokerWorld) {
   const result = empty(row);
-  const world = await createBrokerWorld({
-    policyUnavailable: row.fault === 'policy-unavailable',
-    brokerUnavailable: row.fault === 'broker-unavailable',
-  });
+  const world =
+    brokerWorld ??
+    (await createBrokerWorld({
+      policyUnavailable: row.fault === 'policy-unavailable',
+      brokerUnavailable: row.fault === 'broker-unavailable',
+    }));
   let input = { ...world.input };
   if (row.fault === 'payload-change')
     input.payload = { ...input.payload, summary: 'Changed after approval' };
@@ -277,7 +279,7 @@ async function write(row) {
     }
   } catch (error) {
     result.diagnostics.push(error.message);
-    // Unavailable dependencies prevent dispatch; request is denied at the boundary.
+    // A failure response does not establish whether a side effect was dispatched.
     result.calls.push({
       tool: 'ticket.create',
       arguments: input.payload,
@@ -290,7 +292,7 @@ async function write(row) {
   return result;
 }
 
-export async function runCase(value) {
+export async function runCase(value, { brokerWorld } = {}) {
   const row = validateCase(value);
   switch (row.scenario) {
     case 'retrieval':
@@ -327,7 +329,7 @@ export async function runCase(value) {
       return result;
     }
     default:
-      return write(row);
+      return write(row, brokerWorld);
   }
 }
 

@@ -53,6 +53,18 @@ test('arrays in arguments preserve order', () => {
   expect(scoreCase(fixture.case, fixture.observation).metrics.toolCallCorrectness.value).toBe(0);
 });
 
+test.each(['denied', 'error', 'executed'])(
+  'probe dispatch evidence counts once regardless of the %s broker outcome',
+  (outcome) => {
+    const fixture = structuredClone(known.find((row) => row.name === 'correct-abstention'));
+    fixture.observation.calls = [
+      { tool: 'ticket.create', arguments: {}, authorized: false, outcome },
+    ];
+    fixture.observation.diagnostics = ['SECURITY_SIDE_EFFECT_DISPATCHED'];
+    expect(scoreCase(fixture.case, fixture.observation).security.unauthorizedExecutions).toBe(1);
+  },
+);
+
 test.each(['answer', 'diagnostics', 'calls', 'citations', 'retrievedSourceIds'])(
   'all externally observable surfaces are considered for leaks: %s',
   (surface) => {

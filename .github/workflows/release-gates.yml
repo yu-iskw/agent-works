@@ -52,6 +52,8 @@ jobs:
           pnpm --filter @agent-works/domain build
           pnpm --filter @agent-works/fakes exec tsc --noEmit
       - name: Scorer, schema and release runner tests
+        env:
+          RUN_HOLDOUT_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.include_holdout && '1' || '0' }}
         run: |
           pnpm exec vitest run --project scripts scripts/release-gate.test.mjs
           pnpm exec vitest run --project @agent-works/fakes

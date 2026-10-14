@@ -32,10 +32,14 @@ export function parseGateArgs(args) {
   return options;
 }
 
+export function selectGateSplits(includeHoldout) {
+  return includeHoldout === true ? ['dev', 'adversarial', 'holdout'] : ['dev', 'adversarial'];
+}
+
 async function runReleaseGate(options = {}) {
   const includeHoldout = options.includeHoldout === true;
   const dataset = loadDataset({
-    splits: includeHoldout ? ['dev', 'adversarial', 'holdout'] : ['dev', 'adversarial'],
+    splits: selectGateSplits(includeHoldout),
     includeHoldout,
   });
   const { runDataset } = await loadRuntime();

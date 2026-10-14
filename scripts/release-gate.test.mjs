@@ -6,7 +6,7 @@ import { expect, test } from 'vitest';
 import '../tools/evals/dataset.test.mjs';
 import '../tools/evals/gate.test.mjs';
 import '../tools/evals/scorer.test.mjs';
-import { parseGateArgs } from './release-gate.mjs';
+import { parseGateArgs, selectGateSplits } from './release-gate.mjs';
 
 function run(args) {
   return spawnSync(process.execPath, ['scripts/release-gate.mjs', '--no-write', ...args], {
@@ -37,11 +37,24 @@ test.each(['leak', 'unapproved-call'])(
   30000,
 );
 
-test('holdout requires an explicit CLI flag and executes the separate split', () => {
-  const result = run(['--include-holdout']);
-  expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(result.stdout).cases).toBe(156);
-}, 30000);
+test('split selection includes holdout only with the explicit CLI flag', () => {
+  expect(selectGateSplits(parseGateArgs([]).includeHoldout)).toEqual(['dev', 'adversarial']);
+  expect(selectGateSplits(parseGateArgs(['--include-holdout']).includeHoldout)).toEqual([
+    'dev',
+    'adversarial',
+    'holdout',
+  ]);
+});
+
+test.skipIf(process.env.RUN_HOLDOUT_EVAL !== '1')(
+  'opt-in holdout executes the separate split',
+  () => {
+    const result = run(['--include-holdout']);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).cases).toBe(156);
+  },
+  30000,
+);
 
 test.each([
   ['--unknown'],
@@ -80,6 +93,44 @@ function probe(body) {
   expect(result.status, result.stderr).toBe(0);
   return JSON.parse(result.stdout);
 }
+
+test.each(['throw', 'deny'])(
+  'dispatch followed by broker %s fails the security gate despite a denied call',
+  (failure) => {
+    const result = probe(`
+      const { loadDataset } = await import('./tools/evals/dataset.mjs');
+      const { scoreDataset } = await import('./tools/evals/scorer.mjs');
+      const { evaluateGate } = await import('./tools/evals/gate.mjs');
+      const { readFileSync } = await import('node:fs');
+      const dataset = loadDataset();
+      const row = dataset.cases.find((item) => item.fault === 'payload-change');
+      const world = await api.createBrokerWorld();
+      world.broker.execute = async (input) => {
+        ${failure === 'throw' ? 'world.effects.loseNextResponse();' : ''}
+        await world.effects.post(input.payload, input.idempotencyKey);
+        return { ok: false, status: 422, code: 'APPROVAL_REQUIRED' };
+      };
+      const observation = await api.runCase(row, { brokerWorld: world });
+      const observations = await api.runDataset(dataset.cases);
+      observations[dataset.cases.findIndex((item) => item.id === row.id)] = observation;
+      const report = scoreDataset(dataset.cases, observations);
+      const config = JSON.parse(readFileSync('evals/gate-config.json', 'utf8'));
+      return { calls: observation.calls, diagnostics: observation.diagnostics,
+        attempts: world.effects.attempts(), resources: world.effects.receipts().length,
+        security: report.security, gate: evaluateGate(report, config) };
+    `);
+    expect(result.calls).toEqual([
+      expect.objectContaining({ authorized: false, outcome: 'denied' }),
+    ]);
+    expect(result.diagnostics).toContain('SECURITY_SIDE_EFFECT_DISPATCHED');
+    expect(result.attempts).toBe(1);
+    expect(result.resources).toBe(1);
+    expect(result.security.unauthorizedExecutions).toBe(1);
+    expect(result.gate.passed).toBe(false);
+    expect(result.gate.failures).toContain('security:unauthorizedExecutions');
+  },
+  30000,
+);
 
 test('lost response after persistence resumes without creating a second resource', () => {
   const result = probe(`
