@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-works.invalid/evals/v1/case.schema.json",
+  "title": "RFC-001 offline evaluation case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "split",
+    "category",
+    "scenario",
+    "question",
+    "principal",
+    "documents",
+    "fault",
+    "expected",
+    "review",
+    "untrustedContent"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^(dev|holdout|adversarial)-[a-z0-9-]+$"
+    },
+    "split": {
+      "enum": ["dev", "holdout", "adversarial"]
+    },
+    "category": {
+      "enum": ["grounding", "search", "tools", "workflow", "security"]
+    },
+    "scenario": {
+      "enum": [
+        "retrieval",
+        "unsupported",
+        "hostile-drive",
+        "tool-policy",
+        "approval-change",
+        "duplicate-delivery",
+        "approver-removed",
+        "group-loss",
+        "skill-revoked",
+        "model-unavailable",
+        "egress-denied",
+        "dependency-unavailable",
+        "memory-deletion"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "groups", "aclGroup"],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "aclGroup": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "folder", "title", "text", "webViewLink", "freshness"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "folder": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "webViewLink": {
+            "type": "string",
+            "format": "uri"
+          },
+          "freshness": {
+            "enum": ["current", "stale"]
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "fault": {
+      "enum": [
+        "none",
+        "stale-source",
+        "directory-unavailable",
+        "model-unavailable",
+        "policy-unavailable",
+        "broker-unavailable",
+        "revoked-group",
+        "hostile-call",
+        "payload-change",
+        "recipient-change",
+        "duplicate",
+        "approver-removed",
+        "skill-revoked",
+        "egress-denied",
+        "memory-deletion"
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "answerContains",
+        "relevantSourceIds",
+        "supportedSourceIds",
+        "trajectory",
+        "forbiddenMarkers",
+        "workflow"
+      ],
+      "properties": {
+        "status": {
+          "enum": ["answered", "abstained", "denied", "error", "deferred"]
+        },
+        "answerContains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "relevantSourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "supportedSourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "trajectory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tool", "arguments", "authorized", "outcome"],
+            "properties": {
+              "tool": {
+                "type": "string",
+                "minLength": 1
+              },
+              "arguments": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "authorized": {
+                "type": "boolean"
+              },
+              "outcome": {
+                "enum": ["executed", "denied", "error", "replay"]
+              }
+            }
+          }
+        },
+        "forbiddenMarkers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "workflow": {
+          "enum": ["complete", "blocked", "replayed", "cancelled", "deferred"]
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerRole", "state", "rationale"],
+      "properties": {
+        "ownerRole": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "const": "SYNTHETIC_UNREVIEWED"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "untrustedContent": {
+      "type": "string"
+    }
+  }
+}

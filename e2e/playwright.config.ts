@@ -20,7 +20,10 @@ function hasSpec(directory: string): boolean {
 
 // eslint-disable-next-line security/detect-non-literal-fs-filename
 const projects = readdirSync(root, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory() && hasSpec(join(root, entry.name)))
+  .filter(
+    (entry) =>
+      entry.name !== 'adversarial' && entry.isDirectory() && hasSpec(join(root, entry.name)),
+  )
   .map((entry) => ({
     name: entry.name,
     testMatch: `${entry.name}/**/*.spec.ts`,
@@ -29,7 +32,14 @@ const projects = readdirSync(root, { withFileTypes: true })
 
 export default defineConfig({
   testDir: '.',
-  projects,
+  projects: [
+    ...projects,
+    {
+      name: 'adversarial',
+      testMatch: 'adversarial/**/*.spec.ts',
+      outputDir: 'adversarial/results',
+    },
+  ],
   outputDir: 'test-results',
   reporter: [['line'], ['./web/artifacts-reporter.mjs']],
   use: {

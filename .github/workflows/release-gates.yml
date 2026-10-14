@@ -1,0 +1,91 @@
+# RFC-001 EP-10 / P3-ADV. Offline only; real-services release signoff remains blocked.
+name: Offline release gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_holdout:
+        description: Explicit release-only holdout evaluation
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-release-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-adversarial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.0.5
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Static checks
+        run: |
+          pnpm knip
+          pnpm lint:eslint
+          pnpm --filter @agent-works/domain build
+          pnpm --filter @agent-works/fakes exec tsc --noEmit
+      - name: Scorer, schema and release runner tests
+        env:
+          RUN_HOLDOUT_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.include_holdout && '1' || '0' }}
+        run: |
+          pnpm exec vitest run --project scripts scripts/release-gate.test.mjs
+          pnpm exec vitest run --project @agent-works/fakes
+      - name: Offline gate using development and adversarial splits
+        run: node scripts/release-gate.mjs
+      - name: Prove security regression seeds block release
+        shell: bash
+        run: |
+          for seed in leak unapproved-call; do
+            set +e
+            node scripts/release-gate.mjs --regression "$seed"
+            result=$?
+            set -e
+            if [ "$result" -ne 1 ]; then
+              echo "Expected security rejection for $seed, got $result"
+              exit 1
+            fi
+          done
+      - name: Explicit holdout gate
+        if: github.event_name == 'workflow_dispatch' && inputs.include_holdout
+        run: node scripts/release-gate.mjs --include-holdout
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Twelve offline adversarial scenarios
+        run: pnpm exec playwright test --config e2e/playwright.config.ts --project adversarial --reporter line
+      - name: Upload offline evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: offline-adversarial-evidence
+          path: |
+            evals/results/offline-*.json
+            e2e/adversarial/results/
+          if-no-files-found: error
+          retention-days: 7

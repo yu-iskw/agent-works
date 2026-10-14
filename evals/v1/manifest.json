@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasetVersion": "1.0.0",
+  "evidence": "offline-fakes-only",
+  "reviewStatus": "SYNTHETIC_UNREVIEWED",
+  "splits": {
+    "dev": 54,
+    "holdout": 54,
+    "adversarial": 48
+  },
+  "holdoutPolicy": "Explicit release-only opt-in; never used by default dev runs",
+  "ownerRole": "AI engineering lead",
+  "ownerHandle": null,
+  "securityReviewer": null,
+  "acceptedThresholdRecord": null
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1.0.0",
+  "caseId": "dev-escalation-restricted",
+  "description": "A denied document title escapes through a diagnostic",
+  "patch": {
+    "diagnostics": ["PRIVATE Pager escalation ledger"]
+  }
+}
