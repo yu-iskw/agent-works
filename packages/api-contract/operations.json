@@ -1,0 +1,172 @@
+[
+  {
+    "operationId": "ask",
+    "method": "POST",
+    "path": "/v1/ask",
+    "request": "AskRequest",
+    "response": "AskResponse",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "submitTask",
+    "method": "POST",
+    "path": "/v1/tasks",
+    "request": "TaskSubmit",
+    "response": "TaskAccepted",
+    "parameter": null,
+    "headers": ["idempotency-key"],
+    "implemented": true
+  },
+  {
+    "operationId": "readTask",
+    "method": "GET",
+    "path": "/v1/tasks/{taskId}",
+    "request": null,
+    "response": "Task",
+    "parameter": "taskId",
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "taskEvents",
+    "method": "GET",
+    "path": "/v1/tasks/{taskId}/events",
+    "request": null,
+    "response": "TaskEvents",
+    "parameter": "taskId",
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "cancelTask",
+    "method": "POST",
+    "path": "/v1/tasks/{taskId}:cancel",
+    "request": null,
+    "response": "TaskCancelled",
+    "parameter": "taskId",
+    "headers": ["idempotency-key"],
+    "implemented": true
+  },
+  {
+    "operationId": "readApproval",
+    "method": "GET",
+    "path": "/v1/approvals/{id}",
+    "request": null,
+    "response": "ApprovalDetail",
+    "parameter": "id",
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "decideApproval",
+    "method": "POST",
+    "path": "/v1/approvals/{id}:decide",
+    "request": "ApprovalDecide",
+    "response": "ApprovalDecided",
+    "parameter": "id",
+    "headers": ["x-csrf-token"],
+    "implemented": true
+  },
+  {
+    "operationId": "listSkills",
+    "method": "GET",
+    "path": "/v1/skills",
+    "request": null,
+    "response": "SkillList",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "listConnections",
+    "method": "GET",
+    "path": "/v1/oauth/connections",
+    "request": null,
+    "response": "OAuthConnections",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "connectOAuth",
+    "method": "POST",
+    "path": "/v1/oauth/connections/{provider}",
+    "request": "OAuthConnectRequest",
+    "response": "OAuthConnectResponse",
+    "parameter": "provider",
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "revokeOAuth",
+    "method": "DELETE",
+    "path": "/v1/oauth/connections/{provider}",
+    "request": null,
+    "response": "OAuthConnection",
+    "parameter": "provider",
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "readArtifact",
+    "method": "GET",
+    "path": "/v1/artifacts/{id}",
+    "request": null,
+    "response": null,
+    "parameter": "id",
+    "headers": [],
+    "implemented": false
+  },
+  {
+    "operationId": "search",
+    "method": "POST",
+    "path": "/v1/search",
+    "request": null,
+    "response": null,
+    "parameter": null,
+    "headers": [],
+    "implemented": false
+  },
+  {
+    "operationId": "adminSnapshot",
+    "method": "GET",
+    "path": "/v1/admin/suspensions",
+    "request": null,
+    "response": "SuspensionSnapshot",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "adminHistory",
+    "method": "GET",
+    "path": "/v1/admin/history",
+    "request": null,
+    "response": "SuspensionHistory",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "changeSuspension",
+    "method": "POST",
+    "path": "/v1/admin/suspensions",
+    "request": "SuspensionCommand",
+    "response": "SuspensionResult",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "changeVersion",
+    "method": "POST",
+    "path": "/v1/admin/versions",
+    "request": "CapabilityVersionCommand",
+    "response": "SuspensionResult",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  }
+]

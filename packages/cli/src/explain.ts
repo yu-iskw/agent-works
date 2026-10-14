@@ -1,4 +1,9 @@
+import { readFileSync } from 'node:fs';
+
 import { decide, parseFacts } from '@agent-works/policy';
+
+import type { ApiClient, TaskSubmit } from '@agent-works/api-contract';
+import type { ClientOptions } from '@agent-works/api-contract/transport';
 
 type PolicyDecision = ReturnType<typeof decide>;
 
@@ -44,4 +49,65 @@ export function explainDecision(decision: PolicyDecision): string {
 
 export function explainFixture(value: unknown): string {
   return explainDecision(decide({ facts: readFixture(value) }));
+}
+
+async function taskCommand(client: ApiClient, argv: readonly string[]): Promise<unknown> {
+  const action = argv[3];
+  const id = argv[4];
+  if (action === 'read' && argv.length === 5) return client.readTask(id);
+  if (action === 'events' && argv.length === 5) return client.taskEvents(id);
+  if (action === 'cancel' && argv.length === 6)
+    return client.cancelTask(id, { 'idempotency-key': argv[5] });
+  if (action === 'submit' && argv.length === 6) {
+    // The generated transport validates this untrusted file before dispatch.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    const body = JSON.parse(readFileSync(id, 'utf8')) as TaskSubmit;
+    return client.submitTask(body, { 'idempotency-key': argv[5] });
+  }
+  throw new Error('invalid task command');
+}
+async function approvalCommand(client: ApiClient, argv: readonly string[]): Promise<unknown> {
+  const id = argv[4];
+  const action = argv[3];
+  if (action === 'read' && argv.length === 5) return client.readApproval(id);
+  if (action === 'decide' && argv.length === 8 && (argv[5] === 'approve' || argv[5] === 'reject')) {
+    return client.decideApproval(
+      id,
+      { kind: 'decide', decision: argv[5], expectedPayloadSha256: argv[6] },
+      { 'x-csrf-token': argv[7] },
+    );
+  }
+  throw new Error('invalid approval command');
+}
+/** Task and approval commands use the generated contract for request/response validation. */
+export async function runApiCommand(
+  argv: readonly string[],
+  stdout: { write(data: string): void },
+  options: ClientOptions,
+): Promise<number> {
+  // Loaded lazily so policy-only commands do not require a built api-contract package.
+  const [{ ApiClient: Client }, { ApiClientError }] = await Promise.all([
+    import('@agent-works/api-contract'),
+    import('@agent-works/api-contract/transport'),
+  ]);
+  try {
+    if (argv.length < 5) return 1;
+    const client = new Client(options);
+    let result: unknown;
+    switch (argv[2]) {
+      case 'tasks':
+        result = await taskCommand(client, argv);
+        break;
+      case 'approvals':
+        result = await approvalCommand(client, argv);
+        break;
+      default:
+        return 1;
+    }
+    stdout.write(JSON.stringify(result) + '\n');
+    return 0;
+  } catch (error) {
+    if (error instanceof ApiClientError) stdout.write(`ERROR ${error.status} ${error.code}\n`);
+    return 1;
+  }
 }

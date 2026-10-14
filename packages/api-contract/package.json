@@ -1,0 +1,35 @@
+{
+  "name": "@agent-works/api-contract",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/client.generated.ts",
+      "import": "./dist/client.generated.js"
+    },
+    "./transport": {
+      "types": "./src/transport.ts",
+      "import": "./dist/transport.js"
+    },
+    "./validation": {
+      "types": "./src/validation.ts",
+      "import": "./dist/validation.js"
+    }
+  },
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "node scripts/generate.mjs --check && tsc",
+    "test": "vitest run",
+    "eval:benchmarks": "node ../../evals/delegation/derive-benchmarks.mjs"
+  },
+  "dependencies": {
+    "@agent-works/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

@@ -2,6 +2,8 @@ import type { SourceDocument } from '../retrieval/drive-port.js';
 
 export type RunnerInput = {
   readonly beforeModelCall?: (model: string) => Promise<void>;
+  /** Second hook: routing authorization runs after the suspension hook in routed adapters. */
+  readonly authorizeModelCall?: (model: string) => Promise<void>;
   readonly question: string;
   readonly sources: readonly SourceDocument[];
 };

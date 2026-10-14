@@ -55,6 +55,10 @@
     "packages/domain": {
       "entry": ["src/bench.ts", "src/schema-cli.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "packages/api-contract": {
+      "entry": ["scripts/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs"]
     }
   }
 }

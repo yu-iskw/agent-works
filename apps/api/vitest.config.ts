@@ -5,6 +5,18 @@ import { defineProject } from 'vitest/config';
 export default defineProject({
   resolve: {
     alias: {
+      '@agent-works/domain/delegation': fileURLToPath(
+        new URL('../../packages/domain/src/delegation.ts', import.meta.url),
+      ),
+      '@agent-works/domain/delegation-authority': fileURLToPath(
+        new URL('../../packages/domain/src/delegation-authority.ts', import.meta.url),
+      ),
+      '@agent-works/domain/model-policy': fileURLToPath(
+        new URL('../../packages/domain/src/model-policy.ts', import.meta.url),
+      ),
+      '@agent-works/domain/model-policy-benchmark': fileURLToPath(
+        new URL('../../packages/domain/src/model-policy-benchmark.ts', import.meta.url),
+      ),
       '@agent-works/domain/budget': fileURLToPath(
         new URL('../../packages/domain/src/budget.ts', import.meta.url),
       ),

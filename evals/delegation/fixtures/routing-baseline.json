@@ -1,0 +1,293 @@
+{
+  "schemaVersion": "1.0.0",
+  "evidence": "offline-fakes-only",
+  "realServicesGatePassed": false,
+  "caseCount": 2,
+  "deferredCount": 0,
+  "metrics": {
+    "citationPrecision": {
+      "numerator": 1,
+      "denominator": 1,
+      "value": 1
+    },
+    "groundingCoverage": {
+      "numerator": 1,
+      "denominator": 1,
+      "value": 1
+    },
+    "abstentionAccuracy": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "toolCallCorrectness": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "deniedCallRate": {
+      "numerator": 0,
+      "denominator": 0,
+      "value": null
+    },
+    "searchPrecision": {
+      "numerator": 1,
+      "denominator": 1,
+      "value": 1
+    },
+    "searchRecall": {
+      "numerator": 1,
+      "denominator": 1,
+      "value": 1
+    },
+    "freshnessAccuracy": {
+      "numerator": 1,
+      "denominator": 1,
+      "value": 1
+    },
+    "workflowSuccess": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    }
+  },
+  "byAclGroup": {
+    "no-membership": {
+      "citationPrecision": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "groundingCoverage": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "abstentionAccuracy": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "toolCallCorrectness": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "deniedCallRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "searchPrecision": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "searchRecall": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "freshnessAccuracy": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "workflowSuccess": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      }
+    },
+    "operations": {
+      "citationPrecision": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "groundingCoverage": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "abstentionAccuracy": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "toolCallCorrectness": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "deniedCallRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "searchPrecision": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "searchRecall": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "freshnessAccuracy": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      },
+      "workflowSuccess": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1
+      }
+    }
+  },
+  "security": {
+    "leaks": 0,
+    "unauthorizedExecutions": 0
+  },
+  "cases": [
+    {
+      "caseId": "dev-escalation-visible",
+      "split": "dev",
+      "category": "grounding",
+      "aclGroup": "operations",
+      "status": "answered",
+      "deferred": false,
+      "metrics": {
+        "citationPrecision": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "groundingCoverage": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "abstentionAccuracy": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "toolCallCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "deniedCallRate": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "searchPrecision": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "searchRecall": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "freshnessAccuracy": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "workflowSuccess": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        }
+      },
+      "security": {
+        "leaks": 0,
+        "unauthorizedExecutions": 0
+      }
+    },
+    {
+      "caseId": "dev-escalation-restricted",
+      "split": "dev",
+      "category": "search",
+      "aclGroup": "no-membership",
+      "status": "abstained",
+      "deferred": false,
+      "metrics": {
+        "citationPrecision": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "groundingCoverage": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "abstentionAccuracy": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "toolCallCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "deniedCallRate": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "searchPrecision": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "searchRecall": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "freshnessAccuracy": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "workflowSuccess": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        }
+      },
+      "security": {
+        "leaks": 0,
+        "unauthorizedExecutions": 0
+      }
+    }
+  ],
+  "dataset": {
+    "version": "1.0.0",
+    "splits": ["dev"],
+    "fingerprints": {
+      "dev": "769012d8f794658515562eab6fe8407f3cef17f107e033d8ffd1459d630e6aed"
+    }
+  },
+  "routingEvidence": {
+    "model": {
+      "modelId": "fixture-gemini-default",
+      "version": "offline-1",
+      "region": "asia-northeast1",
+      "governanceZone": "fixture"
+    },
+    "taskClass": "research"
+  },
+  "limitations": [
+    "Derived identical observations prove contract plumbing only; no evidence of faster, cheaper or better real models."
+  ]
+}
