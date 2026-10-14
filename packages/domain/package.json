@@ -55,6 +55,16 @@
       "types": "./src/workspace-tools.ts",
       "development": "./src/workspace-tools.ts",
       "import": "./dist/workspace-tools.js"
+    },
+    "./user-memory": {
+      "types": "./src/user-memory.ts",
+      "development": "./src/user-memory.ts",
+      "import": "./dist/user-memory.js"
+    },
+    "./user-memory-pii": {
+      "types": "./src/user-memory-pii.ts",
+      "development": "./src/user-memory-pii.ts",
+      "import": "./dist/user-memory-pii.js"
     }
   },
   "scripts": {

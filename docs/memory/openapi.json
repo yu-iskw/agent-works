@@ -1,0 +1,894 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Offline user memory API",
+    "version": "memory-v1",
+    "description": "Opt-in memory; verified IAP ownership, live source authorization and revision fencing."
+  },
+  "paths": {
+    "/v1/memory/consent": {
+      "get": {
+        "operationId": "readMemoryConsent",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryConsentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "changeMemoryConsent",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryConsentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryConsentCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory": {
+      "get": {
+        "operationId": "listOwnMemories",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory/list": {
+      "post": {
+        "operationId": "listAgentMemories",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryListCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory/export": {
+      "get": {
+        "operationId": "exportOwnMemories",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryExport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory/edit": {
+      "post": {
+        "operationId": "reviseOwnMemory",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryEditResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory/delete": {
+      "post": {
+        "operationId": "deleteOwnMemory",
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own memory operation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe memory operation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryDelete"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "iap": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-goog-iap-jwt-assertion"
+      }
+    },
+    "schemas": {
+      "MemoryItem": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL"]
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 31536000
+          },
+          "origin": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "user-turn"
+              },
+              "taskId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "turnId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["kind", "taskId", "turnId", "subject", "sourceRef"],
+            "additionalProperties": false
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["active", "sealed"]
+          }
+        },
+        "required": [
+          "tenant",
+          "owner",
+          "agent",
+          "id",
+          "text",
+          "classification",
+          "ttlSeconds",
+          "origin",
+          "revision",
+          "createdAt",
+          "updatedAt",
+          "expiresAt",
+          "legalHold",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "MemoryConsent": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "noticeVersion": {
+            "type": "string",
+            "const": "memory-v1"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": ["tenant", "owner", "enabled", "revision", "noticeVersion", "updatedAt"],
+        "additionalProperties": false
+      },
+      "MemoryConsentCommand": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "noticeVersion": {
+            "type": "string",
+            "const": "memory-v1"
+          }
+        },
+        "required": ["enabled", "revision", "noticeVersion"],
+        "additionalProperties": false
+      },
+      "MemoryEdit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": ["id", "agent", "revision", "text"],
+        "additionalProperties": false
+      },
+      "MemoryDelete": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["id", "agent", "revision"],
+        "additionalProperties": false
+      },
+      "MemoryListCommand": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": ["agent"],
+        "additionalProperties": false
+      },
+      "MemoryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "MemoryConsentResult": {
+        "type": "object",
+        "properties": {
+          "consent": {
+            "$ref": "#/components/schemas/MemoryConsent"
+          }
+        },
+        "required": ["consent"],
+        "additionalProperties": false
+      },
+      "MemoryConsentView": {
+        "type": "object",
+        "properties": {
+          "consent": {
+            "$ref": "#/components/schemas/MemoryConsent"
+          },
+          "notice": {
+            "type": "string"
+          },
+          "tenantEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["consent", "notice", "tenantEnabled"],
+        "additionalProperties": false
+      },
+      "MemoryExport": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "const": "memory-v1"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            }
+          }
+        },
+        "required": ["version", "exportedAt", "items"],
+        "additionalProperties": false
+      },
+      "MemoryEditResult": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/MemoryItem"
+          }
+        },
+        "required": ["item"],
+        "additionalProperties": false
+      },
+      "MemoryDeleted": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "const": true
+          }
+        },
+        "required": ["deleted"],
+        "additionalProperties": false
+      },
+      "MemoryError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "invalid_memory_command",
+              "unauthenticated",
+              "memory_disabled",
+              "memory_conflict",
+              "memory_unavailable"
+            ]
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -12,6 +12,7 @@
     "vitest": "4.1.11"
   },
   "dependencies": {
-    "@agent-works/domain": "workspace:*"
+    "@agent-works/domain": "workspace:*",
+    "zod": "4.6.5"
   }
 }

@@ -17,6 +17,9 @@ export default defineProject({
       '@agent-works/domain/model-policy-benchmark': fileURLToPath(
         new URL('../../packages/domain/src/model-policy-benchmark.ts', import.meta.url),
       ),
+      '@agent-works/domain/user-memory': fileURLToPath(
+        new URL('../../packages/domain/src/user-memory.ts', import.meta.url),
+      ),
       '@agent-works/domain/data-governance': fileURLToPath(
         new URL('../../packages/domain/src/data-governance.ts', import.meta.url),
       ),
@@ -34,6 +37,9 @@ export default defineProject({
       ),
       '@agent-works/domain/workspace-tools': fileURLToPath(
         new URL('../../packages/domain/src/workspace-tools.ts', import.meta.url),
+      ),
+      '@agent-works/domain/user-memory-pii': fileURLToPath(
+        new URL('../../packages/domain/src/user-memory-pii.ts', import.meta.url),
       ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),

@@ -17,6 +17,17 @@ import type {
   DeletionState,
 } from '@agent-works/domain/data-governance';
 
+type DeletionFanout = (
+  request: DeletionRequest,
+  state: GovernanceState,
+  at: Date,
+) => Promise<string[]>;
+const deletionFanouts = new WeakMap<GovernancePort, DeletionFanout>();
+/** Offline memory registers a retry-safe purge under the governance transaction lock. */
+export function registerDeletionFanout(port: GovernancePort, fanout: DeletionFanout): void {
+  deletionFanouts.set(port, fanout);
+}
+
 export type DeletionPlan = {
   requestId: string;
   artifactIds: string[];
@@ -119,12 +130,13 @@ export async function processDeletion(
   actor: string,
   at: Date,
 ): Promise<DeletionRequest> {
-  return port.transact((state) => {
+  return port.transact(async (state) => {
     const request = state.requests.find((row) => row.requestId === requestId);
     if (request === undefined) throw new GovernanceConflict('deletion request missing');
     if (request.state === 'PURGED' || request.state === 'REJECTED') return request;
     const plan = deletionPlan(state, request);
-    if (plan.heldIds.length > 0) {
+    const memoryHeld = (await deletionFanouts.get(port)?.(request, state, at)) ?? [];
+    if (plan.heldIds.length > 0 || memoryHeld.length > 0) {
       transition(state, request, 'HELD', actor, at);
       return request;
     }

@@ -8,6 +8,7 @@ import { beforeModelCall } from '../suspension/runtime.js';
 import { RunnerError } from './runner-port.js';
 
 import type { AgentRunner, RunnerInput, RunnerOutput } from './runner-port.js';
+import type { MemoryRecallHook } from '../memory/runner.js';
 import type { RunnerLimits, RunnerUsage } from '@agent-works/domain';
 
 const budgetExceeded = 'TASK_BUDGET_EXCEEDED';
@@ -36,6 +37,7 @@ type ModelTurn =
   | { readonly kind: 'hidden' };
 
 export type AdkRunnerOptions = {
+  readonly recallMemory?: MemoryRecallHook;
   readonly baseUrl: string;
   readonly limits: RunnerLimits;
   readonly model?: string;
@@ -50,7 +52,8 @@ export function createAdkRunner(options: AdkRunnerOptions): AgentRunner {
   });
   return {
     async run(input) {
-      return runBounded(model, input, options.limits);
+      const memory = await options.recallMemory?.(input);
+      return runBounded(model, input, options.limits, memory);
     },
   };
 }
@@ -94,8 +97,9 @@ async function runBounded(
   model: ScriptedGemini,
   input: RunnerInput,
   limits: RunnerLimits,
+  memory?: string,
 ): Promise<RunnerOutput> {
-  const prompt = scriptedPrompt(input);
+  const prompt = [scriptedPrompt(input), memory].filter(Boolean).join('\n\n');
   let usage: RunnerUsage = { steps: 0, toolCalls: 0, costUsd: 0 };
   const ceiling = limits.maxSteps + limits.maxToolCalls + 1;
   for (let attempt = 0; attempt < ceiling; attempt += 1) {
