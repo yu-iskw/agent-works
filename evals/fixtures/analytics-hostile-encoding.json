@@ -1,0 +1,226 @@
+[
+  {
+    "id": "encoding-001",
+    "category": "encoding",
+    "sql": "SELECT r\u00e9gion FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-002",
+    "category": "encoding",
+    "sql": "SELECT \uff52\uff45\uff47\uff49\uff4f\uff4e FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-003",
+    "category": "encoding",
+    "sql": "SELECT region\u0000 FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-004",
+    "category": "encoding",
+    "sql": "SELECT region\u0001 FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-005",
+    "category": "encoding",
+    "sql": "SELECT region\u200b FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-006",
+    "category": "encoding",
+    "sql": "SELECT region\u202e FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-007",
+    "category": "encoding",
+    "sql": "SELECT \"region\" FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-008",
+    "category": "encoding",
+    "sql": "SELECT [region] FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-009",
+    "category": "encoding",
+    "sql": "SELECT `region` FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-010",
+    "category": "encoding",
+    "sql": "SELECT region\\ FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-011",
+    "category": "encoding",
+    "sql": "SELECT region/*x*/ FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-012",
+    "category": "encoding",
+    "sql": "SELECT region--x\n FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-013",
+    "category": "encoding",
+    "sql": "SELECT region#x\n FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-014",
+    "category": "encoding",
+    "sql": "SELECT region; FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-015",
+    "category": "encoding",
+    "sql": "SELECT region||email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-016",
+    "category": "encoding",
+    "sql": "SELECT region+amount FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-017",
+    "category": "encoding",
+    "sql": "SELECT region/amount FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-018",
+    "category": "encoding",
+    "sql": "SELECT region%amount FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-019",
+    "category": "encoding",
+    "sql": "SELECT region::text FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-020",
+    "category": "encoding",
+    "sql": "SELECT region->email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-021",
+    "category": "encoding",
+    "sql": "SELECT region=>email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-022",
+    "category": "encoding",
+    "sql": "SELECT region?email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-023",
+    "category": "encoding",
+    "sql": "SELECT region:email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-024",
+    "category": "encoding",
+    "sql": "SELECT region@x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-025",
+    "category": "encoding",
+    "sql": "SELECT region$1 FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-026",
+    "category": "encoding",
+    "sql": "SELECT region! FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-027",
+    "category": "encoding",
+    "sql": "SELECT region&email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-028",
+    "category": "encoding",
+    "sql": "SELECT region|email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-029",
+    "category": "encoding",
+    "sql": "SELECT region^email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-030",
+    "category": "encoding",
+    "sql": "SELECT region~email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-031",
+    "category": "encoding",
+    "sql": "SELECT region\\u0073 FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "encoding-032",
+    "category": "encoding",
+    "sql": "SELECT region\\x73 FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  }
+]

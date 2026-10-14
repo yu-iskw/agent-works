@@ -1,0 +1,226 @@
+[
+  {
+    "id": "scripts-001",
+    "category": "scripts",
+    "sql": " SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-002",
+    "category": "scripts",
+    "sql": " SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-003",
+    "category": "scripts",
+    "sql": " SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-004",
+    "category": "scripts",
+    "sql": " SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-005",
+    "category": "scripts",
+    "sql": "BEGIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-006",
+    "category": "scripts",
+    "sql": "BEGIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-007",
+    "category": "scripts",
+    "sql": "BEGIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-008",
+    "category": "scripts",
+    "sql": "BEGIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-009",
+    "category": "scripts",
+    "sql": "DECLARE x INT64;  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-010",
+    "category": "scripts",
+    "sql": "DECLARE x INT64;  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-011",
+    "category": "scripts",
+    "sql": "DECLARE x INT64;  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-012",
+    "category": "scripts",
+    "sql": "DECLARE x INT64;  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-013",
+    "category": "scripts",
+    "sql": "EXECUTE IMMEDIATE  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-014",
+    "category": "scripts",
+    "sql": "EXECUTE IMMEDIATE  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-015",
+    "category": "scripts",
+    "sql": "EXECUTE IMMEDIATE  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-016",
+    "category": "scripts",
+    "sql": "EXECUTE IMMEDIATE  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-017",
+    "category": "scripts",
+    "sql": "CALL  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-018",
+    "category": "scripts",
+    "sql": "CALL  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-019",
+    "category": "scripts",
+    "sql": "CALL  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-020",
+    "category": "scripts",
+    "sql": "CALL  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-021",
+    "category": "scripts",
+    "sql": "EXPLAIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-022",
+    "category": "scripts",
+    "sql": "EXPLAIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-023",
+    "category": "scripts",
+    "sql": "EXPLAIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-024",
+    "category": "scripts",
+    "sql": "EXPLAIN  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-025",
+    "category": "scripts",
+    "sql": "WITH x AS ( SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-026",
+    "category": "scripts",
+    "sql": "WITH x AS ( SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-027",
+    "category": "scripts",
+    "sql": "WITH x AS ( SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-028",
+    "category": "scripts",
+    "sql": "WITH x AS ( SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-029",
+    "category": "scripts",
+    "sql": "EXPORT DATA OPTIONS(uri='gs://x') AS  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-030",
+    "category": "scripts",
+    "sql": "EXPORT DATA OPTIONS(uri='gs://x') AS  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-031",
+    "category": "scripts",
+    "sql": "EXPORT DATA OPTIONS(uri='gs://x') AS  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; END",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "scripts-032",
+    "category": "scripts",
+    "sql": "EXPORT DATA OPTIONS(uri='gs://x') AS  SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  }
+]

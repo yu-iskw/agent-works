@@ -1,0 +1,226 @@
+[
+  {
+    "id": "comments-001",
+    "category": "comments",
+    "sql": "-- SELECT\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-002",
+    "category": "comments",
+    "sql": "-- SELECT\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-003",
+    "category": "comments",
+    "sql": "-- SELECT\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-004",
+    "category": "comments",
+    "sql": "-- SELECT\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-005",
+    "category": "comments",
+    "sql": "/* harmless */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-006",
+    "category": "comments",
+    "sql": "/* harmless */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-007",
+    "category": "comments",
+    "sql": "/* harmless */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-008",
+    "category": "comments",
+    "sql": "/* harmless */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-009",
+    "category": "comments",
+    "sql": "/* SELECT */ DROP TABLE x; SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-010",
+    "category": "comments",
+    "sql": "/* SELECT */ DROP TABLE x; SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-011",
+    "category": "comments",
+    "sql": "/* SELECT */ DROP TABLE x; SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-012",
+    "category": "comments",
+    "sql": "/* SELECT */ DROP TABLE x; SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-013",
+    "category": "comments",
+    "sql": "# comment\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-014",
+    "category": "comments",
+    "sql": "# comment\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-015",
+    "category": "comments",
+    "sql": "# comment\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-016",
+    "category": "comments",
+    "sql": "# comment\nSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-017",
+    "category": "comments",
+    "sql": "/*! SELECT */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-018",
+    "category": "comments",
+    "sql": "/*! SELECT */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-019",
+    "category": "comments",
+    "sql": "/*! SELECT */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-020",
+    "category": "comments",
+    "sql": "/*! SELECT */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-021",
+    "category": "comments",
+    "sql": "-- delete\rSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-022",
+    "category": "comments",
+    "sql": "-- delete\rSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-023",
+    "category": "comments",
+    "sql": "-- delete\rSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-024",
+    "category": "comments",
+    "sql": "-- delete\rSELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-025",
+    "category": "comments",
+    "sql": "/* nested /* comment */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-026",
+    "category": "comments",
+    "sql": "/* nested /* comment */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-027",
+    "category": "comments",
+    "sql": "/* nested /* comment */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-028",
+    "category": "comments",
+    "sql": "/* nested /* comment */ SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-029",
+    "category": "comments",
+    "sql": "/* unclosed SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-030",
+    "category": "comments",
+    "sql": "/* unclosed SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 -- DELETE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-031",
+    "category": "comments",
+    "sql": "/* unclosed SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 /* UPDATE */",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "comments-032",
+    "category": "comments",
+    "sql": "/* unclosed SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20; -- end",
+    "params": {},
+    "expected": "reject"
+  }
+]

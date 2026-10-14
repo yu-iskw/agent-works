@@ -1,3 +1,4 @@
+import { createAnalystSkill } from './analyst.js';
 import { createIncidentSkill } from './incident.js';
 import { createMeetingPrepSkill } from './meeting-prep.js';
 import { createWorkspaceTaskSkill } from './workspace-task.js';
@@ -14,6 +15,7 @@ export type SkillRegistry = {
 export function createSkillRegistry(
   skills: readonly RegisteredSkill[] = [
     createIncidentSkill(),
+    createAnalystSkill(),
     createMeetingPrepSkill(),
     createWorkspaceTaskSkill(),
   ],

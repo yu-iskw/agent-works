@@ -79,8 +79,9 @@ test('argument parsing keeps holdout opt-in and result writes explicit', () => {
   });
 });
 
-function probe(body) {
+function probe(body, setup = '') {
   const source = `
+    ${setup}
     import { loadRuntime } from './tools/evals/runtime.mjs';
     const api = await loadRuntime();
     const result = await (async () => { ${body} })();
@@ -93,6 +94,26 @@ function probe(body) {
   expect(result.status, result.stderr).toBe(0);
   return JSON.parse(result.stdout);
 }
+
+test('offline runner loads domain schemas without built output', () => {
+  const result = probe(
+    `const { analyticsRerunSchema } = await import('@agent-works/domain');
+     const { docsDraftSchema } = await import('@agent-works/domain/workspace-tools');
+     return analyticsRerunSchema.safeParse({
+       versionId: '123e4567-e89b-42d3-a456-426614174000', maxBytes: 100000,
+     }).success && docsDraftSchema.safeParse({
+       title: 'Offline draft', destinationId: 'shared-drive', body: 'Draft content',
+     }).success;`,
+    `import { registerHooks } from 'node:module';
+     registerHooks({
+       load(url, context, next) {
+         if (url.includes('/packages/domain/dist/')) throw new Error('built domain unavailable');
+         return next(url, context);
+       },
+     });`,
+  );
+  expect(result).toBe(true);
+});
 
 test.each(['throw', 'deny'])(
   'dispatch followed by broker %s fails the security gate despite a denied call',

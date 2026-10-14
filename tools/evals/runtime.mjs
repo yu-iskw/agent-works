@@ -13,6 +13,16 @@ export function loadRuntime() {
       const packages = {
         '@agent-works/incident-analysis': 'agents/skills/incident-analysis/deliver.ts',
         '@agent-works/domain': 'packages/domain/src/index.ts',
+        '@agent-works/domain/budget': 'packages/domain/src/budget.ts',
+        '@agent-works/domain/data-governance': 'packages/domain/src/data-governance.ts',
+        '@agent-works/domain/error-class': 'packages/domain/src/error-class.ts',
+        '@agent-works/domain/error-class-retry': 'packages/domain/src/error-class-retry.ts',
+        '@agent-works/domain/delegation': 'packages/domain/src/delegation.ts',
+        '@agent-works/domain/delegation-authority': 'packages/domain/src/delegation-authority.ts',
+        '@agent-works/domain/model-policy': 'packages/domain/src/model-policy.ts',
+        '@agent-works/domain/model-policy-benchmark':
+          'packages/domain/src/model-policy-benchmark.ts',
+        '@agent-works/domain/workspace-tools': 'packages/domain/src/workspace-tools.ts',
         '@agent-works/policy': 'packages/policy/src/index.ts',
         '@agent-works/fakes': 'packages/fakes/src/index.ts',
         '@agent-works/fakes/adversarial': 'packages/fakes/src/adversarial/index.ts',

@@ -1,3 +1,4 @@
+import { analyticsRoutes } from '../analytics/registration.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 
 import { adminChangeRoutes } from './admin-change.js';
@@ -25,9 +26,10 @@ import { tasksSubmitSlot } from './tasks-submit.js';
 import { createTaskRoutes } from './tasks.js';
 
 import type { AdminDeps } from './admin-auth.js';
+import type { AnalyticsRouteDeps } from './analytics-auth.js';
+import type { AskDeps } from './ask.js';
 import type { ScheduleRouteDeps } from './schedules-auth.js';
 import type { Route } from '../http.js';
-import type { AskDeps } from './ask.js';
 import type { OAuthConnectionsReadDeps } from './oauth-connections-read.js';
 import type { PatternSlot, RouteEnv } from './slot.js';
 import type { TaskRoutes } from './tasks.js';
@@ -50,6 +52,7 @@ const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 
 export type RouteDeps = AskDeps & {
   readonly connectors?: Readonly<Record<string, Route>>;
+  readonly analytics?: AnalyticsRouteDeps;
   readonly schedules?: ScheduleRouteDeps;
   readonly scheduleEvents?: EventIngestor;
   readonly admin?: Omit<AdminDeps, 'verify'>;
@@ -85,7 +88,7 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       adminReadRoutes({ ...deps.admin, verify: deps.verify }),
       adminChangeRoutes({ ...deps.admin, verify: deps.verify }),
     );
-  Object.assign(table, governanceRoutes(deps), deps.connectors);
+  Object.assign(table, governanceRoutes(deps), deps.connectors, analyticsRoutes(deps.analytics));
   const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??

@@ -10,6 +10,11 @@ async function main(): Promise<number> {
       assertion: process.env.AW_IAP_ASSERTION,
     });
   }
+  if (process.argv[2] === 'analytics') {
+    return (await import('./analytics.js')).runAnalytics(process.argv.slice(3), process.stdout, {
+      assertion: process.env.AW_IAP_ASSERTION,
+    });
+  }
   // Issue 140 subcommand registration.
   if (process.argv[2] === 'schedule') {
     return (await import('./schedule.js')).runSchedule(process.argv, process.stdout, {
