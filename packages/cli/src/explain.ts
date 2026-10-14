@@ -1,10 +1,8 @@
 import { readFileSync } from 'node:fs';
 
-import { ApiClient } from '@agent-works/api-contract';
-import { ApiClientError } from '@agent-works/api-contract/transport';
 import { decide, parseFacts } from '@agent-works/policy';
 
-import type { TaskSubmit } from '@agent-works/api-contract';
+import type { ApiClient, TaskSubmit } from '@agent-works/api-contract';
 import type { ClientOptions } from '@agent-works/api-contract/transport';
 
 type PolicyDecision = ReturnType<typeof decide>;
@@ -87,9 +85,14 @@ export async function runApiCommand(
   stdout: { write(data: string): void },
   options: ClientOptions,
 ): Promise<number> {
+  // Loaded lazily so policy-only commands do not require a built api-contract package.
+  const [{ ApiClient: Client }, { ApiClientError }] = await Promise.all([
+    import('@agent-works/api-contract'),
+    import('@agent-works/api-contract/transport'),
+  ]);
   try {
     if (argv.length < 5) return 1;
-    const client = new ApiClient(options);
+    const client = new Client(options);
     let result: unknown;
     switch (argv[2]) {
       case 'tasks':
