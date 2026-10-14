@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { dlqEntrySchema } from './dlq-types.js';
 
 import type { DlqDecision, DlqStore } from './dlq-types.js';
@@ -41,7 +43,7 @@ export function createPostgresDlqStore(sql: postgres.Sql): DlqStore {
           { payload: DlqDecision }[]
         >`select payload from reliability_dlq_decisions where decision_id = ${decision.decisionId}`;
         if (previous.length > 0) {
-          if (JSON.stringify(previous[0].payload) !== JSON.stringify(decision))
+          if (!isDeepStrictEqual(previous[0].payload, decision))
             throw new Error('DLQ decision identity conflict');
           return;
         }

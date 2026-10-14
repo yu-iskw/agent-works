@@ -1,10 +1,10 @@
-import { addUsage, emptyUsage } from '#domain-budget';
+import { addUsage, emptyUsage } from '@agent-works/domain/budget';
 
 import { admission, admissionEvent } from './budget-admission.js';
 import { chargeFingerprint, userBudgetKey, validateCharge } from './budget-validation.js';
 
-import type { BudgetUsage } from '#domain-budget';
 import type { BudgetEvent, BudgetPort, Reservation } from './budget-port.js';
+import type { BudgetUsage } from '@agent-works/domain/budget';
 
 /** A synchronous critical section before returning promises; shared by every guard using this port. */
 export function createMemoryBudgetPort(): BudgetPort {

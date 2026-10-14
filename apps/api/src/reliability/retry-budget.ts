@@ -1,6 +1,10 @@
-import { withRetry } from '#domain-error-class-retry';
+import { withRetry } from '@agent-works/domain/error-class-retry';
 
-import type { RetryClock, RetryConfig, RetryStormBudget } from '#domain-error-class-retry';
+import type {
+  RetryClock,
+  RetryConfig,
+  RetryStormBudget,
+} from '@agent-works/domain/error-class-retry';
 
 /** Opt-in adapter seam: budget is shared per outage domain, never per attempt. */
 export function retryAdapter<T>(

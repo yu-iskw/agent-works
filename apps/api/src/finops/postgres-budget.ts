@@ -1,10 +1,10 @@
-import { addUsage } from '#domain-budget';
+import { addUsage } from '@agent-works/domain/budget';
 
 import { admission, admissionEvent } from './budget-admission.js';
 import { chargeFingerprint, userBudgetKey, validateCharge } from './budget-validation.js';
 
-import type { BudgetCharge, BudgetUsage } from '#domain-budget';
 import type { BudgetEvent, BudgetPolicy, BudgetPort, Reservation } from './budget-port.js';
+import type { BudgetCharge, BudgetUsage } from '@agent-works/domain/budget';
 import type postgres from 'postgres';
 
 type Account = {

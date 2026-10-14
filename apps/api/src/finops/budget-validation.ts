@@ -1,7 +1,7 @@
-import { budgetLimitsSchema, budgetUsageSchema } from '#domain-budget';
+import { budgetLimitsSchema, budgetUsageSchema } from '@agent-works/domain/budget';
 
-import type { BudgetCharge } from '#domain-budget';
 import type { BudgetPolicy } from './budget-port.js';
+import type { BudgetCharge } from '@agent-works/domain/budget';
 
 export function validateCharge(charge: BudgetCharge, policy: BudgetPolicy): void {
   budgetUsageSchema.parse({

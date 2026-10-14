@@ -1,7 +1,7 @@
-import { exceededDimension } from '#domain-budget';
+import { exceededDimension } from '@agent-works/domain/budget';
 
-import type { BudgetCharge, BudgetUsage } from '#domain-budget';
 import type { BudgetEvent, BudgetPolicy, Reservation } from './budget-port.js';
+import type { BudgetCharge, BudgetUsage } from '@agent-works/domain/budget';
 
 export function admission(
   charge: BudgetCharge,

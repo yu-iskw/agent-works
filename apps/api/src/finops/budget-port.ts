@@ -4,7 +4,7 @@ import type {
   BudgetLimits,
   BudgetScope,
   BudgetUsage,
-} from '#domain-budget';
+} from '@agent-works/domain/budget';
 
 type BudgetMode = 'observe' | 'isolated-test-enforce';
 export type BudgetPolicy = {

@@ -1,7 +1,11 @@
-import { ClassifiedError } from '#domain-error-class';
+import { ClassifiedError } from '@agent-works/domain/error-class';
 
-import type { BudgetCharge } from '#domain-budget';
 import type { BudgetPolicy, BudgetPort, Reservation } from './budget-port.js';
+import type { BudgetCharge } from '@agent-works/domain/budget';
+
+// Execution ownership is shared by guards using the same port. Retain settled
+// results so an idempotent retry cannot execute after its slot was released.
+const executions = new WeakMap<BudgetPort, Map<string, Promise<unknown>>>();
 
 export class BudgetExceeded extends ClassifiedError {
   constructor(readonly reservation: Reservation) {
@@ -11,6 +15,12 @@ export class BudgetExceeded extends ClassifiedError {
 }
 /** Default observe mode is binding for the dev project under ADR 0003. */
 export function budgetGuard(port: BudgetPort, policy: BudgetPolicy) {
+  let owned = executions.get(port);
+  if (owned === undefined) {
+    owned = new Map();
+    executions.set(port, owned);
+  }
+  const operations = owned;
   return {
     async reserve(charge: BudgetCharge): Promise<Reservation> {
       const reservation = await port.reserve(charge, policy);
@@ -20,11 +30,17 @@ export function budgetGuard(port: BudgetPort, policy: BudgetPolicy) {
     async run<T>(charge: BudgetCharge, operation: () => Promise<T>): Promise<T> {
       const reservation = await port.reserve(charge, policy);
       if (!reservation.allowed) throw new BudgetExceeded(reservation);
-      try {
-        return await operation();
-      } finally {
-        await port.release(charge.operationId);
-      }
+      const existing = operations.get(charge.operationId);
+      if (existing !== undefined) return (await existing) as T;
+      const execution = Promise.resolve().then(async () => {
+        try {
+          return await operation();
+        } finally {
+          await port.release(charge.operationId);
+        }
+      });
+      operations.set(charge.operationId, execution);
+      return await execution;
     },
   };
 }

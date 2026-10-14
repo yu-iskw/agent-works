@@ -4,8 +4,8 @@ import { budgetGuard, BudgetExceeded } from './budget-guard.js';
 import { createMemoryBudgetPort } from './memory-budget.js';
 import { showback } from './showback.js';
 
-import type { BudgetCharge } from '#domain-budget';
 import type { BudgetPolicy } from './budget-port.js';
+import type { BudgetCharge } from '@agent-works/domain/budget';
 
 const limits = {
   approval: 'PLACEHOLDER' as const,
@@ -21,7 +21,59 @@ const charge: BudgetCharge = {
   inferenceSteps: 1,
   parallelism: 1,
 };
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
 describe('L3 guard and L6 showback', () => {
+  it('deduplicates concurrent and settled executions across guards without freeing an active slot', async () => {
+    const port = createMemoryBudgetPort();
+    const singleSlot = { ...limits, parallelism: 1 };
+    const enforced = { ...policy, task: singleSlot, user: singleSlot };
+    const guard = budgetGuard(port, enforced);
+    const anotherGuard = budgetGuard(port, enforced);
+    const entered = deferred<void>();
+    const finish = deferred<string>();
+    const operation = vi.fn(() => {
+      entered.resolve();
+      return finish.promise;
+    });
+    const retryOperation = vi.fn().mockResolvedValue('retry');
+    const first = guard.run(charge, operation);
+    await entered.promise;
+    const retry = anotherGuard.run(charge, retryOperation);
+    try {
+      await expect(
+        guard.run({ ...charge, operationId: 'blocked' }, retryOperation),
+      ).rejects.toBeInstanceOf(BudgetExceeded);
+      expect(operation).toHaveBeenCalledTimes(1);
+      expect(retryOperation).not.toHaveBeenCalled();
+      expect((await port.events()).filter((event) => event.kind === 'released')).toHaveLength(0);
+    } finally {
+      finish.resolve('original');
+      await Promise.all([first, retry]);
+    }
+    await expect(first).resolves.toBe('original');
+    await expect(retry).resolves.toBe('original');
+    await expect(anotherGuard.run(charge, retryOperation)).resolves.toBe('original');
+    expect(retryOperation).not.toHaveBeenCalled();
+    await expect(
+      guard.run({ ...charge, operationId: 'after-release' }, () => Promise.resolve('next')),
+    ).resolves.toBe('next');
+    await expect(guard.run({ ...charge, estimatedCostMicros: 20 }, retryOperation)).rejects.toThrow(
+      'identity conflict',
+    );
+  });
+  it('retains a failed execution for idempotent retries', async () => {
+    const guard = budgetGuard(createMemoryBudgetPort(), policy);
+    const operation = vi.fn().mockRejectedValue(new Error('fixture'));
+    await expect(guard.run(charge, operation)).rejects.toThrow('fixture');
+    await expect(guard.run(charge, operation)).rejects.toThrow('fixture');
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
   it.each([
     {
       estimatedCostMicros: 101,

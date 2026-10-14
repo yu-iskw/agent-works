@@ -20,10 +20,5 @@
     "postgres": "3.4.9",
     "zod": "4.6.5",
     "@agent-works/incident-analysis": "workspace:*"
-  },
-  "imports": {
-    "#domain-budget": "@agent-works/domain/budget",
-    "#domain-error-class": "@agent-works/domain/error-class",
-    "#domain-error-class-retry": "@agent-works/domain/error-class-retry"
   }
 }

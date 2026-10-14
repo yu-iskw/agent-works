@@ -13,8 +13,8 @@ import { applyBudgetMigration } from './migration.js';
 import { createPostgresBudgetPort } from './postgres-budget.js';
 import { showback } from './showback.js';
 
-import type { BudgetCharge } from '#domain-budget';
 import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
+import type { BudgetCharge } from '@agent-works/domain/budget';
 import type { Sql } from 'postgres';
 
 let database: DisposablePostgres | undefined;

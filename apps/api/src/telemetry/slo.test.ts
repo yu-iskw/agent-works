@@ -1,4 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -27,6 +31,48 @@ describe('recorded offline SLO evidence', () => {
     expect(report.auditCapture.verdict).toBe('fail');
     expect(report.auditCapture.matched).toBe(0);
   });
+  it('fails unexpected and duplicate captures even when all receipts are absent', () => {
+    const capturesOnly = events.filter((event) => event.kind !== 'tool.receipt');
+    expect(sloReport(capturesOnly, targets).auditCapture).toMatchObject({
+      receipts: 0,
+      ratio: null,
+      verdict: 'fail',
+    });
+    const capture = events.find((event) => event.kind === 'audit.captured');
+    if (capture === undefined) throw new Error('capture fixture');
+    expect(
+      sloReport([...capturesOnly, { ...capture, event_id: events[0].session_id }], targets)
+        .auditCapture.verdict,
+    ).toBe('fail');
+  });
+  it('makes the SLO report CLI fail when receipts are removed', () => {
+    const root = fileURLToPath(new URL('../../../../', import.meta.url));
+    // The CLI imports build output: compile current sources to avoid testing stale artifacts.
+    execFileSync('pnpm', ['--filter', '@agent-works/api', 'build'], { cwd: root, stdio: 'pipe' });
+    const directory = mkdtempSync(join(tmpdir(), 'slo-no-receipts-'));
+    try {
+      const eventPath = join(directory, 'events.jsonl');
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- temp dir path from mkdtempSync
+      writeFileSync(
+        eventPath,
+        events
+          .filter((event) => event.kind !== 'tool.receipt')
+          .map((event) => JSON.stringify(event))
+          .join('\n') + '\n',
+      );
+      const result = spawnSync(
+        process.execPath,
+        ['tools/slo/report.mjs', eventPath, 'tools/slo/fixtures/targets.json'],
+        { cwd: root, encoding: 'utf8' },
+      );
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(2);
+      const report = JSON.parse(result.stdout) as { auditCapture: { verdict: string } };
+      expect(report.auditCapture.verdict).toBe('fail');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
   it('distinguishes replayed telemetry from duplicate external effects', () => {
     expect(sloReport([...events, ...events], targets).duplicateSideEffects.count).toBe(0);
     const receipt = events.find((event) => event.kind === 'tool.receipt');
@@ -46,6 +92,7 @@ describe('recorded offline SLO evidence', () => {
     const report = sloReport([], targets);
     expect(report.acceptance.verdict).toBe('no_data');
     expect(report.auditCapture.ratio).toBeNull();
+    expect(report.auditCapture.verdict).toBe('no_data');
     expect(percentile95([])).toBeNull();
     expect(percentile95([100, 1, 2])).toBe(100);
   });

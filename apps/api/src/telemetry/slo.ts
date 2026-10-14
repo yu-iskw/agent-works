@@ -93,11 +93,11 @@ export function sloReport(input: readonly StructuredEvent[], targets: SloTargets
       unexpected,
       ratio: writes.size === 0 ? null : matched / writes.size,
       verdict:
-        writes.size === 0
-          ? 'no_data'
-          : missing.length === 0 && unexpected.length === 0 && auditKeys.length === captured.size
-            ? 'pass'
-            : 'fail',
+        missing.length > 0 || unexpected.length > 0 || auditKeys.length !== captured.size
+          ? 'fail'
+          : writes.size === 0
+            ? 'no_data'
+            : 'pass',
     },
     duplicateSideEffects: {
       count: receiptKeys.length - writes.size,

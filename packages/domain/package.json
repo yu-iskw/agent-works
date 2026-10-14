@@ -12,17 +12,17 @@
       "import": "./dist/index.js"
     },
     "./budget": {
-      "types": "./dist/budget.d.ts",
+      "types": "./src/budget.ts",
       "development": "./src/budget.ts",
       "import": "./dist/budget.js"
     },
     "./error-class": {
-      "types": "./dist/error-class.d.ts",
+      "types": "./src/error-class.ts",
       "development": "./src/error-class.ts",
       "import": "./dist/error-class.js"
     },
     "./error-class-retry": {
-      "types": "./dist/error-class-retry.d.ts",
+      "types": "./src/error-class-retry.ts",
       "development": "./src/error-class-retry.ts",
       "import": "./dist/error-class-retry.js"
     }
