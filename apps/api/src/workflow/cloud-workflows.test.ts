@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { transition } from '@agent-works/domain';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ConcurrentUpdate } from '../ports/ledger-port.js';
 import { createMemoryWorkflowPort } from '../ports/memory/workflow.js';
 
 import {
@@ -71,8 +72,7 @@ function ledgerState(initial = task()) {
     readOutbox: vi.fn(() => Promise.resolve(undefined)),
   };
   const commit = vi.fn<CloudWorkerDeps['commit']>((prior, update) => {
-    if (prior.version !== current.version)
-      return Promise.reject(new Error('ledger version conflict'));
+    if (prior.version !== current.version) return Promise.reject(new ConcurrentUpdate());
     if (prior.status !== update.status) current = transition(current, update.status);
     if (!events.some((event) => JSON.stringify(event) === JSON.stringify(update)))
       events.push(update);
@@ -738,6 +738,47 @@ describe('ledger-authoritative broker ticks and external receipts', () => {
 });
 
 describe('additional recovery boundaries', () => {
+  it('retries cancellation after checkpoint persistence and repeated worker version changes', async () => {
+    const ctx = setup();
+    ctx.active();
+    const signal = ctx.checkpoints.signal.bind(ctx.checkpoints);
+    vi.spyOn(ctx.checkpoints, 'signal').mockImplementation(async (input) => {
+      const outcome = await signal(input);
+      ctx.replace(transition(ctx.current(), 'RETRYING'));
+      return outcome;
+    });
+    vi.mocked(ctx.deps.cancelInLedger)
+      .mockImplementationOnce(async (prior, input) => {
+        ctx.replace(transition(ctx.current(), 'RUNNING'));
+        await ctx.commit(prior, { status: 'CANCELLED', stepId: input.kind });
+      })
+      .mockImplementationOnce(async (prior, input) => {
+        ctx.replace(transition(ctx.current(), 'RETRYING'));
+        await ctx.commit(prior, { status: 'CANCELLED', stepId: input.kind });
+      });
+
+    expect(await ctx.port.signal(cancel)).toBe('recorded');
+    expect(ctx.current().status).toBe('CANCELLED');
+    expect(vi.mocked(ctx.deps.cancelInLedger).mock.calls.map(([prior]) => prior.version)).toEqual([
+      1, 3, 4,
+    ]);
+    expect(ctx.calls).toEqual(fixture('cancel-requests'));
+  });
+
+  it('stops retrying cancellation when a concurrent worker commits a terminal status', async () => {
+    const ctx = setup();
+    ctx.active();
+    vi.mocked(ctx.deps.cancelInLedger).mockImplementationOnce(async (prior) => {
+      ctx.replace(transition(ctx.current(), 'COMPLETED'));
+      await ctx.commit(prior, { status: 'CANCELLED', stepId: 'cancel' });
+    });
+
+    expect(await ctx.port.signal(cancel)).toBe('recorded');
+    expect(ctx.current().status).toBe('COMPLETED');
+    expect(ctx.deps.cancelInLedger).toHaveBeenCalledOnce();
+    expect(ctx.calls).toEqual(fixture('cancel-requests'));
+  });
+
   it('repairs an outstanding receipt after cancellation and process death', async () => {
     const ctx = setup();
     const external = externalStep();

@@ -6,7 +6,13 @@
   },
   "workspaces": {
     ".": {
-      "entry": ["stylelint.config.mjs", "agents/skills/incident-analysis/eval-run.ts"],
+      "entry": [
+        "stylelint.config.mjs",
+        "agents/skills/incident-analysis/eval-run.ts",
+        "tools/finops/*.mjs",
+        "tools/slo/*.mjs",
+        "tools/restore-drill/*.mjs"
+      ],
       "project": [
         "**/*.{js,cjs,mjs,ts,cts,mts}",
         "!packages/**",
@@ -16,7 +22,27 @@
       ]
     },
     "apps/api": {
-      "entry": ["src/server.ts"],
+      "entry": [
+        "src/server.ts",
+        "src/reliability/dlq-service.ts",
+        "src/reliability/postgres-dlq.ts",
+        "src/reliability/retry-budget.ts",
+        "src/reliability/degradation.ts",
+        "src/reliability/drill-database.ts",
+        "src/finops/budget-guard.ts",
+        "src/finops/memory-budget.ts",
+        "src/finops/postgres-budget.ts",
+        "src/finops/showback.ts",
+        "src/finops/model.ts",
+        "src/finops/migration.ts",
+        "src/finops/provider-usage.ts",
+        "src/audit/siem-export/export.ts",
+        "src/audit/siem-export/file-sink.ts",
+        "src/audit/siem-export/memory-sink.ts",
+        "src/audit/siem-export/reconcile.ts",
+        "src/telemetry/events.ts",
+        "src/telemetry/slo.ts"
+      ],
       "project": ["src/**/*.ts"]
     },
     "apps/web": {

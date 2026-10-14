@@ -6,6 +6,8 @@ import {
   workflowSignalSchema,
 } from '@agent-works/domain';
 
+import { ConcurrentUpdate } from '../ports/ledger-port.js';
+
 import type { WorkflowLog } from './workflow-log.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { WorkflowPort } from '../ports/workflow.js';
@@ -97,7 +99,7 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
         const outcome = await deps.checkpoints.signal(parsed);
         // Reconcile even duplicates: a process may die after recording but before dispatch.
         if (parsed.kind === 'cancel') {
-          if (!terminalStatuses.includes(task.status)) await deps.cancelInLedger(task, parsed);
+          await cancelWithRetry(deps, task, parsed);
           task = await readTask(deps, task.id);
           if (!terminalStatuses.includes(task.status))
             throw new Error('cancellation was not committed');
@@ -111,6 +113,23 @@ export function createCloudWorkflowsPort(deps: CloudWorkflowDeps): WorkflowPort 
       return parsed.kind === 'cancel' ? apply() : deps.withTaskLock(parsed.taskId, apply);
     },
   };
+}
+
+/** Cancellation bypasses the worker lock, so each version conflict needs a fresh ledger read. */
+async function cancelWithRetry(
+  deps: CloudWorkflowDeps,
+  task: Task,
+  signal: WorkflowSignal,
+): Promise<void> {
+  while (!terminalStatuses.includes(task.status)) {
+    try {
+      await deps.cancelInLedger(task, signal);
+      return;
+    } catch (error) {
+      if (!(error instanceof ConcurrentUpdate)) throw error;
+      task = await readTask(deps, task.id);
+    }
+  }
 }
 
 /** Periodic recovery input comes from the ledger's nonterminal task scan, outside WorkflowPort. */

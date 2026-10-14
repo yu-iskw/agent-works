@@ -35,6 +35,13 @@ export class Unavailable extends Error {
   }
 }
 
+export class AuthorizationDenied extends Error {
+  constructor() {
+    super('authorization denied');
+    this.name = 'AuthorizationDenied';
+  }
+}
+
 export type VerifyAssertion = (assertion: string | undefined) => Promise<Caller>;
 
 export type IapVerifierOptions = {

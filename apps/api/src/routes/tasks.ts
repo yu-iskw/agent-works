@@ -2,7 +2,12 @@ import { IAP_ASSERTION_HEADER, taskApiSchema, terminalStatuses } from '@agent-wo
 import { decide } from '@agent-works/policy';
 
 import { rolesAt } from '../auth/directory.js';
-import { Unauthenticated, Unavailable, createIapVerifier } from '../auth/iap.js';
+import {
+  AuthorizationDenied,
+  Unauthenticated,
+  Unavailable,
+  createIapVerifier,
+} from '../auth/iap.js';
 import { headerValue } from '../http.js';
 import { ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
@@ -73,7 +78,8 @@ export function createTaskRoutes(
           skill === undefined
             ? undefined
             : await authorize(prior.caller, request, skill, authorization);
-        if (skill === undefined || refreshed === undefined) throw new Unavailable('authorization');
+        if (skill === undefined) throw new Unavailable('authorization');
+        if (refreshed === undefined) throw new AuthorizationDenied();
         const approvalId = request.input?.approvalId;
         const approval =
           typeof approvalId === 'string'
