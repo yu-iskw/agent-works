@@ -6,6 +6,10 @@
   "main": "dist/main.js",
   "types": "src/index.ts",
   "exports": {
+    "./adversarial": {
+      "types": "./src/adversarial/index.ts",
+      "import": "./dist/adversarial/index.js"
+    },
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "status",
+    "answer",
+    "citations",
+    "retrievedSourceIds",
+    "calls",
+    "diagnostics",
+    "workflow"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": ["answered", "abstained", "denied", "error", "deferred"]
+    },
+    "answer": {
+      "type": "string"
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "retrievedSourceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tool", "arguments", "authorized", "outcome"],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "minLength": 1
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "authorized": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": ["executed", "denied", "error", "replay"]
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "workflow": {
+      "enum": ["complete", "blocked", "replayed", "cancelled", "deferred"]
+    }
+  }
+}
