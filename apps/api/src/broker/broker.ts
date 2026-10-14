@@ -5,12 +5,15 @@ import {
   ticketCreateManifest,
 } from '@agent-works/domain';
 
+import { workspaceManifests } from '../../../../packages/domain/dist/workspace-tools.js';
 import { beforeToolCall } from '../suspension/runtime.js';
 
 import type { ApprovalStore, BindResult, ClaimOutcome, DecisionCommand } from './approvals.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { PolicyDecision } from '@agent-works/domain';
 import type { PolicyFacts } from '@agent-works/policy';
+
+export const registeredToolManifests = [ticketCreateManifest, ...workspaceManifests];
 
 export const TICKET_TOOL = `${ticketCreateManifest.metadata.name}@${ticketCreateManifest.metadata.version}`;
 

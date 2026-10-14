@@ -2,10 +2,13 @@ import { createHash } from 'node:crypto';
 
 import { oauthConnectionSchema, outboxEventSchema } from '@agent-works/domain';
 
+import { workspaceScopes } from '../../../../packages/domain/dist/workspace-tools.js';
+
 import { OAuthDenied, oauthFailure } from './denied.js';
 
 import type { GrantStore, OAuthGrant } from './grant.js';
 import type { OAuthProvider } from './provider.js';
+import type { WorkspaceToolName } from '../../../../packages/domain/dist/workspace-tools.js';
 import type { CredentialsPort } from '../ports/credentials.js';
 import type {
   OAuthCallback,
@@ -192,4 +195,25 @@ function ownedBy(
 
 function s256(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
+}
+
+/** Incremental scope requests retain existing grants without requesting unrelated tools. */
+export async function beginWorkspaceStepUp(
+  flow: OAuthFlow,
+  credentials: CredentialsPort,
+  subject: string,
+  tool: WorkspaceToolName,
+  start: Omit<OAuthStart, 'scope' | 'provider'>,
+): Promise<OAuthStarted> {
+  if (tool === 'gmail.send') throw new OAuthDenied(oauthFailure.rejected);
+  const stored = await credentials.read(subject, 'google');
+  if (stored && (stored.subject !== subject || stored.provider !== 'google'))
+    throw new OAuthDenied(oauthFailure.rejected);
+  if (stored?.status === 'revoked') throw new OAuthDenied(oauthFailure.rejected);
+  const required = new Map(Object.entries(workspaceScopes)).get(tool);
+  if (!required) throw new OAuthDenied(oauthFailure.rejected);
+  const scope = [...new Set([...(stored?.scope.split(/\s+/).filter(Boolean) ?? []), required])]
+    .sort()
+    .join(' ');
+  return flow.begin(subject, { ...start, provider: 'google', scope });
 }

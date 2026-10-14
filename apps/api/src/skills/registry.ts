@@ -1,4 +1,5 @@
 import { createIncidentSkill } from './incident.js';
+import { createMeetingPrepSkill } from './meeting-prep.js';
 
 import type { IncidentApprovalDeps, RegisteredSkill } from './incident.js';
 import type { SkillManifest } from '@agent-works/domain';
@@ -10,7 +11,7 @@ export type SkillRegistry = {
 };
 
 export function createSkillRegistry(
-  skills: readonly RegisteredSkill[] = [createIncidentSkill()],
+  skills: readonly RegisteredSkill[] = [createIncidentSkill(), createMeetingPrepSkill()],
 ): SkillRegistry {
   const registered = new Map(skills.map((skill) => [skill.manifest.id, skill]));
   return {
