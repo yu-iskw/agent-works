@@ -11,6 +11,11 @@ async function main(): Promise<number> {
       assertion: process.env.AW_IAP_ASSERTION,
     });
   }
+  if (process.argv[2] === 'governance') {
+    return (await import('./governance.js')).runGovernance(process.argv.slice(3), process.stdout, {
+      assertion: process.env.AW_IAP_ASSERTION,
+    });
+  }
   // Issue 135 subcommand registration. Other command blocks remain independent.
   if (process.argv[2] === 'dlq') {
     return (await import('./dlq.js')).runDlq(process.argv.slice(3), process.stdout);

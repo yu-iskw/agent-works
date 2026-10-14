@@ -1,3 +1,5 @@
+export { governedArtifactReadRoute as createArtifactsReadRoute } from '../governance/artifact-route.js';
+
 import { notImplementedRoute } from './not-implemented.js';
 
 import type { PatternSlot } from './slot.js';

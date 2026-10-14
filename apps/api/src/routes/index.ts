@@ -7,6 +7,7 @@ import { approvalsReadSlot } from './approvals-read.js';
 import { artifactsReadSlot } from './artifacts-read.js';
 import { createAskRoute } from './ask.js';
 import { eventsIngestRoutes } from './events-ingest.js';
+import { governanceRoutes } from './governance-routes.js';
 import { oauthConnectSlot } from './oauth-connect.js';
 import { createOAuthConnectionsReadRoute } from './oauth-connections-read.js';
 import { oauthRevokeSlot } from './oauth-revoke.js';
@@ -83,6 +84,7 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       adminReadRoutes({ ...deps.admin, verify: deps.verify }),
       adminChangeRoutes({ ...deps.admin, verify: deps.verify }),
     );
+  Object.assign(table, governanceRoutes(deps));
   const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??
