@@ -1,4 +1,5 @@
 import * as domain from '@agent-works/domain';
+import * as governance from '@agent-works/domain/data-governance';
 const object = (properties, required = Object.keys(properties)) => ({
   type: 'object',
   properties,
@@ -47,6 +48,44 @@ export function schemaComponents() {
     SuspensionSnapshot: json(domain.suspensionSnapshotSchema),
     SuspensionHistory: json(domain.suspensionHistorySchema),
     SuspensionResult: json(domain.suspensionResultSchema),
+    ScheduleSpec: json(domain.scheduleSpecSchema),
+    ScheduleRecord: json(domain.scheduleRecordSchema),
+    ScheduleList: object({
+      schedules: { type: 'array', items: json(domain.scheduleRecordSchema) },
+    }),
+    SchedulePreview: object({
+      allowed: { type: 'boolean' },
+      maxPrivilege: json(domain.schedulePrivilegeSchema),
+      authority: json(domain.schedulePrivilegeSchema),
+    }),
+    ScheduleHistory: object({ events: { type: 'array', items: json(domain.scheduleAuditSchema) } }),
+    ScheduleChange: object({
+      id: { type: 'string', format: 'uuid' },
+      expectedRevision: { type: 'integer', minimum: 1 },
+      action: { type: 'string', enum: ['pause', 'resume', 'revoke'] },
+    }),
+    ScheduleLookup: object({ id: { type: 'string', format: 'uuid' } }),
+    ScheduleRun: json(domain.scheduleRunSchema),
+    ScheduleRuns: object({ runs: { type: 'array', items: json(domain.scheduleRunSchema) } }),
+    EventTriggerCreate: json(domain.eventTriggerCreateSchema),
+    EventTriggerList: object({
+      triggers: { type: 'array', items: json(domain.eventTriggerSchema) },
+    }),
+    EventPayload: {
+      type: 'object',
+      additionalProperties: {
+        anyOf: [{ type: 'string', maxLength: 8192 }, { type: 'number' }, { type: 'boolean' }],
+      },
+    },
+    HoldCommand: json(governance.holdCommandSchema),
+    LegalHold: json(governance.legalHoldSchema),
+    LegalHoldList: object({ holds: { type: 'array', items: json(governance.legalHoldSchema) } }),
+    DeletionCommand: json(governance.deletionCommandSchema),
+    DeletionRequest: json(governance.deletionRequestSchema),
+    DeletionRequestList: object({
+      requests: { type: 'array', items: json(governance.deletionRequestSchema) },
+    }),
+    DeletionProcess: object({ requestId: { type: 'string', format: 'uuid' } }),
     Error: object({ error: string }),
   };
   function rewrite(value) {

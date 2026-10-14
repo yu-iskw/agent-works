@@ -16,6 +16,11 @@
       "development": "./src/budget.ts",
       "import": "./dist/budget.js"
     },
+    "./data-governance": {
+      "types": "./src/data-governance.ts",
+      "development": "./src/data-governance.ts",
+      "import": "./dist/data-governance.js"
+    },
     "./error-class": {
       "types": "./src/error-class.ts",
       "development": "./src/error-class.ts",

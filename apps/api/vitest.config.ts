@@ -17,6 +17,9 @@ export default defineProject({
       '@agent-works/domain/model-policy-benchmark': fileURLToPath(
         new URL('../../packages/domain/src/model-policy-benchmark.ts', import.meta.url),
       ),
+      '@agent-works/domain/data-governance': fileURLToPath(
+        new URL('../../packages/domain/src/data-governance.ts', import.meta.url),
+      ),
       '@agent-works/domain/budget': fileURLToPath(
         new URL('../../packages/domain/src/budget.ts', import.meta.url),
       ),

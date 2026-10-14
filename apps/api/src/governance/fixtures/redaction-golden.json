@@ -1,0 +1,532 @@
+[
+  {
+    "id": "public-scalar",
+    "classification": "PUBLIC",
+    "input": "CANARY_RESTRICTED_VALUE",
+    "expected": "CANARY_RESTRICTED_VALUE"
+  },
+  {
+    "id": "public-record",
+    "classification": "PUBLIC",
+    "input": {
+      "classification": "RESTRICTED",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "public-nested",
+    "classification": "PUBLIC",
+    "input": {
+      "visible": "safe",
+      "private": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "visible": "safe",
+      "private": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "public-array",
+    "classification": "PUBLIC",
+    "input": [
+      "safe",
+      {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    ],
+    "expected": ["safe", "[RESTRICTED]"]
+  },
+  {
+    "id": "public-invalid-label",
+    "classification": "PUBLIC",
+    "input": {
+      "classification": "UNKNOWN",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "public-downgrade",
+    "classification": "PUBLIC",
+    "input": {
+      "classification": "PUBLIC",
+      "nested": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "classification": "PUBLIC",
+      "nested": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "public-null",
+    "classification": "PUBLIC",
+    "input": null,
+    "expected": null
+  },
+  {
+    "id": "public-task-data",
+    "classification": "PUBLIC",
+    "input": {
+      "summary": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      },
+      "result": "safe"
+    },
+    "expected": {
+      "summary": "[RESTRICTED]",
+      "result": "safe"
+    }
+  },
+  {
+    "id": "public-empty",
+    "classification": "PUBLIC",
+    "input": {},
+    "expected": {}
+  },
+  {
+    "id": "public-unicode",
+    "classification": "PUBLIC",
+    "input": {
+      "notes": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_日本語_😀"
+      },
+      "status": "safe"
+    },
+    "expected": {
+      "notes": "[RESTRICTED]",
+      "status": "safe"
+    }
+  },
+  {
+    "id": "public-forged-roles",
+    "classification": "PUBLIC",
+    "input": {
+      "classification": "RESTRICTED",
+      "roles": ["admin"],
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "public-nested-array",
+    "classification": "PUBLIC",
+    "input": {
+      "items": [
+        [
+          {
+            "classification": "RESTRICTED",
+            "value": "CANARY_RESTRICTED_VALUE"
+          }
+        ],
+        ["safe"]
+      ]
+    },
+    "expected": {
+      "items": [["[RESTRICTED]"], ["safe"]]
+    }
+  },
+  {
+    "id": "internal-scalar",
+    "classification": "INTERNAL",
+    "input": "CANARY_RESTRICTED_VALUE",
+    "expected": "CANARY_RESTRICTED_VALUE"
+  },
+  {
+    "id": "internal-record",
+    "classification": "INTERNAL",
+    "input": {
+      "classification": "RESTRICTED",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "internal-nested",
+    "classification": "INTERNAL",
+    "input": {
+      "visible": "safe",
+      "private": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "visible": "safe",
+      "private": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "internal-array",
+    "classification": "INTERNAL",
+    "input": [
+      "safe",
+      {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    ],
+    "expected": ["safe", "[RESTRICTED]"]
+  },
+  {
+    "id": "internal-invalid-label",
+    "classification": "INTERNAL",
+    "input": {
+      "classification": "UNKNOWN",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "internal-downgrade",
+    "classification": "INTERNAL",
+    "input": {
+      "classification": "PUBLIC",
+      "nested": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "classification": "PUBLIC",
+      "nested": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "internal-null",
+    "classification": "INTERNAL",
+    "input": null,
+    "expected": null
+  },
+  {
+    "id": "internal-task-data",
+    "classification": "INTERNAL",
+    "input": {
+      "summary": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      },
+      "result": "safe"
+    },
+    "expected": {
+      "summary": "[RESTRICTED]",
+      "result": "safe"
+    }
+  },
+  {
+    "id": "internal-empty",
+    "classification": "INTERNAL",
+    "input": {},
+    "expected": {}
+  },
+  {
+    "id": "internal-unicode",
+    "classification": "INTERNAL",
+    "input": {
+      "notes": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_日本語_😀"
+      },
+      "status": "safe"
+    },
+    "expected": {
+      "notes": "[RESTRICTED]",
+      "status": "safe"
+    }
+  },
+  {
+    "id": "internal-forged-roles",
+    "classification": "INTERNAL",
+    "input": {
+      "classification": "RESTRICTED",
+      "roles": ["admin"],
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "internal-nested-array",
+    "classification": "INTERNAL",
+    "input": {
+      "items": [
+        [
+          {
+            "classification": "RESTRICTED",
+            "value": "CANARY_RESTRICTED_VALUE"
+          }
+        ],
+        ["safe"]
+      ]
+    },
+    "expected": {
+      "items": [["[RESTRICTED]"], ["safe"]]
+    }
+  },
+  {
+    "id": "confidential-scalar",
+    "classification": "CONFIDENTIAL",
+    "input": "CANARY_RESTRICTED_VALUE",
+    "expected": "CANARY_RESTRICTED_VALUE"
+  },
+  {
+    "id": "confidential-record",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "classification": "RESTRICTED",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "confidential-nested",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "visible": "safe",
+      "private": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "visible": "safe",
+      "private": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "confidential-array",
+    "classification": "CONFIDENTIAL",
+    "input": [
+      "safe",
+      {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    ],
+    "expected": ["safe", "[RESTRICTED]"]
+  },
+  {
+    "id": "confidential-invalid-label",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "classification": "UNKNOWN",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "confidential-downgrade",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "classification": "PUBLIC",
+      "nested": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": {
+      "classification": "PUBLIC",
+      "nested": "[RESTRICTED]"
+    }
+  },
+  {
+    "id": "confidential-null",
+    "classification": "CONFIDENTIAL",
+    "input": null,
+    "expected": null
+  },
+  {
+    "id": "confidential-task-data",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "summary": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      },
+      "result": "safe"
+    },
+    "expected": {
+      "summary": "[RESTRICTED]",
+      "result": "safe"
+    }
+  },
+  {
+    "id": "confidential-empty",
+    "classification": "CONFIDENTIAL",
+    "input": {},
+    "expected": {}
+  },
+  {
+    "id": "confidential-unicode",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "notes": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_日本語_😀"
+      },
+      "status": "safe"
+    },
+    "expected": {
+      "notes": "[RESTRICTED]",
+      "status": "safe"
+    }
+  },
+  {
+    "id": "confidential-forged-roles",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "classification": "RESTRICTED",
+      "roles": ["admin"],
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "confidential-nested-array",
+    "classification": "CONFIDENTIAL",
+    "input": {
+      "items": [
+        [
+          {
+            "classification": "RESTRICTED",
+            "value": "CANARY_RESTRICTED_VALUE"
+          }
+        ],
+        ["safe"]
+      ]
+    },
+    "expected": {
+      "items": [["[RESTRICTED]"], ["safe"]]
+    }
+  },
+  {
+    "id": "restricted-scalar",
+    "classification": "RESTRICTED",
+    "input": "CANARY_RESTRICTED_VALUE",
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-record",
+    "classification": "RESTRICTED",
+    "input": {
+      "classification": "RESTRICTED",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-nested",
+    "classification": "RESTRICTED",
+    "input": {
+      "visible": "safe",
+      "private": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-array",
+    "classification": "RESTRICTED",
+    "input": [
+      "safe",
+      {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    ],
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-invalid-label",
+    "classification": "RESTRICTED",
+    "input": {
+      "classification": "UNKNOWN",
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-downgrade",
+    "classification": "RESTRICTED",
+    "input": {
+      "classification": "PUBLIC",
+      "nested": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      }
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-null",
+    "classification": "RESTRICTED",
+    "input": null,
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-task-data",
+    "classification": "RESTRICTED",
+    "input": {
+      "summary": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_RESTRICTED_VALUE"
+      },
+      "result": "safe"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-empty",
+    "classification": "RESTRICTED",
+    "input": {},
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-unicode",
+    "classification": "RESTRICTED",
+    "input": {
+      "notes": {
+        "classification": "RESTRICTED",
+        "value": "CANARY_日本語_😀"
+      },
+      "status": "safe"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-forged-roles",
+    "classification": "RESTRICTED",
+    "input": {
+      "classification": "RESTRICTED",
+      "roles": ["admin"],
+      "value": "CANARY_RESTRICTED_VALUE"
+    },
+    "expected": "[RESTRICTED]"
+  },
+  {
+    "id": "restricted-nested-array",
+    "classification": "RESTRICTED",
+    "input": {
+      "items": [
+        [
+          {
+            "classification": "RESTRICTED",
+            "value": "CANARY_RESTRICTED_VALUE"
+          }
+        ],
+        ["safe"]
+      ]
+    },
+    "expected": "[RESTRICTED]"
+  }
+]

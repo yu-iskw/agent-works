@@ -21,6 +21,9 @@ export default defineConfig({
             '@agent-works/incident-analysis': fileURLToPath(
               new URL('./agents/skills/incident-analysis/deliver.ts', import.meta.url),
             ),
+            '@agent-works/domain/data-governance': fileURLToPath(
+              new URL('./packages/domain/src/data-governance.ts', import.meta.url),
+            ),
             '@agent-works/domain': fileURLToPath(
               new URL('./packages/domain/src/index.ts', import.meta.url),
             ),

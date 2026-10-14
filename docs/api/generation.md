@@ -30,4 +30,6 @@ The client drift comparison uses a normalized TypeScript syntax tree. It ignores
 
 The spec validator checks the emitted OpenAPI 3.1 vocabulary, unique operation IDs, required path parameters and referenced request/response components. It compiles embedded JSON Schemas using the existing Zod JSON Schema converter. It is scoped to this generator's vocabulary rather than an arbitrary third-party OpenAPI document.
 
+`operations.json` binds each route to request/response components. `successStatus` defaults to 200 and records 201/202 where handlers return them; the generated client uses the successful response schema. Event ingestion requires the six signature headers and overrides IAP security because its handler authenticates the signed event. Its payload component describes scalar JSON fields; the selected trigger applies field names, required fields and size limits at runtime. Hold commands include both set and release actions.
+
 `operations.json` is a reviewed binding, not an automatic extraction of handler control flow. Fingerprints detect changes requiring review; they do not infer a new operation's semantic behavior. Authentication and policy remain runtime decisions.

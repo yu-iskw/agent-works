@@ -12,6 +12,7 @@ const helloFixturePath = resolve(fixtureDirectory, 'hello.json');
 const hostileFollowPath = resolve(fixtureDirectory, 'hostile-follow.json');
 const loopingPath = resolve(fixtureDirectory, 'looping.json');
 const triageFixturePath = resolve(fixtureDirectory, 'triage.json');
+const triageSourceDataPath = resolve(fixtureDirectory, 'triage-source-data.json');
 const unknownScript = 'unknown script';
 const badFixture = 'llm fixture';
 
@@ -53,6 +54,7 @@ function loadScripts(): { byHash: Map<string, unknown>; cues: readonly CueScript
   addFixture(byHash, cues, readFileSync(hostileFollowPath, 'utf8'));
   addFixture(byHash, cues, readFileSync(loopingPath, 'utf8'));
   addFixture(byHash, cues, readFileSync(triageFixturePath, 'utf8'));
+  addFixture(byHash, cues, readFileSync(triageSourceDataPath, 'utf8'));
   return { byHash, cues };
 }
 

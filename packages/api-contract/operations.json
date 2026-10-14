@@ -168,5 +168,157 @@
     "parameter": null,
     "headers": [],
     "implemented": true
+  },
+  {
+    "operationId": "createSchedule",
+    "method": "POST",
+    "path": "/v1/schedules",
+    "request": "ScheduleSpec",
+    "response": "ScheduleRecord",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 201
+  },
+  {
+    "operationId": "previewSchedule",
+    "method": "POST",
+    "path": "/v1/schedules/preview",
+    "request": "ScheduleSpec",
+    "response": "SchedulePreview",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "listSchedules",
+    "method": "GET",
+    "path": "/v1/schedules",
+    "request": null,
+    "response": "ScheduleList",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "scheduleHistory",
+    "method": "GET",
+    "path": "/v1/schedules/history",
+    "request": null,
+    "response": "ScheduleHistory",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "changeSchedule",
+    "method": "POST",
+    "path": "/v1/schedules/change",
+    "request": "ScheduleChange",
+    "response": "ScheduleRecord",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "scheduleRuns",
+    "method": "POST",
+    "path": "/v1/schedules/runs",
+    "request": "ScheduleLookup",
+    "response": "ScheduleRuns",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "createEventTrigger",
+    "method": "POST",
+    "path": "/v1/schedules/triggers",
+    "request": "EventTriggerCreate",
+    "response": "ScheduleRecord",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 201
+  },
+  {
+    "operationId": "listEventTriggers",
+    "method": "GET",
+    "path": "/v1/schedules/triggers",
+    "request": null,
+    "response": "EventTriggerList",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "ingestEvent",
+    "method": "POST",
+    "path": "/v1/events/ingest",
+    "request": "EventPayload",
+    "response": "ScheduleRun",
+    "parameter": null,
+    "headers": [
+      "x-aw-trigger-id",
+      "x-aw-event-source",
+      "x-aw-event-id",
+      "x-aw-event-time",
+      "x-aw-key-id",
+      "x-aw-signature"
+    ],
+    "implemented": true,
+    "successStatus": 202,
+    "security": []
+  },
+  {
+    "operationId": "listLegalHolds",
+    "method": "GET",
+    "path": "/v1/admin/governance/holds",
+    "request": null,
+    "response": "LegalHoldList",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "changeLegalHold",
+    "method": "POST",
+    "path": "/v1/admin/governance/holds",
+    "request": "HoldCommand",
+    "response": "LegalHold",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "listDeletionRequests",
+    "method": "GET",
+    "path": "/v1/admin/governance/deletions",
+    "request": null,
+    "response": "DeletionRequestList",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "createDeletionRequest",
+    "method": "POST",
+    "path": "/v1/admin/governance/deletions",
+    "request": "DeletionCommand",
+    "response": "DeletionRequest",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 202
+  },
+  {
+    "operationId": "processDeletionRequest",
+    "method": "POST",
+    "path": "/v1/admin/governance/deletions/process",
+    "request": "DeletionProcess",
+    "response": "DeletionRequest",
+    "parameter": null,
+    "headers": [],
+    "implemented": true
   }
 ]

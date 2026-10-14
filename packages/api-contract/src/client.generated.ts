@@ -320,6 +320,395 @@ export type SuspensionResult = {
       };
   readonly replay: boolean;
 };
+export type ScheduleSpec = {
+  readonly id: string;
+  readonly sponsor: {
+    readonly kind: 'human';
+    readonly sub: string;
+    readonly enterpriseId: string;
+    readonly email: string;
+    readonly groups: readonly string[];
+    readonly groupsObservedAt: string;
+  };
+  readonly purpose: string;
+  readonly consentRef: string;
+  readonly maxPrivilege: {
+    readonly scopes: readonly string[];
+    readonly sources: readonly string[];
+    readonly skill: { readonly id: string; readonly version: string };
+    readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+    readonly regions: readonly string[];
+    readonly budgetUsd: number;
+    readonly deadlineSeconds: number;
+  };
+  readonly task: {
+    readonly objective: string;
+    readonly skillId: string;
+    readonly input?: { readonly [key: string]: JsonValue };
+    readonly sourceAllowlist: readonly string[];
+    readonly requestedOutputs: readonly string[];
+    readonly executionPolicy: {
+      readonly mode: string;
+      readonly budgetUsd: number;
+      readonly deadlineSeconds: number;
+    };
+  };
+  readonly timing:
+    | { readonly kind: 'interval'; readonly everySeconds: number; readonly anchor: string }
+    | { readonly kind: 'cron'; readonly expression: string };
+  readonly timezone: string;
+  readonly allowedWindow: {
+    readonly weekdays: readonly number[];
+    readonly start: string;
+    readonly end: string;
+  };
+  readonly expiresAt: string;
+  readonly misfire: 'skip' | 'catch-up-once';
+  readonly revocation: { readonly onRevocation: 'cancel-in-flight' };
+};
+export type ScheduleRecord = {
+  readonly spec: {
+    readonly id: string;
+    readonly sponsor: {
+      readonly kind: 'human';
+      readonly sub: string;
+      readonly enterpriseId: string;
+      readonly email: string;
+      readonly groups: readonly string[];
+      readonly groupsObservedAt: string;
+    };
+    readonly purpose: string;
+    readonly consentRef: string;
+    readonly maxPrivilege: {
+      readonly scopes: readonly string[];
+      readonly sources: readonly string[];
+      readonly skill: { readonly id: string; readonly version: string };
+      readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+      readonly regions: readonly string[];
+      readonly budgetUsd: number;
+      readonly deadlineSeconds: number;
+    };
+    readonly task: {
+      readonly objective: string;
+      readonly skillId: string;
+      readonly input?: { readonly [key: string]: JsonValue };
+      readonly sourceAllowlist: readonly string[];
+      readonly requestedOutputs: readonly string[];
+      readonly executionPolicy: {
+        readonly mode: string;
+        readonly budgetUsd: number;
+        readonly deadlineSeconds: number;
+      };
+    };
+    readonly timing:
+      | { readonly kind: 'interval'; readonly everySeconds: number; readonly anchor: string }
+      | { readonly kind: 'cron'; readonly expression: string };
+    readonly timezone: string;
+    readonly allowedWindow: {
+      readonly weekdays: readonly number[];
+      readonly start: string;
+      readonly end: string;
+    };
+    readonly expiresAt: string;
+    readonly misfire: 'skip' | 'catch-up-once';
+    readonly revocation: { readonly onRevocation: 'cancel-in-flight' };
+  };
+  readonly digest: string;
+  readonly state: 'active' | 'paused' | 'revoked';
+  readonly revision: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly cursor: string;
+};
+export type ScheduleList = {
+  readonly schedules: readonly {
+    readonly spec: {
+      readonly id: string;
+      readonly sponsor: {
+        readonly kind: 'human';
+        readonly sub: string;
+        readonly enterpriseId: string;
+        readonly email: string;
+        readonly groups: readonly string[];
+        readonly groupsObservedAt: string;
+      };
+      readonly purpose: string;
+      readonly consentRef: string;
+      readonly maxPrivilege: {
+        readonly scopes: readonly string[];
+        readonly sources: readonly string[];
+        readonly skill: { readonly id: string; readonly version: string };
+        readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+        readonly regions: readonly string[];
+        readonly budgetUsd: number;
+        readonly deadlineSeconds: number;
+      };
+      readonly task: {
+        readonly objective: string;
+        readonly skillId: string;
+        readonly input?: { readonly [key: string]: JsonValue };
+        readonly sourceAllowlist: readonly string[];
+        readonly requestedOutputs: readonly string[];
+        readonly executionPolicy: {
+          readonly mode: string;
+          readonly budgetUsd: number;
+          readonly deadlineSeconds: number;
+        };
+      };
+      readonly timing:
+        | { readonly kind: 'interval'; readonly everySeconds: number; readonly anchor: string }
+        | { readonly kind: 'cron'; readonly expression: string };
+      readonly timezone: string;
+      readonly allowedWindow: {
+        readonly weekdays: readonly number[];
+        readonly start: string;
+        readonly end: string;
+      };
+      readonly expiresAt: string;
+      readonly misfire: 'skip' | 'catch-up-once';
+      readonly revocation: { readonly onRevocation: 'cancel-in-flight' };
+    };
+    readonly digest: string;
+    readonly state: 'active' | 'paused' | 'revoked';
+    readonly revision: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly cursor: string;
+  }[];
+};
+export type SchedulePreview = {
+  readonly allowed: boolean;
+  readonly maxPrivilege: {
+    readonly scopes: readonly string[];
+    readonly sources: readonly string[];
+    readonly skill: { readonly id: string; readonly version: string };
+    readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+    readonly regions: readonly string[];
+    readonly budgetUsd: number;
+    readonly deadlineSeconds: number;
+  };
+  readonly authority: {
+    readonly scopes: readonly string[];
+    readonly sources: readonly string[];
+    readonly skill: { readonly id: string; readonly version: string };
+    readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+    readonly regions: readonly string[];
+    readonly budgetUsd: number;
+    readonly deadlineSeconds: number;
+  };
+};
+export type ScheduleHistory = {
+  readonly events: readonly {
+    readonly id: string;
+    readonly scheduleId: string;
+    readonly actorSub: string;
+    readonly at: string;
+    readonly kind:
+      | 'created'
+      | 'paused'
+      | 'resumed'
+      | 'revoked'
+      | 'claimed'
+      | 'accepted'
+      | 'denied'
+      | 'cancelled'
+      | 'completed'
+      | 'event-received';
+    readonly reason: string | null;
+    readonly runId: string | null;
+    readonly digest: string;
+  }[];
+};
+export type ScheduleChange = {
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly action: 'pause' | 'resume' | 'revoke';
+};
+export type ScheduleLookup = { readonly id: string };
+export type ScheduleRun = {
+  readonly id: string;
+  readonly scheduleId: string;
+  readonly fireAt: string;
+  readonly status: 'dispatching' | 'accepted' | 'denied' | 'cancelled' | 'completed';
+  readonly taskId: string | null;
+  readonly reason: string | null;
+  readonly leaseOwner: string;
+  readonly leaseUntil: string;
+  readonly fence: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly eventKey: string | null;
+};
+export type ScheduleRuns = {
+  readonly runs: readonly {
+    readonly id: string;
+    readonly scheduleId: string;
+    readonly fireAt: string;
+    readonly status: 'dispatching' | 'accepted' | 'denied' | 'cancelled' | 'completed';
+    readonly taskId: string | null;
+    readonly reason: string | null;
+    readonly leaseOwner: string;
+    readonly leaseUntil: string;
+    readonly fence: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly eventKey: string | null;
+  }[];
+};
+export type EventTriggerCreate = {
+  readonly schedule: {
+    readonly id: string;
+    readonly sponsor: {
+      readonly kind: 'human';
+      readonly sub: string;
+      readonly enterpriseId: string;
+      readonly email: string;
+      readonly groups: readonly string[];
+      readonly groupsObservedAt: string;
+    };
+    readonly purpose: string;
+    readonly consentRef: string;
+    readonly maxPrivilege: {
+      readonly scopes: readonly string[];
+      readonly sources: readonly string[];
+      readonly skill: { readonly id: string; readonly version: string };
+      readonly classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+      readonly regions: readonly string[];
+      readonly budgetUsd: number;
+      readonly deadlineSeconds: number;
+    };
+    readonly task: {
+      readonly objective: string;
+      readonly skillId: string;
+      readonly input?: { readonly [key: string]: JsonValue };
+      readonly sourceAllowlist: readonly string[];
+      readonly requestedOutputs: readonly string[];
+      readonly executionPolicy: {
+        readonly mode: string;
+        readonly budgetUsd: number;
+        readonly deadlineSeconds: number;
+      };
+    };
+    readonly timing:
+      | { readonly kind: 'interval'; readonly everySeconds: number; readonly anchor: string }
+      | { readonly kind: 'cron'; readonly expression: string };
+    readonly timezone: string;
+    readonly allowedWindow: {
+      readonly weekdays: readonly number[];
+      readonly start: string;
+      readonly end: string;
+    };
+    readonly expiresAt: string;
+    readonly misfire: 'skip' | 'catch-up-once';
+    readonly revocation: { readonly onRevocation: 'cancel-in-flight' };
+  };
+  readonly trigger: {
+    readonly id: string;
+    readonly scheduleId: string;
+    readonly source: string;
+    readonly signingKeyId: string;
+    readonly algorithm: 'HS256' | 'RS256' | 'EdDSA';
+    readonly replayWindowSeconds: number;
+    readonly payloadSchema: {
+      readonly type: 'object';
+      readonly additionalProperties: false;
+      readonly properties: {
+        readonly [key: string]: {
+          readonly type: 'string' | 'number' | 'boolean';
+          readonly required: boolean;
+          readonly maxLength?: number;
+        };
+      };
+    };
+  };
+};
+export type EventTriggerList = {
+  readonly triggers: readonly {
+    readonly id: string;
+    readonly scheduleId: string;
+    readonly source: string;
+    readonly signingKeyId: string;
+    readonly algorithm: 'HS256' | 'RS256' | 'EdDSA';
+    readonly replayWindowSeconds: number;
+    readonly payloadSchema: {
+      readonly type: 'object';
+      readonly additionalProperties: false;
+      readonly properties: {
+        readonly [key: string]: {
+          readonly type: 'string' | 'number' | 'boolean';
+          readonly required: boolean;
+          readonly maxLength?: number;
+        };
+      };
+    };
+  }[];
+};
+export type EventPayload = { readonly [key: string]: string | number | boolean };
+export type HoldCommand = {
+  readonly commandId: string;
+  readonly target:
+    | { readonly kind: 'record'; readonly id: string }
+    | { readonly kind: 'owner'; readonly id: string }
+    | { readonly kind: 'source'; readonly id: string };
+  readonly action: 'set' | 'release';
+  readonly reasonRef: string;
+};
+export type LegalHold = {
+  readonly commandId: string;
+  readonly target:
+    | { readonly kind: 'record'; readonly id: string }
+    | { readonly kind: 'owner'; readonly id: string }
+    | { readonly kind: 'source'; readonly id: string };
+  readonly action: 'set' | 'release';
+  readonly reasonRef: string;
+  readonly actor: string;
+  readonly occurredAt: string;
+  readonly sequence: number;
+};
+export type LegalHoldList = {
+  readonly holds: readonly {
+    readonly commandId: string;
+    readonly target:
+      | { readonly kind: 'record'; readonly id: string }
+      | { readonly kind: 'owner'; readonly id: string }
+      | { readonly kind: 'source'; readonly id: string };
+    readonly action: 'set' | 'release';
+    readonly reasonRef: string;
+    readonly actor: string;
+    readonly occurredAt: string;
+    readonly sequence: number;
+  }[];
+};
+export type DeletionCommand = {
+  readonly requestId: string;
+  readonly subject: string;
+  readonly reasonRef: string;
+};
+export type DeletionRequest = {
+  readonly requestId: string;
+  readonly subject: string;
+  readonly reasonRef: string;
+  readonly actor: string;
+  readonly requestedAt: string;
+  readonly updatedAt: string;
+  readonly state: 'REQUESTED' | 'HELD' | 'SCHEDULED' | 'PURGED' | 'REJECTED';
+  readonly rejectionRef: string | null;
+  readonly revision: number;
+};
+export type DeletionRequestList = {
+  readonly requests: readonly {
+    readonly requestId: string;
+    readonly subject: string;
+    readonly reasonRef: string;
+    readonly actor: string;
+    readonly requestedAt: string;
+    readonly updatedAt: string;
+    readonly state: 'REQUESTED' | 'HELD' | 'SCHEDULED' | 'PURGED' | 'REJECTED';
+    readonly rejectionRef: string | null;
+    readonly revision: number;
+  }[];
+};
+export type DeletionProcess = { readonly requestId: string };
 export type Error = { readonly error: string };
 export type JsonValue =
   string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
@@ -467,6 +856,161 @@ export class ApiClient {
       'changeVersion',
       'POST',
       `/v1/admin/versions`,
+      body,
+      headers,
+    );
+  }
+  createSchedule(
+    body: ScheduleSpec,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<ScheduleRecord> {
+    return this.transport.request<ScheduleRecord>(
+      'createSchedule',
+      'POST',
+      `/v1/schedules`,
+      body,
+      headers,
+    );
+  }
+  listSchedules(headers: Readonly<Record<string, string>> = {}): Promise<ScheduleList> {
+    return this.transport.request<ScheduleList>(
+      'listSchedules',
+      'GET',
+      `/v1/schedules`,
+      undefined,
+      headers,
+    );
+  }
+  previewSchedule(
+    body: ScheduleSpec,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<SchedulePreview> {
+    return this.transport.request<SchedulePreview>(
+      'previewSchedule',
+      'POST',
+      `/v1/schedules/preview`,
+      body,
+      headers,
+    );
+  }
+  scheduleHistory(headers: Readonly<Record<string, string>> = {}): Promise<ScheduleHistory> {
+    return this.transport.request<ScheduleHistory>(
+      'scheduleHistory',
+      'GET',
+      `/v1/schedules/history`,
+      undefined,
+      headers,
+    );
+  }
+  changeSchedule(
+    body: ScheduleChange,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<ScheduleRecord> {
+    return this.transport.request<ScheduleRecord>(
+      'changeSchedule',
+      'POST',
+      `/v1/schedules/change`,
+      body,
+      headers,
+    );
+  }
+  scheduleRuns(
+    body: ScheduleLookup,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<ScheduleRuns> {
+    return this.transport.request<ScheduleRuns>(
+      'scheduleRuns',
+      'POST',
+      `/v1/schedules/runs`,
+      body,
+      headers,
+    );
+  }
+  createEventTrigger(
+    body: EventTriggerCreate,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<ScheduleRecord> {
+    return this.transport.request<ScheduleRecord>(
+      'createEventTrigger',
+      'POST',
+      `/v1/schedules/triggers`,
+      body,
+      headers,
+    );
+  }
+  listEventTriggers(headers: Readonly<Record<string, string>> = {}): Promise<EventTriggerList> {
+    return this.transport.request<EventTriggerList>(
+      'listEventTriggers',
+      'GET',
+      `/v1/schedules/triggers`,
+      undefined,
+      headers,
+    );
+  }
+  ingestEvent(
+    body: EventPayload,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<ScheduleRun> {
+    return this.transport.request<ScheduleRun>(
+      'ingestEvent',
+      'POST',
+      `/v1/events/ingest`,
+      body,
+      headers,
+    );
+  }
+  listLegalHolds(headers: Readonly<Record<string, string>> = {}): Promise<LegalHoldList> {
+    return this.transport.request<LegalHoldList>(
+      'listLegalHolds',
+      'GET',
+      `/v1/admin/governance/holds`,
+      undefined,
+      headers,
+    );
+  }
+  changeLegalHold(
+    body: HoldCommand,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<LegalHold> {
+    return this.transport.request<LegalHold>(
+      'changeLegalHold',
+      'POST',
+      `/v1/admin/governance/holds`,
+      body,
+      headers,
+    );
+  }
+  listDeletionRequests(
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<DeletionRequestList> {
+    return this.transport.request<DeletionRequestList>(
+      'listDeletionRequests',
+      'GET',
+      `/v1/admin/governance/deletions`,
+      undefined,
+      headers,
+    );
+  }
+  createDeletionRequest(
+    body: DeletionCommand,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<DeletionRequest> {
+    return this.transport.request<DeletionRequest>(
+      'createDeletionRequest',
+      'POST',
+      `/v1/admin/governance/deletions`,
+      body,
+      headers,
+    );
+  }
+  processDeletionRequest(
+    body: DeletionProcess,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<DeletionRequest> {
+    return this.transport.request<DeletionRequest>(
+      'processDeletionRequest',
+      'POST',
+      `/v1/admin/governance/deletions/process`,
       body,
       headers,
     );
