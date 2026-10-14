@@ -1,0 +1,226 @@
+[
+  {
+    "id": "tables-001",
+    "category": "tables",
+    "sql": "SELECT region FROM private.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-002",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.secrets WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-003",
+    "category": "tables",
+    "sql": "SELECT region FROM other.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-004",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.customers WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-005",
+    "category": "tables",
+    "sql": "SELECT region FROM project.approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-006",
+    "category": "tables",
+    "sql": "SELECT region FROM foreign.approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-007",
+    "category": "tables",
+    "sql": "SELECT region FROM `project.approved.sales` WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-008",
+    "category": "tables",
+    "sql": "SELECT region FROM `approved.sales` WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-009",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales@123 WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-010",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales$20261001 WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-011",
+    "category": "tables",
+    "sql": "SELECT region FROM INFORMATION_SCHEMA.TABLES WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-012",
+    "category": "tables",
+    "sql": "SELECT region FROM sys.users WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-013",
+    "category": "tables",
+    "sql": "SELECT region FROM EXTERNAL_QUERY('x','sql') WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-014",
+    "category": "tables",
+    "sql": "SELECT region FROM UNNEST([1]) WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-015",
+    "category": "tables",
+    "sql": "SELECT region FROM read_csv('/etc/passwd') WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-016",
+    "category": "tables",
+    "sql": "SELECT region FROM read_parquet('https://x') WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-017",
+    "category": "tables",
+    "sql": "SELECT region FROM pg_catalog.pg_user WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-018",
+    "category": "tables",
+    "sql": "SELECT region FROM generate_series(1,10) WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-019",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales, approved.customers WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-020",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales CROSS JOIN approved.customers WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-021",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales UNION SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-022",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales RIGHT JOIN approved.customers ON 1=1 WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-023",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS a LEFT JOIN approved.sales AS b ON a.day = b.day WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-024",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales PIVOT(SUM(amount) FOR region IN ('east')) WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-025",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales TABLESAMPLE SYSTEM (10 PERCENT) WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-026",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales FOR SYSTEM_TIME AS OF '2026-10-01' WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-027",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales QUALIFY ROW_NUMBER() OVER () = 1 WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-028",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS __proto__ WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-029",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS constructor WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-030",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS sales JOIN approved.sales AS sales ON sales.day = sales.day WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-031",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS x JOIN approved.customers AS y ON x.day = x.day WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "tables-032",
+    "category": "tables",
+    "sql": "SELECT region FROM approved.sales AS x JOIN approved.customers AS y ON x.day > y.day WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  }
+]

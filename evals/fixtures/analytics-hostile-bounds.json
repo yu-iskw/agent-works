@@ -1,0 +1,226 @@
+[
+  {
+    "id": "bounds-001",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01'",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-002",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 0",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-003",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT -1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-004",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 1001",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-005",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 999999999999999999999",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-006",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 1.5",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-007",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT @limit",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-008",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT ALL",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-009",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT NULL",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-010",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 OFFSET 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-011",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20;",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-012",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 UNION SELECT 1",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-013",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 FETCH FIRST 1 ROW ONLY",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-014",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 FOR UPDATE",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-015",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20 INTO x",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-016",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE region = 'east' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-017",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day <= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-018",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day < '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-019",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day = NULL LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-020",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day = 'anything' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-021",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day = 1 LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-022",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day = day LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-023",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= @missing LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-024",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' OR 1=1 LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-025",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' OR region = 'east' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-026",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' AND secret = 'x' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-027",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' AND 1=1 LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-028",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' AND region IN ('east') LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-029",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE NOT day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-030",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' AND EXISTS(SELECT 1) LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-031",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day >= '2026-10-01' HAVING 1=1 LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "bounds-032",
+    "category": "bounds",
+    "sql": "SELECT region FROM approved.sales WHERE day BETWEEN '2026-10-01' AND '2026-10-02' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  }
+]

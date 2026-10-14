@@ -1,0 +1,23 @@
+{
+  "version": "1",
+  "event_id": "14700000-0000-4000-8000-000000000002",
+  "event_type": "analytics.query",
+  "occurred_at": "2026-10-14T10:00:00.000Z",
+  "actor_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "query_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "params_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "outcome": "allowed",
+  "reason": null,
+  "vetted": false,
+  "estimated_bytes": 512,
+  "columns": {
+    "region": "INTERNAL",
+    "email": "RESTRICTED"
+  },
+  "rows": [
+    {
+      "region": "east",
+      "email": "[RESTRICTED]"
+    }
+  ]
+}

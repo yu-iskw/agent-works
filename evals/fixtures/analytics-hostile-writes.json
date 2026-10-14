@@ -1,0 +1,226 @@
+[
+  {
+    "id": "writes-001",
+    "category": "writes",
+    "sql": "DELETE FROM approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-002",
+    "category": "writes",
+    "sql": "DELETE FROM approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-003",
+    "category": "writes",
+    "sql": "DELETE FROM private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-004",
+    "category": "writes",
+    "sql": "DELETE FROM other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-005",
+    "category": "writes",
+    "sql": "INSERT INTO approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-006",
+    "category": "writes",
+    "sql": "INSERT INTO approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-007",
+    "category": "writes",
+    "sql": "INSERT INTO private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-008",
+    "category": "writes",
+    "sql": "INSERT INTO other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-009",
+    "category": "writes",
+    "sql": "UPDATE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-010",
+    "category": "writes",
+    "sql": "UPDATE approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-011",
+    "category": "writes",
+    "sql": "UPDATE private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-012",
+    "category": "writes",
+    "sql": "UPDATE other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-013",
+    "category": "writes",
+    "sql": "MERGE INTO approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-014",
+    "category": "writes",
+    "sql": "MERGE INTO approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-015",
+    "category": "writes",
+    "sql": "MERGE INTO private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-016",
+    "category": "writes",
+    "sql": "MERGE INTO other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-017",
+    "category": "writes",
+    "sql": "TRUNCATE TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-018",
+    "category": "writes",
+    "sql": "TRUNCATE TABLE approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-019",
+    "category": "writes",
+    "sql": "TRUNCATE TABLE private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-020",
+    "category": "writes",
+    "sql": "TRUNCATE TABLE other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-021",
+    "category": "writes",
+    "sql": "DROP TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-022",
+    "category": "writes",
+    "sql": "DROP TABLE approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-023",
+    "category": "writes",
+    "sql": "DROP TABLE private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-024",
+    "category": "writes",
+    "sql": "DROP TABLE other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-025",
+    "category": "writes",
+    "sql": "ALTER TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-026",
+    "category": "writes",
+    "sql": "ALTER TABLE approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-027",
+    "category": "writes",
+    "sql": "ALTER TABLE private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-028",
+    "category": "writes",
+    "sql": "ALTER TABLE other.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-029",
+    "category": "writes",
+    "sql": "CREATE TABLE approved.sales",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-030",
+    "category": "writes",
+    "sql": "CREATE TABLE approved.customers",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-031",
+    "category": "writes",
+    "sql": "CREATE TABLE private.secrets",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "writes-032",
+    "category": "writes",
+    "sql": "CREATE TABLE other.sales",
+    "params": {},
+    "expected": "reject"
+  }
+]

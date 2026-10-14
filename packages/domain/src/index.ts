@@ -131,3 +131,5 @@ export * from './schedule-run.js';
 export * from './schedule-cron.js';
 export * from './event-trigger-payload.js';
 export * from './schedule-fixtures.js';
+export * from './analytics.js';
+export * from './analytics-report.js';

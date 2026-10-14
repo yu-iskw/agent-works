@@ -1,0 +1,226 @@
+[
+  {
+    "id": "functions-001",
+    "category": "functions",
+    "sql": "SELECT RAND() AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-002",
+    "category": "functions",
+    "sql": "SELECT CURRENT_TIMESTAMP() AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-003",
+    "category": "functions",
+    "sql": "SELECT CURRENT_DATE() AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-004",
+    "category": "functions",
+    "sql": "SELECT SESSION_USER() AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-005",
+    "category": "functions",
+    "sql": "SELECT FORMAT('%s', region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-006",
+    "category": "functions",
+    "sql": "SELECT CONCAT(region, email) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-007",
+    "category": "functions",
+    "sql": "SELECT LOWER(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-008",
+    "category": "functions",
+    "sql": "SELECT UPPER(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-009",
+    "category": "functions",
+    "sql": "SELECT JSON_VALUE(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-010",
+    "category": "functions",
+    "sql": "SELECT TO_JSON(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-011",
+    "category": "functions",
+    "sql": "SELECT NET.HOST(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-012",
+    "category": "functions",
+    "sql": "SELECT ML.PREDICT(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-013",
+    "category": "functions",
+    "sql": "SELECT EXTERNAL_QUERY(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-014",
+    "category": "functions",
+    "sql": "SELECT ST_GEOGFROMTEXT(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-015",
+    "category": "functions",
+    "sql": "SELECT REGEXP_EXTRACT(region, 'x') AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-016",
+    "category": "functions",
+    "sql": "SELECT ERROR(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-017",
+    "category": "functions",
+    "sql": "SELECT ASSERT(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-018",
+    "category": "functions",
+    "sql": "SELECT LOAD_EXTENSION(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-019",
+    "category": "functions",
+    "sql": "SELECT HTTP_GET(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-020",
+    "category": "functions",
+    "sql": "SELECT read_json(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-021",
+    "category": "functions",
+    "sql": "SELECT read_csv_auto(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-022",
+    "category": "functions",
+    "sql": "SELECT query(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-023",
+    "category": "functions",
+    "sql": "SELECT eval(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-024",
+    "category": "functions",
+    "sql": "SELECT javascript(region) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-025",
+    "category": "functions",
+    "sql": "SELECT SUM(DISTINCT amount) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-026",
+    "category": "functions",
+    "sql": "SELECT COUNT(DISTINCT customer_id) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-027",
+    "category": "functions",
+    "sql": "SELECT AVG(*) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-028",
+    "category": "functions",
+    "sql": "SELECT SUM(*) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-029",
+    "category": "functions",
+    "sql": "SELECT MIN(*) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-030",
+    "category": "functions",
+    "sql": "SELECT MAX(*) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-031",
+    "category": "functions",
+    "sql": "SELECT COUNT() AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "functions-032",
+    "category": "functions",
+    "sql": "SELECT SUM(amount, amount) AS output FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  }
+]

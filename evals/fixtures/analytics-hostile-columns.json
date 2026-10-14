@@ -1,0 +1,226 @@
+[
+  {
+    "id": "columns-001",
+    "category": "columns",
+    "sql": "SELECT * FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-002",
+    "category": "columns",
+    "sql": "SELECT sales.* FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-003",
+    "category": "columns",
+    "sql": "SELECT secret FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-004",
+    "category": "columns",
+    "sql": "SELECT email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-005",
+    "category": "columns",
+    "sql": "SELECT password FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-006",
+    "category": "columns",
+    "sql": "SELECT nonexistent FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-007",
+    "category": "columns",
+    "sql": "SELECT sales.secret FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-008",
+    "category": "columns",
+    "sql": "SELECT customers.email FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-009",
+    "category": "columns",
+    "sql": "SELECT region, secret FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-010",
+    "category": "columns",
+    "sql": "SELECT region AS constructor FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-011",
+    "category": "columns",
+    "sql": "SELECT region AS __proto__ FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-012",
+    "category": "columns",
+    "sql": "SELECT region AS prototype FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-013",
+    "category": "columns",
+    "sql": "SELECT region AS x, amount AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-014",
+    "category": "columns",
+    "sql": "SELECT REGION FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-015",
+    "category": "columns",
+    "sql": "SELECT (SELECT email FROM approved.customers) FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-016",
+    "category": "columns",
+    "sql": "SELECT SUM(secret) AS s FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-017",
+    "category": "columns",
+    "sql": "SELECT COUNT(secret) AS c FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-018",
+    "category": "columns",
+    "sql": "SELECT AVG(secret) AS a FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-019",
+    "category": "columns",
+    "sql": "SELECT MAX(secret) AS m FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-020",
+    "category": "columns",
+    "sql": "SELECT MIN(secret) AS m FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-021",
+    "category": "columns",
+    "sql": "SELECT SUM(amount + 1) AS s FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-022",
+    "category": "columns",
+    "sql": "SELECT COALESCE(secret, 0) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-023",
+    "category": "columns",
+    "sql": "SELECT CASE WHEN 1=1 THEN secret END AS s FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-024",
+    "category": "columns",
+    "sql": "SELECT ARRAY_AGG(region) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-025",
+    "category": "columns",
+    "sql": "SELECT STRING_AGG(region) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-026",
+    "category": "columns",
+    "sql": "SELECT JS_UDF(region) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-027",
+    "category": "columns",
+    "sql": "SELECT REMOTE_FUNC(region) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-028",
+    "category": "columns",
+    "sql": "SELECT read_file(region) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-029",
+    "category": "columns",
+    "sql": "SELECT SLEEP(100) AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-030",
+    "category": "columns",
+    "sql": "SELECT session_user() AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-031",
+    "category": "columns",
+    "sql": "SELECT SUM(amount) OVER() AS x FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  },
+  {
+    "id": "columns-032",
+    "category": "columns",
+    "sql": "SELECT region INTO OUTFILE '/tmp/x' FROM approved.sales WHERE day >= '2026-10-01' LIMIT 20",
+    "params": {},
+    "expected": "reject"
+  }
+]
