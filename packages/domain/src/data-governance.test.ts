@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   canTransitionDeletion,
   deletionCommandSchema,
@@ -12,8 +14,7 @@ import {
   retentionPolicySchema,
   sourceData,
   sourceDataSchema,
-} from '@agent-works/domain/data-governance';
-import { describe, expect, it } from 'vitest';
+} from './data-governance.js';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 const policy = { id: 'one-day', ttlSeconds: 86400, description: 'Fixture retention' };
