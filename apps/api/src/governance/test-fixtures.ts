@@ -1,12 +1,13 @@
+import { expiryFor, governanceHash } from '@agent-works/domain/data-governance';
+
 import { createMemoryGovernancePort } from '../ports/memory/governance.js';
 
 import { createArtifactStore } from './artifact-store.js';
 import { createLocalKms } from './local-kms.js';
-import { expiryFor, governanceHash } from './model.js';
 
 import type { ArtifactReadContext } from './artifact-store.js';
-import type { GovernedRecord, RetentionPolicy } from './model.js';
 import type { GovernancePort } from '../ports/governance.js';
+import type { GovernedRecord, RetentionPolicy } from '@agent-works/domain/data-governance';
 
 export const CREATED = '2026-01-01T00:00:00.000Z';
 export const EXPIRED = new Date('2026-01-03T00:00:00.000Z');

@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 
+import { sourceDataSchema } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
 import { createAdkRunner } from '../agent/adk-runner.js';
 import { createScriptedRunner } from '../agent/scripted-runner.js';
 import { boundTo, contextFor } from '../retrieval/search.js';
 
-import { sourceDataSchema } from './model.js';
 import { wrapSourceText } from './source-data.js';
 
 import type { AgentRunner } from '../agent/runner-port.js';

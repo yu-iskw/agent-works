@@ -1,24 +1,25 @@
-import { GovernanceConflict } from '../ports/governance.js';
-
-import { decryptArtifact, encryptArtifact, encryptPayload } from './encryption.js';
-import { isHeld } from './holds.js';
 import {
   expiryFor,
   governanceHash,
   governedRecordSchema,
   permitsClassification,
   retentionPolicySchema,
-} from './model.js';
+} from '@agent-works/domain/data-governance';
 
+import { GovernanceConflict } from '../ports/governance.js';
+
+import { decryptArtifact, encryptArtifact, encryptPayload } from './encryption.js';
+import { isHeld } from './holds.js';
+
+import type { KeyProvider } from '../ports/governance-key-provider.js';
+import type { GovernancePort } from '../ports/governance.js';
 import type {
   DerivedRow,
   GovernanceClassification,
   GovernedArtifact,
   GovernedRecord,
   RetentionPolicy,
-} from './model.js';
-import type { KeyProvider } from '../ports/governance-key-provider.js';
-import type { GovernancePort } from '../ports/governance.js';
+} from '@agent-works/domain/data-governance';
 
 export type ArtifactReadContext = {
   readonly subject: string;

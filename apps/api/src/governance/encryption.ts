@@ -1,11 +1,15 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
+import {
+  encryptedEnvelopeSchema,
+  governanceHash,
+  governedRecordSchema,
+} from '@agent-works/domain/data-governance';
+
 import { KeyUnavailable } from '../ports/governance-key-provider.js';
 
-import { encryptedEnvelopeSchema, governanceHash, governedRecordSchema } from './model.js';
-
-import type { EncryptedEnvelope, GovernedRecord } from './model.js';
 import type { KeyProvider } from '../ports/governance-key-provider.js';
+import type { EncryptedEnvelope, GovernedRecord } from '@agent-works/domain/data-governance';
 
 /** Mutable hold state is intentionally excluded; all other metadata is authenticated. */
 export function envelopeContext(record: GovernedRecord): string {

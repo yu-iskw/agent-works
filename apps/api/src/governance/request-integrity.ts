@@ -1,9 +1,13 @@
+import { canTransitionDeletion, governanceHash } from '@agent-works/domain/data-governance';
+
 import { GovernanceConflict } from '../ports/governance.js';
 
-import { canTransitionDeletion, governanceHash } from './model.js';
-
-import type { DeletionRequest, DeletionState, GovernanceAudit } from './model.js';
 import type { GovernanceState } from '../ports/governance.js';
+import type {
+  DeletionRequest,
+  DeletionState,
+  GovernanceAudit,
+} from '@agent-works/domain/data-governance';
 
 const missingEvidence = 'deletion transition evidence missing';
 

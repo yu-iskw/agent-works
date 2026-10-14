@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { governanceClassificationSchema } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -9,10 +10,9 @@ import {
 
 import { requestDeletion } from './deletion-requests.js';
 import { classifiedTaskEvent, exportGovernanceMarkers } from './events.js';
-import { governanceClassificationSchema } from './model.js';
 import { CREATED, governanceFixture, REQUEST_ID, SECRET } from './test-fixtures.js';
 
-import type { GovernanceClassification } from './model.js';
+import type { GovernanceClassification } from '@agent-works/domain/data-governance';
 
 type Golden = {
   id: string;

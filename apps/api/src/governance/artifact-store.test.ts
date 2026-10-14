@@ -1,9 +1,12 @@
+import {
+  governanceClassificationSchema,
+  governanceHash,
+} from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
 import { createArtifactStore } from './artifact-store.js';
 import { processDeletion, requestDeletion } from './deletion-requests.js';
 import { changeLegalHold } from './holds.js';
-import { governanceClassificationSchema, governanceHash } from './model.js';
 import { revokeSource } from './source-revocation.js';
 import {
   CREATED,

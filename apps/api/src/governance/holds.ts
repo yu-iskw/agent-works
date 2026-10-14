@@ -1,9 +1,13 @@
+import {
+  governanceHash,
+  holdCommandSchema,
+  legalHoldSchema,
+} from '@agent-works/domain/data-governance';
+
 import { GovernanceConflict } from '../ports/governance.js';
 
-import { governanceHash, holdCommandSchema, legalHoldSchema } from './model.js';
-
-import type { GovernedRecord, HoldCommand, LegalHold } from './model.js';
 import type { GovernancePort, GovernanceState } from '../ports/governance.js';
+import type { GovernedRecord, HoldCommand, LegalHold } from '@agent-works/domain/data-governance';
 
 function holdApplies(target: HoldCommand['target'], record: GovernedRecord): boolean {
   switch (target.kind) {

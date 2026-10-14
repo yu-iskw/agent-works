@@ -1,8 +1,9 @@
-import { isHeld } from './holds.js';
-import { governanceHash, tombstoneSchema } from './model.js';
+import { governanceHash, tombstoneSchema } from '@agent-works/domain/data-governance';
 
-import type { GovernedArtifact, Tombstone } from './model.js';
+import { isHeld } from './holds.js';
+
 import type { GovernanceState } from '../ports/governance.js';
+import type { GovernedArtifact, Tombstone } from '@agent-works/domain/data-governance';
 
 export type PurgeContext = {
   readonly reason: Tombstone['reason'];

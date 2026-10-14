@@ -1,5 +1,6 @@
+import { holdCommandSchema } from '@agent-works/domain/data-governance';
+
 import { changeLegalHold } from '../governance/holds.js';
-import { holdCommandSchema } from '../governance/model.js';
 
 import { parseGovernanceBody, requireGovernanceRole } from './governance-auth.js';
 

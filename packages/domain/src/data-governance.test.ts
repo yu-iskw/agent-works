@@ -14,7 +14,7 @@ import {
   retentionPolicySchema,
   sourceData,
   sourceDataSchema,
-} from './data-governance.js';
+} from '@agent-works/domain/data-governance';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 const policy = { id: 'one-day', ttlSeconds: 86400, description: 'Fixture retention' };

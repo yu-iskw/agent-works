@@ -1,7 +1,7 @@
+import { deletionCommandSchema } from '@agent-works/domain/data-governance';
 import * as z from 'zod';
 
 import { processDeletion, requestDeletion } from '../governance/deletion-requests.js';
-import { deletionCommandSchema } from '../governance/model.js';
 
 import { parseGovernanceBody, requireGovernanceRole } from './governance-auth.js';
 

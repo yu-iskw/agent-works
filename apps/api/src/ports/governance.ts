@@ -6,7 +6,7 @@ import type {
   LegalHold,
   RetentionPolicy,
   Tombstone,
-} from '../governance/model.js';
+} from '@agent-works/domain/data-governance';
 
 /** Transactions must serialize every governance write, including holds and intake.
  * A callback may run once; no network side effects belong inside it. */

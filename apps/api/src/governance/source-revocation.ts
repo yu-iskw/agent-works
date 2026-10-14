@@ -1,5 +1,6 @@
+import { governanceHash } from '@agent-works/domain/data-governance';
+
 import { isHeld } from './holds.js';
-import { governanceHash } from './model.js';
 import { purgeArtifact } from './purge.js';
 
 import type { GovernancePort } from '../ports/governance.js';

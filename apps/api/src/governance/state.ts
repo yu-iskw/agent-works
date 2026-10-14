@@ -1,6 +1,3 @@
-import { GovernanceConflict } from '../ports/governance.js';
-
-import { isHeld } from './holds.js';
 import {
   expiryFor,
   deletionRequestSchema,
@@ -11,7 +8,11 @@ import {
   legalHoldSchema,
   retentionPolicySchema,
   tombstoneSchema,
-} from './model.js';
+} from '@agent-works/domain/data-governance';
+
+import { GovernanceConflict } from '../ports/governance.js';
+
+import { isHeld } from './holds.js';
 import { validateRequestIntegrity } from './request-integrity.js';
 
 import type { GovernanceState } from '../ports/governance.js';
@@ -54,6 +55,22 @@ export function validateGovernanceState(state: GovernanceState, previous: Govern
     throw new GovernanceConflict('orphan derived row');
   validateRequestIntegrity(state, previous);
   validateArtifacts(state);
+  validateRemovedArtifacts(state, previous);
+}
+
+function validateRemovedArtifacts(state: GovernanceState, previous: GovernanceState): void {
+  const surviving = new Set(state.artifacts.map((row) => row.record.id));
+  for (const { record } of previous.artifacts) {
+    if (surviving.has(record.id)) continue;
+    if (isHeld(state, record))
+      throw new GovernanceConflict('cannot remove an artifact under an active hold');
+    const hasTombstone = state.tombstones.some((row) => row.recordId === record.id);
+    const hasPurgeAudit = state.audit.some(
+      (row) => row.type === 'purge' && row.targetHash === governanceHash(record.id),
+    );
+    if (!hasTombstone && !hasPurgeAudit)
+      throw new GovernanceConflict('artifact removal requires purge evidence');
+  }
 }
 
 function validateArtifacts(state: GovernanceState): void {

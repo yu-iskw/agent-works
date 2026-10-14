@@ -1,7 +1,9 @@
+import { governanceHash } from '@agent-works/domain/data-governance';
 import { expect, it } from 'vitest';
 
 import { requestDeletion } from '../governance/deletion-requests.js';
 import { changeLegalHold } from '../governance/holds.js';
+import { purgeArtifact } from '../governance/purge.js';
 import { sweepRetention } from '../governance/retention-sweeper.js';
 import {
   CREATED,
@@ -14,7 +16,7 @@ import {
   SECRET,
 } from '../governance/test-fixtures.js';
 
-import type { GovernancePort } from './governance.js';
+import type { GovernancePort, GovernanceState } from './governance.js';
 
 const officer = 'officer';
 const artifactId = 'artifact-1';
@@ -22,6 +24,112 @@ const artifactId = 'artifact-1';
 /** State integrity is part of the shared adapter contract, including direct
  * transaction callers rather than only the higher-level service paths. */
 export function governanceIntegrityContract(fresh: () => GovernancePort): void {
+  it.each([
+    { kind: 'record', id: artifactId },
+    { kind: 'owner', id: 'alice' },
+    { kind: 'source', id: 'source-1' },
+  ] as const)(
+    'rolls back direct removal under an active $kind hold, even with purge evidence',
+    async (target) => {
+      const { port, store } = await governanceFixture(fresh());
+      await store.put(recordFixture(), SECRET);
+      await store.derive(artifactId, 'derived-1', 'index', SECRET);
+      await changeLegalHold(
+        port,
+        { commandId: HOLD_ID, target, action: 'set', reasonRef: 'case' },
+        officer,
+        new Date(CREATED),
+      );
+      const before = await port.snapshot();
+      for (const evidence of ['none', 'tombstone', 'audit'] as const) {
+        await expect(
+          port.transact((state) => {
+            state.artifacts = [];
+            state.derived = [];
+            if (evidence !== 'none') addPurgeEvidence(state, evidence, artifactId);
+          }),
+        ).rejects.toThrow('active hold');
+        expect(await port.snapshot()).toEqual(before);
+      }
+      // A release and its purge may commit together; the final hold state governs eligibility.
+      await port.transact((state) => {
+        state.holds.push({
+          ...state.holds[0],
+          commandId: REQUEST_ID,
+          action: 'release',
+          sequence: 2,
+        });
+        expect(
+          purgeArtifact(state, state.artifacts[0], {
+            reason: 'retention',
+            requestId: null,
+            at: EXPIRED.toISOString(),
+            actor: officer,
+          }),
+        ).toBe(true);
+      });
+      const after = await port.snapshot();
+      expect(after.artifacts).toEqual([]);
+      expect(after.derived).toEqual([]);
+      expect(after.tombstones).toHaveLength(1);
+      expect(after.audit.filter((row) => row.type === 'purge')).toHaveLength(1);
+    },
+  );
+
+  it('rolls back direct removal without purge evidence after a hold release', async () => {
+    const { port, store } = await governanceFixture(fresh());
+    await store.put(recordFixture(), SECRET);
+    await store.derive(artifactId, 'derived-1', 'index', SECRET);
+    const command = {
+      commandId: HOLD_ID,
+      target: { kind: 'record' as const, id: artifactId },
+      action: 'set' as const,
+      reasonRef: 'case',
+    };
+    await changeLegalHold(port, command, officer, new Date(CREATED));
+    await changeLegalHold(
+      port,
+      { ...command, commandId: REQUEST_ID, action: 'release' },
+      officer,
+      EXPIRED,
+    );
+    const before = await port.snapshot();
+    await expect(
+      port.transact((state) => {
+        state.artifacts = [];
+        state.derived = [];
+      }),
+    ).rejects.toThrow('purge evidence');
+    expect(await port.snapshot()).toEqual(before);
+  });
+
+  it.each(['tombstone', 'audit'] as const)(
+    'requires matching %s evidence for direct removal',
+    async (evidence) => {
+      const { port, store } = await governanceFixture(fresh());
+      await store.put(recordFixture(), SECRET);
+      await store.derive(artifactId, 'derived-1', 'index', SECRET);
+      const before = await port.snapshot();
+      await expect(
+        port.transact((state) => {
+          state.artifacts = [];
+          state.derived = [];
+          addPurgeEvidence(state, evidence, 'another-artifact');
+        }),
+      ).rejects.toThrow('purge evidence');
+      expect(await port.snapshot()).toEqual(before);
+      await port.transact((state) => {
+        state.artifacts = [];
+        state.derived = [];
+        addPurgeEvidence(state, evidence, artifactId);
+      });
+      const after = await port.snapshot();
+      expect(after.artifacts).toEqual([]);
+      expect(after.derived).toEqual([]);
+      expect(evidence === 'tombstone' ? after.tombstones : after.audit).toHaveLength(1);
+    },
+  );
+
   it('rolls back schema-invalid artifact and orphan derived mutations', async () => {
     const { port, store } = await governanceFixture(fresh());
     await store.put(recordFixture(), SECRET);
@@ -154,4 +262,34 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
     expect(reports.flatMap((report) => report.purged)).toEqual([artifactId]);
     expect((await port.snapshot()).audit.filter((row) => row.type === 'purge')).toHaveLength(1);
   });
+}
+
+function addPurgeEvidence(
+  state: GovernanceState,
+  evidence: 'tombstone' | 'audit',
+  id: string,
+): void {
+  if (evidence === 'tombstone') {
+    const record = recordFixture(id);
+    state.tombstones.push({
+      recordId: id,
+      ownerHash: governanceHash(record.provenance.owner),
+      sourceHash: governanceHash(record.provenance.sourceId),
+      canonicalHash: record.canonicalHash,
+      requestId: null,
+      purgedAt: EXPIRED.toISOString(),
+      reason: 'retention',
+    });
+  } else {
+    state.audit.push({
+      eventId: `purge:${governanceHash(id)}`,
+      type: 'purge',
+      occurredAt: EXPIRED.toISOString(),
+      actorHash: governanceHash(officer),
+      targetHash: governanceHash(id),
+      requestId: null,
+      state: null,
+      redactionMarker: 'governance-tombstone-v1',
+    });
+  }
 }

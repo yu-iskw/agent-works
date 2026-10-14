@@ -1,3 +1,4 @@
+import { governanceHash } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
 import { createArtifactStore } from './artifact-store.js';
@@ -10,7 +11,6 @@ import {
   envelopeContext,
 } from './encryption.js';
 import { createLocalKms } from './local-kms.js';
-import { governanceHash } from './model.js';
 import { CREATED, governanceFixture, readContext, recordFixture, SECRET } from './test-fixtures.js';
 
 describe('authenticated envelope encryption', () => {

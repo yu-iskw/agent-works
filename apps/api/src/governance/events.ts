@@ -3,8 +3,8 @@ import {
   redactClassifiedPayload,
 } from '../audit/siem-export/redact-governance.js';
 
-import type { GovernanceClassification } from './model.js';
 import type { GovernancePort } from '../ports/governance.js';
+import type { GovernanceClassification } from '@agent-works/domain/data-governance';
 
 /** Safe boundary for the governance task-event producer and local SIEM exporter.
  * Existing task routes and SIEM chain implementation remain independently owned. */

@@ -1,6 +1,12 @@
-import { governanceClassificationSchema, governanceHash } from '../../governance/model.js';
+import {
+  governanceClassificationSchema,
+  governanceHash,
+} from '@agent-works/domain/data-governance';
 
-import type { GovernanceAudit, GovernanceClassification } from '../../governance/model.js';
+import type {
+  GovernanceAudit,
+  GovernanceClassification,
+} from '@agent-works/domain/data-governance';
 
 const RESTRICTED_MASK = '[RESTRICTED]';
 /** Arbitrary task data is untrusted. Classification is supplied by the producer,

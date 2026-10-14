@@ -1,16 +1,21 @@
-import { GovernanceConflict } from '../ports/governance.js';
-
-import { isHeld } from './holds.js';
 import {
   canTransitionDeletion,
   deletionCommandSchema,
   deletionRequestSchema,
   governanceHash,
-} from './model.js';
+} from '@agent-works/domain/data-governance';
+
+import { GovernanceConflict } from '../ports/governance.js';
+
+import { isHeld } from './holds.js';
 import { purgeArtifact } from './purge.js';
 
-import type { DeletionCommand, DeletionRequest, DeletionState } from './model.js';
 import type { GovernancePort, GovernanceState } from '../ports/governance.js';
+import type {
+  DeletionCommand,
+  DeletionRequest,
+  DeletionState,
+} from '@agent-works/domain/data-governance';
 
 export type DeletionPlan = {
   requestId: string;
