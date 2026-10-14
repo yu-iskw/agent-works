@@ -12,6 +12,10 @@
     "./transport": {
       "types": "./src/transport.ts",
       "import": "./dist/transport.js"
+    },
+    "./validation": {
+      "types": "./src/validation.ts",
+      "import": "./dist/validation.js"
     }
   },
   "scripts": {
