@@ -1,0 +1,5 @@
+project_id = "PROJECT_ID"
+folder_id = "FOLDER_ID"
+billing_account_id = "BILLING_ACCOUNT_ID"
+operator_member = "user:yu@example.invalid"
+breakglass_member = "group:aw-breakglass@example.invalid"

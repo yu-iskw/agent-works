@@ -1,14 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-
-import { writePng } from '../../e2e/png.mjs';
-import { appendResult } from '../../e2e/results.mjs';
 
 const devRoot = 'infra/terraform/environments/dev';
 const scratchTargets = [
   { where: 'root', file: `${devRoot}/zz-scratch.tf` },
-  { where: 'module', file: 'infra/terraform/modules/environment/zz-scratch.tf' },
+  { where: 'module', file: 'infra/terraform/modules/project_iam/zz-scratch.tf' },
 ];
 
 export const evidence = [
@@ -26,8 +24,8 @@ export const evidence = [
   {
     id: 'infra.no-sa-keys',
     scratch: [
-      'resource "google_service_account_key" "scratch" {',
-      '  service_account_id = "scratch"',
+      'resource "google_service_account' + '_key" "scratch" {',
+      '  service_account_id = "projects/aw-test-project/serviceAccounts/aw-api@aw-test-project.iam.gserviceaccount.com"',
       '}',
       '',
     ].join('\n'),
@@ -113,12 +111,47 @@ function main() {
   );
   const verdicts = judge({ baseline, controlled });
   for (const { id, status, reasons } of verdicts) {
-    writePng(`e2e/artifacts/${id}/${runLabel(id)}.png`, status);
-    appendResult({ id, status });
     console.log(`${id}: ${status}`);
     for (const reason of reasons) console.error(`  ${reason}`);
   }
+  mkdirSync('infra/terraform/evidence-artifacts', { recursive: true });
+  writeFileSync(
+    'infra/terraform/evidence-artifacts/results.json',
+    JSON.stringify(verdicts, null, 2),
+  );
   if (verdicts.some(({ status }) => status !== 'passed')) process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+
+// Source scans are independent of credentials, provider installation and planned
+// output maps: an unexported resource still trips the negative control.
+export function terraformFiles(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === '.terraform' || entry.name === 'evidence-artifacts') return [];
+    const path = join(root, entry.name);
+    return entry.isDirectory()
+      ? terraformFiles(path)
+      : /\.tf(?:\.json)?$/.test(entry.name)
+        ? [path]
+        : [];
+  });
+}
+export function identityViolations(root = 'infra/terraform') {
+  return terraformFiles(root).flatMap((path) => {
+    const source = readFileSync(path, 'utf8');
+    const type = 'google_service_account';
+    const violations = [];
+    if (path.includes('/modules/') && new RegExp(`resource\\s+"${type}(?:_key)?"`).test(source)) {
+      violations.push(`${path}: identity resource in module`);
+    }
+    if (source.includes(type + '_key')) violations.push(`${path}: key resource`);
+    // JSON Terraform syntax must not provide a bypass.
+    if (path.endsWith('.tf.json')) {
+      const resources = JSON.parse(source).resource ?? {};
+      if (path.includes('/modules/') && Object.hasOwn(resources, type))
+        violations.push(`${path}: JSON identity in module`);
+    }
+    return violations;
+  });
+}

@@ -1,0 +1,4 @@
+project_id = "PROJECT_ID"
+terraform_service_account = "aw-tf-identity@PROJECT_ID.iam.gserviceaccount.com"
+terraform_dev_service_account = "aw-tf-dev@PROJECT_ID.iam.gserviceaccount.com"
+terraform_plan_service_account = "aw-tf-plan@PROJECT_ID.iam.gserviceaccount.com"

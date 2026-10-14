@@ -30,7 +30,7 @@ jobs:
   infra-check:
     name: infra-check
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     env:
       TF_IN_AUTOMATION: 'true'
       TF_INPUT: 'false'
@@ -64,20 +64,33 @@ jobs:
       - name: Terraform fmt
         run: terraform -chdir=infra/terraform fmt -check -recursive -diff
 
-      - name: Terraform init
-        run: terraform -chdir=infra/terraform/environments/dev init -backend=false
+      - name: No identities in modules
+        shell: bash
+        run: |
+          if rg -n 'resource\s+"google_service_account(_key)?"' infra/terraform/modules; then
+            echo 'Modules must take existing service-account emails.' >&2
+            exit 1
+          fi
+          if rg -n 'google_service_account_key' infra/terraform --glob '*.tf' --glob '*.tf.json'; then
+            echo 'Service-account keys are forbidden.' >&2
+            exit 1
+          fi
+          node --test infra/terraform/evidence.test.mjs
 
-      - name: Terraform validate
-        run: terraform -chdir=infra/terraform/environments/dev validate
+      - name: Offline init, validate and mock plan tests
+        shell: bash
+        run: |
+          for root in infra/terraform/bootstrap infra/terraform/identity/dev infra/terraform/environments/dev infra/terraform/modules/*; do
+            terraform -chdir="$root" init -backend=false -input=false
+            terraform -chdir="$root" validate
+            terraform -chdir="$root" test
+          done
 
       - name: TFLint
         run: tflint --chdir=infra/terraform --recursive
 
       - name: Checkov
         run: pipx run --spec checkov==3.3.26 checkov --directory infra/terraform --framework terraform --skip-download --compact --quiet
-
-      - name: Terraform test
-        run: terraform -chdir=infra/terraform/environments/dev test
 
       - name: Evidence tests
         run: node --test infra/terraform/evidence.test.mjs
@@ -90,5 +103,5 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: infra-evidence-${{ github.sha }}
-          path: e2e/artifacts
+          path: infra/terraform/evidence-artifacts
           if-no-files-found: error

@@ -1,0 +1,7 @@
+project_id = "PROJECT_ID"
+project_number = "PROJECT_NUMBER"
+billing_account_id = "BILLING_ACCOUNT_ID"
+state_bucket = "PROJECT_ID-tfstate"
+terraform_service_account = "aw-tf-dev@PROJECT_ID.iam.gserviceaccount.com"
+# Supply reviewed digest-pinned images after foundations and manual secret versions.
+images = {}

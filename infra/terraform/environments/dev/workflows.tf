@@ -19,12 +19,13 @@ module "workflows" {
   count  = var.enable_workflows ? 1 : 0
   source = "../../modules/workflows"
 
-  depends_on = [module.dev]
+  depends_on = [module.baseline]
 
   project_id                     = var.project_id
   region                         = "asia-northeast1"
-  adapter_service_account_email  = module.dev.service_accounts.task_service.email
-  deployer_service_account_email = module.dev.service_accounts.deployer.email
+  adapter_service_account_email  = local.sa.api
+  deployer_service_account_email = local.dev_applier_email
+  workflow_service_account_email = local.sa.workflow
   broker_service_name            = var.workflow_broker_service_name
   source_contents                = var.workflow_source_contents
 }
