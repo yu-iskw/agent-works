@@ -3,7 +3,8 @@ import {
   workspaceReceiptSchema,
   calendarListSchema,
   workspaceSourcesSchema,
-} from '../../../../../packages/domain/dist/workspace-tools.js';
+} from '@agent-works/domain/workspace-tools';
+
 import { ConnectorError } from '../errors.js';
 
 import type { CallerCredential, GoogleHttp } from '../google-http.js';

@@ -1,10 +1,10 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-
 import {
   docsDraftSchema,
   calendarCreateSchema,
   gmailDraftSchema,
-} from '../../../../packages/domain/dist/workspace-tools.js';
+} from '@agent-works/domain/workspace-tools';
+
 import { h } from '../html.js';
 
 import { WorkspaceApprovalCard } from './workspace-card.js';

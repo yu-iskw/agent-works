@@ -1,8 +1,5 @@
 import type { CallerCredential } from './google-http.js';
-import type {
-  WorkspaceReceipt,
-  WorkspaceSource,
-} from '../../../../packages/domain/dist/workspace-tools.js';
+import type { WorkspaceReceipt, WorkspaceSource } from '@agent-works/domain/workspace-tools';
 export type WorkspaceAdapters = {
   docs: {
     createDraft(

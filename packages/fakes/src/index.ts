@@ -6,3 +6,7 @@ export { createOAuth } from './fake-oauth.js';
 export { createTicket } from './fake-ticket.js';
 export { listen } from './http.js';
 export { createIapProxy, fakeIap } from './iap-proxy.js';
+export { createGoogleDocs } from './google-docs.js';
+export { createGoogleCalendar } from './google-calendar.js';
+export { createGoogleGmail } from './google-gmail.js';
+export { googleFakeTransport } from './google-transport.js';

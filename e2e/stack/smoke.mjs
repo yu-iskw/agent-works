@@ -4,7 +4,7 @@ import { writePng } from '../png.mjs';
 
 const code = process.argv[2] ?? '';
 const output = readFileSync(process.argv[3] ?? '', 'utf8');
-const reportedHealthy = output.split('\n').some((line) => line.trim() === '7/7 services healthy');
+const reportedHealthy = output.split('\n').some((line) => line.trim() === '8/8 services healthy');
 const stackPassed = code === '0' && reportedHealthy && (await everyHealthz());
 const scriptPassed = await unknownScript();
 

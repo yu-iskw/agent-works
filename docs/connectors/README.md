@@ -33,22 +33,29 @@ Postgres approval implementations retain the same payload binding and intent
 recovery contract. No connector migration or separate credential database is
 introduced.
 
-## Deployment integration boundary
+## Dev-stack integration
 
-The issue's exclusive write paths do not include `apps/api/src/server.ts`,
-`apps/api/src/routes/index.ts`, `apps/web/app/web-app.ts`, package export maps,
-the fake service entrypoint, or OpenAPI source/generated artifacts. This change
-provides injectable runtime and HTTP handler factories within the allowed paths;
-it does not change those protected application mount points. The default skill
-registry lists meeting prep, which fails closed until configured.
+`pnpm dev:up --wait` mounts connector routes in the API and workspace approval
+pages at `/approvals/workspace/{approvalId}` in the web server. Compose enables
+`AW_DEV_STACK=1` and starts `fake-workspace` on `127.0.0.1:8087`; its `workspace`
+fake-server role serves OAuth, Docs, Calendar, and Gmail from one process.
+`OAUTH_URL` uses the internal Compose hostname and `OAUTH_PUBLIC_URL` supplies the
+browser-visible consent URL. The fake accepts its opaque OAuth token reference
+as a bearer credential and rechecks scopes, ownership, expiry, and revocation on
+every request. Docs destinations are `alice-folder` and `bob-folder`, owned by
+the matching fake user.
 
-An application integrator must mount `runtime.routes` in its trusted HTTP route
-table, register `runtime.skill` in its task dispatcher, and select
-`createWorkspaceApprovalsHandler` for `/approvals/workspace/`. These are still
-required before the normal dev-stack entrypoints expose the feature. The API
-route factory tests exercise the full authenticated preparation/decision/write
-flow directly. The package-local domain build is used to import the new domain
-module without changing the protected package export map.
+`createDevWorkspaceRuntime` uses the existing Postgres credential and approval
+stores. Execution requires an owned task whose published skill declares the
+tool, current Employee membership, and suspension enforcement. Approval decisions
+require current Reviewer or Admin membership; execution rechecks the approver.
+The configured meeting-prep skill is registered in the task dispatcher. Outside
+the opted-in dev stack, meeting prep remains unconfigured and fails closed.
+
+Domain consumers import `@agent-works/domain/workspace-tools`, with source types,
+a development condition, and a built runtime export following the data-governance
+pattern. Connector operations and schemas are included in the generated OpenAPI
+contract and client; fingerprints include connector route sources.
 
 See [Architecture](architecture.md), [API](api.md), [Approval binding](approvals.md),
 [Operator evidence](operator-evidence.md), and [Testing](testing.md).

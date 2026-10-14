@@ -14,8 +14,15 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"],
     "resolveJsonModule": true,
-    "paths": { "@agent-works/domain": ["../domain/src/index.ts"] }
+    "paths": {
+      "@agent-works/domain": ["../domain/src/index.ts"],
+      "@agent-works/domain/workspace-tools": ["../domain/src/workspace-tools.ts"]
+    }
   },
   "include": ["src"],
-  "references": [{ "path": "../domain" }]
+  "references": [
+    {
+      "path": "../domain"
+    }
+  ]
 }

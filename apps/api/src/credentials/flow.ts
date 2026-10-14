@@ -1,14 +1,12 @@
 import { createHash } from 'node:crypto';
 
 import { oauthConnectionSchema, outboxEventSchema } from '@agent-works/domain';
-
-import { workspaceScopes } from '../../../../packages/domain/dist/workspace-tools.js';
+import { workspaceScopes } from '@agent-works/domain/workspace-tools';
 
 import { OAuthDenied, oauthFailure } from './denied.js';
 
 import type { GrantStore, OAuthGrant } from './grant.js';
 import type { OAuthProvider } from './provider.js';
-import type { WorkspaceToolName } from '../../../../packages/domain/dist/workspace-tools.js';
 import type { CredentialsPort } from '../ports/credentials.js';
 import type {
   OAuthCallback,
@@ -19,6 +17,7 @@ import type {
   Task,
   TaskStatus,
 } from '@agent-works/domain';
+import type { WorkspaceToolName } from '@agent-works/domain/workspace-tools';
 
 export { OAuthDenied };
 

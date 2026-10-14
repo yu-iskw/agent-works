@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 
+import { workspaceManifests } from '@agent-works/domain/workspace-tools';
+
 import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
@@ -7,6 +9,7 @@ import { createRoleResolver, createGroupResolver } from './auth/directory.js';
 import { createIapVerifier } from './auth/iap.js';
 import { createPostgresApprovalStore } from './broker/approvals.js';
 import { loadConfig } from './config.js';
+import { createDevWorkspaceRuntime } from './connectors/dev-runtime.js';
 import { createOAuthFlow } from './credentials/flow.js';
 import { createPostgresCredentialStore } from './credentials/postgres.js';
 import { createHttpOAuthProvider } from './credentials/provider.js';
@@ -18,6 +21,7 @@ import { ContextMismatch } from './retrieval/search.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 import { createScheduleRuntime } from './scheduling/runtime.js';
 import { createIncidentSkill } from './skills/incident.js';
+import { createMeetingPrepSkill } from './skills/meeting-prep.js';
 import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
 import { createTicketReconciler } from './skills/ticket-receipts.js';
@@ -52,7 +56,11 @@ const oauth =
     ? undefined
     : createOAuthFlow({
         ...createPostgresCredentialStore(sql),
-        provider: createHttpOAuthProvider(oauthUrl, config.oauthRedirectUri),
+        provider: createHttpOAuthProvider(
+          oauthUrl,
+          config.oauthRedirectUri,
+          process.env.OAUTH_PUBLIC_URL,
+        ),
         ledger,
         now,
       });
@@ -74,11 +82,49 @@ const enforcement = createSuspensionEnforcer({
   ledger: suspensionLedger,
   emergencyAudit: emergencyAudit(ledger),
 });
+const verify = controlledVerify(createIapVerifier(config.iap), groups, enforcement);
+const workspace = (() => {
+  if (process.env.AW_DEV_STACK === '1' && oauth !== undefined && oauthUrl !== undefined) {
+    return createDevWorkspaceRuntime({
+      sql,
+      baseUrl: oauthUrl,
+      redirectUri: config.oauthRedirectUri,
+      flow: oauth,
+      verify,
+      rolesFor,
+      groups,
+      ledger,
+      skills: () => skills,
+      enforcement,
+      drive,
+      runner: controlledRunner(createScriptedRunner({ baseUrl: config.llmUrl }), enforcement),
+      now,
+    });
+  }
+  return undefined;
+})();
 const skills = createSkillRegistry([
   controlledSkill(incidentSkill, enforcement, groups, config.incident?.model ?? 'gemini'),
+  controlledSkill(workspace?.skill ?? createMeetingPrepSkill(), enforcement, groups, 'gemini'),
 ]);
-
-const verify = controlledVerify(createIapVerifier(config.iap), groups, enforcement);
+if (workspace !== undefined) {
+  await publishBundledCapabilities(suspensionLedger, [
+    {
+      pin: { kind: 'skill', id: 'meeting-prep', version: '1.0.0' },
+      reason: 'Bundled workspace skill',
+    },
+    ...workspaceManifests
+      .filter((manifest) => manifest.metadata.name !== 'gmail.send')
+      .map((manifest) => ({
+        pin: {
+          kind: 'tool' as const,
+          id: manifest.metadata.name,
+          version: manifest.metadata.version,
+        },
+        reason: 'Bundled workspace tool',
+      })),
+  ]);
+}
 const dispatch = createPostgresDispatchPort(sql, now);
 const worker = createTaskDispatcher({
   dispatch,
@@ -105,6 +151,7 @@ const controlledApp = (deps: Parameters<typeof createApp>[0]) =>
 const server = createServer(
   controlledApp({
     verify,
+    connectors: workspace?.routes,
     schedules: scheduling.routes,
     scheduleEvents: scheduling.events,
     admin: { ledger: suspensionLedger, rolesFor, now },
@@ -123,14 +170,20 @@ const server = createServer(
       policyInput: async (caller, context, resource) => {
         await authorizeResource(resource?.manifest, config.incident?.model ?? 'gemini');
         const incident = resource?.manifest.id === 'incident-analysis';
+        const meeting = workspace !== undefined && resource?.manifest.id === 'meeting-prep';
         callers.set(context, caller);
         return Promise.resolve({
           facts: {
             approved_agent_and_skill_version:
-              resource === undefined || (incident && resource.manifest.state === 'PUBLISHED'),
+              resource === undefined ||
+              ((incident || meeting) && resource.manifest.state === 'PUBLISHED'),
             agent_has_tool_capability:
               resource === undefined ||
-              (incident && resource.manifest.tools.every((tool) => tool === 'ticket.create')),
+              (incident && resource.manifest.tools.every((tool) => tool === 'ticket.create')) ||
+              (meeting &&
+                resource.manifest.tools.every((tool) =>
+                  ['calendar.listEvents', 'drive.search', 'docs.createDraft'].includes(tool),
+                )),
             user_or_service_has_resource_authority: context.userSubject === caller.sub,
             source_system_allows_operation: incident
               ? context.allowedSources.length > 0 &&

@@ -17,16 +17,14 @@ Postgres tests use the existing approval migrations and durable store. Run with
 cannot start a disposable database, the new connector Postgres suite records a
 skip. This is a limitation of the environment, not a durable-storage pass.
 
-The approval card and web handler have separate JSX unit/smoke coverage. The
-existing web Vitest include pattern only lists `.test.ts`, so the new allowed
-`.test.tsx` files need an explicit test configuration to execute. The issue's
-exclusive paths do not allow editing the existing web test configuration.
+The approval card and web handler run through the normal web Vitest project,
+which includes both `.test.ts` and `.test.tsx`. In-process mount tests exercise
+the API application and web server without binding sockets. The combined fake
+server tests cover OAuth grants, Docs destination ACLs, Calendar/Gmail routing,
+and revocation. Real socket and Postgres tests still need an environment that
+permits their services to start.
 
-Required checks should use the existing workspace commands. `pnpm lint` currently
-invokes Trunk, which this task explicitly prohibits; use `pnpm lint:eslint` and
-Prettier as the permitted lint/format checks and record that substitution.
-
-OpenAPI route fingerprints scan `apps/api/src/routes/`. Connector factories are
-inside `connectors/` and are not mounted or represented in that protected
-OpenAPI registry. Existing drift validation must remain clean. Adding connector
-operations to the published specification requires integration-path permission.
+OpenAPI request schemas share their domain source with the connector routes.
+Regenerate with `pnpm api:generate` after route or schema edits and formatting;
+`node packages/api-contract/scripts/generate.mjs --check` verifies generated
+OpenAPI/client drift, including connector route fingerprints.

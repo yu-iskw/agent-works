@@ -16,6 +16,7 @@ type GoogleRequest = {
 export type GoogleHttp = { request(input: GoogleRequest): Promise<unknown> };
 export type GoogleHttpOptions = {
   readonly baseUrl: string;
+  readonly allowedHosts?: readonly string[];
   readonly retries?: number;
   readonly timeoutMs?: number;
   readonly fetch?: typeof fetch;
@@ -26,7 +27,7 @@ export function createGoogleHttp(options: GoogleHttpOptions): GoogleHttp {
   const base = new URL(options.baseUrl);
   if (
     base.protocol !== 'http:' ||
-    !['localhost', '127.0.0.1', '[::1]'].includes(base.hostname) ||
+    !['localhost', '127.0.0.1', '[::1]', ...(options.allowedHosts ?? [])].includes(base.hostname) ||
     base.username ||
     base.password
   )

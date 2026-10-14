@@ -50,6 +50,11 @@
       "types": "./src/model-policy-benchmark.ts",
       "development": "./src/model-policy-benchmark.ts",
       "import": "./dist/model-policy-benchmark.js"
+    },
+    "./workspace-tools": {
+      "types": "./src/workspace-tools.ts",
+      "development": "./src/workspace-tools.ts",
+      "import": "./dist/workspace-tools.js"
     }
   },
   "scripts": {

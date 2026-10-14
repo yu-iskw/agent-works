@@ -15,7 +15,8 @@ The secret resolver accepts a token reference and the caller subject. That
 resolver is a trusted deployment dependency; it must verify ownership and must
 never log tokens. The broker never accepts a raw token in an HTTP request.
 
-Google API endpoints are restricted to HTTP loopback addresses. Redirects are
+Google API endpoints use HTTP loopback addresses by default. The dev-stack
+assembly explicitly allows the Compose `fake-workspace` hostname. Redirects are
 rejected. Retries have a maximum attempt budget and bounded Retry-After delay.
 Writes carry a stable idempotency key on every attempt. Terminal authentication
 and ACL failures are not retried. Error responses expose mapped codes rather

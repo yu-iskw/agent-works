@@ -320,5 +320,60 @@
     "parameter": null,
     "headers": [],
     "implemented": true
+  },
+  {
+    "operationId": "executeWorkspaceTool",
+    "method": "POST",
+    "path": "/v1/connectors/execute",
+    "request": "WorkspaceExecute",
+    "response": "WorkspaceResult",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 200
+  },
+  {
+    "operationId": "requestWorkspaceScopes",
+    "method": "POST",
+    "path": "/v1/connectors/scopes",
+    "request": "WorkspaceScopeRequest",
+    "response": "OAuthStarted",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 200
+  },
+  {
+    "operationId": "prepareWorkspaceApproval",
+    "method": "POST",
+    "path": "/v1/connectors/approvals/prepare",
+    "request": "WorkspaceExecute",
+    "response": "WorkspaceApprovalPrepared",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 201
+  },
+  {
+    "operationId": "readWorkspaceApproval",
+    "method": "POST",
+    "path": "/v1/connectors/approvals/read",
+    "request": "WorkspaceApprovalRead",
+    "response": "WorkspaceApprovalDetail",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 200
+  },
+  {
+    "operationId": "decideWorkspaceApproval",
+    "method": "POST",
+    "path": "/v1/connectors/approvals/decide",
+    "request": "WorkspaceDecision",
+    "response": "WorkspaceApprovalDecided",
+    "parameter": null,
+    "headers": [],
+    "implemented": true,
+    "successStatus": 200
   }
 ]

@@ -4,8 +4,8 @@ import {
   outboxEventSchema,
   ticketCreateManifest,
 } from '@agent-works/domain';
+import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 
-import { workspaceManifests } from '../../../../packages/domain/dist/workspace-tools.js';
 import { beforeToolCall } from '../suspension/runtime.js';
 
 import type { ApprovalStore, BindResult, ClaimOutcome, DecisionCommand } from './approvals.js';

@@ -10,13 +10,17 @@ import type { WorkspacePageView } from './workspace-page.js';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 export type WorkspaceHandlerOptions = {
   readonly apiUrl: string;
+  readonly allowedApiHosts?: readonly string[];
   readonly fetch?: typeof fetch;
   readonly now?: () => Date;
 };
 const csrfCookie = 'workspace-approval-csrf';
 export function createWorkspaceApprovalsHandler(options: WorkspaceHandlerOptions): RequestListener {
   const api = new URL(options.apiUrl);
-  if (api.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(api.hostname))
+  if (
+    api.protocol !== 'http:' ||
+    !['localhost', '127.0.0.1', '[::1]', ...(options.allowedApiHosts ?? [])].includes(api.hostname)
+  )
     throw new Error('offline endpoint');
   return (request, response) => {
     void handle(options, request, response).catch(() =>

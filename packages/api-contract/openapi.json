@@ -3864,6 +3864,631 @@
           }
         }
       }
+    },
+    "/v1/connectors/execute": {
+      "post": {
+        "operationId": "executeWorkspaceTool",
+        "summary": "executeWorkspaceTool",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceExecute"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/scopes": {
+      "post": {
+        "operationId": "requestWorkspaceScopes",
+        "summary": "requestWorkspaceScopes",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceScopeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/approvals/prepare": {
+      "post": {
+        "operationId": "prepareWorkspaceApproval",
+        "summary": "prepareWorkspaceApproval",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceApprovalPrepared"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceExecute"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/approvals/read": {
+      "post": {
+        "operationId": "readWorkspaceApproval",
+        "summary": "readWorkspaceApproval",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceApprovalDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceApprovalRead"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/approvals/decide": {
+      "post": {
+        "operationId": "decideWorkspaceApproval",
+        "summary": "decideWorkspaceApproval",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceApprovalDecided"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceDecision"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3875,6 +4500,362 @@
       }
     },
     "schemas": {
+      "WorkspaceExecute": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "docs.createDraft",
+              "calendar.listEvents",
+              "calendar.createEvent",
+              "gmail.searchThreads",
+              "gmail.createDraft",
+              "gmail.send"
+            ]
+          },
+          "payload": {},
+          "taskId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "stepId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "callId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "traceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "approvalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": ["tool", "payload", "taskId", "stepId", "callId", "idempotencyKey", "traceId"],
+        "additionalProperties": false
+      },
+      "WorkspaceDecision": {
+        "type": "object",
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "reject"]
+          },
+          "expectedPayloadSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": ["approvalId", "decision", "expectedPayloadSha256"],
+        "additionalProperties": false
+      },
+      "WorkspaceApprovalRead": {
+        "type": "object",
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": ["approvalId"],
+        "additionalProperties": false
+      },
+      "WorkspaceScopeRequest": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "docs.createDraft",
+              "calendar.listEvents",
+              "calendar.createEvent",
+              "gmail.searchThreads",
+              "gmail.createDraft",
+              "gmail.send"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "codeChallenge": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "codeChallengeMethod": {
+            "type": "string",
+            "const": "S256"
+          }
+        },
+        "required": ["tool", "state", "codeChallenge", "codeChallengeMethod"],
+        "additionalProperties": false
+      },
+      "WorkspaceResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["document", "event", "draft"]
+              }
+            },
+            "required": ["id", "kind"],
+            "additionalProperties": false
+          },
+          {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                "classification": {
+                  "type": "string",
+                  "enum": ["INTERNAL", "CONFIDENTIAL", "RESTRICTED"]
+                },
+                "authority": {
+                  "const": "none",
+                  "type": "string"
+                }
+              },
+              "required": ["id", "title", "body", "classification", "authority"],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "WorkspaceApprovalPrepared": {
+        "type": "object",
+        "properties": {
+          "approval": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "taskId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "stepId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetResource": {
+                "type": "string",
+                "minLength": 1
+              },
+              "payloadSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "requestedBySub": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approverSub": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "maxExecutions": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "executionsUsed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "taskId",
+              "stepId",
+              "tool",
+              "targetResource",
+              "payloadSha256",
+              "requestedBySub",
+              "approverSub",
+              "state",
+              "expiresAt",
+              "maxExecutions",
+              "executionsUsed"
+            ],
+            "additionalProperties": false
+          },
+          "payload": {}
+        },
+        "required": ["approval", "payload"],
+        "additionalProperties": false
+      },
+      "WorkspaceApprovalDetail": {
+        "type": "object",
+        "properties": {
+          "approval": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "taskId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "stepId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetResource": {
+                "type": "string",
+                "minLength": 1
+              },
+              "payloadSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "requestedBySub": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approverSub": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "maxExecutions": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "executionsUsed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "taskId",
+              "stepId",
+              "tool",
+              "targetResource",
+              "payloadSha256",
+              "requestedBySub",
+              "approverSub",
+              "state",
+              "expiresAt",
+              "maxExecutions",
+              "executionsUsed"
+            ],
+            "additionalProperties": false
+          },
+          "payload": {}
+        },
+        "required": ["approval", "payload"],
+        "additionalProperties": false
+      },
+      "WorkspaceApprovalDecided": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": ["approved", "rejected"]
+          },
+          "executionsUsed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["id", "state", "executionsUsed"],
+        "additionalProperties": false
+      },
       "AskRequest": {
         "type": "object",
         "properties": {
@@ -8070,6 +9051,9 @@
     }
   },
   "x-route-fingerprints": {
+    "../connectors/route-auth.ts": "bce14b6e756fe041095f6c26046421a541150e43ac7c5319e14f7d1d0e6afb44",
+    "../connectors/route-schema.ts": "2bd99caa785e5f0c789ae522fbaed1cc2f77280e26ab8706c101eb7dfcd1fa5f",
+    "../connectors/routes.ts": "3f774cecf92fe33d812dd7075c8d8eb342479c81d1170b707f4539b3c76312c8",
     "admin-auth.ts": "6443df7ec4347bbb27e229dd06da57db137b7162a192b52fa0bf9583b91eea1d",
     "admin-change.ts": "a93c849165be412308f47078beead92d4b58ced68c5cb19f9fb0f11b55de1e9b",
     "admin-read.ts": "0bd51c0b2e9372c18d0550dca565c572ab8364849b0d6882baebe51c3397333d",
@@ -8083,7 +9067,7 @@
     "governance-deletions.ts": "48bfd3a4e645ec78028185602d7fe295246a370916cb3113be6e343215662e6f",
     "governance-holds.ts": "52a9063277c628d0f20c4f7b22b3f3071d2f614a3965faeaba040d0a11df499c",
     "governance-routes.ts": "b58fc60af85a78766edffd79454c2c0f2bef1ec3cd2366520c70c28e16a3372f",
-    "index.ts": "140fda8f1cfded9b56133251de014d73d442a42e9bbd732a77138404cce09f91",
+    "index.ts": "a96d59c5224209420e6868d89adc198508a3f495da467a4a7e53b23a8c97f149",
     "not-implemented.ts": "e18e536675c08fdc2ea9299d18fbf57431d8a96d8245011090beb4975d53c0fd",
     "oauth-connect.ts": "b3398bea28e5104e43b289f4e3f64e57567ff7302ca0b45f250e4f9387071089",
     "oauth-connections-read.ts": "7dc5bd4066b15f585db3ca5085fb5adbb6f500feafe4c251c66c04564d71c9ad",

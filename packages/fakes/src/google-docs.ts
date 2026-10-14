@@ -1,4 +1,4 @@
-import { docsDraftSchema, workspaceScopes } from '../../domain/dist/workspace-tools.js';
+import { docsDraftSchema, workspaceScopes } from '@agent-works/domain/workspace-tools';
 
 import {
   googleBody,
@@ -11,7 +11,7 @@ import { googleIdempotency } from './google-idempotency.js';
 
 import type { GoogleFakeOptions } from './google-auth.js';
 import type { Handler } from './http.js';
-import type { DocsDraft } from '../../domain/dist/workspace-tools.js';
+import type { DocsDraft } from '@agent-works/domain/workspace-tools';
 type FakeDocument = DocsDraft & { readonly id: string; readonly owner: string };
 export function createGoogleDocs(
   options: GoogleFakeOptions & { readonly destinations: ReadonlyMap<string, readonly string[]> },

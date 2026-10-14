@@ -1,6 +1,6 @@
+import { workspaceScopes } from '@agent-works/domain/workspace-tools';
 import { describe, expect, it, vi } from 'vitest';
 
-import { workspaceScopes } from '../../../../packages/domain/dist/workspace-tools.js';
 import { beginWorkspaceStepUp } from '../credentials/flow.js';
 
 import { connection } from './test-fixtures.js';

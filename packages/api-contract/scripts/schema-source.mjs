@@ -1,4 +1,5 @@
 import * as domain from '@agent-works/domain';
+import * as workspace from '@agent-works/domain/workspace-tools';
 import * as governance from '@agent-works/domain/data-governance';
 const object = (properties, required = Object.keys(properties)) => ({
   type: 'object',
@@ -21,7 +22,20 @@ function arm(schema, kind) {
 }
 
 export function schemaComponents() {
+  const sources = json(workspace.workspaceSourcesSchema);
+  sources.items.properties.authority = { const: 'none', type: 'string' };
+  sources.items.required.push('authority');
   const components = {
+    WorkspaceExecute: json(workspace.workspaceExecuteSchema),
+    WorkspaceDecision: json(workspace.workspaceDecisionSchema),
+    WorkspaceApprovalRead: json(workspace.workspaceApprovalReadSchema),
+    WorkspaceScopeRequest: json(workspace.workspaceScopeRequestSchema),
+    WorkspaceResult: {
+      oneOf: [json(workspace.workspaceReceiptSchema), sources],
+    },
+    WorkspaceApprovalPrepared: object({ approval: json(domain.approvalSchema), payload: {} }),
+    WorkspaceApprovalDetail: object({ approval: json(domain.approvalSchema), payload: {} }),
+    WorkspaceApprovalDecided: json(domain.approvalDecidedSchema),
     AskRequest: json(domain.askRequestSchema),
     AskResponse: json(domain.askResponseSchema),
     TaskSubmit: arm(domain.taskApiSchema, 'submit'),

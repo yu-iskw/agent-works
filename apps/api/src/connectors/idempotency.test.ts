@@ -1,6 +1,5 @@
+import { googleFakeTransport } from '@agent-works/fakes';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { googleFakeTransport } from '../../../../packages/fakes/dist/google-transport.js';
 
 import { createCalendarAdapter } from './calendar/adapter.js';
 import { createDocsAdapter } from './docs/adapter.js';

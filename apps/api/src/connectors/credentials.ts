@@ -1,12 +1,12 @@
-import { workspaceScopes } from '../../../../packages/domain/dist/workspace-tools.js';
+import { workspaceScopes } from '@agent-works/domain/workspace-tools';
 
 import { ConnectorError } from './errors.js';
 
 import type { CallerCredential } from './google-http.js';
-import type { WorkspaceToolName } from '../../../../packages/domain/dist/workspace-tools.js';
 import type { OAuthProvider } from '../credentials/provider.js';
 import type { CredentialsPort } from '../ports/credentials.js';
 import type { OAuthConnection } from '@agent-works/domain';
+import type { WorkspaceToolName } from '@agent-works/domain/workspace-tools';
 export type CredentialDeps = {
   readonly credentials: CredentialsPort;
   readonly provider: OAuthProvider;

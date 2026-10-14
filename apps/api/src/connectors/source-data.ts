@@ -2,8 +2,8 @@ import { permitsClassification, sourceData } from '@agent-works/domain/data-gove
 
 import { ConnectorError } from './errors.js';
 
-import type { WorkspaceSource } from '../../../../packages/domain/dist/workspace-tools.js';
 import type { GovernanceClassification } from '@agent-works/domain/data-governance';
+import type { WorkspaceSource } from '@agent-works/domain/workspace-tools';
 export type ClassifiedSource = WorkspaceSource & { readonly authority: 'none' };
 export function classifySources(
   rows: readonly WorkspaceSource[],

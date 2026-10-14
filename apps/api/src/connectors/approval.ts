@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import { approvalSchema } from '@agent-works/domain';
-
 import {
   parseWorkspacePayload,
   workspacePayloadHash,
   workspaceTarget,
   workspaceToolRef,
-} from '../../../../packages/domain/dist/workspace-tools.js';
+} from '@agent-works/domain/workspace-tools';
 
 import { ConnectorError } from './errors.js';
 

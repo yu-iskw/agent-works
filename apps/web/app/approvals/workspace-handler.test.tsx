@@ -3,6 +3,8 @@ import { Readable } from 'node:stream';
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { describe, expect, it } from 'vitest';
 
+import { createWebServer } from '../../src/server.js';
+
 import { createWorkspaceApprovalsHandler } from './workspace-handler.js';
 
 import type { Approval } from '@agent-works/domain';
@@ -27,7 +29,11 @@ const row: Approval = {
   executionsUsed: 0,
 };
 const now = new Date('2026-10-14T10:00:00Z');
-function harness(patch: Partial<Approval> = {}, changedPayload: unknown = payload) {
+function harness(
+  patch: Partial<Approval> = {},
+  changedPayload: unknown = payload,
+  mounted = false,
+) {
   const calls: { path: string; body: unknown; headers: Headers }[] = [];
   const load: typeof fetch = (url, options) => {
     const path = new URL(url instanceof Request ? url.url : url.toString()).pathname;
@@ -75,13 +81,33 @@ function harness(patch: Partial<Approval> = {}, changedPayload: unknown = payloa
           },
           end: (text: string) => resolve({ status, body: text, headers: responseHeaders }),
         } as unknown as ServerResponse;
-        handler(input, output);
+        if (mounted)
+          createWebServer({ apiUrl: 'http://127.0.0.1:8084', fetch: load }).emit(
+            'request',
+            input,
+            output,
+          );
+        else handler(input, output);
       },
     );
   }
   return { request, calls };
 }
 describe('workspace approval web handler', () => {
+  it('requires an explicit allowlist for the Compose API hostname', () => {
+    expect(() => createWorkspaceApprovalsHandler({ apiUrl: 'http://api:8080' })).toThrow(
+      'offline endpoint',
+    );
+    expect(() =>
+      createWorkspaceApprovalsHandler({ apiUrl: 'http://api:8080', allowedApiHosts: ['api'] }),
+    ).not.toThrow();
+  });
+  it('mounts the workspace approval page in the dev web server', async () => {
+    const result = await harness({}, payload, true).request();
+    expect(result.status).toBe(200);
+    expect(result.body).toContain('alice-folder');
+    expect(result.body).toContain('csrfToken');
+  });
   it('loads an authorized exact payload and renders escaped diff plus CSRF controls', async () => {
     const h = harness();
     const result = await h.request();

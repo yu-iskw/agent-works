@@ -32,6 +32,9 @@ export default defineProject({
       '@agent-works/incident-analysis': fileURLToPath(
         new URL('../../agents/skills/incident-analysis/deliver.ts', import.meta.url),
       ),
+      '@agent-works/domain/workspace-tools': fileURLToPath(
+        new URL('../../packages/domain/src/workspace-tools.ts', import.meta.url),
+      ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),

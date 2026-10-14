@@ -13,10 +13,14 @@ export interface OAuthProvider {
 
 type Reply = { readonly status: number; readonly body: unknown };
 
-export function createHttpOAuthProvider(baseUrl: string, redirectUri: string): OAuthProvider {
+export function createHttpOAuthProvider(
+  baseUrl: string,
+  redirectUri: string,
+  authorizationBaseUrl = baseUrl,
+): OAuthProvider {
   return {
     authorizationUrl(subject, start) {
-      const url = new URL('/oauth/authorize', baseUrl);
+      const url = new URL('/oauth/authorize', authorizationBaseUrl);
       url.search = new URLSearchParams({
         response_type: 'code',
         subject,

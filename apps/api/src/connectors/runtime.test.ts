@@ -1,10 +1,12 @@
+import { workspaceScopes } from '@agent-works/domain/workspace-tools';
+import {
+  createGoogleCalendar,
+  createGoogleDocs,
+  createGoogleGmail,
+  googleFakeTransport,
+} from '@agent-works/fakes';
 import { expect, it } from 'vitest';
 
-import { workspaceScopes } from '../../../../packages/domain/dist/workspace-tools.js';
-import { createGoogleCalendar } from '../../../../packages/fakes/dist/google-calendar.js';
-import { createGoogleDocs } from '../../../../packages/fakes/dist/google-docs.js';
-import { createGoogleGmail } from '../../../../packages/fakes/dist/google-gmail.js';
-import { googleFakeTransport } from '../../../../packages/fakes/dist/google-transport.js';
 import { createMemoryApprovalStore } from '../broker/approvals.js';
 
 import { createWorkspaceRuntime } from './runtime.js';

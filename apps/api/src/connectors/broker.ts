@@ -1,11 +1,11 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-import { ZodError } from 'zod';
-
 import {
   parseWorkspacePayload,
   workspaceTarget,
   workspaceToolRef,
-} from '../../../../packages/domain/dist/workspace-tools.js';
+} from '@agent-works/domain/workspace-tools';
+import { ZodError } from 'zod';
+
 import { registeredToolManifests } from '../broker/broker.js';
 
 import { ConnectorError } from './errors.js';
@@ -15,12 +15,9 @@ import type { WorkspaceCredentials } from './credentials.js';
 import type { CallerCredential } from './google-http.js';
 import type { WorkspaceAdapters } from './ports.js';
 import type { ClassifiedSource } from './source-data.js';
-import type {
-  WorkspaceToolName,
-  WorkspaceReceipt,
-} from '../../../../packages/domain/dist/workspace-tools.js';
 import type { ApprovalStore } from '../broker/approvals.js';
 import type { GovernanceClassification } from '@agent-works/domain/data-governance';
+import type { WorkspaceToolName, WorkspaceReceipt } from '@agent-works/domain/workspace-tools';
 export type WorkspaceCall = {
   readonly subject: string;
   readonly taskId: string;

@@ -23,6 +23,16 @@ describe('Google HTTP offline transport', () => {
   ])('rejects non-local endpoint %s', (baseUrl) => {
     expect(() => createGoogleHttp({ baseUrl })).toThrow('INVALID_REQUEST');
   });
+  it('allows the explicitly configured Compose fake hostname', async () => {
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(Response.json({ id: 'doc-1' })));
+    const http = createGoogleHttp({
+      baseUrl: 'http://fake-workspace:8080',
+      allowedHosts: ['fake-workspace'],
+      fetch: fetcher,
+    });
+    await http.request(input);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
   it('rejects cross-origin paths before dispatch', async () => {
     const fetcher = vi.fn<typeof fetch>();
     const http = createGoogleHttp({ baseUrl: 'http://127.0.0.1', fetch: fetcher });

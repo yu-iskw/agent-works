@@ -2,7 +2,7 @@ import {
   calendarCreateSchema,
   calendarListSchema,
   workspaceScopes,
-} from '../../domain/dist/workspace-tools.js';
+} from '@agent-works/domain/workspace-tools';
 
 import {
   googleBody,
@@ -15,7 +15,7 @@ import { googleIdempotency } from './google-idempotency.js';
 
 import type { GoogleFakeOptions } from './google-auth.js';
 import type { Handler, Request } from './http.js';
-import type { CalendarCreate } from '../../domain/dist/workspace-tools.js';
+import type { CalendarCreate } from '@agent-works/domain/workspace-tools';
 export type FakeCalendarEvent = CalendarCreate & { readonly id: string; readonly owner: string };
 export function createGoogleCalendar(
   options: GoogleFakeOptions & { readonly seed?: readonly FakeCalendarEvent[] },
