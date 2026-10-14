@@ -130,10 +130,27 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.11)(vite@8.0.16(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
 
-  packages/api-contract: {}
+  packages/api-contract:
+    dependencies:
+      '@agent-works/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.11)(vite@8.0.16(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
 
   packages/cli:
     dependencies:
+      '@agent-works/api-contract':
+        specifier: workspace:*
+        version: link:../api-contract
       '@agent-works/policy':
         specifier: workspace:*
         version: link:../policy

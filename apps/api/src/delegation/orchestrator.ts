@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { authorityHash } from '../../../../packages/domain/dist/delegation-authority.js';
+import { authorityHash } from '@agent-works/domain/delegation-authority';
+
 import { budgetGuard } from '../finops/budget-guard.js';
 
 import { childContext } from './context.js';
@@ -10,13 +11,10 @@ import { resultDigest } from './verifier.js';
 
 import type { DelegationRequest } from './context.js';
 import type { ChildVerifier } from './verifier.js';
-import type {
-  DelegationAudit,
-  DelegationContext,
-} from '../../../../packages/domain/dist/delegation.js';
 import type { RunnerOutput } from '../agent/runner-port.js';
 import type { BudgetPolicy, BudgetPort } from '../finops/budget-port.js';
 import type { DelegationPort } from '../ports/delegation.js';
+import type { DelegationAudit, DelegationContext } from '@agent-works/domain/delegation';
 export type DelegationOptions = {
   readonly flag?: string;
   readonly maxDepth: number;
@@ -31,7 +29,6 @@ export function createDelegator(options: DelegationOptions) {
   const enabled = delegationEnabled(options.flag);
   const now = options.now ?? (() => new Date());
   const guard = budgetGuard(options.budget, options.budgetPolicy);
-  const inFlight = new Map<string, Promise<RunnerOutput>>();
   async function audit(
     parent: DelegationContext,
     childTaskId: string,
@@ -62,21 +59,27 @@ export function createDelegator(options: DelegationOptions) {
         await audit(parent, request.childTaskId, error.reason as DelegationAudit['reason']);
       throw error;
     }
-    if ((await options.records.read(child.taskId)) !== undefined)
-      throw new DelegationDenied('identity');
-    await options.records.create({
-      childTaskId: child.taskId,
-      parentTaskId: parent.taskId,
-      rootTaskId: child.rootTaskId,
-      traceId: child.traceId,
-      depth: child.depth,
-      delegatedAuthorityHash: authorityHash(child.authority),
-      budgetShare: child.budgetShare,
-      state: 'pending',
-      resultDigest: null,
-      verifierRef: null,
-      occurredAt: now().toISOString(),
-    });
+    const ownership = await options.records.create(
+      {
+        childTaskId: child.taskId,
+        parentTaskId: parent.taskId,
+        rootTaskId: child.rootTaskId,
+        traceId: child.traceId,
+        depth: child.depth,
+        delegatedAuthorityHash: authorityHash(child.authority),
+        budgetShare: child.budgetShare,
+        state: 'pending',
+        resultDigest: null,
+        verifierRef: null,
+        occurredAt: now().toISOString(),
+      },
+      parent.budgetShare,
+    );
+    if (ownership !== 'created') {
+      const reason = ownership === 'replay' ? 'identity' : 'budget_share';
+      await audit(parent, child.taskId, reason);
+      throw new DelegationDenied(reason);
+    }
     let result: RunnerOutput;
     try {
       result = await guard.run(
@@ -119,12 +122,7 @@ export function createDelegator(options: DelegationOptions) {
   }
   return {
     spawn(parent: DelegationContext, request: DelegationRequest): Promise<RunnerOutput> {
-      // Reserve ownership synchronously to close concurrent duplicate dispatch races.
-      if (inFlight.has(request.childTaskId))
-        return Promise.reject(new DelegationDenied('identity'));
-      const operation = spawn(structuredClone(parent), structuredClone(request));
-      inFlight.set(request.childTaskId, operation);
-      return operation;
+      return spawn(structuredClone(parent), structuredClone(request));
     },
   };
 }

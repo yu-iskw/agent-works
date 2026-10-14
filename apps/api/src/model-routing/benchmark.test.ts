@@ -1,6 +1,5 @@
+import { benchmarkPasses } from '@agent-works/domain/model-policy-benchmark';
 import { expect, it } from 'vitest';
-
-import { benchmarkPasses } from '../../../../packages/domain/dist/model-policy-benchmark.js';
 
 import { fileBenchmarks, memoryBenchmarks } from './benchmark.js';
 import { benchmarkFixture, fastIdentity, fixtureRule } from './fixtures.js';

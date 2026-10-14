@@ -1,10 +1,11 @@
-import type {
-  DelegationEdge,
-  DelegationAudit,
-} from '../../../../packages/domain/dist/delegation.js';
+import type { BudgetLimits } from '@agent-works/domain/budget';
+import type { DelegationEdge, DelegationAudit } from '@agent-works/domain/delegation';
 export interface DelegationPort {
-  /** One parent per child; reject identity conflicts. No child result body is stored. */
-  create(edge: DelegationEdge): Promise<void>;
+  /** Atomically reserve identity and cumulative parent allocation. Only the creator dispatches. */
+  create(
+    edge: DelegationEdge,
+    parentShare: BudgetLimits,
+  ): Promise<'created' | 'replay' | 'budget_share'>;
   settle(
     childTaskId: string,
     state: 'verified' | 'rejected' | 'failed',

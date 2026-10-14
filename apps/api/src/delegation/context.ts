@@ -1,11 +1,11 @@
-import { intersectAuthority } from '../../../../packages/domain/dist/delegation-authority.js';
-import { delegationContextSchema } from '../../../../packages/domain/dist/delegation.js';
+import { delegationContextSchema } from '@agent-works/domain/delegation';
+import { intersectAuthority } from '@agent-works/domain/delegation-authority';
 
 import { DelegationDenied } from './errors.js';
 
-import type { RequestedGrant } from '../../../../packages/domain/dist/delegation-authority.js';
-import type { DelegationContext } from '../../../../packages/domain/dist/delegation.js';
 import type { BudgetLimits } from '@agent-works/domain/budget';
+import type { DelegationContext } from '@agent-works/domain/delegation';
+import type { RequestedGrant } from '@agent-works/domain/delegation-authority';
 export type DelegationRequest = {
   readonly childTaskId: string;
   readonly grants: readonly RequestedGrant[];

@@ -1,13 +1,7 @@
-import {
-  inferenceRecordSchema,
-  modelRoutingAuditSchema,
-} from '../../../../packages/domain/dist/model-policy.js';
+import { inferenceRecordSchema, modelRoutingAuditSchema } from '@agent-works/domain/model-policy';
 
-import type {
-  InferenceRecord,
-  ModelRoutingAudit,
-} from '../../../../packages/domain/dist/model-policy.js';
 import type { ModelRoutingPort } from '../ports/model-routing.js';
+import type { InferenceRecord, ModelRoutingAudit } from '@agent-works/domain/model-policy';
 import type postgres from 'postgres';
 export function createPostgresModelRoutingPort(sql: postgres.Sql): ModelRoutingPort {
   return {

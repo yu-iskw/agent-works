@@ -25,6 +25,26 @@
       "types": "./src/error-class-retry.ts",
       "development": "./src/error-class-retry.ts",
       "import": "./dist/error-class-retry.js"
+    },
+    "./delegation": {
+      "types": "./src/delegation.ts",
+      "development": "./src/delegation.ts",
+      "import": "./dist/delegation.js"
+    },
+    "./delegation-authority": {
+      "types": "./src/delegation-authority.ts",
+      "development": "./src/delegation-authority.ts",
+      "import": "./dist/delegation-authority.js"
+    },
+    "./model-policy": {
+      "types": "./src/model-policy.ts",
+      "development": "./src/model-policy.ts",
+      "import": "./dist/model-policy.js"
+    },
+    "./model-policy-benchmark": {
+      "types": "./src/model-policy-benchmark.ts",
+      "development": "./src/model-policy-benchmark.ts",
+      "import": "./dist/model-policy-benchmark.js"
     }
   },
   "scripts": {

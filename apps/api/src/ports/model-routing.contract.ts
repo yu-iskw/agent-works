@@ -3,10 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { approvedDefault, defaultIdentity } from '../model-routing/fixtures.js';
 
 import type { ModelRoutingPort } from './model-routing.js';
-import type {
-  InferenceRecord,
-  ModelRoutingAudit,
-} from '../../../../packages/domain/dist/model-policy.js';
+import type { InferenceRecord, ModelRoutingAudit } from '@agent-works/domain/model-policy';
 export function modelRoutingContract(factory: () => ModelRoutingPort): void {
   describe('model routing port contract', () => {
     const record = (id: string): InferenceRecord => ({

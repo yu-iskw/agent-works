@@ -58,9 +58,13 @@ describe('delegation acceptance', () => {
   });
   it('charges children to the parent envelope, with no independent child allowance', async () => {
     const w = world();
-    await w.delegator.spawn(fixtureContext, fixtureChild);
+    const parent = {
+      ...fixtureContext,
+      budgetShare: { ...fixtureLimits, estimatedCostMicros: 200 },
+    };
+    await w.delegator.spawn(parent, fixtureChild);
     await expect(
-      w.delegator.spawn(fixtureContext, { ...fixtureChild, childTaskId: 'child-2' }),
+      w.delegator.spawn(parent, { ...fixtureChild, childTaskId: 'child-2' }),
     ).rejects.toBeInstanceOf(BudgetExceeded);
     expect(w.execute).toHaveBeenCalledOnce();
     expect((await w.budget.events()).filter((row) => row.kind === 'charged')).toMatchObject([
@@ -96,6 +100,47 @@ describe('delegation acceptance', () => {
     expect(outcomes.map((row) => row.status)).toEqual(['fulfilled', 'rejected']);
     expect(w.execute).toHaveBeenCalledOnce();
   });
+  it('grants only one execution owner across two orchestrator instances', async () => {
+    const w = world();
+    const outcomes = await Promise.allSettled([
+      createDelegator(w.options).spawn(fixtureContext, fixtureChild),
+      createDelegator(w.options).spawn(fixtureContext, fixtureChild),
+    ]);
+    expect(outcomes.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((row) => row.status === 'rejected')).toHaveLength(1);
+    expect(w.execute).toHaveBeenCalledOnce();
+    expect(w.verify).toHaveBeenCalledOnce();
+  });
+  it.each(['estimatedCostMicros', 'inferenceSteps', 'parallelism'] as const)(
+    'enforces cumulative immediate-parent %s allocations independently of the root envelope',
+    async (dimension) => {
+      const w = world();
+      const share = {
+        ...fixtureLimits,
+        estimatedCostMicros: 0,
+        inferenceSteps: 0,
+        parallelism: 0,
+        [dimension]: 30,
+      };
+      const parent = {
+        ...fixtureContext,
+        taskId: 'nested-parent',
+        rootTaskId: 'parent',
+        depth: 1,
+        budgetShare: share,
+      };
+      const child = { ...fixtureChild, budgetShare: share };
+      w.options.budgetPolicy.task = { ...fixtureLimits, [dimension]: 100 };
+      w.options.budgetPolicy.user = { ...fixtureLimits, [dimension]: 100 };
+      const delegator = createDelegator(w.options);
+      await delegator.spawn(parent, child);
+      await expect(
+        createDelegator(w.options).spawn(parent, { ...child, childTaskId: 'child-2' }),
+      ).rejects.toThrow('budget_share');
+      expect(w.execute).toHaveBeenCalledOnce();
+      expect(await w.records.read('child-2')).toBeUndefined();
+    },
+  );
   it('does not re-execute a persisted child after orchestrator reconstruction', async () => {
     const w = world();
     await w.delegator.spawn(fixtureContext, fixtureChild);

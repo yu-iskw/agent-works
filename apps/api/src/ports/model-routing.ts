@@ -1,7 +1,4 @@
-import type {
-  InferenceRecord,
-  ModelRoutingAudit,
-} from '../../../../packages/domain/dist/model-policy.js';
+import type { InferenceRecord, ModelRoutingAudit } from '@agent-works/domain/model-policy';
 export interface ModelRoutingPort {
   /** Append before dispatch. Identity reuse is rejected unless the entire payload is equal. */
   start(record: InferenceRecord): Promise<void>;

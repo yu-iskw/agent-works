@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 
+import { ApiClient } from '@agent-works/api-contract';
+import { ApiClientError } from '@agent-works/api-contract/transport';
 import { decide, parseFacts } from '@agent-works/policy';
 
-import { ApiClient } from '../../api-contract/dist/client.generated.js';
-import { ApiClientError } from '../../api-contract/dist/transport.js';
-
-import type { TaskSubmit } from '../../api-contract/dist/client.generated.js';
-import type { ClientOptions } from '../../api-contract/dist/transport.js';
+import type { TaskSubmit } from '@agent-works/api-contract';
+import type { ClientOptions } from '@agent-works/api-contract/transport';
 
 type PolicyDecision = ReturnType<typeof decide>;
 

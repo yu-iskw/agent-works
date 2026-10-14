@@ -1,14 +1,6 @@
-import {
-  approvedModelSchema,
-  modelKey,
-  routingRuleSchema,
-} from '../../../../packages/domain/dist/model-policy.js';
+import { approvedModelSchema, modelKey, routingRuleSchema } from '@agent-works/domain/model-policy';
 
-import type {
-  ApprovedModel,
-  ModelIdentity,
-  RoutingRule,
-} from '../../../../packages/domain/dist/model-policy.js';
+import type { ApprovedModel, ModelIdentity, RoutingRule } from '@agent-works/domain/model-policy';
 export type ModelPolicy = {
   readonly defaultModel: ModelIdentity;
   readonly allowlist: readonly ApprovedModel[];

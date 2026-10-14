@@ -73,22 +73,25 @@ export type Task = {
 };
 export type TaskEvents = {
   readonly events: readonly {
-    readonly eventId: string;
-    readonly eventType: string;
-    readonly schemaVersion: string;
-    readonly occurredAt: string;
-    readonly taskId: string;
-    readonly stepId: string;
-    readonly traceId: string;
-    readonly initiatorSubject: string;
-    readonly agentPrincipal: string;
-    readonly tool: string | null;
-    readonly policyDecisionId: string | null;
-    readonly approvalId: string | null;
-    readonly requestDigestSha256: string | null;
-    readonly outcome: string;
-    readonly externalObjectRef: string | null;
-    readonly prevDigest: string | null;
+    readonly destination: 'audit' | 'work';
+    readonly event: {
+      readonly eventId: string;
+      readonly eventType: string;
+      readonly schemaVersion: string;
+      readonly occurredAt: string;
+      readonly taskId: string;
+      readonly stepId: string;
+      readonly traceId: string;
+      readonly initiatorSubject: string;
+      readonly agentPrincipal: string;
+      readonly tool: string | null;
+      readonly policyDecisionId: string | null;
+      readonly approvalId: string | null;
+      readonly requestDigestSha256: string | null;
+      readonly outcome: string;
+      readonly externalObjectRef: string | null;
+      readonly prevDigest: string | null;
+    };
   }[];
 };
 export type TaskCancelled = {

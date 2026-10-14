@@ -1,26 +1,26 @@
-import {
-  delegationEdgeSchema,
-  delegationAuditSchema,
-} from '../../../../../packages/domain/dist/delegation.js';
+import { delegationEdgeSchema, delegationAuditSchema } from '@agent-works/domain/delegation';
 
-import type {
-  DelegationEdge,
-  DelegationAudit,
-} from '../../../../../packages/domain/dist/delegation.js';
+import { allocationFits } from '../../delegation/allocations.js';
+
 import type { DelegationPort } from '../delegation.js';
+import type { DelegationEdge, DelegationAudit } from '@agent-works/domain/delegation';
 export function createMemoryDelegationPort(): DelegationPort {
   const edges = new Map<string, DelegationEdge>();
   const events = new Map<string, DelegationAudit>();
   return {
-    create(input) {
+    create(input, parentShare) {
       const edge = delegationEdgeSchema.parse(input);
       if (edge.state !== 'pending' || edge.childTaskId === edge.parentTaskId)
         throw new Error('invalid delegation edge');
       const previous = edges.get(edge.childTaskId);
       if (previous !== undefined && JSON.stringify(previous) !== JSON.stringify(edge))
         throw new Error('delegation identity conflict');
+      if (previous !== undefined) return Promise.resolve('replay');
+      const children = [...edges.values()].filter((row) => row.parentTaskId === edge.parentTaskId);
+      if (!allocationFits(children, edge.budgetShare, parentShare))
+        return Promise.resolve('budget_share');
       edges.set(edge.childTaskId, edge);
-      return Promise.resolve();
+      return Promise.resolve('created');
     },
     settle(childTaskId, state, resultDigest, verifierRef) {
       const previous = edges.get(childTaskId);

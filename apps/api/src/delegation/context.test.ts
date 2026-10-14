@@ -1,6 +1,5 @@
+import { authoritySubset } from '@agent-works/domain/delegation-authority';
 import { describe, expect, it } from 'vitest';
-
-import { authoritySubset } from '../../../../packages/domain/dist/delegation-authority.js';
 
 import { childContext } from './context.js';
 import { fixtureChild, fixtureContext, fixtureNow } from './fixtures.js';

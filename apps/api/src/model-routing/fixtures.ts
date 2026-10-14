@@ -1,10 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import type {
-  ModelIdentity,
-  ApprovedModel,
-  RoutingRule,
-} from '../../../../packages/domain/dist/model-policy.js';
+import type { ModelIdentity, ApprovedModel, RoutingRule } from '@agent-works/domain/model-policy';
 export const defaultIdentity: ModelIdentity = {
   modelId: 'fixture-gemini-default',
   version: 'offline-1',

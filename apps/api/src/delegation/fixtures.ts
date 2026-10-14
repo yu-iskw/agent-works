@@ -1,4 +1,4 @@
-import type { DelegationContext } from '../../../../packages/domain/dist/delegation.js';
+import type { DelegationContext } from '@agent-works/domain/delegation';
 export const fixtureNow = new Date('2026-10-14T00:00:00.000Z');
 export const fixtureLimits = {
   approval: 'PLACEHOLDER' as const,

@@ -1,19 +1,19 @@
 import { randomUUID } from 'node:crypto';
 
-import { sameBoundary } from '../../../../packages/domain/dist/model-policy.js';
+import { sameBoundary } from '@agent-works/domain/model-policy';
 
 import { ModelRoutingDenied, RetryableModelFailure } from './errors.js';
 import { approvedModel, parseModelPolicy } from './policy.js';
 
 import type { BenchmarkPort } from './benchmark.js';
 import type { ModelPolicy } from './policy.js';
+import type { ModelRoutingPort } from '../ports/model-routing.js';
 import type {
   ApprovedModel,
   ModelIdentity,
   ModelRoutingAudit,
   RoutingRule,
-} from '../../../../packages/domain/dist/model-policy.js';
-import type { ModelRoutingPort } from '../ports/model-routing.js';
+} from '@agent-works/domain/model-policy';
 export type InferenceContext = {
   readonly taskId: string;
   readonly traceId: string;

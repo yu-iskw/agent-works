@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, relative, isAbsolute } from 'node:path';
 
-import { benchmarkPasses } from '../../../../packages/domain/dist/model-policy-benchmark.js';
+import { benchmarkPasses } from '@agent-works/domain/model-policy-benchmark';
 
-import type { RoutingRule } from '../../../../packages/domain/dist/model-policy.js';
+import type { RoutingRule } from '@agent-works/domain/model-policy';
 export interface BenchmarkPort {
   enabled(rule: RoutingRule): Promise<boolean>;
 }

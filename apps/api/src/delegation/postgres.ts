@@ -1,22 +1,19 @@
-import {
-  delegationEdgeSchema,
-  delegationAuditSchema,
-} from '../../../../packages/domain/dist/delegation.js';
+import { delegationEdgeSchema, delegationAuditSchema } from '@agent-works/domain/delegation';
 
-import type {
-  DelegationEdge,
-  DelegationAudit,
-} from '../../../../packages/domain/dist/delegation.js';
+import { allocationFits } from './allocations.js';
+
 import type { DelegationPort } from '../ports/delegation.js';
+import type { DelegationEdge, DelegationAudit } from '@agent-works/domain/delegation';
 import type postgres from 'postgres';
 export function createPostgresDelegationPort(sql: postgres.Sql): DelegationPort {
   return {
-    async create(input) {
+    async create(input, parentShare) {
       const edge = delegationEdgeSchema.parse(input);
       if (edge.state !== 'pending' || edge.childTaskId === edge.parentTaskId)
         throw new Error('invalid delegation edge');
-      await sql.begin(async (tx) => {
+      return sql.begin(async (tx) => {
         await tx`select pg_advisory_xact_lock(hashtextextended(${`delegation:${edge.childTaskId}`},0))`;
+        await tx`select pg_advisory_xact_lock(hashtextextended(${`delegation-parent:${edge.parentTaskId}`},0))`;
         const previous = await tx<
           { payload: DelegationEdge }[]
         >`select payload from delegation_edges where child_task_id=${edge.childTaskId}`;
@@ -25,9 +22,21 @@ export function createPostgresDelegationPort(sql: postgres.Sql): DelegationPort 
             JSON.stringify(delegationEdgeSchema.parse(previous[0].payload)) !== JSON.stringify(edge)
           )
             throw new Error('delegation identity conflict');
-          return;
+          return 'replay' as const;
         }
+        const children = await tx<
+          { payload: DelegationEdge }[]
+        >`select payload from delegation_edges where parent_task_id=${edge.parentTaskId}`;
+        if (
+          !allocationFits(
+            children.map((row) => delegationEdgeSchema.parse(row.payload)),
+            edge.budgetShare,
+            parentShare,
+          )
+        )
+          return 'budget_share' as const;
         await tx`insert into delegation_edges(child_task_id,parent_task_id,root_task_id,trace_id,depth,delegated_authority_hash,budget_share,state,payload) values(${edge.childTaskId},${edge.parentTaskId},${edge.rootTaskId},${edge.traceId},${edge.depth},${edge.delegatedAuthorityHash},${tx.json(edge.budgetShare)},${edge.state},${tx.json(edge)})`;
+        return 'created' as const;
       });
     },
     async settle(childTaskId, state, resultDigest, verifierRef) {

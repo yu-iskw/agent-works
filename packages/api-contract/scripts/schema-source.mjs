@@ -1,4 +1,4 @@
-import * as domain from '../../domain/dist/index.js';
+import * as domain from '@agent-works/domain';
 const object = (properties, required = Object.keys(properties)) => ({
   type: 'object',
   properties,
@@ -26,7 +26,7 @@ export function schemaComponents() {
     TaskSubmit: arm(domain.taskApiSchema, 'submit'),
     TaskAccepted: arm(domain.taskApiSchema, 'accepted'),
     Task: json(domain.taskSchema),
-    TaskEvents: object({ events: { type: 'array', items: json(domain.auditEventSchema) } }),
+    TaskEvents: object({ events: { type: 'array', items: json(domain.outboxEventSchema) } }),
     TaskCancelled: object({ taskId: string, status: json(domain.taskStatusSchema) }),
     ApprovalDetail: arm(domain.approvalApiSchema, 'detail'),
     ApprovalDecide: arm(domain.approvalApiSchema, 'decide'),

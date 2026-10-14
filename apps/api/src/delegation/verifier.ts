@@ -1,7 +1,7 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 
-import type { DelegationContext } from '../../../../packages/domain/dist/delegation.js';
 import type { RunnerOutput } from '../agent/runner-port.js';
+import type { DelegationContext } from '@agent-works/domain/delegation';
 type Verification = { readonly accepted: boolean; readonly verifierRef: string };
 export interface ChildVerifier {
   verify(context: DelegationContext, result: RunnerOutput): Promise<Verification>;

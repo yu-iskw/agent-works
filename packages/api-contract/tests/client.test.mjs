@@ -99,3 +99,33 @@ it('submits a valid task with case-insensitive idempotency header', async () => 
   });
   expect(load).toHaveBeenCalledOnce();
 });
+
+it('accepts nonempty task outbox events and rejects bare audit events', async () => {
+  const event = {
+    eventId: 'event-1',
+    eventType: 'task.queued',
+    schemaVersion: '1',
+    occurredAt: task.createdAt,
+    taskId: task.id,
+    stepId: 'step-1',
+    traceId: 'trace-1',
+    initiatorSubject: 'alice',
+    agentPrincipal: 'agent:test',
+    tool: null,
+    policyDecisionId: null,
+    approvalId: null,
+    requestDigestSha256: null,
+    outcome: 'queued',
+    externalObjectRef: null,
+    prevDigest: null,
+  };
+  const events = [
+    { destination: 'audit', event },
+    { destination: 'work', event },
+  ];
+  const load = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ events }))));
+  const client = new ApiClient({ baseUrl: 'https://api.fake.test', fetch: load });
+  await expect(client.taskEvents(task.id)).resolves.toEqual({ events });
+  load.mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ events: [event] }))));
+  await expect(client.taskEvents(task.id)).rejects.toThrow('invalid_response');
+});

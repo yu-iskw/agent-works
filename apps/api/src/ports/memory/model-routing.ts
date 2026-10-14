@@ -1,13 +1,7 @@
-import {
-  inferenceRecordSchema,
-  modelRoutingAuditSchema,
-} from '../../../../../packages/domain/dist/model-policy.js';
+import { inferenceRecordSchema, modelRoutingAuditSchema } from '@agent-works/domain/model-policy';
 
-import type {
-  InferenceRecord,
-  ModelRoutingAudit,
-} from '../../../../../packages/domain/dist/model-policy.js';
 import type { ModelRoutingPort } from '../model-routing.js';
+import type { InferenceRecord, ModelRoutingAudit } from '@agent-works/domain/model-policy';
 export function createMemoryModelRoutingPort(): ModelRoutingPort {
   const rows = new Map<string, InferenceRecord>();
   const events = new Map<string, ModelRoutingAudit>();
