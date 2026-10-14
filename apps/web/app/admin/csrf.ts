@@ -23,11 +23,17 @@ export function csrfValid(request: IncomingMessage, form: URLSearchParams): bool
   if (token === undefined || posted === null || !/^[a-f0-9]{64}$/.test(posted)) return false;
   const origin = request.headers.origin;
   if (origin !== undefined) {
-    const parsed = URL.parse(origin);
+    // Comma-separated public origins; proxy Host headers identify the internal web service.
+    const trustedOrigins =
+      process.env.ADMIN_TRUSTED_ORIGINS ??
+      (process.env.NODE_ENV === 'production'
+        ? ''
+        : 'http://127.0.0.1:8081,http://localhost:8081,http://127.0.0.1:8085,http://localhost:8085');
     if (
-      parsed === null ||
-      request.headers.host === undefined ||
-      parsed.host !== request.headers.host
+      !trustedOrigins
+        .split(',')
+        .map((value) => value.trim())
+        .includes(origin)
     )
       return false;
   }

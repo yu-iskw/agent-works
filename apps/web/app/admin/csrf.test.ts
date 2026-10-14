@@ -1,8 +1,14 @@
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { csrfCookie, csrfToken, csrfValid } from './csrf.js';
 
 import type { IncomingMessage } from 'node:http';
+
+beforeEach(() => {
+  vi.stubEnv('NODE_ENV', 'development');
+  vi.stubEnv('ADMIN_TRUSTED_ORIGINS', undefined);
+});
+afterEach(() => vi.unstubAllEnvs());
 
 const token = 'a'.repeat(64);
 function request(headers: Record<string, string | undefined>): IncomingMessage {
@@ -39,4 +45,46 @@ test('different same-length tokens are rejected', () => {
       new URLSearchParams({ csrfToken: 'b'.repeat(64) }),
     ),
   ).toBe(false);
+});
+
+test.each([
+  ['http://127.0.0.1:8081', true],
+  ['https://evil.example', false],
+  ['http://web:8080', false],
+  ['https://127.0.0.1:8081', false],
+])('proxied CSRF submission from %s is accepted: %s', (origin, valid) => {
+  expect(
+    csrfValid(
+      request({ cookie: `aw_admin_csrf=${token}`, origin, host: 'web:8080' }),
+      new URLSearchParams({ csrfToken: token }),
+    ),
+  ).toBe(valid);
+});
+test('forging Host to match an untrusted Origin does not permit submission', () => {
+  expect(
+    csrfValid(
+      request({
+        cookie: `aw_admin_csrf=${token}`,
+        origin: 'https://evil.example',
+        host: 'evil.example',
+      }),
+      new URLSearchParams({ csrfToken: token }),
+    ),
+  ).toBe(false);
+});
+test('production requires an explicit public origin allowlist', () => {
+  vi.stubEnv('NODE_ENV', 'production');
+  const form = new URLSearchParams({ csrfToken: token });
+  const headers = { cookie: `aw_admin_csrf=${token}`, host: 'web:8080' };
+  expect(csrfValid(request({ ...headers, origin: 'http://127.0.0.1:8081' }), form)).toBe(false);
+  vi.stubEnv('ADMIN_TRUSTED_ORIGINS', 'https://admin.example, https://other.example');
+  for (const origin of ['https://admin.example', 'https://other.example'])
+    expect(csrfValid(request({ ...headers, origin }), form)).toBe(true);
+  for (const origin of [
+    'http://127.0.0.1:8081',
+    'http://admin.example',
+    'https://admin.example.evil',
+    'null',
+  ])
+    expect(csrfValid(request({ ...headers, origin }), form)).toBe(false);
 });

@@ -73,6 +73,8 @@ async function world() {
   const apiUrl = await listen(api);
   const web = webModule.createWebServer({ apiUrl });
   const webUrl = await listen(web);
+  const previousOrigins = process.env.ADMIN_TRUSTED_ORIGINS;
+  process.env.ADMIN_TRUSTED_ORIGINS = webUrl;
   function assertion(sub: string) {
     const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: 'admin-local' })).toString(
       'base64url',
@@ -98,6 +100,8 @@ async function world() {
       admin = false;
     },
     close: async () => {
+      if (previousOrigins === undefined) delete process.env.ADMIN_TRUSTED_ORIGINS;
+      else process.env.ADMIN_TRUSTED_ORIGINS = previousOrigins;
       await close(web);
       await close(api);
       await close(trusted);
@@ -105,7 +109,7 @@ async function world() {
   };
 }
 
-test('admin local stack: suspend, confirm, audit, resume', async ({ page }) => {
+test('admin local stack suspend, confirm, audit, resume', async ({ page }) => {
   const app = await world();
   try {
     await page.setExtraHTTPHeaders({ 'x-goog-iap-jwt-assertion': app.assertion('alice') });
@@ -139,7 +143,7 @@ test('admin local stack: suspend, confirm, audit, resume', async ({ page }) => {
     await app.close();
   }
 });
-test('admin local stack: forged role is 403 and directory revocation prevents final apply', async ({
+test('admin local stack forged role is 403 and directory revocation prevents final apply', async ({
   page,
   request,
 }) => {

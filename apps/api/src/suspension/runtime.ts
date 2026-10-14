@@ -24,6 +24,7 @@ const calls = new AsyncLocalStorage<{
   enforce: SuspensionEnforcer;
   stopped?: InvocationStopped;
   admit?: boolean;
+  resolveTeams?: () => Promise<void>;
 }>();
 const unavailableMessage = 'suspension unavailable';
 const agent = { kind: 'agent', id: 'api', version: '1' } as const;
@@ -71,6 +72,7 @@ export async function beforeModelCall(model: string): Promise<void> {
   const scope = calls.getStore();
   if (scope === undefined) return;
   try {
+    await scope.resolveTeams?.();
     await scope.enforce.check({ ...scope.context, model }, 'model');
   } catch (error) {
     if (error instanceof InvocationStopped) scope.stopped = error;
@@ -104,8 +106,9 @@ export function controlledRunner(runner: AgentRunner, enforcer: SuspensionEnforc
         ...input,
         beforeModelCall: async (model) => {
           const scope = calls.getStore();
-          const context = scope?.context ?? emptyContext(model);
           try {
+            await scope?.resolveTeams?.();
+            const context = scope?.context ?? emptyContext(model);
             await enforcer.check({ ...context, model }, 'model');
           } catch (error) {
             if (scope !== undefined && error instanceof InvocationStopped) scope.stopped = error;
@@ -142,6 +145,7 @@ export async function authorizeResource(
       model,
     };
   try {
+    await scope.resolveTeams?.();
     await scope.enforce.check(scope.context, 'admission');
   } catch (error) {
     throw new Unavailable(error instanceof InvocationStopped ? error.code : unavailableMessage, {
@@ -158,11 +162,17 @@ export function controlledVerify(
     const caller = await verify(assertion);
     const scope = calls.getStore();
     if (scope !== undefined) {
-      const teams = await teamsFor(caller.sub);
-      scope.context = { ...scope.context, subject: caller.sub, teams: teams.groups };
+      scope.context = { ...scope.context, subject: caller.sub, teams: [] };
+      // Ownership-only routes authenticate without depending on directory availability.
+      scope.resolveTeams = async () => {
+        const teams = await teamsFor(caller.sub);
+        scope.context = { ...scope.context, teams: teams.groups };
+        scope.resolveTeams = undefined;
+      };
       // Admin operations must remain accessible while the global kill switch is active.
       if (scope.admit === true) {
         try {
+          await scope.resolveTeams();
           await enforcer.check(scope.context, 'admission');
         } catch (error) {
           throw new Unavailable(

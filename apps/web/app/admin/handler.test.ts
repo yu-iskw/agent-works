@@ -145,3 +145,18 @@ test('oversized and invalid form submissions are controlled', async () => {
     await app.close();
   }
 });
+
+test.each([
+  ['http://127.0.0.1:8081', 200],
+  ['https://evil.example', 403],
+])('proxied confirmation from %s returns %s', async (origin, status) => {
+  const load = vi.fn<typeof fetch>().mockResolvedValue(Response.json(emptySnapshot));
+  const app = await adminWeb({ apiUrl: 'http://api:8080', fetch: load });
+  const response = await app.fetch('http://web:8080/admin/confirm', {
+    method: 'POST',
+    headers: { cookie, origin, 'x-goog-iap-jwt-assertion': 'signed' },
+    body: stopForm(token),
+  });
+  expect(response.status).toBe(status);
+  expect(load).toHaveBeenCalledTimes(status === 200 ? 1 : 0);
+});

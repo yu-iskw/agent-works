@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { runnerLimitsSchema } from '@agent-works/domain';
 import { expect, test, vi } from 'vitest';
 
@@ -5,7 +7,9 @@ import { createAdkRunner } from '../agent/adk-runner.js';
 import { createScriptedRunner } from '../agent/scripted-runner.js';
 import { createListener } from '../http.js';
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
+import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { RetrievalError } from '../retrieval/drive-port.js';
+import { createTaskRoutes } from '../routes/tasks.js';
 
 import { publishBundledCapabilities } from './bootstrap.js';
 import { createSuspensionEnforcer } from './enforcement.js';
@@ -299,3 +303,104 @@ test('a read-tool stop becomes a controlled retrieval error and retains the task
     details: { kind: 'tool' },
   });
 });
+
+test.each([
+  ['GET', ''],
+  ['GET', '/events'],
+  ['POST', ':cancel'],
+])(
+  'task recovery %s %s works during a directory outage and preserves ownership',
+  async (method, suffix) => {
+    const { ledger, dispatch } = createMemoryTaskPorts();
+    const accepted = await dispatch.accept({
+      subject: 'alice',
+      request,
+      idempotencyKey: 'submit',
+      policy: { ...authorized.decision, decisionId: randomUUID() },
+      context: authorized.context,
+      agent: {
+        kind: 'agent',
+        agentId: manifest.id,
+        version: manifest.version,
+        identityRef: 'agent://incident',
+      },
+      deadline: new Date(Date.now() + 30_000).toISOString(),
+    });
+    const teamsFor = vi.fn().mockRejectedValue(new Error('directory offline'));
+    const enforcer = { check: vi.fn().mockResolvedValue(undefined) };
+    const verify = controlledVerify(
+      (assertion) => Promise.resolve({ sub: assertion, assertion } as Caller),
+      teamsFor,
+      enforcer,
+    );
+    const routes = createTaskRoutes(ledger, verify);
+    const path = `/v1/tasks/${accepted.taskId}${suffix}`;
+    const route =
+      suffix === ':cancel' ? routes.cancel! : suffix === '/events' ? routes.events : routes.read;
+    const fetch = listenerFetch(
+      controlledListener(createListener({ [`${method} ${path}`]: route }), enforcer),
+    );
+    const headers = { 'x-goog-iap-jwt-assertion': 'alice', 'idempotency-key': 'cancel' };
+    expect(
+      (
+        await fetch(`http://api:8080${path}`, {
+          method,
+          headers: { ...headers, 'x-goog-iap-jwt-assertion': 'bob' },
+        })
+      ).status,
+    ).toBe(404);
+    const response = await fetch(`http://api:8080${path}`, { method, headers });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject(
+      suffix === ':cancel'
+        ? { taskId: accepted.taskId, status: 'CANCELLED' }
+        : suffix === '/events'
+          ? { events: expect.any(Array) as unknown }
+          : { id: accepted.taskId, createdBySub: 'alice' },
+    );
+    expect(teamsFor).not.toHaveBeenCalled();
+    expect(enforcer.check).not.toHaveBeenCalled();
+  },
+);
+test.each(['resource', 'model', 'ask'])(
+  'directory outage still blocks %s invocation enforcement',
+  async (kind) => {
+    const teamsFor = vi.fn().mockRejectedValue(new Error('directory offline'));
+    const enforcer = { check: vi.fn().mockResolvedValue(undefined) };
+    const verify = controlledVerify(
+      (assertion) => Promise.resolve({ sub: assertion, assertion } as Caller),
+      teamsFor,
+      enforcer,
+    );
+    const load = vi.fn<typeof fetch>();
+    const path = kind === 'ask' ? '/v1/ask' : '/v1/tasks';
+    const listener = createListener({
+      [`POST ${path}`]: async (req) => {
+        try {
+          await verify(req.headers['x-goog-iap-jwt-assertion'] as string);
+          if (kind === 'model')
+            await controlledRunner(
+              createScriptedRunner({ baseUrl: 'http://llm', fetch: load }),
+              enforcer,
+            ).run({ question: 'triage', sources: [] });
+          else await authorizeResource(manifest, 'gemini');
+          return { status: 200, body: 'invoked' };
+        } catch {
+          return { status: 503, body: 'unavailable' };
+        }
+      },
+    });
+    const fetch = listenerFetch(controlledListener(listener, enforcer));
+    expect(
+      (
+        await fetch(`http://api:8080${path}`, {
+          method: 'POST',
+          headers: { 'x-goog-iap-jwt-assertion': 'alice' },
+        })
+      ).status,
+    ).toBe(503);
+    expect(teamsFor).toHaveBeenCalledExactlyOnceWith('alice');
+    expect(enforcer.check).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+  },
+);
