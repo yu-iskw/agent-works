@@ -1,6 +1,88 @@
 // Generated from openapi.json. Run pnpm api:generate; do not edit.
 import { ContractTransport } from './transport.js';
 import type { ClientOptions } from './transport.js';
+export type WorkspaceExecute = {
+  readonly tool:
+    | 'docs.createDraft'
+    | 'calendar.listEvents'
+    | 'calendar.createEvent'
+    | 'gmail.searchThreads'
+    | 'gmail.createDraft'
+    | 'gmail.send';
+  readonly payload: unknown;
+  readonly taskId: string;
+  readonly stepId: string;
+  readonly callId: string;
+  readonly idempotencyKey: string;
+  readonly traceId: string;
+  readonly approvalId?: string;
+};
+export type WorkspaceDecision = {
+  readonly approvalId: string;
+  readonly decision: 'approve' | 'reject';
+  readonly expectedPayloadSha256: string;
+};
+export type WorkspaceApprovalRead = { readonly approvalId: string };
+export type WorkspaceScopeRequest = {
+  readonly tool:
+    | 'docs.createDraft'
+    | 'calendar.listEvents'
+    | 'calendar.createEvent'
+    | 'gmail.searchThreads'
+    | 'gmail.createDraft'
+    | 'gmail.send';
+  readonly state: string;
+  readonly codeChallenge: string;
+  readonly codeChallengeMethod: 'S256';
+};
+export type WorkspaceResult =
+  | { readonly id: string; readonly kind: 'document' | 'event' | 'draft' }
+  | readonly {
+      readonly id: string;
+      readonly title: string;
+      readonly body: string;
+      readonly classification: 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+      readonly authority: 'none';
+    }[];
+export type WorkspaceApprovalPrepared = {
+  readonly approval: {
+    readonly id: string;
+    readonly taskId: string;
+    readonly stepId: string;
+    readonly tool: string;
+    readonly targetResource: string;
+    readonly payloadSha256: string;
+    readonly requestedBySub: string;
+    readonly approverSub: string | null;
+    readonly state: string;
+    readonly expiresAt: string;
+    readonly maxExecutions: number;
+    readonly executionsUsed: number;
+  };
+  readonly payload: unknown;
+};
+export type WorkspaceApprovalDetail = {
+  readonly approval: {
+    readonly id: string;
+    readonly taskId: string;
+    readonly stepId: string;
+    readonly tool: string;
+    readonly targetResource: string;
+    readonly payloadSha256: string;
+    readonly requestedBySub: string;
+    readonly approverSub: string | null;
+    readonly state: string;
+    readonly expiresAt: string;
+    readonly maxExecutions: number;
+    readonly executionsUsed: number;
+  };
+  readonly payload: unknown;
+};
+export type WorkspaceApprovalDecided = {
+  readonly id: string;
+  readonly state: 'approved' | 'rejected';
+  readonly executionsUsed: number;
+};
 export type AskRequest = { readonly requestId: string; readonly question: string };
 export type AskResponse = {
   readonly requestId: string;
@@ -1011,6 +1093,66 @@ export class ApiClient {
       'processDeletionRequest',
       'POST',
       `/v1/admin/governance/deletions/process`,
+      body,
+      headers,
+    );
+  }
+  executeWorkspaceTool(
+    body: WorkspaceExecute,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<WorkspaceResult> {
+    return this.transport.request<WorkspaceResult>(
+      'executeWorkspaceTool',
+      'POST',
+      `/v1/connectors/execute`,
+      body,
+      headers,
+    );
+  }
+  requestWorkspaceScopes(
+    body: WorkspaceScopeRequest,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<OAuthStarted> {
+    return this.transport.request<OAuthStarted>(
+      'requestWorkspaceScopes',
+      'POST',
+      `/v1/connectors/scopes`,
+      body,
+      headers,
+    );
+  }
+  prepareWorkspaceApproval(
+    body: WorkspaceExecute,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<WorkspaceApprovalPrepared> {
+    return this.transport.request<WorkspaceApprovalPrepared>(
+      'prepareWorkspaceApproval',
+      'POST',
+      `/v1/connectors/approvals/prepare`,
+      body,
+      headers,
+    );
+  }
+  readWorkspaceApproval(
+    body: WorkspaceApprovalRead,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<WorkspaceApprovalDetail> {
+    return this.transport.request<WorkspaceApprovalDetail>(
+      'readWorkspaceApproval',
+      'POST',
+      `/v1/connectors/approvals/read`,
+      body,
+      headers,
+    );
+  }
+  decideWorkspaceApproval(
+    body: WorkspaceDecision,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<WorkspaceApprovalDecided> {
+    return this.transport.request<WorkspaceApprovalDecided>(
+      'decideWorkspaceApproval',
+      'POST',
+      `/v1/connectors/approvals/decide`,
       body,
       headers,
     );

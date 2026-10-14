@@ -5,6 +5,11 @@ const code = await main();
 if (code !== 0) process.exitCode = code;
 
 async function main(): Promise<number> {
+  if (process.argv[2] === 'connectors') {
+    return (await import('./connectors.js')).runConnectors(process.argv.slice(3), process.stdout, {
+      assertion: process.env.AW_IAP_ASSERTION,
+    });
+  }
   // Issue 140 subcommand registration.
   if (process.argv[2] === 'schedule') {
     return (await import('./schedule.js')).runSchedule(process.argv, process.stdout, {

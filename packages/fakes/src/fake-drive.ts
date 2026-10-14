@@ -33,12 +33,18 @@ function document(id: string, folder: string, title: string, text: string) {
   };
 }
 
-export function createDrive(directoryUrl?: string): Handler {
+export function createDrive(directoryUrl?: string, workerToken?: string): Handler {
   return async (request) => {
     if (request.method !== 'GET' || request.url.pathname !== '/documents') {
       return { status: 404, body: { error: 'not found' } };
     }
-    const sub = callerSub(header(request.headers, IAP_ASSERTION_HEADER));
+    const workerSubject = header(request.headers, 'x-worker-subject');
+    if (
+      workerSubject !== undefined &&
+      (!workerToken || header(request.headers, 'authorization') !== `Bearer ${workerToken}`)
+    )
+      return { status: 401, body: { error: 'worker unauthorized' } };
+    const sub = workerSubject ?? callerSub(header(request.headers, IAP_ASSERTION_HEADER));
     const groups = await groupsFor(directoryUrl, sub);
     return {
       status: 200,

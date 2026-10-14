@@ -5,6 +5,9 @@ import { defineProject } from 'vitest/config';
 export default defineProject({
   resolve: {
     alias: {
+      '@agent-works/domain/workspace-tools': fileURLToPath(
+        new URL('../../packages/domain/src/workspace-tools.ts', import.meta.url),
+      ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),
@@ -19,6 +22,6 @@ export default defineProject({
   },
   test: {
     name: '@agent-works/web',
-    include: ['app/**/*.test.ts'],
+    include: ['app/**/*.test.{ts,tsx}'],
   },
 });

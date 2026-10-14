@@ -60,7 +60,20 @@ export type ClaimOutcome =
   | { readonly kind: 'deny'; readonly code: 'APPROVAL_REQUIRED' | 'APPROVAL_EXPIRED' }
   | { readonly kind: 'intended' };
 
+export type CompletedCall = Pick<
+  ClaimRequest,
+  | 'callId'
+  | 'taskId'
+  | 'stepId'
+  | 'toolRef'
+  | 'idempotencyKey'
+  | 'approvalId'
+  | 'payloadSha256'
+  | 'actorSub'
+>;
+
 export type ApprovalStore = {
+  readCompleted(request: CompletedCall): Promise<string | undefined>;
   save(approval: Approval): Promise<void>;
   read(id: string): Promise<Approval | undefined>;
   readPayload(id: string): Promise<unknown>;
@@ -153,6 +166,15 @@ export async function applyApprovalsMigration(sql: postgres.Sql): Promise<void> 
 export function createPostgresApprovalStore(sql: postgres.Sql): ApprovalStore {
   const ready = ensureMigration(sql);
   return {
+    readCompleted(request) {
+      return ready.then(async () => {
+        const rows = await sql<CallSql[]>`
+          select * from tool_calls where id = ${request.callId}
+        `;
+        const row = rows.at(0);
+        return row ? completedReceipt(toCall(row), request) : undefined;
+      });
+    },
     save(approval) {
       return ready.then(() => insertApproval(sql, approval));
     },
@@ -199,6 +221,12 @@ export function createMemoryApprovalStore(): ApprovalStore {
   const callsByKey = new Map<string, CallRow>();
   const exclusive = serialize();
   return {
+    readCompleted(request) {
+      return exclusive(() => {
+        const call = calls.get(request.callId);
+        return call ? completedReceipt(call, request) : undefined;
+      });
+    },
     save(approval) {
       return exclusive(() => {
         approvals.set(approval.id, approvalSchema.parse(approval));
@@ -252,6 +280,15 @@ export function createMemoryApprovalStore(): ApprovalStore {
       });
     },
   };
+}
+
+function completedReceipt(call: CallRow, request: CompletedCall): string | undefined {
+  return call.status === 'COMPLETED' &&
+    call.idempotencyKey === request.idempotencyKey &&
+    call.actorSub === request.actorSub &&
+    sameCall(call, request)
+    ? (call.externalReceipt ?? undefined)
+    : undefined;
 }
 
 function rowsFor(
@@ -340,7 +377,7 @@ function existingCall(
   };
 }
 
-function sameCall(existing: CallRow, request: ClaimRequest): boolean {
+function sameCall(existing: CallRow, request: CompletedCall): boolean {
   return (
     existing.payloadSha256 === request.payloadSha256 &&
     existing.taskId === request.taskId &&

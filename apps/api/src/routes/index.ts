@@ -49,6 +49,7 @@ const patternSlots: readonly PatternSlot[] = [
 const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 
 export type RouteDeps = AskDeps & {
+  readonly connectors?: Readonly<Record<string, Route>>;
   readonly schedules?: ScheduleRouteDeps;
   readonly scheduleEvents?: EventIngestor;
   readonly admin?: Omit<AdminDeps, 'verify'>;
@@ -84,7 +85,7 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       adminReadRoutes({ ...deps.admin, verify: deps.verify }),
       adminChangeRoutes({ ...deps.admin, verify: deps.verify }),
     );
-  Object.assign(table, governanceRoutes(deps));
+  Object.assign(table, governanceRoutes(deps), deps.connectors);
   const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??

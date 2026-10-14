@@ -23,6 +23,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 
 export type WebAppOptions = {
   readonly apiUrl: string;
+  readonly allowedApiHosts?: readonly string[];
   readonly fetch?: typeof fetch;
   readonly newRequestId?: () => string;
 };

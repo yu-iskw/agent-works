@@ -8,7 +8,6 @@
     ".": {
       "entry": [
         "stylelint.config.mjs",
-        "agents/skills/incident-analysis/eval-run.ts",
         "tools/finops/*.mjs",
         "tools/slo/*.mjs",
         "tools/restore-drill/*.mjs"

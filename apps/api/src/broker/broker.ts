@@ -4,6 +4,7 @@ import {
   outboxEventSchema,
   ticketCreateManifest,
 } from '@agent-works/domain';
+import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 
 import { beforeToolCall } from '../suspension/runtime.js';
 
@@ -11,6 +12,8 @@ import type { ApprovalStore, BindResult, ClaimOutcome, DecisionCommand } from '.
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { PolicyDecision } from '@agent-works/domain';
 import type { PolicyFacts } from '@agent-works/policy';
+
+export const registeredToolManifests = [ticketCreateManifest, ...workspaceManifests];
 
 export const TICKET_TOOL = `${ticketCreateManifest.metadata.name}@${ticketCreateManifest.metadata.version}`;
 

@@ -5,8 +5,12 @@ const packageRoot = new URL('../', import.meta.url);
 const routeRoot = new URL('../../apps/api/src/routes/', packageRoot);
 export function routeFingerprints(overrides = new Map()) {
   return Object.fromEntries(
-    readdirSync(routeRoot)
-      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    [
+      ...readdirSync(routeRoot).filter(
+        (name) => name.endsWith('.ts') && !name.endsWith('.test.ts'),
+      ),
+      ...['routes.ts', 'route-schema.ts', 'route-auth.ts'].map((name) => `../connectors/${name}`),
+    ]
       .sort()
       .map((name) => [
         name,

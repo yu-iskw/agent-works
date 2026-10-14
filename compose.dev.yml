@@ -44,6 +44,7 @@ services:
     command: node packages/fakes/dist/main.js drive
     environment:
       DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker
     depends_on:
       fake-directory:
         condition: service_healthy
@@ -54,19 +55,30 @@ services:
     command: node packages/fakes/dist/main.js llm
     ports:
       - 127.0.0.1:8083:8080
+  fake-workspace:
+    <<: *node
+    command: node packages/fakes/dist/main.js workspace
+    ports:
+      - 127.0.0.1:8087:8080
   api:
     <<: *node
     command: node apps/api/dist/server.js
     environment:
+      AW_DEV_STACK: '1'
+      OAUTH_URL: http://fake-workspace:8080
+      OAUTH_PUBLIC_URL: http://localhost:8087
       DATABASE_URL: postgres://postgres@postgres:5432/postgres
       DRIVE_URL: http://fake-drive:8080
       DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker
       LLM_URL: http://fake-llm:8080
       OAUTH_REDIRECT_URI: http://localhost:8081/oauth/callback
       IAP_JWKS_URL: http://fake-iap:8080/jwks
       IAP_ISSUER: https://fake-iap.local
       IAP_AUDIENCE: agent-works-dev
     depends_on:
+      fake-workspace:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
@@ -75,6 +87,7 @@ services:
     <<: *node
     command: node apps/web/dist/src/server.js
     environment:
+      AW_DEV_STACK: '1'
       API_URL: http://api:8080
     ports:
       - 127.0.0.1:8085:8080

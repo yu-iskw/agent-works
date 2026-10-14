@@ -32,7 +32,8 @@
     "coverage:watch": "vitest --coverage",
     "api:generate": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract generate",
     "prebuild": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract build",
-    "pretest": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract build"
+    "pretest": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract build",
+    "typecheck": "pnpm --recursive exec tsc --noEmit"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
