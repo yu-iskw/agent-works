@@ -793,12 +793,7 @@ export type DeletionRequestList = {
 export type DeletionProcess = { readonly requestId: string };
 export type Error = { readonly error: string };
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | readonly JsonValue[]
-  | { readonly [key: string]: JsonValue };
+  string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export class ApiClient {
   private readonly transport: ContractTransport;
   constructor(options: ClientOptions) {

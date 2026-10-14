@@ -60,12 +60,10 @@ function checkJoins(ast: SelectAst, datasets: readonly AnalyticsDataset[]): void
     const right = resolveColumn(join.right, ast, datasets);
     const current = ast.tables[index + 1].alias;
     const previous = ast.tables.slice(0, index + 1).map((t) => t.alias);
-    if (
-      !(
-        (left.table === current && previous.includes(right.table)) ||
-        (right.table === current && previous.includes(left.table))
-      )
-    )
+    if (!(
+      (left.table === current && previous.includes(right.table)) ||
+      (right.table === current && previous.includes(left.table))
+    ))
       reject('SQL_JOIN');
   }
 }

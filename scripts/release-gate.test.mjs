@@ -98,8 +98,11 @@ function probe(body, setup = '') {
 test('offline runner loads domain schemas without built output', () => {
   const result = probe(
     `const { analyticsRerunSchema } = await import('@agent-works/domain');
+     const { docsDraftSchema } = await import('@agent-works/domain/workspace-tools');
      return analyticsRerunSchema.safeParse({
        versionId: '123e4567-e89b-42d3-a456-426614174000', maxBytes: 100000,
+     }).success && docsDraftSchema.safeParse({
+       title: 'Offline draft', destinationId: 'shared-drive', body: 'Draft content',
      }).success;`,
     `import { registerHooks } from 'node:module';
      registerHooks({

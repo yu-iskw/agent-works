@@ -22,6 +22,7 @@ export function loadRuntime() {
         '@agent-works/domain/model-policy': 'packages/domain/src/model-policy.ts',
         '@agent-works/domain/model-policy-benchmark':
           'packages/domain/src/model-policy-benchmark.ts',
+        '@agent-works/domain/workspace-tools': 'packages/domain/src/workspace-tools.ts',
         '@agent-works/policy': 'packages/policy/src/index.ts',
         '@agent-works/fakes': 'packages/fakes/src/index.ts',
         '@agent-works/fakes/adversarial': 'packages/fakes/src/adversarial/index.ts',
