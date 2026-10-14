@@ -37,6 +37,10 @@ type DevWorkspaceDeps = {
   readonly now: () => Date;
 };
 
+function toolVersion(tool: string): string {
+  return tool === 'drive.search' ? '1' : '1.0.0';
+}
+
 /** Explicit opt-in for the offline Compose stack; never resolves production tokens. */
 export function createDevWorkspaceRuntime(deps: DevWorkspaceDeps) {
   const approvers = new Set<string>();
@@ -77,7 +81,7 @@ export function createDevWorkspaceRuntime(deps: DevWorkspaceDeps) {
         teams: (await deps.groups(subject)).groups,
         agent: { kind: 'agent', id: 'api', version: '1' },
         skill: { kind: 'skill', id: skill.manifest.id, version: skill.manifest.version },
-        tool: { kind: 'tool', id: tool, version: '1.0.0' },
+        tool: { kind: 'tool', id: tool, version: toolVersion(tool) },
         model: 'gemini',
         taskId,
         traceId: taskId,

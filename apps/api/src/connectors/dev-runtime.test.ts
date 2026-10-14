@@ -1,10 +1,17 @@
 import { taskSchema } from '@agent-works/domain';
+import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryApprovalStore } from '../broker/approvals.js';
 import { createMemoryCredentialsPort } from '../ports/memory/credentials.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
+import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
+import { createIncidentSkill } from '../skills/incident.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { publishBundledCapabilities } from '../suspension/bootstrap.js';
+import { createSuspensionEnforcer } from '../suspension/enforcement.js';
+import { bundledVersionBaseline } from '../suspension/runtime.js';
+import { testAt, versionCommand } from '../suspension/test-fixtures.js';
 import { authorizedCaller } from '../testing/task-authorization.js';
 
 import { createDevWorkspaceRuntime } from './dev-runtime.js';
@@ -17,6 +24,7 @@ import type { ApprovalStore } from '../broker/approvals.js';
 import type * as approvalsModule from '../broker/approvals.js';
 import type { OAuthFlow } from '../credentials/flow.js';
 import type { CredentialsPort } from '../ports/credentials.js';
+import type { SuspensionEnforcer } from '../suspension/enforcement.js';
 
 const stores = vi.hoisted(() => ({
   approvals: vi.fn<() => ApprovalStore>(),
@@ -58,7 +66,7 @@ function harness() {
     ['reviewer', ['Reviewer']],
   ]);
   const rolesFor = vi.fn((subject: string) => Promise.resolve(held.get(subject) ?? []));
-  const check = vi.fn(() => Promise.resolve());
+  const check = vi.fn<SuspensionEnforcer['check']>(() => Promise.resolve());
   const openWorker = vi.fn(() =>
     Promise.resolve({
       context: authorizedCaller.context,
@@ -93,7 +101,61 @@ function harness() {
   return { deps, read, held, task, check, openWorker, context, sql };
 }
 
+async function publishedEnforcement() {
+  const ledger = createMemorySuspensionLedger();
+  await publishBundledCapabilities(ledger, bundledVersionBaseline(createIncidentSkill().manifest));
+  await publishBundledCapabilities(ledger, [
+    ...createSkillRegistry()
+      .list()
+      .filter((manifest) => ['meeting-prep', 'workspace-task'].includes(manifest.id))
+      .map((manifest) => ({
+        pin: { kind: 'skill' as const, id: manifest.id, version: manifest.version },
+        reason: 'Bundled workspace skill',
+      })),
+    ...workspaceManifests
+      .filter((manifest) => manifest.metadata.name !== 'gmail.send')
+      .map((manifest) => ({
+        pin: {
+          kind: 'tool' as const,
+          id: manifest.metadata.name,
+          version: manifest.metadata.version,
+        },
+        reason: 'Bundled workspace tool',
+      })),
+  ]);
+  return { ledger, enforcement: createSuspensionEnforcer({ ledger }) };
+}
+
 describe('dev connector authorization wiring', () => {
+  it('opens Drive with the dev-stack published pin and blocks it after revocation', async () => {
+    const h = harness();
+    const { ledger, enforcement } = await publishedEnforcement();
+    h.check.mockImplementation((...args) => enforcement.check(...args));
+    await expect(h.deps.meeting.driveSearch('triage', authorizedCaller, 'task-1')).resolves.toEqual(
+      [],
+    );
+    expect(h.openWorker).toHaveBeenCalledExactlyOnceWith('alice');
+
+    await ledger.change(
+      versionCommand({ kind: 'tool', id: 'drive.search', version: '1' }, 'revoked', 2),
+      'operator',
+      testAt,
+    );
+    h.openWorker.mockClear();
+    await expect(
+      h.deps.meeting.driveSearch('triage', authorizedCaller, 'task-1'),
+    ).rejects.toMatchObject({ code: 'CAPABILITY_VERSION_REVOKED' });
+    expect(h.openWorker).not.toHaveBeenCalled();
+  });
+  it.each(['docs.createDraft', 'calendar.listEvents'])(
+    'authorizes %s with the dev-stack published workspace pin',
+    async (tool) => {
+      const h = harness();
+      const { enforcement } = await publishedEnforcement();
+      h.check.mockImplementation((...args) => enforcement.check(...args));
+      await expect(h.deps.routes.authorizePreparation('alice', 'task-1', tool)).resolves.toBe(true);
+    },
+  );
   it.each(['calendar.listEvents', 'calendar.createEvent', 'gmail.createDraft'] as const)(
     'denies direct preparation and execution of non-admitted source: %s',
     async (tool) => {
@@ -144,7 +206,7 @@ describe('dev connector authorization wiring', () => {
     );
     expect(h.openWorker).not.toHaveBeenCalled();
     expect(h.check).toHaveBeenCalledWith(
-      expect.objectContaining({ tool: { kind: 'tool', id: 'drive.search', version: '1.0.0' } }),
+      expect.objectContaining({ tool: { kind: 'tool', id: 'drive.search', version: '1' } }),
       'tool',
     );
     await h.deps.meeting.driveSearch(
