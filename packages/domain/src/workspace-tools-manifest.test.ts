@@ -41,7 +41,7 @@ describe('workspace manifest registry', () => {
       expect(manifest.spec.approval.required).toBe(false);
       expect(manifest.spec.permissions.userAuthority).toBe('delegated');
       expect(new Map(Object.entries(workspaceScopes)).get(tool)).toMatch(
-        /^https:\/\/www.googleapis.com\/auth\//,
+        /^https:\/\/www\.googleapis\.com\/auth\//,
       );
     },
   );
