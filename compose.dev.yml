@@ -44,6 +44,7 @@ services:
     command: node packages/fakes/dist/main.js drive
     environment:
       DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker
     depends_on:
       fake-directory:
         condition: service_healthy
@@ -69,6 +70,7 @@ services:
       DATABASE_URL: postgres://postgres@postgres:5432/postgres
       DRIVE_URL: http://fake-drive:8080
       DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker
       LLM_URL: http://fake-llm:8080
       OAUTH_REDIRECT_URI: http://localhost:8081/oauth/callback
       IAP_JWKS_URL: http://fake-iap:8080/jwks

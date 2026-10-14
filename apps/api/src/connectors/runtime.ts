@@ -1,4 +1,5 @@
 import { createMeetingPrepSkill } from '../skills/meeting-prep.js';
+import { createWorkspaceTaskSkill } from '../skills/workspace-task.js';
 
 import { createWorkspaceBroker } from './broker.js';
 import { createCalendarAdapter } from './calendar/adapter.js';
@@ -50,5 +51,10 @@ export function createWorkspaceRuntime(deps: WorkspaceRuntimeDeps) {
     approvals: deps.broker.approvals,
     now: deps.broker.now,
   }));
-  return { broker, routes, skill };
+  const taskSkill = createWorkspaceTaskSkill(() => ({
+    broker,
+    approvals: deps.broker.approvals,
+    now: deps.broker.now,
+  }));
+  return { broker, routes, skill, taskSkill };
 }

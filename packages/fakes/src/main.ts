@@ -15,7 +15,8 @@ if (role === 'iap') {
     process.exit(1);
   }
   await listen(createIapProxy(upstream), port);
-} else if (role === 'drive') await listen(createDrive(process.env.DIRECTORY_URL), port);
+} else if (role === 'drive')
+  await listen(createDrive(process.env.DIRECTORY_URL, process.env.DRIVE_WORKER_TOKEN), port);
 else if (role === 'llm') await listen(createLlm(), port);
 else if (role === 'workspace') await listen(createGoogleWorkspace(), port);
 else if (role === 'directory') await listen(createDirectory(), port);

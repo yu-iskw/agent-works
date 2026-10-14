@@ -24,6 +24,7 @@ import { createIncidentSkill } from './skills/incident.js';
 import { createMeetingPrepSkill } from './skills/meeting-prep.js';
 import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
+import { taskSkillPolicy } from './skills/task-policy.js';
 import { createTicketReconciler } from './skills/ticket-receipts.js';
 import { publishBundledCapabilities } from './suspension/bootstrap.js';
 import { createSuspensionEnforcer } from './suspension/enforcement.js';
@@ -45,7 +46,12 @@ import type { SearchContext } from '@agent-works/domain';
 const config = loadConfig(process.env);
 const sql = await openDatabase(config.databaseUrl);
 const now = () => new Date();
-const drive = createHttpDrive({ baseUrl: config.driveUrl, directoryUrl: config.directoryUrl, now });
+const drive = createHttpDrive({
+  baseUrl: config.driveUrl,
+  directoryUrl: config.directoryUrl,
+  workerToken: process.env.AW_DEV_STACK === '1' ? process.env.DRIVE_WORKER_TOKEN : undefined,
+  now,
+});
 const groups = createGroupResolver({ baseUrl: config.directoryUrl });
 const ledger = createPostgresLedgerPort(sql, now);
 const suspensionLedger = createPostgresSuspensionLedger(sql);
@@ -105,6 +111,7 @@ const workspace = (() => {
 })();
 const skills = createSkillRegistry([
   controlledSkill(incidentSkill, enforcement, groups, config.incident?.model ?? 'gemini'),
+  ...(workspace ? [controlledSkill(workspace.taskSkill, enforcement, groups, 'gemini')] : []),
   controlledSkill(workspace?.skill ?? createMeetingPrepSkill(), enforcement, groups, 'gemini'),
 ]);
 if (workspace !== undefined) {
@@ -112,6 +119,10 @@ if (workspace !== undefined) {
     {
       pin: { kind: 'skill', id: 'meeting-prep', version: '1.0.0' },
       reason: 'Bundled workspace skill',
+    },
+    {
+      pin: { kind: 'skill', id: 'workspace-task', version: '1.0.0' },
+      reason: 'Bundled workspace task skill',
     },
     ...workspaceManifests
       .filter((manifest) => manifest.metadata.name !== 'gmail.send')
@@ -130,6 +141,7 @@ const worker = createTaskDispatcher({
   dispatch,
   ledger,
   registry: skills,
+  approvals: createPostgresApprovalStore(sql),
   now,
   reconcile:
     config.incident === undefined ? undefined : createTicketReconciler(config.incident.ticketsUrl),
@@ -169,26 +181,18 @@ const server = createServer(
       ledger,
       policyInput: async (caller, context, resource) => {
         await authorizeResource(resource?.manifest, config.incident?.model ?? 'gemini');
-        const incident = resource?.manifest.id === 'incident-analysis';
-        const meeting = workspace !== undefined && resource?.manifest.id === 'meeting-prep';
+        const capability = taskSkillPolicy(
+          resource?.manifest,
+          context.allowedSources,
+          workspace !== undefined,
+        );
         callers.set(context, caller);
         return Promise.resolve({
           facts: {
-            approved_agent_and_skill_version:
-              resource === undefined ||
-              ((incident || meeting) && resource.manifest.state === 'PUBLISHED'),
-            agent_has_tool_capability:
-              resource === undefined ||
-              (incident && resource.manifest.tools.every((tool) => tool === 'ticket.create')) ||
-              (meeting &&
-                resource.manifest.tools.every((tool) =>
-                  ['calendar.listEvents', 'drive.search', 'docs.createDraft'].includes(tool),
-                )),
+            approved_agent_and_skill_version: capability.published,
+            agent_has_tool_capability: capability.tools,
             user_or_service_has_resource_authority: context.userSubject === caller.sub,
-            source_system_allows_operation: incident
-              ? context.allowedSources.length > 0 &&
-                context.allowedSources.every((source) => source === 'incidents')
-              : context.allowedSources.includes('drive'),
+            source_system_allows_operation: capability.sources,
             data_classification_policy_allows: context.classificationCeiling === 'INTERNAL',
             valid_approval_if_required: true,
             within_time_and_budget_bounds: true,

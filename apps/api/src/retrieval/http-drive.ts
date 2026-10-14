@@ -70,6 +70,7 @@ const excerptLength = 160;
 
 export type HttpDriveOptions = {
   readonly baseUrl: string;
+  readonly workerToken?: string;
   readonly directoryUrl?: string;
   readonly policy?: RetrievalPolicy;
   readonly fetch?: typeof fetch;
@@ -84,6 +85,7 @@ export type SearchScope = {
 
 export interface HttpDrive extends Drive {
   open(caller: Caller): Promise<SearchScope>;
+  openWorker(subject: string): Promise<SearchScope>;
 }
 
 const defaultTimeoutMs = 5_000;
@@ -106,6 +108,26 @@ export function createHttpDrive(options: HttpDriveOptions): HttpDrive {
       return rankByOverlap(question, readable(context, documents), context.resultCountLimit).map(
         toSource,
       );
+    },
+    async openWorker(subject) {
+      if (!options.workerToken) throw new DriveFault('drive status');
+      const caller = { sub: subject, assertion: '' } as Caller;
+      const documents = await readDocuments(reader, caller, {
+        authorization: `Bearer ${options.workerToken}`,
+        'x-worker-subject': subject,
+      });
+      const snapshot = await readSnapshot(reader, caller);
+      return {
+        context: contextFor(caller, snapshot, policy),
+        port: boundTo(subject, {
+          search: (context, question) =>
+            Promise.resolve(
+              rankByOverlap(question, readable(context, documents), context.resultCountLimit).map(
+                (document) => ({ ...document.citation, text: document.text }),
+              ),
+            ),
+        }),
+      };
     },
     async open(caller) {
       const [documents, snapshot] = await read(caller);
@@ -168,9 +190,10 @@ function isTimeout(error: unknown): boolean {
 async function readDocuments(
   options: DriveReaderOptions,
   caller: Caller,
+  headers: Record<string, string> = { [IAP_ASSERTION_HEADER]: caller.assertion },
 ): Promise<readonly IndexedDocument[]> {
   const url = new URL('/documents', options.driveUrl);
-  const reply = await getJson(options, 'drive', url, { [IAP_ASSERTION_HEADER]: caller.assertion });
+  const reply = await getJson(options, 'drive', url, headers);
   if (reply.status !== 200) throw new DriveFault('drive status');
   const parsed = documentsSchema.safeParse(reply.body);
   if (!parsed.success) throw new DriveFault('drive shape');

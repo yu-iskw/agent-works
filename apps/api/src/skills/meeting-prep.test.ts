@@ -2,11 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { classifySources } from '../connectors/source-data.js';
 import { fixtureNow, workspaceHarness } from '../connectors/test-fixtures.js';
-import { authorizedCaller } from '../testing/task-authorization.js';
+import { authorizedCaller as incidentCaller } from '../testing/task-authorization.js';
 
 import { createMeetingPrepSkill } from './meeting-prep.js';
 
 import type { TaskSubmit } from '@agent-works/domain';
+const authorizedCaller = {
+  ...incidentCaller,
+  context: { ...incidentCaller.context, allowedSources: ['drive', 'calendar'] },
+};
 const request: TaskSubmit = {
   objective: 'Prepare meeting',
   skillId: 'meeting-prep',
@@ -29,6 +33,40 @@ const accepted = {
   traceId: 'trace-1',
 };
 describe('meeting prep runner workflow', () => {
+  it.each(['calendar', 'drive'])(
+    'denies a missing %s source before reading or drafting',
+    async (source) => {
+      const h = await workspaceHarness();
+      try {
+        const execute = vi.spyOn(h.broker, 'execute');
+        const driveSearch = vi.fn(() => Promise.resolve([]));
+        const draft = vi.fn(() => Promise.resolve('Brief'));
+        const skill = createMeetingPrepSkill(() => ({
+          broker: h.broker,
+          approvals: h.approvals,
+          now: () => fixtureNow,
+          driveSearch,
+          draft,
+        }));
+        await expect(
+          skill.dispatch(request, accepted, {
+            ...authorizedCaller,
+            context: {
+              ...authorizedCaller.context,
+              allowedSources: authorizedCaller.context.allowedSources.filter(
+                (value) => value !== source,
+              ),
+            },
+          }),
+        ).rejects.toMatchObject({ code: 'POLICY_DENIED' });
+        expect(execute).not.toHaveBeenCalled();
+        expect(driveSearch).not.toHaveBeenCalled();
+        expect(draft).not.toHaveBeenCalled();
+      } finally {
+        await h.close();
+      }
+    },
+  );
   it('reads caller calendar and Drive, creates a bound draft approval, then writes after human approval', async () => {
     const h = await workspaceHarness();
     try {
@@ -54,7 +92,7 @@ describe('meeting prep runner workflow', () => {
       }));
       await skill.dispatch(request, accepted, authorizedCaller);
       expect(h.docs.documents()).toEqual([]);
-      expect(driveSearch).toHaveBeenCalledWith('meeting', authorizedCaller);
+      expect(driveSearch).toHaveBeenCalledWith('meeting', authorizedCaller, accepted.taskId);
       const pending = skill.result(accepted.taskId);
       expect(pending).toMatchObject({ kind: 'approval-required' });
       if (pending?.kind !== 'approval-required') throw new Error('approval');

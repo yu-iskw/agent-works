@@ -6,8 +6,10 @@ import { principalRef, proofOf } from '../ports/dispatch-port.js';
 import { acceptedTask, ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
 
 import type { RegisteredSkill } from './incident.js';
+import type { MeetingPrepResult } from './meeting-prep.js';
 import type { SkillRegistry } from './registry.js';
 import type { Caller } from '../auth/iap.js';
+import type { ApprovalStore } from '../broker/approvals.js';
 import type { DispatchPort } from '../ports/dispatch-port.js';
 import type { TaskLedger } from '../ports/ledger-port.js';
 import type {
@@ -23,6 +25,7 @@ export type TaskDispatcherDeps = {
   readonly dispatch: DispatchPort;
   readonly ledger: TaskLedger;
   readonly registry: SkillRegistry;
+  readonly approvals?: ApprovalStore;
   readonly workerId?: string;
   readonly now?: () => Date;
   readonly leaseMs?: number;
@@ -69,7 +72,7 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
     const stop = () => controller.abort();
     shutdown?.addEventListener('abort', stop, { once: true });
     if (shutdown?.aborted) stop();
-    const pulse = keepLease(delivery, controller, heartbeat.signal);
+    const pulse = keepLease({ deps, leaseMs }, delivery, controller, heartbeat.signal);
     try {
       await runDelivery(delivery, controller.signal, shutdown);
     } catch (error) {
@@ -93,6 +96,9 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
   ) {
     let task = await deps.ledger.read(delivery.payload.subject, delivery.taskId);
     if (task === undefined || stopped(task.status)) return;
+    const continuation = await resumeApproval({ deps, now, retryMs, move }, delivery, task);
+    if (!continuation) return;
+    ({ delivery, task } = continuation);
     if (task.status === 'QUEUED' || task.status === 'RETRYING')
       task = await move(delivery, task, 'RUNNING');
     if (task.status !== 'RUNNING') return;
@@ -151,12 +157,22 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
   async function finishDelivery(
     delivery: ClaimedDelivery,
     task: Task,
-    result: Delivery | undefined,
+    result: Delivery | MeetingPrepResult | undefined,
     failed: boolean,
     signal: AbortSignal,
   ) {
+    result = deliveryResult(result, failed);
+    if (result?.kind === 'approval-required') {
+      await move(delivery, task, 'WAITING_APPROVAL', undefined, result.approvalId);
+      await deps.dispatch.scheduleRetry(
+        proofOf(delivery),
+        new Date(now().getTime() + retryMs).toISOString(),
+        delivery.attempt,
+      );
+      return;
+    }
     if (result?.kind === 'written') {
-      await move(delivery, task, 'COMPLETED', receiptFor(task.id, result.ticketId));
+      await move(delivery, task, 'COMPLETED', receiptFor(task.id, writeRef(result)));
       return;
     }
     if (result?.kind === 'revoked') {
@@ -174,7 +190,7 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
       await move(delivery, task, 'COMPLETED', receipt);
       return;
     }
-    if (failed || result?.kind === 'failed') {
+    if (result?.kind === 'failed') {
       const receipt = await deps.reconcile?.(delivery, signal);
       if (receipt !== undefined) {
         await move(delivery, task, 'COMPLETED', receipt);
@@ -210,34 +226,12 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
     deps.onError?.(error);
   }
 
-  async function keepLease(
-    delivery: ClaimedDelivery,
-    controller: AbortController,
-    signal: AbortSignal,
-  ) {
-    try {
-      while (!signal.aborted) {
-        await pause(Math.max(1, Math.floor(leaseMs / 3)), signal);
-        await deps.dispatch.renew(proofOf(delivery), leaseMs);
-        const task = await deps.ledger.read(delivery.payload.subject, delivery.taskId);
-        if (task === undefined || stopped(task.status)) {
-          controller.abort();
-          return;
-        }
-      }
-    } catch (error) {
-      if (!signal.aborted) {
-        controller.abort();
-        deps.onError?.(error);
-      }
-    }
-  }
-
   async function move(
     delivery: ClaimedDelivery,
     task: Task,
     to: TaskStatus,
     receipt?: ExternalWriteReceipt,
+    approvalId?: string,
   ) {
     if (receipt !== undefined && delivery.payload.request.skillId === 'incident-analysis') {
       const intended = await deps.ledger.readOutbox(`intended:incident:${task.id}`);
@@ -256,7 +250,7 @@ export function createTaskDispatcher(deps: TaskDispatcherDeps): TaskDispatcher {
       to,
       lease: proofOf(delivery),
       receipt,
-      event: lifecycleEvent(delivery, task, to, now().toISOString(), receipt),
+      event: lifecycleEvent(delivery, task, to, now().toISOString(), { receipt, approvalId }),
     });
   }
 
@@ -296,9 +290,12 @@ function stopped(status: TaskStatus): boolean {
   return terminalStatuses.includes(status) || status === 'BLOCKED_AUTH';
 }
 
-function skillResult(skill: RegisteredSkill, taskId: string): Delivery | undefined {
+function skillResult(
+  skill: RegisteredSkill,
+  taskId: string,
+): Delivery | MeetingPrepResult | undefined {
   if ('result' in skill && typeof skill.result === 'function') {
-    return (skill.result as (taskId: string) => Delivery | undefined)(taskId);
+    return (skill.result as (taskId: string) => Delivery | MeetingPrepResult | undefined)(taskId);
   }
   return undefined;
 }
@@ -312,8 +309,9 @@ function lifecycleEvent(
   task: Task,
   status: TaskStatus,
   at: string,
-  receipt?: ExternalWriteReceipt,
+  details: { receipt?: ExternalWriteReceipt; approvalId?: string } = {},
 ): OutboxEvent {
+  const { receipt, approvalId } = details;
   return {
     destination: 'work',
     event: {
@@ -326,9 +324,9 @@ function lifecycleEvent(
       traceId: task.id.replaceAll('-', ''),
       initiatorSubject: delivery.payload.subject,
       agentPrincipal: principalRef(delivery.payload.agent),
-      tool: receipt === undefined ? null : 'ticket.create',
+      tool: receipt === undefined ? null : completionTool(delivery),
       policyDecisionId: delivery.payload.policy.decisionId,
-      approvalId: null,
+      approvalId: approvalId ?? null,
       requestDigestSha256: canonicalPayloadSha256(delivery.payload.request),
       outcome: status === 'FAILED' || status === 'BLOCKED_AUTH' ? 'FAILURE' : 'SUCCESS',
       externalObjectRef: receipt?.ref ?? null,
@@ -387,4 +385,103 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
   } finally {
     signal.removeEventListener('abort', abort);
   }
+}
+
+function writeRef(result: Extract<Delivery | MeetingPrepResult, { kind: 'written' }>): string {
+  return 'ticketId' in result ? result.ticketId : result.documentId;
+}
+type ApprovalContinuation = {
+  deps: TaskDispatcherDeps;
+  now: () => Date;
+  retryMs: number;
+  move: (delivery: ClaimedDelivery, task: Task, to: TaskStatus) => Promise<Task>;
+};
+async function resumeApproval(
+  runtime: ApprovalContinuation,
+  delivery: ClaimedDelivery,
+  task: Task,
+) {
+  const { deps, now, retryMs, move } = runtime;
+  const events = await deps.ledger.events(delivery.payload.subject, task.id);
+  const approvalId = [...events]
+    .reverse()
+    .find((item) => item.event.eventType === 'task.waiting_approval')?.event.approvalId;
+  if (task.status === 'WAITING_APPROVAL') {
+    const approval = approvalId ? await deps.approvals?.read(approvalId) : undefined;
+    if (
+      !approval ||
+      approval.taskId !== task.id ||
+      approval.requestedBySub !== delivery.payload.subject
+    )
+      throw new DeliveryFailed();
+    if (approval.state === 'rejected' || Date.parse(approval.expiresAt) <= now().getTime()) {
+      await move(delivery, task, 'CANCELLED');
+      return undefined;
+    }
+    if (approval.state !== 'approved') {
+      await deps.dispatch.scheduleRetry(
+        proofOf(delivery),
+        new Date(now().getTime() + retryMs).toISOString(),
+        delivery.attempt,
+      );
+      return undefined;
+    }
+    task = await move(delivery, task, 'RUNNING');
+  }
+  if (approvalId)
+    delivery = {
+      ...delivery,
+      payload: {
+        ...delivery.payload,
+        request: {
+          ...delivery.payload.request,
+          input: { ...delivery.payload.request.input, approvalId },
+        },
+      },
+    };
+  return { delivery, task };
+}
+
+async function keepLease(
+  runtime: { deps: TaskDispatcherDeps; leaseMs: number },
+  delivery: ClaimedDelivery,
+  controller: AbortController,
+  signal: AbortSignal,
+) {
+  const { deps, leaseMs } = runtime;
+  try {
+    while (!signal.aborted) {
+      await pause(Math.max(1, Math.floor(leaseMs / 3)), signal);
+      await deps.dispatch.renew(proofOf(delivery), leaseMs);
+      const task = await deps.ledger.read(delivery.payload.subject, delivery.taskId);
+      if (task === undefined || stopped(task.status)) {
+        controller.abort();
+        return;
+      }
+    }
+  } catch (error) {
+    if (!signal.aborted) {
+      controller.abort();
+      deps.onError?.(error);
+    }
+  }
+}
+
+function deliveryResult(
+  result: Delivery | MeetingPrepResult | undefined,
+  failed: boolean,
+): Delivery | MeetingPrepResult | undefined {
+  if (failed && !['revoked', 'cancelled', 'timeout', 'written'].includes(result?.kind ?? ''))
+    return { kind: 'failed' };
+  return result;
+}
+
+function completionTool(delivery: ClaimedDelivery): string {
+  if (delivery.payload.request.skillId === 'meeting-prep') return 'docs.createDraft';
+  if (delivery.payload.request.skillId === 'workspace-task') {
+    const tool = delivery.payload.request.input?.tool;
+    if (typeof tool !== 'string') throw new Error('workspace tool missing');
+    return tool;
+  }
+  return 'ticket.create';
 }

@@ -6,6 +6,7 @@ import { createPostgresApprovalStore } from '../broker/approvals.js';
 import { createPostgresCredentialStore } from '../credentials/postgres.js';
 import { createHttpOAuthProvider } from '../credentials/provider.js';
 
+import { ConnectorError } from './errors.js';
 import { createWorkspaceRuntime } from './runtime.js';
 import { classifySources } from './source-data.js';
 
@@ -121,8 +122,10 @@ export function createDevWorkspaceRuntime(deps: DevWorkspaceDeps) {
       authorizePreparation: allowed,
     },
     meeting: {
-      driveSearch: async (query, authorized) => {
-        const scope = await deps.drive.open(authorized.caller);
+      driveSearch: async (query, authorized, taskId) => {
+        if (!(await allowed(authorized.caller.sub, taskId, 'drive.search')))
+          throw new ConnectorError('POLICY_DENIED', 403);
+        const scope = await deps.drive.openWorker(authorized.caller.sub);
         const rows = await scope.port.search(authorized.context, query);
         return classifySources(
           rows.map((row) => ({

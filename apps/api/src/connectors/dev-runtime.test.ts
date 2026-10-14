@@ -5,6 +5,7 @@ import { createMemoryApprovalStore } from '../broker/approvals.js';
 import { createMemoryCredentialsPort } from '../ports/memory/credentials.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { authorizedCaller } from '../testing/task-authorization.js';
 
 import { createDevWorkspaceRuntime } from './dev-runtime.js';
 import { createWorkspaceRuntime } from './runtime.js';
@@ -58,6 +59,12 @@ function harness() {
   ]);
   const rolesFor = vi.fn((subject: string) => Promise.resolve(held.get(subject) ?? []));
   const check = vi.fn(() => Promise.resolve());
+  const openWorker = vi.fn(() =>
+    Promise.resolve({
+      context: authorizedCaller.context,
+      port: { search: () => Promise.resolve([]) },
+    }),
+  );
   createDevWorkspaceRuntime({
     sql: {} as Parameters<typeof createDevWorkspaceRuntime>[0]['sql'],
     baseUrl: 'http://127.0.0.1:8087',
@@ -69,15 +76,47 @@ function harness() {
     ledger,
     skills: () => createSkillRegistry(),
     enforcement: { check },
-    drive: { retrieve: () => Promise.resolve([]), open: () => Promise.reject(new Error('unused')) },
+    drive: {
+      openWorker,
+      retrieve: () => Promise.resolve([]),
+      open: () => Promise.reject(new Error('unused')),
+    },
     runner: { run: () => Promise.reject(new Error('unused')) },
     now: () => new Date('2026-10-15T00:00:00Z'),
   });
   const deps: WorkspaceRuntimeDeps = vi.mocked(createWorkspaceRuntime).mock.calls[0][0];
-  return { deps, read, held, task, check };
+  return { deps, read, held, task, check, openWorker };
 }
 
 describe('dev connector authorization wiring', () => {
+  it('checks Drive suspension before opening the worker source', async () => {
+    const h = harness();
+    h.check.mockRejectedValueOnce(new Error('drive suspended'));
+    await expect(h.deps.meeting.driveSearch('triage', authorizedCaller, 'task-1')).rejects.toThrow(
+      'drive suspended',
+    );
+    expect(h.openWorker).not.toHaveBeenCalled();
+    expect(h.check).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: { kind: 'tool', id: 'drive.search', version: '1.0.0' } }),
+      'tool',
+    );
+    await h.deps.meeting.driveSearch(
+      'triage',
+      { ...authorizedCaller, caller: { ...authorizedCaller.caller, assertion: '' } },
+      'task-1',
+    );
+    expect(h.openWorker).toHaveBeenCalledWith('alice');
+  });
+  it.each(['calendar.createEvent', 'gmail.searchThreads', 'gmail.createDraft'])(
+    'authorizes %s through the published workspace task',
+    async (tool) => {
+      const h = harness();
+      h.read.mockResolvedValue({ ...h.task, skillVersion: 'workspace-task' });
+      expect(await h.deps.routes.authorizePreparation('alice', 'task-1', tool)).toBe(true);
+      h.read.mockResolvedValue(undefined);
+      expect(await h.deps.routes.authorizePreparation('bob', 'task-1', tool)).toBe(false);
+    },
+  );
   it('allows only owned tasks with declared tools and current membership', async () => {
     const h = harness();
     expect(await h.deps.routes.authorizePreparation('alice', 'task-1', 'docs.createDraft')).toBe(

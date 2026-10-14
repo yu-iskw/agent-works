@@ -18,6 +18,7 @@ export type MeetingPrepDeps = {
   readonly driveSearch: (
     query: string,
     caller: AuthorizedCaller,
+    taskId: string,
   ) => Promise<readonly ClassifiedSource[]>;
   readonly draft: (input: {
     readonly question: string;
@@ -85,6 +86,10 @@ export function createMeetingPrepSkill(
         results.set(accepted.taskId, { kind: 'written', documentId: result.id });
         return;
       }
+      if (
+        !['calendar', 'drive'].every((source) => authorized.context.allowedSources.includes(source))
+      )
+        throw new ConnectorError('POLICY_DENIED', 403);
       const events = await deps.broker.execute({
         ...call,
         tool: 'calendar.listEvents',
@@ -92,7 +97,7 @@ export function createMeetingPrepSkill(
       });
       if (!Array.isArray(events)) throw new ConnectorError('INVALID_RESPONSE', 502);
       const drive = meetingSources(
-        await deps.driveSearch(input.query, authorized),
+        await deps.driveSearch(input.query, authorized, accepted.taskId),
         authorized.context.classificationCeiling,
       );
 
