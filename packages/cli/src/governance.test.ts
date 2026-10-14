@@ -99,20 +99,55 @@ describe('governance CLI', () => {
   ])('reports usage for missing configuration: %s', async (command, code) => {
     expect(await runGovernance([command], { write: () => {} })).toBe(code);
   });
-  it.each(['file:///private/path', 'https://user:password@example.test'])(
-    'rejects unsafe endpoint %s before fetching',
-    async (url) => {
-      let fetched = false;
-      const load: typeof fetch = () => {
-        fetched = true;
-        return Promise.resolve(new Response('{}'));
-      };
-      expect(
-        await runGovernance(['holds', '--url', url], { write: () => {} }, { fetch: load }),
-      ).toBe(2);
-      expect(fetched).toBe(false);
-    },
-  );
+  it.each([
+    'file:///private/path',
+    'https://user:password@example.test',
+    'http://example.test',
+    'http://192.168.1.1',
+    'http://128.0.0.1',
+    'http://127.0.0.1.example.test',
+    'http://localhost.example.test',
+    'http://[::2]',
+    'http://[::ffff:127.0.0.1]',
+  ])('rejects unsafe endpoint %s before fetching', async (url) => {
+    let fetched = false;
+    const load: typeof fetch = () => {
+      fetched = true;
+      return Promise.resolve(new Response('{}'));
+    };
+    expect(
+      await runGovernance(
+        ['holds', '--url', url],
+        { write: () => {} },
+        { fetch: load, assertion: 'verified-token' },
+      ),
+    ).toBe(2);
+    expect(fetched).toBe(false);
+  });
+  it.each([
+    'http://localhost:8084',
+    'http://127.0.0.1:8084',
+    'http://127.42.0.9:8084',
+    'http://127.255.255.255:8084',
+    'http://[::1]:8084',
+    'https://example.test',
+  ])('accepts secure or loopback endpoint %s', async (apiUrl) => {
+    const requests: RequestInit[] = [];
+    const load: typeof fetch = (_input, init) => {
+      requests.push(init ?? {});
+      return Promise.resolve(new Response('{}'));
+    };
+    expect(
+      await runGovernance(
+        ['holds'],
+        { write: () => {} },
+        { apiUrl, fetch: load, assertion: 'verified-token' },
+      ),
+    ).toBe(0);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].headers).toHaveProperty('x-goog-iap-jwt-assertion', 'verified-token');
+    expect(requests[0].redirect).toBe('error');
+  });
   it.each([
     [403, 3],
     [401, 2],

@@ -17,6 +17,8 @@ import { validateRequestIntegrity } from './request-integrity.js';
 
 import type { GovernanceState } from '../ports/governance.js';
 
+const orphanDerivedError = 'orphan derived row';
+
 function unique<T>(rows: readonly T[], key: (row: T) => string): void {
   const ids = rows.map(key);
   if (new Set(ids).size !== ids.length)
@@ -52,11 +54,47 @@ export function validateGovernanceState(state: GovernanceState, previous: Govern
     throw new GovernanceConflict('source revocation is immutable');
   const parents = new Set(state.artifacts.map((row) => row.record.id));
   if (state.derived.some((row) => !parents.has(row.parentId)))
-    throw new GovernanceConflict('orphan derived row');
+    throw new GovernanceConflict(orphanDerivedError);
   validateRequestIntegrity(state, previous);
   validateArtifacts(state);
+  validateSurvivingContent(state, previous);
   validateRemovedArtifacts(state, previous);
   validateRemovedDerived(state, previous);
+}
+
+function validateSurvivingContent(state: GovernanceState, previous: GovernanceState): void {
+  for (const artifact of previous.artifacts) {
+    const next = state.artifacts.find((row) => row.record.id === artifact.record.id);
+    if (next === undefined) continue;
+    // Only the hold summary is mutable. Intake replay preserves the original
+    // envelope, and key rotation currently applies only to newly encrypted data.
+    const normalized = {
+      ...next,
+      record: { ...next.record, legalHold: artifact.record.legalHold },
+    };
+    if (governanceHash(normalized) !== governanceHash(artifact)) {
+      if (isHeld(state, artifact.record))
+        throw new GovernanceConflict('cannot mutate artifact content under an active hold');
+      throw new GovernanceConflict('artifact content is immutable');
+    }
+  }
+  for (const row of previous.derived) {
+    const next = state.derived.find((item) => item.id === row.id);
+    if (next === undefined || governanceHash(next) === governanceHash(row)) continue;
+    rejectDerivedMutation(state, previous, row.parentId);
+  }
+}
+
+function rejectDerivedMutation(
+  state: GovernanceState,
+  previous: GovernanceState,
+  parentId: string,
+): never {
+  const parent = previous.artifacts.find((artifact) => artifact.record.id === parentId);
+  if (parent === undefined) throw new GovernanceConflict(orphanDerivedError);
+  if (isHeld(state, parent.record))
+    throw new GovernanceConflict('cannot mutate derived content under an active hold');
+  throw new GovernanceConflict('derived content is immutable');
 }
 
 function validateRemovedDerived(state: GovernanceState, previous: GovernanceState): void {
@@ -64,7 +102,7 @@ function validateRemovedDerived(state: GovernanceState, previous: GovernanceStat
     if (state.derived.some((next) => next.id === row.id && next.parentId === row.parentId))
       continue;
     const parent = previous.artifacts.find((artifact) => artifact.record.id === row.parentId);
-    if (parent === undefined) throw new GovernanceConflict('orphan derived row');
+    if (parent === undefined) throw new GovernanceConflict(orphanDerivedError);
     if (isHeld(state, parent.record))
       throw new GovernanceConflict('cannot remove a derived row under an active hold');
     if (!hasPurgeEvidence(state, row.parentId))

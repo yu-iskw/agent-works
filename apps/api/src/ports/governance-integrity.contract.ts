@@ -21,6 +21,7 @@ import type { GovernancePort, GovernanceState } from './governance.js';
 const officer = 'officer';
 const artifactId = 'artifact-1';
 const purgeEvidenceError = 'purge evidence';
+const activeHoldError = 'active hold';
 
 /** State integrity is part of the shared adapter contract, including direct
  * transaction callers rather than only the higher-level service paths. */
@@ -49,7 +50,7 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
             state.derived = [];
             if (evidence !== 'none') addPurgeEvidence(state, evidence, artifactId);
           }),
-        ).rejects.toThrow('active hold');
+        ).rejects.toThrow(activeHoldError);
         expect(await port.snapshot()).toEqual(before);
       }
       // A release and its purge may commit together; the final hold state governs eligibility.
@@ -78,6 +79,7 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
   );
 
   derivedRemovalContract(fresh);
+  survivingContentContract(fresh);
 
   it('rolls back direct removal without purge evidence after a hold release', async () => {
     const { port, store } = await governanceFixture(fresh());
@@ -267,6 +269,98 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
   });
 }
 
+function survivingContentContract(fresh: () => GovernancePort): void {
+  it.each([
+    { kind: 'record', id: artifactId },
+    { kind: 'owner', id: 'alice' },
+    { kind: 'source', id: 'source-1' },
+  ] as const)(
+    'rolls back in-place content mutations under an active $kind hold',
+    async (target) => {
+      const { port, store } = await governanceFixture(fresh());
+      await store.put(recordFixture(), SECRET);
+      await store.derive(artifactId, 'derived-1', 'index', SECRET);
+      await changeLegalHold(
+        port,
+        { commandId: HOLD_ID, target, action: 'set', reasonRef: 'case' },
+        officer,
+        new Date(CREATED),
+      );
+      const before = await port.snapshot();
+      for (const collection of ['artifacts', 'derived'] as const) {
+        for (const field of [
+          'ciphertext',
+          'keyId',
+          'wrappedKey',
+          'wrappingNonce',
+          'wrappingTag',
+          'nonce',
+          'tag',
+          'aadHash',
+        ] as const) {
+          await expect(
+            port.transact((state) => {
+              const row = collection === 'artifacts' ? state.artifacts[0] : state.derived[0];
+              const envelope = row.envelope;
+              Object.assign(envelope, {
+                [field]: field === 'aadHash' ? '0'.repeat(64) : 'QUFB',
+              });
+              if (field === 'ciphertext') envelope.ciphertext = '';
+            }),
+          ).rejects.toThrow(activeHoldError);
+          expect(await port.snapshot()).toEqual(before);
+        }
+      }
+      await expect(
+        port.transact((state) => {
+          state.artifacts[0].record.provenance.owner = 'bob';
+          state.artifacts[0].record.provenance.sourceId = 'other-source';
+          state.artifacts[0].record.legalHold = target.kind === 'record';
+        }),
+      ).rejects.toThrow(activeHoldError);
+      await expect(
+        port.transact((state) => {
+          state.derived[0].kind = 'cache';
+        }),
+      ).rejects.toThrow(activeHoldError);
+      expect(await port.snapshot()).toEqual(before);
+    },
+  );
+
+  it('rejects unauthorised envelope replacement without a hold, including after release', async () => {
+    const { port, store } = await governanceFixture(fresh());
+    await store.put(recordFixture(), SECRET);
+    await store.derive(artifactId, 'derived-1', 'index', SECRET);
+    for (const held of [false, true]) {
+      if (held) {
+        const command = {
+          commandId: HOLD_ID,
+          target: { kind: 'record' as const, id: artifactId },
+          action: 'set' as const,
+          reasonRef: 'case',
+        };
+        await changeLegalHold(port, command, officer, new Date(CREATED));
+        await changeLegalHold(
+          port,
+          { ...command, commandId: REQUEST_ID, action: 'release' },
+          officer,
+          EXPIRED,
+        );
+      }
+      const before = await port.snapshot();
+      for (const collection of ['artifacts', 'derived'] as const) {
+        await expect(
+          port.transact((state) => {
+            const row = collection === 'artifacts' ? state.artifacts[0] : state.derived[0];
+            row.envelope.ciphertext = '';
+          }),
+        ).rejects.toThrow('immutable');
+        expect(await port.snapshot()).toEqual(before);
+      }
+    }
+  });
+}
+
 function derivedRemovalContract(fresh: () => GovernancePort): void {
   it.each([
     { kind: 'record', id: artifactId },
@@ -285,7 +379,7 @@ function derivedRemovalContract(fresh: () => GovernancePort): void {
           state.derived = [];
           if (evidence === 'audit') addPurgeEvidence(state, evidence, artifactId);
         }),
-      ).rejects.toThrow('active hold');
+      ).rejects.toThrow(activeHoldError);
       expect(await port.snapshot()).toEqual(before);
     }
     await changeLegalHold(

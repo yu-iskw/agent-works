@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 
 type GovernanceCliOptions = {
   readonly apiUrl?: string;
@@ -70,7 +71,8 @@ async function sendGovernanceRequest(
 ): Promise<Response> {
   const endpoint = new URL(command.path, url);
   if (
-    !['http:', 'https:'].includes(endpoint.protocol) ||
+    (endpoint.protocol !== 'https:' &&
+      !(endpoint.protocol === 'http:' && isLoopback(endpoint.hostname))) ||
     endpoint.username.length > 0 ||
     endpoint.password.length > 0
   )
@@ -85,4 +87,12 @@ async function sendGovernanceRequest(
     redirect: 'error',
     signal: AbortSignal.timeout(5000),
   });
+}
+
+function isLoopback(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '[::1]' ||
+    (isIP(hostname) === 4 && hostname.startsWith('127.'))
+  );
 }
