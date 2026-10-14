@@ -33,6 +33,8 @@ export function purgeArtifact(
     reason: context.reason,
   });
   state.tombstones.push(tombstone);
+  if (state.audit.some((row) => row.type === 'purge' && row.targetHash === governanceHash(id)))
+    return true;
   state.audit.push({
     eventId: `purge:${governanceHash(id)}`,
     type: 'purge',

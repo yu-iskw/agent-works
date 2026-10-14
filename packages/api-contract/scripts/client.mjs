@@ -33,8 +33,9 @@ export function buildClient(spec) {
       if (!op['x-implemented']) continue;
       const parameter = op.parameters.find((p) => p.in === 'path');
       const request = op.requestBody?.content['application/json'].schema.$ref.split('/').at(-1);
-      const response = op.responses['200'].content['application/json'].schema.$ref
-        .split('/')
+      const response = Object.entries(op.responses)
+        .find(([status]) => /^2\d{2}$/.test(status))[1]
+        .content['application/json'].schema.$ref.split('/')
         .at(-1);
       const args = [
         ...(parameter ? [`${parameter.name}: string`] : []),

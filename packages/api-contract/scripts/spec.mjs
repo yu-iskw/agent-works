@@ -34,21 +34,22 @@ export function buildSpec(overrides = new Map()) {
         required: true,
         schema: { type: 'string', minLength: 1 },
       });
+    const success = String(op.successStatus ?? 200);
     const entry = {
       operationId: op.operationId,
       summary: op.operationId,
       parameters,
-      security: [{ iap: [] }],
+      security: op.security ?? [{ iap: [] }],
       'x-implemented': op.implemented,
       responses: Object.fromEntries(
-        ['200', '400', '401', '403', '404', '409', '422', '501', '502', '503'].map((code) => [
+        [success, '400', '401', '403', '404', '409', '422', '501', '502', '503'].map((code) => [
           code,
           {
-            description: code === '200' ? 'Successful response' : 'Safe API error',
+            description: code === success ? 'Successful response' : 'Safe API error',
             content: {
               'application/json': {
                 schema: {
-                  $ref: `#/components/schemas/${code === '200' && op.response ? op.response : 'Error'}`,
+                  $ref: `#/components/schemas/${code === success && op.response ? op.response : 'Error'}`,
                 },
               },
             },

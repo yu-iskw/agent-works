@@ -1,3 +1,4 @@
+import { governanceHash } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
 import { processDeletion, requestDeletion } from '../governance/deletion-requests.js';
@@ -256,6 +257,63 @@ function deletionContract(fresh: () => GovernancePort): void {
     expect(final.tombstones).toHaveLength(1);
     expect(final.audit.filter((event) => event.type === 'purge')).toHaveLength(1);
     expect(final.audit.filter((event) => event.type === 'restore-repurge')).toHaveLength(1);
+  });
+  it.each([false, true])('reconciles audit-only purge evidence with held=%s', async (held) => {
+    const drillId = 'audit-only';
+    const { port, store } = await governanceFixture(fresh());
+    await store.put(recordFixture(), SECRET);
+    await store.derive(artifactId, 'derived-1', 'index', SECRET);
+    const backup = await port.snapshot();
+    await port.transact((state) => {
+      state.artifacts = [];
+      state.derived = [];
+      state.audit.push({
+        eventId: `purge:${governanceHash(artifactId)}`,
+        type: 'purge',
+        occurredAt: EXPIRED.toISOString(),
+        actorHash: governanceHash(officer),
+        targetHash: governanceHash(artifactId),
+        requestId: null,
+        state: null,
+        redactionMarker: 'governance-tombstone-v1',
+      });
+    });
+    if (held)
+      await changeLegalHold(
+        port,
+        {
+          commandId: HOLD_ID,
+          target: { kind: 'record', id: artifactId },
+          action: 'set',
+          reasonRef: 'case',
+        },
+        officer,
+        EXPIRED,
+      );
+    const evidence = await port.snapshot();
+    expect(evidence.tombstones).toEqual([]);
+    const restored = fresh();
+    await restored.transact((state) => Object.assign(state, backup));
+    if (held) {
+      await expect(reapplyAfterRestore(restored, evidence, drillId, EXPIRED)).rejects.toThrow(
+        'legal hold',
+      );
+      expect(await restored.snapshot()).toEqual(backup);
+      return;
+    }
+    expect(await reapplyAfterRestore(restored, evidence, drillId, EXPIRED)).toEqual({
+      repurged: [artifactId],
+    });
+    const final = await restored.snapshot();
+    expect(final.artifacts).toEqual([]);
+    expect(final.derived).toEqual([]);
+    expect(final.tombstones).toHaveLength(1);
+    expect(final.audit.filter((event) => event.type === 'purge')).toEqual(evidence.audit);
+    expect(final.audit.filter((event) => event.type === 'restore-repurge')).toHaveLength(1);
+    expect(await reapplyAfterRestore(restored, evidence, drillId, EXPIRED)).toEqual({
+      repurged: [],
+    });
+    expect(await restored.snapshot()).toEqual(final);
   });
   it('source revocation fences intake and purges derived payloads', async () => {
     const { port, store } = await governanceFixture(fresh());

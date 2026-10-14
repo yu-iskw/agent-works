@@ -113,3 +113,28 @@ The full workspace test suite was not rerun in this fix session. Trunk was not r
 all passed. Knip reported its existing non-failing entry-pattern hint for
 `agents/skills/incident-analysis/eval-run.ts`; ESLint reported a non-failing
 multiple-projects performance notice. Direct Prettier formatted the fix files.
+
+## P4B1 gap regressions (2026-10-14)
+
+Direct transactions now compare removed derived rows with the previous parent
+record. Record, owner and source holds reject derived-only removal; after release,
+matching purge evidence is required. Restore reconciliation also recognizes purge
+audit target hashes without tombstones, preserves the original audit event and
+rejects conflicting active holds. Both regressions run through the shared memory
+and Postgres contract.
+
+The focused governance and complete API-contract run passed **8 files and 88
+tests**. The Postgres governance file skipped **37 tests** because this sandbox
+denies the Docker socket. The full `PATH=/tmp/issue135-bin:$PATH pnpm test` run
+reported **137 passed, 39 failed and 2 skipped files**, with **1,642 passed, 180
+failed and 196 skipped tests**. Failures include local listener `EPERM`, unavailable
+Docker and test timeouts. These results do not establish live Postgres validation.
+
+`pnpm build` (including generated contract drift), `pnpm -r exec tsc --noEmit`,
+`pnpm lint:eslint`, `pnpm knip` and direct Prettier checks passed. Trunk was not run.
+
+Session lesson: deletion eligibility must be validated for derived-only changes
+as well as parent removal, and restore must consume every accepted form of purge
+evidence. Shared adapter regressions are the durable guard; no additional agent
+rule or hook is needed. Infrastructure-dependent tests still need a run with
+Docker and local listener access.

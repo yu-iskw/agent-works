@@ -56,6 +56,27 @@ export function validateGovernanceState(state: GovernanceState, previous: Govern
   validateRequestIntegrity(state, previous);
   validateArtifacts(state);
   validateRemovedArtifacts(state, previous);
+  validateRemovedDerived(state, previous);
+}
+
+function validateRemovedDerived(state: GovernanceState, previous: GovernanceState): void {
+  for (const row of previous.derived) {
+    if (state.derived.some((next) => next.id === row.id && next.parentId === row.parentId))
+      continue;
+    const parent = previous.artifacts.find((artifact) => artifact.record.id === row.parentId);
+    if (parent === undefined) throw new GovernanceConflict('orphan derived row');
+    if (isHeld(state, parent.record))
+      throw new GovernanceConflict('cannot remove a derived row under an active hold');
+    if (!hasPurgeEvidence(state, row.parentId))
+      throw new GovernanceConflict('derived row removal requires purge evidence');
+  }
+}
+
+function hasPurgeEvidence(state: GovernanceState, id: string): boolean {
+  return (
+    state.tombstones.some((row) => row.recordId === id) ||
+    state.audit.some((row) => row.type === 'purge' && row.targetHash === governanceHash(id))
+  );
 }
 
 function validateRemovedArtifacts(state: GovernanceState, previous: GovernanceState): void {
@@ -64,11 +85,7 @@ function validateRemovedArtifacts(state: GovernanceState, previous: GovernanceSt
     if (surviving.has(record.id)) continue;
     if (isHeld(state, record))
       throw new GovernanceConflict('cannot remove an artifact under an active hold');
-    const hasTombstone = state.tombstones.some((row) => row.recordId === record.id);
-    const hasPurgeAudit = state.audit.some(
-      (row) => row.type === 'purge' && row.targetHash === governanceHash(record.id),
-    );
-    if (!hasTombstone && !hasPurgeAudit)
+    if (!hasPurgeEvidence(state, record.id))
       throw new GovernanceConflict('artifact removal requires purge evidence');
   }
 }

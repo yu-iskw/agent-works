@@ -20,6 +20,7 @@ import type { GovernancePort, GovernanceState } from './governance.js';
 
 const officer = 'officer';
 const artifactId = 'artifact-1';
+const purgeEvidenceError = 'purge evidence';
 
 /** State integrity is part of the shared adapter contract, including direct
  * transaction callers rather than only the higher-level service paths. */
@@ -76,6 +77,8 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
     },
   );
 
+  derivedRemovalContract(fresh);
+
   it('rolls back direct removal without purge evidence after a hold release', async () => {
     const { port, store } = await governanceFixture(fresh());
     await store.put(recordFixture(), SECRET);
@@ -99,7 +102,7 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
         state.artifacts = [];
         state.derived = [];
       }),
-    ).rejects.toThrow('purge evidence');
+    ).rejects.toThrow(purgeEvidenceError);
     expect(await port.snapshot()).toEqual(before);
   });
 
@@ -116,7 +119,7 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
           state.derived = [];
           addPurgeEvidence(state, evidence, 'another-artifact');
         }),
-      ).rejects.toThrow('purge evidence');
+      ).rejects.toThrow(purgeEvidenceError);
       expect(await port.snapshot()).toEqual(before);
       await port.transact((state) => {
         state.artifacts = [];
@@ -261,6 +264,52 @@ export function governanceIntegrityContract(fresh: () => GovernancePort): void {
     ]);
     expect(reports.flatMap((report) => report.purged)).toEqual([artifactId]);
     expect((await port.snapshot()).audit.filter((row) => row.type === 'purge')).toHaveLength(1);
+  });
+}
+
+function derivedRemovalContract(fresh: () => GovernancePort): void {
+  it.each([
+    { kind: 'record', id: artifactId },
+    { kind: 'owner', id: 'alice' },
+    { kind: 'source', id: 'source-1' },
+  ] as const)('protects derived rows independently under an active $kind hold', async (target) => {
+    const { port, store } = await governanceFixture(fresh());
+    await store.put(recordFixture(), SECRET);
+    await store.derive(artifactId, 'derived-1', 'index', SECRET);
+    const command = { commandId: HOLD_ID, target, action: 'set' as const, reasonRef: 'case' };
+    await changeLegalHold(port, command, officer, new Date(CREATED));
+    const before = await port.snapshot();
+    for (const evidence of ['none', 'audit'] as const) {
+      await expect(
+        port.transact((state) => {
+          state.derived = [];
+          if (evidence === 'audit') addPurgeEvidence(state, evidence, artifactId);
+        }),
+      ).rejects.toThrow('active hold');
+      expect(await port.snapshot()).toEqual(before);
+    }
+    await changeLegalHold(
+      port,
+      { ...command, commandId: REQUEST_ID, action: 'release' },
+      officer,
+      EXPIRED,
+    );
+    const released = await port.snapshot();
+    for (const evidence of ['none', 'unrelated'] as const) {
+      await expect(
+        port.transact((state) => {
+          state.derived = [];
+          if (evidence === 'unrelated') addPurgeEvidence(state, 'audit', 'another-artifact');
+        }),
+      ).rejects.toThrow(purgeEvidenceError);
+      expect(await port.snapshot()).toEqual(released);
+    }
+    await port.transact((state) => {
+      state.derived = [];
+      addPurgeEvidence(state, 'audit', artifactId);
+    });
+    expect((await port.snapshot()).derived).toEqual([]);
+    expect((await port.snapshot()).artifacts).toEqual(released.artifacts);
   });
 }
 

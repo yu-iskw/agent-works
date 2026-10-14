@@ -35,13 +35,19 @@ function repurgeRestoredRows(
   at: Date,
 ): string[] {
   const ids = new Set(evidence.tombstones.map((row) => row.recordId));
+  const purgedHashes = new Set(
+    evidence.audit.filter((row) => row.type === 'purge').map((row) => row.targetHash),
+  );
   const deletedOwners = new Set(
     evidence.requests.filter((row) => row.state === 'PURGED').map((row) => row.subject),
   );
   const repurged: string[] = [];
   for (const artifact of [...state.artifacts]) {
     const record = artifact.record;
-    const deleted = ids.has(record.id) || deletedOwners.has(record.provenance.owner);
+    const deleted =
+      ids.has(record.id) ||
+      purgedHashes.has(governanceHash(record.id)) ||
+      deletedOwners.has(record.provenance.owner);
     const revoked = state.revokedSources.includes(record.provenance.sourceId);
     if (!deleted && !revoked) continue;
     // Conflicting current evidence needs operator reconciliation while offline.
