@@ -1,4 +1,5 @@
 import { emptyGovernanceState } from '../ports/governance.js';
+import { withPostgresTransaction } from '../ports/postgres-transaction.js';
 
 import { governanceReady } from './migration.js';
 import { validateGovernanceState } from './state.js';
@@ -22,7 +23,7 @@ const tables = {
 export function createPostgresGovernancePort(sql: postgres.Sql): GovernancePort {
   async function transact<T>(operation: (state: GovernanceState) => T | Promise<T>): Promise<T> {
     await governanceReady(sql);
-    return (await sql.begin(async (tx) => {
+    return await withPostgresTransaction(sql, async (tx) => {
       await tx`select pg_advisory_xact_lock(7013)`;
       const state = await readState(tx);
       const previous = structuredClone(state);
@@ -32,7 +33,7 @@ export function createPostgresGovernancePort(sql: postgres.Sql): GovernancePort 
       const detached = structuredClone(result);
       await persistState(tx, committed, previous);
       return detached;
-    })) as T;
+    });
   }
   return {
     transact,

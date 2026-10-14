@@ -8,6 +8,12 @@ export default defineProject({
       '@agent-works/domain/workspace-tools': fileURLToPath(
         new URL('../../packages/domain/src/workspace-tools.ts', import.meta.url),
       ),
+      '@agent-works/domain/user-memory': fileURLToPath(
+        new URL('../../packages/domain/src/user-memory.ts', import.meta.url),
+      ),
+      '@agent-works/domain/user-memory-pii': fileURLToPath(
+        new URL('../../packages/domain/src/user-memory-pii.ts', import.meta.url),
+      ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),

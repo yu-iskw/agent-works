@@ -9,6 +9,7 @@ import { artifactsReadSlot } from './artifacts-read.js';
 import { createAskRoute } from './ask.js';
 import { eventsIngestRoutes } from './events-ingest.js';
 import { governanceRoutes } from './governance-routes.js';
+import { memoryRoutes } from './memory-routes.js';
 import { oauthConnectSlot } from './oauth-connect.js';
 import { createOAuthConnectionsReadRoute } from './oauth-connections-read.js';
 import { oauthRevokeSlot } from './oauth-revoke.js';
@@ -30,6 +31,8 @@ import type { AnalyticsRouteDeps } from './analytics-auth.js';
 import type { AskDeps } from './ask.js';
 import type { ScheduleRouteDeps } from './schedules-auth.js';
 import type { Route } from '../http.js';
+import type { GovernanceRegistration } from './governance-routes.js';
+import type { MemoryRouteDeps } from './memory-auth.js';
 import type { OAuthConnectionsReadDeps } from './oauth-connections-read.js';
 import type { PatternSlot, RouteEnv } from './slot.js';
 import type { TaskRoutes } from './tasks.js';
@@ -53,6 +56,8 @@ const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 export type RouteDeps = AskDeps & {
   readonly connectors?: Readonly<Record<string, Route>>;
   readonly analytics?: AnalyticsRouteDeps;
+  readonly userMemory?: MemoryRouteDeps;
+  readonly governance?: GovernanceRegistration['governance'];
   readonly schedules?: ScheduleRouteDeps;
   readonly scheduleEvents?: EventIngestor;
   readonly admin?: Omit<AdminDeps, 'verify'>;
@@ -88,7 +93,13 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       adminReadRoutes({ ...deps.admin, verify: deps.verify }),
       adminChangeRoutes({ ...deps.admin, verify: deps.verify }),
     );
-  Object.assign(table, governanceRoutes(deps), deps.connectors, analyticsRoutes(deps.analytics));
+  Object.assign(
+    table,
+    governanceRoutes(deps),
+    deps.connectors,
+    analyticsRoutes(deps.analytics),
+    memoryRoutes(deps.userMemory),
+  );
   const memory = createMemoryTaskPorts(deps.now);
   const tasks =
     deps.tasks ??
