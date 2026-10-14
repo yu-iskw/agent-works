@@ -79,6 +79,10 @@ vi.mock('./ledger/postgres-ledger.js', async () => {
   const { createMemoryLedgerPort } = await import('./ports/memory/ledger-port.js');
   return { createPostgresLedgerPort: vi.fn(() => createMemoryLedgerPort()) };
 });
+vi.mock('./suspension/postgres.js', async () => {
+  const { createMemorySuspensionLedger } = await import('./ports/memory/suspension-ledger.js');
+  return { createPostgresSuspensionLedger: vi.fn(() => createMemorySuspensionLedger()) };
+});
 vi.mock('./retrieval/http-drive.js', () => {
   const search = vi.fn(() => Promise.resolve([]));
   return {

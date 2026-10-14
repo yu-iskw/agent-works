@@ -95,3 +95,33 @@ export { skillManifestSchema, skillPinSchema } from './skill.js';
 export type { SkillManifest, SkillPin } from './skill.js';
 export { workflowCheckpointSchema, workflowSignalSchema } from './workflow.js';
 export type { WorkflowCheckpoint, WorkflowSignal } from './workflow.js';
+export {
+  suspensionScopes,
+  suspensionTargetSchema,
+  suspensionCommandSchema,
+  suspensionSchema,
+  suspensionHash,
+  suspensionKey,
+  suspensionActive,
+} from './suspension.js';
+export type { SuspensionTarget, SuspensionCommand, Suspension } from './suspension.js';
+export {
+  capabilityPinSchema,
+  capabilityVersionCommandSchema,
+  capabilityVersionSchema,
+  capabilityKey,
+  capabilityVersionHash,
+  capabilityTransition,
+} from './capability-version.js';
+export type {
+  CapabilityPin,
+  CapabilityVersionCommand,
+  CapabilityVersion,
+  CapabilityState,
+} from './capability-version.js';
+export {
+  suspensionAuditSchema,
+  suspensionSnapshotSchema,
+  suspensionHistorySchema,
+  suspensionResultSchema,
+} from './suspension-api.js';

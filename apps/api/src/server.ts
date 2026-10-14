@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
-import { createGroupResolver } from './auth/directory.js';
+import { createRoleResolver, createGroupResolver } from './auth/directory.js';
 import { createIapVerifier } from './auth/iap.js';
 import { createPostgresApprovalStore } from './broker/approvals.js';
 import { loadConfig } from './config.js';
@@ -20,6 +20,19 @@ import { createIncidentSkill } from './skills/incident.js';
 import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
 import { createTicketReconciler } from './skills/ticket-receipts.js';
+import { publishBundledCapabilities } from './suspension/bootstrap.js';
+import { createSuspensionEnforcer } from './suspension/enforcement.js';
+import { createPostgresSuspensionLedger } from './suspension/postgres.js';
+import {
+  authorizeResource,
+  beforeReadTool,
+  bundledVersionBaseline,
+  controlledListener,
+  controlledRunner,
+  controlledSkill,
+  controlledVerify,
+  emergencyAudit,
+} from './suspension/runtime.js';
 
 import type { Caller } from './auth/iap.js';
 import type { SearchContext } from '@agent-works/domain';
@@ -30,6 +43,8 @@ const now = () => new Date();
 const drive = createHttpDrive({ baseUrl: config.driveUrl, directoryUrl: config.directoryUrl, now });
 const groups = createGroupResolver({ baseUrl: config.directoryUrl });
 const ledger = createPostgresLedgerPort(sql, now);
+const suspensionLedger = createPostgresSuspensionLedger(sql);
+const rolesFor = createRoleResolver({ baseUrl: config.directoryUrl });
 const oauthUrl = process.env.OAUTH_URL;
 const oauth =
   oauthUrl === undefined
@@ -41,17 +56,28 @@ const oauth =
         now,
       });
 const callers = new WeakMap<SearchContext, Caller>();
+const incidentSkill = createIncidentSkill(() => {
+  if (config.incident === undefined) return undefined;
+  const runner = controlledRunner(
+    createScriptedRunner({ baseUrl: config.llmUrl, model: config.incident.model }),
+    enforcement,
+  );
+  return {
+    ...config.incident,
+    model: { answer: async (question) => (await runner.run({ question, sources: [] })).answer },
+  };
+});
+const baseline = bundledVersionBaseline(incidentSkill.manifest);
+await publishBundledCapabilities(suspensionLedger, baseline);
+const enforcement = createSuspensionEnforcer({
+  ledger: suspensionLedger,
+  emergencyAudit: emergencyAudit(ledger),
+});
 const skills = createSkillRegistry([
-  createIncidentSkill(() => {
-    if (config.incident === undefined) return undefined;
-    const runner = createScriptedRunner({ baseUrl: config.llmUrl, model: config.incident.model });
-    return {
-      ...config.incident,
-      model: { answer: async (question) => (await runner.run({ question, sources: [] })).answer },
-    };
-  }),
+  controlledSkill(incidentSkill, enforcement, groups, config.incident?.model ?? 'gemini'),
 ]);
 
+const verify = controlledVerify(createIapVerifier(config.iap), groups, enforcement);
 const dispatch = createPostgresDispatchPort(sql, now);
 const worker = createTaskDispatcher({
   dispatch,
@@ -62,13 +88,16 @@ const worker = createTaskDispatcher({
     config.incident === undefined ? undefined : createTicketReconciler(config.incident.ticketsUrl),
   onError: () => console.error('task dispatcher operation failed'),
 });
+const controlledApp = (deps: Parameters<typeof createApp>[0]) =>
+  controlledListener(createApp(deps), enforcement);
 const server = createServer(
-  createApp({
-    verify: createIapVerifier(config.iap),
+  controlledApp({
+    verify,
+    admin: { ledger: suspensionLedger, rolesFor, now },
     drive,
     skills,
     dispatch,
-    runner: createScriptedRunner({ baseUrl: config.llmUrl }),
+    runner: controlledRunner(createScriptedRunner({ baseUrl: config.llmUrl }), enforcement),
     audit: createPostgresAuditLog(sql),
     now,
     oauth,
@@ -77,7 +106,8 @@ const server = createServer(
     wire: {
       groups: (caller) => groups(caller.sub),
       ledger,
-      policyInput: (caller, context, resource) => {
+      policyInput: async (caller, context, resource) => {
+        await authorizeResource(resource?.manifest, config.incident?.model ?? 'gemini');
         const incident = resource?.manifest.id === 'incident-analysis';
         callers.set(context, caller);
         return Promise.resolve({
@@ -102,6 +132,7 @@ const server = createServer(
         async search(context, question) {
           const caller = callers.get(context);
           if (caller === undefined) throw new ContextMismatch();
+          await beforeReadTool();
           const scope = await drive.open(caller);
           return scope.port.search(context, question);
         },
