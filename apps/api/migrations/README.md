@@ -18,3 +18,13 @@ The task ledger applies `0006`–`0008` under its migration lock. `0008` indexes
 `0009_approval_payload.sql` persists the canonical approval-bound delivery payload. The approval store applies it under its migration lock after `0003`.
 
 The next free number after these reservations is `0010`.
+
+## Offline schedules and event triggers
+
+`0013_schedules.sql` is applied by `scheduling/migration.ts` under advisory
+transaction lock 7013. It records its application in `schema_migrations`.
+It creates `schedules`, `event_triggers`, `schedule_runs`, `received_events`
+and the append-only `schedule_audit`. Timer slots are unique per schedule and
+fire time; verified event receipts are unique per source and source event ID.
+The service uses the same lock for atomic claims and fenced run updates.
+Do not reuse migration number `0013`.

@@ -6,9 +6,14 @@ import { approvalsDecideSlot } from './approvals-decide.js';
 import { approvalsReadSlot } from './approvals-read.js';
 import { artifactsReadSlot } from './artifacts-read.js';
 import { createAskRoute } from './ask.js';
+import { eventsIngestRoutes } from './events-ingest.js';
 import { oauthConnectSlot } from './oauth-connect.js';
 import { createOAuthConnectionsReadRoute } from './oauth-connections-read.js';
 import { oauthRevokeSlot } from './oauth-revoke.js';
+import { schedulesChangeRoutes } from './schedules-change.js';
+import { schedulesCreateRoutes } from './schedules-create.js';
+import { schedulesReadRoutes } from './schedules-read.js';
+import { schedulesRunRoutes } from './schedules-runs.js';
 import { searchSlot } from './search.js';
 import { createSkillsListRoute, skillsListSlot } from './skills-list.js';
 import { selectRoute } from './slot.js';
@@ -19,12 +24,14 @@ import { tasksSubmitSlot } from './tasks-submit.js';
 import { createTaskRoutes } from './tasks.js';
 
 import type { AdminDeps } from './admin-auth.js';
+import type { ScheduleRouteDeps } from './schedules-auth.js';
 import type { Route } from '../http.js';
 import type { AskDeps } from './ask.js';
 import type { OAuthConnectionsReadDeps } from './oauth-connections-read.js';
 import type { PatternSlot, RouteEnv } from './slot.js';
 import type { TaskRoutes } from './tasks.js';
 import type { DispatchPort } from '../ports/dispatch-port.js';
+import type { EventIngestor } from '../scheduling/ingestion.js';
 import type { SkillRegistry } from '../skills/registry.js';
 
 const patternSlots: readonly PatternSlot[] = [
@@ -41,6 +48,8 @@ const patternSlots: readonly PatternSlot[] = [
 const exactSlots = [searchSlot, tasksSubmitSlot, skillsListSlot];
 
 export type RouteDeps = AskDeps & {
+  readonly schedules?: ScheduleRouteDeps;
+  readonly scheduleEvents?: EventIngestor;
   readonly admin?: Omit<AdminDeps, 'verify'>;
   readonly tasks?: TaskRoutes;
   readonly dispatch?: DispatchPort;
@@ -52,6 +61,16 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
   const table: Record<string, Route> = {
     'POST /v1/ask': createAskRoute(deps),
   };
+  if (deps.schedules !== undefined)
+    Object.assign(
+      table,
+      schedulesReadRoutes(deps.schedules),
+      schedulesCreateRoutes(deps.schedules),
+      schedulesChangeRoutes(deps.schedules),
+      schedulesRunRoutes(deps.schedules),
+    );
+  if (deps.scheduleEvents !== undefined)
+    Object.assign(table, eventsIngestRoutes(deps.scheduleEvents));
   if (deps.oauthConnections !== undefined) {
     table['GET /v1/oauth/connections'] = createOAuthConnectionsReadRoute({
       ...deps.oauthConnections,

@@ -16,6 +16,7 @@ import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
 import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
+import { createScheduleRuntime } from './scheduling/runtime.js';
 import { createIncidentSkill } from './skills/incident.js';
 import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
@@ -88,11 +89,24 @@ const worker = createTaskDispatcher({
     config.incident === undefined ? undefined : createTicketReconciler(config.incident.ticketsUrl),
   onError: () => console.error('task dispatcher operation failed'),
 });
+const scheduling = await createScheduleRuntime({
+  sql,
+  verify,
+  dispatch,
+  ledger,
+  skills,
+  suspension: enforcement,
+  groups,
+  now,
+  configurationPath: process.env.AW_SCHEDULE_CONFIG,
+});
 const controlledApp = (deps: Parameters<typeof createApp>[0]) =>
   controlledListener(createApp(deps), enforcement);
 const server = createServer(
   controlledApp({
     verify,
+    schedules: scheduling.routes,
+    scheduleEvents: scheduling.events,
     admin: { ledger: suspensionLedger, rolesFor, now },
     drive,
     skills,
@@ -142,12 +156,14 @@ const server = createServer(
 ).listen(config.port, '0.0.0.0');
 
 worker.start();
+scheduling.worker.start();
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
   stopping = true;
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
   await worker.stop();
+  await scheduling.worker.stop();
   await closed;
   await sql.end({ timeout: 5 });
 }

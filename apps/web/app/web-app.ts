@@ -12,8 +12,9 @@ import { webTraceparent } from '../src/telemetry.js';
 
 import { createAdminHandler } from './admin/handler.js';
 import CitationList from './citations/citation-list.js';
-import { renderDocument } from './html.js';
+import { h, Fragment, renderDocument } from './html.js';
 import Page from './page.js';
+import { createSchedulesHandler } from './schedules/handler.js';
 
 import type { Html } from './html.js';
 import type { PageView } from './page.js';
@@ -32,11 +33,14 @@ const maxBodyBytes = 16_384;
 
 export function createWebApp(options: WebAppOptions): RequestListener {
   const admin = createAdminHandler(options);
+  const schedules = createSchedulesHandler(options);
   const load = options.fetch ?? fetch;
   const newRequestId = options.newRequestId ?? randomUUID;
   return (request, response) => {
     const path = URL.parse(request.url ?? '/', 'http://localhost')?.pathname;
-    if (path === '/admin' || path?.startsWith('/admin/') === true) admin(request, response);
+    if (path === '/schedules' || path?.startsWith('/schedules/') === true)
+      schedules(request, response);
+    else if (path === '/admin' || path?.startsWith('/admin/') === true) admin(request, response);
     else void handle(options.apiUrl, load, newRequestId, request, response);
   };
 }
@@ -207,7 +211,15 @@ function readForm(body: Buffer): { question?: string; requestId?: string } {
 }
 
 function sendPage(response: ServerResponse, status: number, view: PageView): void {
-  sendHtml(response, status, Page({ view }));
+  sendHtml(
+    response,
+    status,
+    Fragment(
+      null,
+      h('nav', { 'aria-label': 'Main' }, h('a', { href: '/schedules' }, 'Schedules')),
+      Page({ view }),
+    ),
+  );
 }
 
 function sendHtml(response: ServerResponse, status: number, root: Html): void {
