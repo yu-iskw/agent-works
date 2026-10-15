@@ -88,7 +88,12 @@ function project(rows: JoinedRow[], query: EngineQuery): AnalyticsRow[] {
       const key = JSON.stringify(
         ast.groupBy.map((c) => scalar(c, row, query.plan.params, query.guarded)),
       );
-      grouped.set(key, [...(grouped.get(key) ?? []), row]);
+      const group = grouped.get(key);
+      if (group === undefined) {
+        grouped.set(key, [row]);
+      } else {
+        group.push(row);
+      }
     }
     groups = [...grouped.values()];
   }

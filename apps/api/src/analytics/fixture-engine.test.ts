@@ -142,4 +142,27 @@ describe('offline read-only fixture engine', () => {
       ),
     ).toEqual(expected);
   });
+  it('efficiently groups large row sets within bounded time', async () => {
+    const rowCount = 5000;
+    const salesRows = Array.from({ length: rowCount }, (_, i) => ({
+      day: '2026-10-01',
+      region: `region-${i % 10}`,
+      amount: 1,
+    }));
+    const local = createFixtureEngine(
+      {
+        'approved.sales': salesRows,
+      },
+      1,
+    );
+    const start = performance.now();
+    const result = await local.execute(
+      query(
+        "SELECT region, SUM(amount) AS total FROM approved.sales WHERE day >= '2026-10-01' GROUP BY region LIMIT 20",
+      ),
+    );
+    const elapsed = performance.now() - start;
+    expect(result).toHaveLength(10);
+    expect(elapsed).toBeLessThan(1000);
+  });
 });

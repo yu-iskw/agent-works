@@ -31,9 +31,9 @@ export async function costGate(
       inferenceSteps: 0,
       parallelism: 1,
     },
-    budget.policy,
+    // Analytics query admission uses enforce semantics: a denied query must never be charged.
+    { ...budget.policy, mode: 'isolated-test-enforce' },
   );
-  // Analytics query admission is a local safety cap, not a cloud billing hard stop.
   if (!reservation.allowed || reservation.exceeded !== null) {
     await budget.port.release(input.queryId);
     reject('BUDGET_EXCEEDED', 422);

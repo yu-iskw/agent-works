@@ -32,20 +32,50 @@ describe('dry run admission and issue 137 budgets', () => {
     expect(reserve).not.toHaveBeenCalled();
   });
   it.each(['observe', 'isolated-test-enforce'] as const)(
-    'denies a local analytics budget in %s mode',
+    'denies a local analytics budget in %s mode without charging the user budget',
     async (mode) => {
       const port = createMemoryBudgetPort();
+      const user = { ...analyticsBudgetPolicy.user, estimatedCostMicros: 1 };
       const policy = {
         ...analyticsBudgetPolicy,
         mode,
+        user,
         task: { ...analyticsBudgetPolicy.task, estimatedCostMicros: 0 },
       };
       await expect(
         costGate(1000, 1000, { port, policy, microsPerMillionBytes: 1000 }, input),
       ).rejects.toThrow('BUDGET_EXCEEDED');
-      expect((await port.events())[0].dimension).toBe('estimatedCostMicros');
+
+      const allowedInput = { ...input, queryId: 'query-allowed', taskId: 'task-allowed' };
+      const allowedPolicy = {
+        ...analyticsBudgetPolicy,
+        mode,
+        user,
+      };
+      await expect(
+        costGate(
+          1000,
+          1000,
+          { port, policy: allowedPolicy, microsPerMillionBytes: 1000 },
+          allowedInput,
+        ),
+      ).resolves.toBeUndefined();
+
+      const events = await port.events();
+      expect(
+        events.find((e) => e.operationId === input.queryId && e.kind === 'exceeded'),
+      ).toMatchObject({
+        dimension: 'estimatedCostMicros',
+        estimatedCostMicros: 0,
+      });
+      expect(
+        events.find((e) => e.operationId === allowedInput.queryId && e.kind === 'charged'),
+      ).toMatchObject({
+        estimatedCostMicros: 1,
+      });
     },
   );
+
   it('rejects an invalid configured cost rate', async () => {
     await expect(
       costGate(
