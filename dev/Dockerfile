@@ -28,3 +28,6 @@ WORKDIR /workspace
 
 # Default non-root user; compose overrides it with the host UID.
 USER node
+
+# Health is defined per service in compose.yaml, not on the image.
+HEALTHCHECK NONE
