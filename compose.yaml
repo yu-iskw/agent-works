@@ -1,0 +1,257 @@
+# compose.dev.yml is the fake-only CI e2e stack on the same host ports; run one stack at a time.
+name: aw-dev
+
+x-gcloud-volume: &gcloud-volume
+  type: bind
+  source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
+  target: /gcloud
+  read_only: true
+
+x-healthcheck: &healthcheck
+  test:
+    - CMD
+    - node
+    - -e
+    - fetch('http://127.0.0.1:8080/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+  interval: 3s
+  timeout: 3s
+  retries: 40
+  start_period: 5s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -h, 127.0.0.1]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  bootstrap:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command:
+      - sh
+      - -c
+      - >-
+        pnpm install --frozen-lockfile
+        --filter "@agent-works/api..." --filter "@agent-works/web..." --filter "@agent-works/fakes..."
+        && pnpm --filter "@agent-works/api..." --filter "@agent-works/web..."
+        --filter "@agent-works/fakes..." build
+    restart: 'no'
+
+  watch:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command:
+      - sh
+      - -c
+      - >-
+        pnpm --filter @agent-works/incident-analysis exec tsc -p tsconfig.build.json --watch
+        --preserveWatchOutput --watchFile priorityPollingInterval --watchDirectory dynamicPriorityPolling &
+        exec pnpm --parallel
+        --filter '@agent-works/policy'
+        --filter '@agent-works/fakes'
+        --filter '@agent-works/api'
+        --filter '@agent-works/web'
+        exec tsc -b --watch --preserveWatchOutput
+        --watchFile priorityPollingInterval --watchDirectory dynamicPriorityPolling
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c
+        - test -f apps/api/dist/server.js && test -f apps/web/dist/src/server.js && test -f packages/fakes/dist/main.js && test -f agents/skills/incident-analysis/dist/deliver.js
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+
+  fake-iap:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, packages/fakes/dist/main.js, iap]
+    environment:
+      UPSTREAM_URL: http://web:8080
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_IAP_PORT:-8081}:8080
+
+  fake-directory:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, packages/fakes/dist/main.js, directory]
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_DIRECTORY_PORT:-8086}:8080
+
+  fake-drive:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, packages/fakes/dist/main.js, drive]
+    environment:
+      DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker # local fake only, not a secret
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+      fake-directory:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_DRIVE_PORT:-8082}:8080
+
+  fake-llm:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, packages/fakes/dist/main.js, llm]
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_LLM_PORT:-8083}:8080
+
+  fake-workspace:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, packages/fakes/dist/main.js, workspace]
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_WORKSPACE_PORT:-8087}:8080
+
+  api:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, apps/api/dist/server.js]
+    environment:
+      AW_DEV_STACK: '1'
+      OAUTH_URL: http://fake-workspace:8080
+      OAUTH_PUBLIC_URL: http://localhost:${AW_WORKSPACE_PORT:-8087}
+      DATABASE_URL: postgres://postgres@postgres:5432/postgres
+      DRIVE_URL: http://fake-drive:8080
+      DIRECTORY_URL: http://fake-directory:8080
+      DRIVE_WORKER_TOKEN: compose-drive-worker # local fake only, not a secret
+      LLM_URL: http://fake-llm:8080
+      OAUTH_REDIRECT_URI: http://localhost:${AW_IAP_PORT:-8081}/oauth/callback
+      IAP_JWKS_URL: http://fake-iap:8080/jwks
+      IAP_ISSUER: https://fake-iap.local
+      IAP_AUDIENCE: agent-works-dev
+      GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT in .env}
+    volumes:
+      - *gcloud-volume
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+      fake-workspace:
+        condition: service_healthy
+      fake-iap:
+        condition: service_healthy
+      fake-drive:
+        condition: service_healthy
+      fake-directory:
+        condition: service_healthy
+      fake-llm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_API_PORT:-8084}:8080
+
+  web:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, apps/web/dist/src/server.js]
+    environment:
+      AW_DEV_STACK: '1'
+      API_URL: http://api:8080
+    healthcheck: *healthcheck
+    depends_on:
+      watch:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${AW_WEB_PORT:-8085}:8080
+
+  gcp-probe:
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    command: [nodemon, --config, dev/nodemon.json, scripts/adc-probe.mjs]
+    environment:
+      PORT: '8090'
+      GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT in .env}
+      AW_IMPERSONATE_SERVICE_ACCOUNT: ${AW_IMPERSONATE_SERVICE_ACCOUNT:-}
+    volumes:
+      - *gcloud-volume
+    depends_on:
+      watch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8090/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 5s
+    ports:
+      - 127.0.0.1:${AW_PROBE_PORT:-8090}:8090
+
+  otel-collector:
+    profiles: [otel]
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    user: '0'
+    volumes:
+      - ./apps/api/src/telemetry/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - otel-traces:/var/log/otel
+    ports:
+      - 127.0.0.1:${AW_OTEL_PORT:-4318}:4318
+
+# Named volumes also used by dev/compose.node.yaml (declared here: extends does not merge
+# top-level volumes).
+volumes:
+  postgres-data:
+  otel-traces:
+  node-modules-api-contract:
+  node-modules-api:
+  node-modules-cli:
+  node-modules-common:
+  node-modules-domain:
+  node-modules-fakes:
+  node-modules-incident-analysis:
+  node-modules-policy:
+  node-modules-root:
+  node-modules-web:
+  pnpm-store:

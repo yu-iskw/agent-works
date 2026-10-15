@@ -8,6 +8,7 @@
     ".": {
       "entry": [
         "stylelint.config.mjs",
+        "scripts/adc-probe.mjs",
         "tools/finops/*.mjs",
         "tools/slo/*.mjs",
         "tools/restore-drill/*.mjs"

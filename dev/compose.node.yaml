@@ -1,0 +1,31 @@
+# Kept in a separate file because `extends` in compose.yaml would also copy a `profiles:` gate.
+services:
+  node-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aw-dev-node:local
+    working_dir: /workspace
+    init: true
+    # Run as the host user so files written to the bind mount stay yours and the
+    # 0600 ADC file is readable on Linux, where UIDs are not remapped.
+    user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
+    environment:
+      HOME: /home/dev
+      pnpm_config_store_dir: /pnpm-store
+      CI: 'true'
+    volumes:
+      - ..:/workspace
+      # Linux node_modules live in named volumes so they never mix with the host's
+      # (macOS) node_modules and install is fast on later runs.
+      - pnpm-store:/pnpm-store
+      - node-modules-root:/workspace/node_modules
+      - node-modules-api:/workspace/apps/api/node_modules
+      - node-modules-web:/workspace/apps/web/node_modules
+      - node-modules-api-contract:/workspace/packages/api-contract/node_modules
+      - node-modules-cli:/workspace/packages/cli/node_modules
+      - node-modules-common:/workspace/packages/common/node_modules
+      - node-modules-domain:/workspace/packages/domain/node_modules
+      - node-modules-fakes:/workspace/packages/fakes/node_modules
+      - node-modules-policy:/workspace/packages/policy/node_modules
+      - node-modules-incident-analysis:/workspace/agents/skills/incident-analysis/node_modules
