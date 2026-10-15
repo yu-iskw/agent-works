@@ -127,6 +127,7 @@ it.each([
     await blocker`begin`;
     await blocker`select task_id from task_deliveries where task_id = ${claimed.taskId} for update`;
     pending = dispatch.renew(proofOf(claimed), 120_000);
+    pending.catch(() => undefined);
     await vi.waitFor(async () => {
       const rows = await query<{ count: number }[]>`
         select count(*)::int as count from pg_stat_activity

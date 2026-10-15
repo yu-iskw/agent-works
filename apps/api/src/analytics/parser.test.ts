@@ -42,11 +42,38 @@ describe('SELECT AST', () => {
       value: 'DELETE FROM x; -- comment',
     });
   });
-  it('preserves escaped apostrophes as literal values', () => {
+  it('decodes valid GoogleSQL string escapes into literal values', () => {
     expect(
-      parseSelect("SELECT 'it''s' AS label FROM approved.sales LIMIT 1").projections[0].expression,
+      parseSelect("SELECT 'it\\'s' AS label FROM approved.sales LIMIT 1").projections[0].expression,
     ).toEqual({ kind: 'literal', value: "it's" });
+    expect(
+      parseSelect('SELECT "it\'s" AS label FROM approved.sales LIMIT 1').projections[0].expression,
+    ).toEqual({ kind: 'literal', value: "it's" });
+    expect(
+      parseSelect('SELECT "a \\"quoted\\" word" AS label FROM approved.sales LIMIT 1')
+        .projections[0].expression,
+    ).toEqual({ kind: 'literal', value: 'a "quoted" word' });
+    expect(
+      parseSelect(
+        "SELECT '\\a\\b\\f\\n\\r\\t\\v\\\\\\?\\\"\\'\\`' AS label FROM approved.sales LIMIT 1",
+      ).projections[0].expression,
+    ).toEqual({ kind: 'literal', value: '\x07\b\f\n\r\t\v\\?"\'`' });
+    expect(
+      parseSelect("SELECT '\\101\\x42\\u03B1\\U0001F600' AS label FROM approved.sales LIMIT 1")
+        .projections[0].expression,
+    ).toEqual({ kind: 'literal', value: 'ABα😀' });
   });
+  it.each([
+    "SELECT '\\q' AS label FROM approved.sales LIMIT 1",
+    "SELECT '\\07' AS label FROM approved.sales LIMIT 1",
+    "SELECT '\\x4' AS label FROM approved.sales LIMIT 1",
+    "SELECT '\\u123' AS label FROM approved.sales LIMIT 1",
+    "SELECT '\\uD800' AS label FROM approved.sales LIMIT 1",
+    "SELECT '\\U00110000' AS label FROM approved.sales LIMIT 1",
+    "SELECT 'a\\\nb' AS label FROM approved.sales LIMIT 1",
+  ])('rejects invalid string escape in %s', (sql) =>
+    expect(() => parseSelect(sql)).toThrow('SQL_TOKEN'),
+  );
   it.each([
     'SELECT',
     'SELECT region',
