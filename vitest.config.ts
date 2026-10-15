@@ -46,7 +46,7 @@ export default defineConfig({
         },
         test: {
           name: 'contract',
-          include: ['e2e/contract/**/*.test.ts'],
+          include: ['e2e/contract/**/*.test.ts', 'e2e/*.test.ts', 'e2e/dev/**/*.test.ts'],
         },
       },
     ],

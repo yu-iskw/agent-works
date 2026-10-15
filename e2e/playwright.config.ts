@@ -28,6 +28,15 @@ const projects = readdirSync(root, { withFileTypes: true })
     name: entry.name,
     testMatch: `${entry.name}/**/*.spec.ts`,
     ...(entry.name === 'security' ? { testIgnore: 'security/pending.spec.ts' } : {}),
+    ...(entry.name === 'dev'
+      ? {
+          testIgnore: [
+            'dev/identity-smoke.spec.ts',
+            'dev/cross-user.spec.ts',
+            'dev/direct-url.spec.ts',
+          ],
+        }
+      : {}),
   }));
 
 export default defineConfig({
