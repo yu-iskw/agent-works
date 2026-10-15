@@ -1,4 +1,7 @@
 mock_provider "google" {
+  mock_data "google_project" {
+    defaults = { project_id = "aw-test-project", number = "123456789012" }
+  }
   mock_resource "google_project_iam_custom_role" {
     override_during = plan
     defaults        = { name = "projects/aw-test-project/roles/mock" }
@@ -12,11 +15,9 @@ mock_provider "google" {
   }
 }
 variables {
-  project_id         = "aw-test-project"
-  folder_id          = "100000000001"
-  billing_account_id = "ABCDEF-ABCDEF-ABCDEF"
-  operator_member    = "user:yu@example.test"
-  breakglass_member  = "group:aw-breakglass@example.test"
+  project_id        = "aw-test-project"
+  operator_member   = "user:yu@example.test"
+  breakglass_member = "group:aw-breakglass@example.test"
 }
 run "bootstrap_contract" {
   command = plan
@@ -45,16 +46,12 @@ run "bootstrap_contract" {
     error_message = "Keep thirty archived versions."
   }
   assert {
-    condition     = alltrue([for policy in values(module.baseline.org_policies) : policy == "TRUE"]) && length(module.baseline.org_policies) == 3
-    error_message = "All key and default-SA guards must be enforced."
+    condition     = length(module.baseline.org_policies) == 0 && module.baseline.audit_log == null && module.baseline.default_accounts_action == null && length(google_billing_account_iam_member.budget) == 0
+    error_message = "Adopted-project baseline and billing IAM switches default off."
   }
   assert {
-    condition     = module.baseline.audit_log.service == "allServices" && module.baseline.audit_log.log_types == toset(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
-    error_message = "Audit every service."
-  }
-  assert {
-    condition     = google_project.dev.deletion_policy == "PREVENT" && !google_project.dev.auto_create_network
-    error_message = "Project must be protected without a default network."
+    condition     = output.project_number == "123456789012" && !contains(keys(output.iam_bindings), "budget")
+    error_message = "Project number comes from adopted data source and budget IAM binding is omitted when disabled."
   }
   assert {
     condition     = google_storage_bucket_iam_member.plan.role == "roles/storage.objectViewer" && google_storage_bucket_iam_member.applier["aw-tf-dev"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/dev/')"
@@ -62,10 +59,67 @@ run "bootstrap_contract" {
   }
 }
 
+run "guards_opt_in" {
+  command = plan
+  variables {
+    guard_constraints = ["iam.automaticIamGrantsForDefaultServiceAccounts", "iam.disableServiceAccountKeyCreation", "iam.disableServiceAccountKeyUpload"]
+  }
+  assert {
+    condition     = length(module.baseline.org_policies) == 3 && alltrue([for policy in values(module.baseline.org_policies) : policy == "TRUE"])
+    error_message = "Opt-in guard constraints must enforce all three policies."
+  }
+}
+
+run "audit_opt_in" {
+  command = plan
+  variables {
+    enable_audit_config = true
+  }
+  assert {
+    condition     = module.baseline.audit_log.service == "allServices" && module.baseline.audit_log.log_types == toset(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
+    error_message = "Opt-in audit config must audit allServices."
+  }
+}
+
+run "deprivilege_opt_in" {
+  command = plan
+  variables {
+    enable_default_sa_deprivilege = true
+  }
+  assert {
+    condition     = module.baseline.default_accounts_action == "DEPRIVILEGE"
+    error_message = "Opt-in default SA deprivilege must set DEPRIVILEGE."
+  }
+}
+
+run "billing_iam_opt_in" {
+  command = plan
+  variables {
+    enable_billing_budget_iam = true
+    billing_account_id        = "ABCDEF-ABCDEF-ABCDEF"
+  }
+  assert {
+    condition     = length(google_billing_account_iam_member.budget) == 1 && google_billing_account_iam_member.budget[0].role == "roles/billing.costsManager" && google_billing_account_iam_member.budget[0].member == "serviceAccount:aw-tf-dev@aw-test-project.iam.gserviceaccount.com" && output.iam_bindings["budget"].scope == "ABCDEF-ABCDEF-ABCDEF"
+    error_message = "Opt-in billing budget IAM must bind costsManager to aw-tf-dev on billing_account_id."
+  }
+}
+
+run "billing_iam_requires_account_id" {
+  command = plan
+  variables {
+    enable_billing_budget_iam = true
+    billing_account_id        = null
+  }
+  expect_failures = [var.billing_account_id]
+}
+
 run "conditioned_dev_iam_in_bootstrap" {
   command = plan
   assert {
-    condition     = module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].member == "serviceAccount:aw-tf-dev@aw-test-project.iam.gserviceaccount.com" && module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].scope == "aw-test-project" && module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].role == "roles/resourcemanager.projectIamAdmin"
+    condition = length(module.dev_iam.iam_bindings) == length(output.grantable_role_chunks) && alltrue([
+      for binding in values(module.dev_iam.iam_bindings) :
+      binding.member == "serviceAccount:aw-tf-dev@aw-test-project.iam.gserviceaccount.com" && binding.scope == "aw-test-project" && binding.role == "roles/resourcemanager.projectIamAdmin"
+    ])
     error_message = "Bootstrap grants the guarded project IAM role only to the dev applier."
   }
   assert {
@@ -73,8 +127,22 @@ run "conditioned_dev_iam_in_bootstrap" {
     error_message = "D6 must forbid basic and IAM admin roles."
   }
   assert {
-    condition     = module.dev_iam.iam_bindings["dev/roles/resourcemanager.projectIamAdmin"].condition.expression == "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(${jsonencode(sort(tolist(output.grantable_roles)))})"
-    error_message = "Guard must use the exact role allowlist."
+    condition     = alltrue([for chunk in output.grantable_role_chunks : length(chunk) >= 1 && length(chunk) <= 10])
+    error_message = "IAM Conditions allow at most 10 elements per hasOnly() list."
+  }
+  assert {
+    condition     = toset(flatten(output.grantable_role_chunks)) == output.grantable_roles && length(flatten(output.grantable_role_chunks)) == length(output.grantable_roles)
+    error_message = "The chunks must partition the approved allowlist with no loss or duplication."
+  }
+  assert {
+    condition     = length(output.grantable_role_chunks) == ceil(length(output.grantable_roles) / 10)
+    error_message = "Use the fewest conditioned bindings."
+  }
+  assert {
+    condition = toset([for binding in values(module.dev_iam.iam_bindings) : binding.condition.expression]) == toset([
+      for chunk in output.grantable_role_chunks : "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(${jsonencode(chunk)})"
+    ]) && length(toset([for binding in values(module.dev_iam.iam_bindings) : binding.condition.title])) == length(module.dev_iam.iam_bindings)
+    error_message = "Each chunk gets its own hasOnly() expression and a distinct condition title."
   }
   assert {
     condition     = toset([for binding in values(module.terraform_roles.iam_bindings) : binding.role if binding.member == "serviceAccount:aw-tf-identity@aw-test-project.iam.gserviceaccount.com"]) == toset(["roles/iam.serviceAccountAdmin", "roles/iam.workloadIdentityPoolAdmin"])

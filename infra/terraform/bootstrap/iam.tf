@@ -10,16 +10,26 @@ locals {
     "projects/${var.project_id}/roles/pilot_durable_tasks_adapter",
   ])
 }
+# IAM Conditions allow at most 10 elements in a hasOnly() list (live API: "ListLengthCheck"), so
+# the allowlist is split into the fewest equal-size chunks of <= 10 roles, one conditioned binding each.
+locals {
+  condition_list_limit   = 10
+  grantable_roles_sorted = sort(tolist(local.grantable_roles))
+  grantable_chunk_count  = ceil(length(local.grantable_roles_sorted) / local.condition_list_limit)
+  grantable_chunk_size   = ceil(length(local.grantable_roles_sorted) / local.grantable_chunk_count)
+  grantable_role_chunks  = chunklist(local.grantable_roles_sorted, local.grantable_chunk_size)
+}
 module "dev_iam" {
   source     = "../modules/project_iam"
-  project_id = google_project.dev.project_id
+  project_id = var.project_id
+  # Bindings are OR'd: a single setIamPolicy request may only change roles from ONE chunk.
   grants = {
-    dev = {
+    for index, chunk in local.grantable_role_chunks : "dev-${index + 1}" => {
       member = "serviceAccount:${local.terraform_emails["aw-tf-dev"]}"
       roles  = ["roles/resourcemanager.projectIamAdmin"]
       condition = {
-        title      = "approved-runtime-roles-only"
-        expression = "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(${jsonencode(sort(tolist(local.grantable_roles)))})"
+        title      = "approved-runtime-roles-only-${index + 1}"
+        expression = "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(${jsonencode(chunk)})"
       }
     }
   }

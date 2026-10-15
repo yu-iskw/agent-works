@@ -22,10 +22,15 @@ resource "google_project_default_service_accounts" "deprivilege" {
   depends_on = [google_org_policy_policy.guard]
 }
 resource "google_project_iam_audit_config" "all_services" {
+  count   = var.enable_audit_config ? 1 : 0
   project = var.project_id
   service = "allServices"
   audit_log_config { log_type = "ADMIN_READ" }
   audit_log_config { log_type = "DATA_READ" }
   audit_log_config { log_type = "DATA_WRITE" }
   depends_on = [google_project_service.api]
+}
+moved {
+  from = google_project_iam_audit_config.all_services
+  to   = google_project_iam_audit_config.all_services[0]
 }
