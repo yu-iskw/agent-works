@@ -190,6 +190,7 @@ flowchart LR
   Yu[Yu<br/>gcloud ADC] -- tokenCreator --> TFI[aw-tf-identity]
   Yu -- tokenCreator --> TFD[aw-tf-dev]
   Yu -- tokenCreator --> TFP[aw-tf-plan]
+  Yu -- tokenCreator --> TFB[aw-tf-bootstrap]
   TFI -->|apply identity/dev| SAs[(runtime + CI SAs<br/>WIF pool)]
   TFD -->|apply environments/dev| RES[(Run, AR, Secrets, IAP,<br/>Workflows, Scheduler)]
   TFD -. serviceAccountUser .-> RT[aw-web / aw-api / aw-tool-broker /<br/>aw-workflow / aw-scheduler]

@@ -23,7 +23,7 @@ run "bootstrap_contract" {
   command = plan
   assert {
     condition     = toset(keys(google_service_account.terraform)) == toset(["aw-tf-identity", "aw-tf-dev", "aw-tf-plan"])
-    error_message = "Bootstrap creates exactly three Terraform accounts."
+    error_message = "The for_each set creates the identity, dev and plan accounts; aw-tf-bootstrap is a separate resource."
   }
   assert {
     condition     = google_service_account.bootstrap_state.account_id == "aw-tf-bootstrap" && google_service_account.bootstrap_state.display_name == "aw-tf-bootstrap"
@@ -42,8 +42,8 @@ run "bootstrap_contract" {
     error_message = "Bootstrap state SA receives bucket-scoped workspace discovery listing."
   }
   assert {
-    condition     = !contains([for binding in values(module.terraform_roles.iam_bindings) : binding.member], "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com")
-    error_message = "aw-tf-bootstrap must have no project roles."
+    condition     = length([for binding in values(output.iam_bindings) : binding if binding.member == "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com"]) == 2 && alltrue([for binding in values(output.iam_bindings) : binding.scope == "aw-test-project-tfstate" && contains(["roles/storage.objectAdmin", google_project_iam_custom_role.state_list.name], binding.role) if binding.member == "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com"])
+    error_message = "aw-tf-bootstrap has exactly two bindings, both on the state bucket (objectAdmin on bootstrap/ and list-only); no project roles."
   }
   assert {
     condition     = toset(keys(google_service_account_iam_member.operator)) == toset(["aw-tf-identity", "aw-tf-dev", "aw-tf-plan"]) && alltrue([for binding in google_service_account_iam_member.operator : binding.role == "roles/iam.serviceAccountTokenCreator" && binding.member == var.operator_member])
@@ -317,8 +317,8 @@ run "optional_permissions_default_off" {
 run "workspace_listing_and_prefix_isolation" {
   command = plan
   assert {
-    condition     = toset(google_project_iam_custom_role.state_list.permissions) == toset(["storage.objects.list"]) && toset(keys(google_storage_bucket_iam_member.applier_list)) == toset(["aw-tf-identity", "aw-tf-dev"]) && alltrue([for key, binding in google_storage_bucket_iam_member.applier_list : binding.bucket == "aw-test-project-tfstate" && binding.role == google_project_iam_custom_role.state_list.name && binding.member == "serviceAccount:${key}@aw-test-project.iam.gserviceaccount.com" && length(binding.condition) == 0])
-    error_message = "Both appliers can list only the state bucket with a list-only custom role."
+    condition     = toset(google_project_iam_custom_role.state_list.permissions) == toset(["storage.objects.list"]) && toset(keys(google_storage_bucket_iam_member.applier_list)) == toset(["aw-tf-identity", "aw-tf-dev"]) && alltrue([for key, binding in google_storage_bucket_iam_member.applier_list : binding.bucket == "aw-test-project-tfstate" && binding.role == google_project_iam_custom_role.state_list.name && binding.member == "serviceAccount:${key}@aw-test-project.iam.gserviceaccount.com" && length(binding.condition) == 0]) && length(google_storage_bucket_iam_member.bootstrap_state_list.condition) == 0
+    error_message = "Both appliers and aw-tf-bootstrap can list only the state bucket with a list-only custom role."
   }
   assert {
     condition     = google_storage_bucket_iam_member.applier["aw-tf-identity"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/identity/')" && google_storage_bucket_iam_member.applier["aw-tf-dev"].condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/dev/')" && google_storage_bucket_iam_member.dev_identity_reader.condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/identity/')"

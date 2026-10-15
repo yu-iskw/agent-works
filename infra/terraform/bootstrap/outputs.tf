@@ -8,7 +8,7 @@ output "state_bucket" {
 }
 output "terraform_service_account_emails" {
   description = "Reviewable terraform service account emails."
-  value       = local.terraform_emails
+  value       = merge(local.terraform_emails, { (local.bootstrap_state_account) = local.bootstrap_state_email })
 }
 output "iam_bindings" {
   description = "Reviewable iam bindings."
