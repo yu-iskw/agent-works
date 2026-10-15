@@ -1,0 +1,273 @@
+# Copyright 2026 yu-iskw
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# yamllint disable rule:line-length rule:document-start rule:truthy rule:comments
+
+name: Deploy Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target deployment environment (dev only)
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+      sha:
+        description: Full 40-hex commit SHA on origin/main to deploy
+        required: true
+        type: string
+      web_image:
+        description: Digest-pinned aw-web image in aw-images (@sha256:...)
+        required: true
+        type: string
+      api_image:
+        description: Digest-pinned aw-api image in aw-images (@sha256:...)
+        required: true
+        type: string
+
+permissions: read-all
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    name: deploy-dev
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.environment == 'dev'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUD_RUN_REGION: asia-northeast1
+      TF_PROJECT_ID: ${{ vars.TF_PROJECT_ID }}
+      DEPLOY_WIF_PROVIDER: ${{ vars.DEPLOY_WIF_PROVIDER }}
+      DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
+      INPUT_ENVIRONMENT: ${{ inputs.environment }}
+      DEPLOY_SHA: ${{ inputs.sha }}
+      WEB_IMAGE: ${{ inputs.web_image }}
+      API_IMAGE: ${{ inputs.api_image }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate environment, commit ancestry, and digest-pinned images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$INPUT_ENVIRONMENT" != "dev" ]]; then
+            echo "Refusing deployment: only 'dev' is allowed." >&2
+            exit 1
+          fi
+
+          if [[ -z "$TF_PROJECT_ID" || -z "$DEPLOY_WIF_PROVIDER" || -z "$DEPLOYER_SA" ]]; then
+            echo "Missing TF_PROJECT_ID, DEPLOY_WIF_PROVIDER, or DEPLOYER_SA." >&2
+            exit 1
+          fi
+
+          expected_sa="aw-deployer@${TF_PROJECT_ID}.iam.gserviceaccount.com"
+          if [[ "$DEPLOYER_SA" != "$expected_sa" ]]; then
+            echo "Refusing deployment: DEPLOYER_SA must be ${expected_sa}." >&2
+            exit 1
+          fi
+
+          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Refusing deployment: sha must be 40-char lowercase hex." >&2
+            exit 1
+          fi
+
+          if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+            echo "Refusing deployment: commit ${DEPLOY_SHA} not found." >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$DEPLOY_SHA" origin/main; then
+            echo "Refusing deployment: ${DEPLOY_SHA} not on origin/main." >&2
+            exit 1
+          fi
+
+          ar_prefix="asia-northeast1-docker.pkg.dev/${TF_PROJECT_ID}/aw-images"
+          web_pattern="^asia-northeast1-docker\\.pkg\\.dev/${TF_PROJECT_ID}/aw-images/aw-web@sha256:[0-9a-f]{64}$"
+          api_pattern="^asia-northeast1-docker\\.pkg\\.dev/${TF_PROJECT_ID}/aw-images/aw-api@sha256:[0-9a-f]{64}$"
+
+          if [[ ! "$WEB_IMAGE" =~ $web_pattern ]]; then
+            echo "Refusing web_image: must match ${ar_prefix}/aw-web@sha256:<64-hex>." >&2
+            exit 1
+          fi
+
+          if [[ ! "$API_IMAGE" =~ $api_pattern ]]; then
+            echo "Refusing api_image: must match ${ar_prefix}/aw-api@sha256:<64-hex>." >&2
+            exit 1
+          fi
+
+          git checkout --detach "$DEPLOY_SHA"
+          checked_out="$(git rev-parse HEAD)"
+          if [[ "$checked_out" != "$DEPLOY_SHA" ]]; then
+            echo "Checkout verification failed." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud via WIF (aw-deployer)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+          project_id: ${{ vars.TF_PROJECT_ID }}
+
+      - name: Update Cloud Run revisions (aw-api and aw-web) and wait for latestReadyRevision
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e2e/artifacts
+
+          deploy_started_ms="$(date +%s%3N)"
+
+          gcloud run services update aw-api \
+            --project="$TF_PROJECT_ID" \
+            --region="$CLOUD_RUN_REGION" \
+            --image="$API_IMAGE" \
+            --quiet
+
+          gcloud run services update aw-web \
+            --project="$TF_PROJECT_ID" \
+            --region="$CLOUD_RUN_REGION" \
+            --image="$WEB_IMAGE" \
+            --quiet
+
+          api_revision="$(
+            gcloud run services describe aw-api \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format='value(status.latestReadyRevisionName)'
+          )"
+          api_created_revision="$(
+            gcloud run services describe aw-api \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format='value(status.latestCreatedRevisionName)'
+          )"
+          if [[ -z "$api_revision" || "$api_revision" != "$api_created_revision" ]]; then
+            echo "aw-api latestReadyRevisionName (${api_revision}) does not match latestCreatedRevisionName (${api_created_revision})." >&2
+            exit 1
+          fi
+
+          web_revision="$(
+            gcloud run services describe aw-web \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format='value(status.latestReadyRevisionName)'
+          )"
+          web_created_revision="$(
+            gcloud run services describe aw-web \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format='value(status.latestCreatedRevisionName)'
+          )"
+          if [[ -z "$web_revision" || "$web_revision" != "$web_created_revision" ]]; then
+            echo "aw-web latestReadyRevisionName (${web_revision}) does not match latestCreatedRevisionName (${web_created_revision})." >&2
+            exit 1
+          fi
+
+          deploy_finished_ms="$(date +%s%3N)"
+          deploy_wall_ms="$((deploy_finished_ms - deploy_started_ms))"
+          api_digest="${API_IMAGE##*@}"
+          web_digest="${WEB_IMAGE##*@}"
+
+          python3 - \
+            "$DEPLOY_SHA" \
+            "$CLOUD_RUN_REGION" \
+            "$WEB_IMAGE" \
+            "$web_digest" \
+            "$web_revision" \
+            "$API_IMAGE" \
+            "$api_digest" \
+            "$api_revision" \
+            "$deploy_wall_ms" <<'PY'
+          import json
+          import sys
+
+          (
+              sha,
+              region,
+              web_image,
+              web_digest,
+              web_revision,
+              api_image,
+              api_digest,
+              api_revision,
+              deploy_wall_ms,
+          ) = sys.argv[1:]
+
+          summary = {
+              "environment": "dev",
+              "region": region,
+              "commitSha": sha,
+              "deployWallTimeMs": int(deploy_wall_ms),
+              "services": {
+                  "aw-web": {
+                      "image": web_image,
+                      "digest": web_digest,
+                      "revision": web_revision,
+                  },
+                  "aw-api": {
+                      "image": api_image,
+                      "digest": api_digest,
+                      "revision": api_revision,
+                  },
+              },
+          }
+          with open("e2e/artifacts/deploy-summary.json", "w", encoding="utf-8") as handle:
+              json.dump(summary, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          {
+            echo "## Dev Cloud Run Deployment Summary"
+            echo ""
+            echo "- **Environment:** \`dev\`"
+            echo "- **Region:** \`${CLOUD_RUN_REGION}\`"
+            echo "- **Commit SHA:** \`${DEPLOY_SHA}\`"
+            echo "- **Deploy wall time:** \`${deploy_wall_ms} ms\`"
+            echo ""
+            echo "| Service | Revision | Digest | Image Reference |"
+            echo "| ------- | -------- | ------ | --------------- |"
+            echo "| \`aw-api\` | \`${api_revision}\` | \`${api_digest}\` | \`${API_IMAGE}\` |"
+            echo "| \`aw-web\` | \`${web_revision}\` | \`${web_digest}\` | \`${WEB_IMAGE}\` |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized deploy summary artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deploy-dev-${{ inputs.sha }}
+          path: e2e/artifacts/deploy-summary.json
+          if-no-files-found: error
