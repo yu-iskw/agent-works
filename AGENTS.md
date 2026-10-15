@@ -97,9 +97,9 @@ When you want durable fixes (not one-off chat advice):
 
 ## Architecture
 
-- **Packages:** `packages/*` today. A package may keep its code in `src/`. `packages/common` stays until a later change replaces it. The target layout is [ADR 0002](docs/adr/0002-monorepo-layout.md).
+- **Workspaces:** `apps/*`, `packages/*` and `agents/skills/*` (see `pnpm-workspace.yaml`). A package may keep its code in `src/`. `packages/common` is a leftover template package. The layout decision is [ADR 0002](docs/adr/0002-monorepo-layout.md).
 - **Root:** shared scripts and config
-- **CI:** `.github/workflows/` — `sbom.yml` runs `pnpm lint:security` then generates/scans an SPDX SBOM on PRs/main; `publish.yml` re-runs `pnpm lint:security` before npm publish
+- **CI:** `.github/workflows/`. On PRs it runs unit tests, build, Trunk, CodeQL, SBOM (`sbom.yml` runs `pnpm lint:security` then scans an SPDX SBOM), compose, e2e, release gates, spike-verify and Terraform checks (`infra.yml`, plus the read-only `infra-plan.yml`). `deploy-dev.yml` is a manual keyless dev deploy. `publish.yml` re-runs `pnpm lint:security` before npm publish.
 - **Agent/tooling config:** `.cursor/` (Cursor rules), `.claude/` (Claude Code compatibility/hooks), `.codex/` (Codex), `.gemini/` (Gemini CLI). Copilot can also read `.github/copilot-instructions.md` alongside `AGENTS.md`.
 - pstack role models come from `.cursor/rules/pstack-models.mdc` and take precedence over pstack defaults. Grok 4.7 high handles decisions, reviews and building, and Grok 4.7 medium handles helpers. Launch subagents on those models explicitly. Never use Sonnet, Opus, max effort, fast mode, or 1M context.
 - **ADRs:** significant decisions in `docs/adr`. The index is [docs/adr/README.md](docs/adr/README.md).
