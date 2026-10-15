@@ -2,6 +2,7 @@
 # Audit logging is applied by module.baseline (project_baseline) for allServices.
 #trivy:ignore:GCP-0079
 resource "google_project" "dev" {
+  #checkov:skip=CKV2_GCP_5:allServices ADMIN_READ/DATA_READ/DATA_WRITE audit config with no exemptions is applied by module.baseline (project_baseline) and asserted in tests/contracts.tftest.hcl.
   name                = var.project_id
   project_id          = var.project_id
   folder_id           = var.folder_id

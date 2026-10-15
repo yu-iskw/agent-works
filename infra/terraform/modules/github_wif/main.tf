@@ -4,6 +4,7 @@ resource "google_iam_workload_identity_pool" "github" {
   display_name              = "Agent Works GitHub"
 }
 resource "google_iam_workload_identity_pool_provider" "github" {
+  #checkov:skip=CKV_GCP_125:Trust is pinned by assertion.repository in attribute_condition and by per-SA principalSet bindings on attribute.access (plan/dev); a literal assertion.sub check would not cover both workflows.
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github"
