@@ -9,8 +9,8 @@ credentials, secret values or actual ids in tracked tfvars or logs.
 ## Prepare and review
 
 Use Terraform 1.16.5 and Google 8.5.0. Replace the placeholders in each root's
-`terraform.tfvars.example` in protected untracked operator files. The project
-`ubie-yu-sandbox` already exists and is adopted via `data "google_project"` (never
+`terraform.tfvars.example` in protected untracked operator files. The target
+project already exists and is adopted via `data "google_project"` (never
 created, no folder, never imported, never destroyed). Supply the project id, Yu's
 user principal and the manually maintained break-glass group; the billing account id
 is only needed in bootstrap if `enable_billing_budget_iam` is turned on. The human

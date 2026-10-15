@@ -1,4 +1,4 @@
-project_id = "ubie-yu-sandbox"
+project_id = "PROJECT_ID"
 # billing_account_id = "BILLING_ACCOUNT_ID"  # only needed when enable_billing_budget_iam = true
 operator_member = "user:yu@example.invalid"
 breakglass_member = "group:aw-breakglass@example.invalid"
