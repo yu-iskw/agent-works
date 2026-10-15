@@ -100,8 +100,12 @@ paste tokens into source, tfvars, command arguments, logs, or test reports.
 2. Prepare protected, untracked operator tfvars with the existing dev project,
    folder, billing account, `enable_workflows = true`, the deployed
    `workflow_broker_service_name`, and `workflow_source_contents` loaded from the
-   generated file. These are resource metadata, never credentials. The dev module
-   selects task-service/deployer identities from the existing project module.
+   generated file. These are resource metadata, never credentials. The dev root
+   reads identity/dev outputs: aw-api is the adapter and aw-workflow is supplied
+   as workflow_service_account_email; aw-tf-dev is the Terraform deployment
+   identity. identity/dev owns its per-SA serviceAccountUser attach grant. The
+   Workflows module creates no account or deployer attach binding. All three
+   emails must be distinct.
 3. Use the project's approved state backend and locking setup. `init -backend=false`
    is only for offline checks; review state location and access before a real plan.
 4. Review a saved plan. Confirm the enabled resource delta, regional workflow,

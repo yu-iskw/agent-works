@@ -16,7 +16,7 @@ variable "region" {
   }
 }
 variable "name" {
-  description = "Workflow resource name and IAM role namespace."
+  description = "Workflow resource name; the bootstrap adapter role namespace is fixed."
   type        = string
   default     = "pilot-durable-tasks"
   validation {
@@ -24,18 +24,18 @@ variable "name" {
     error_message = "Use a lowercase 6-30 character workflow name."
   }
 }
-variable "service_account_id" {
-  description = "Dedicated workflow execution identity, never the task-service identity."
+variable "workflow_service_account_email" {
+  description = "Workflow service account email."
   type        = string
-  default     = "pilot-workflow"
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.service_account_id))
-    error_message = "Use a lowercase 6-30 character service-account id."
+    condition     = can(regex("^[a-z][a-z0-9-]+@[a-z][a-z0-9-]+\\.iam\\.gserviceaccount\\.com$", var.workflow_service_account_email))
+    error_message = "Invalid workflow_service_account_email: use the approved interface and pilot region."
   }
 }
+
 variable "adapter_service_account_email" {
   validation {
-    condition     = var.adapter_service_account_email != "${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com" && var.adapter_service_account_email != var.deployer_service_account_email
+    condition     = var.adapter_service_account_email != var.workflow_service_account_email && var.adapter_service_account_email != var.deployer_service_account_email
     error_message = "Execution, dispatcher and deployment identities must be distinct."
   }
 
@@ -48,7 +48,7 @@ variable "adapter_service_account_email" {
 }
 variable "deployer_service_account_email" {
   validation {
-    condition     = var.deployer_service_account_email != "${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
+    condition     = var.deployer_service_account_email != var.workflow_service_account_email
     error_message = "Deployment and execution identities must be distinct."
   }
 

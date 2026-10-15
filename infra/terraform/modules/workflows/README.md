@@ -1,8 +1,8 @@
 # Optional pilot Cloud Workflows
 
 This module implements #101, the infrastructure prerequisite for #25. It creates a
-regional workflow and a dedicated execution service account in an existing pilot
-project. It enables the Workflows and Workflow Executions APIs. Nothing executes a
+regional workflow using an existing dedicated execution service-account email.
+The identity root creates that account in the existing pilot project. It enables the Workflows and Workflow Executions APIs. Nothing executes a
 workflow as part of Terraform provisioning.
 
 The dev invocation in `environments/dev/workflows.tf` has `enable_workflows = false`
@@ -15,8 +15,8 @@ requires a reviewed definition and an existing authenticated broker service.
 | -------------------------------- | --------------------- | --------------------------------------------------------- |
 | `project_id`                     | Required              | Existing isolated pilot project                           |
 | `region`                         | `asia-northeast1`     | Accepted ADR 0003 region; other regions rejected          |
-| `name`                           | `pilot-durable-tasks` | Workflow name and custom-role namespace                   |
-| `service_account_id`             | `pilot-workflow`      | Dedicated execution identity                              |
+| `name`                           | `pilot-durable-tasks` | Workflow name (adapter role is fixed)                     |
+| `workflow_service_account_email` | Required              | Existing dedicated aw-workflow execution identity         |
 | `adapter_service_account_email`  | Required              | Existing keyless task-service dispatcher                  |
 | `deployer_service_account_email` | Required              | Existing operator-approved deployer                       |
 | `broker_service_name`            | Required              | Existing Cloud Run v2 service in this project/region      |
@@ -32,9 +32,9 @@ OAuth credentials, a Cloud Run service, a database, or a broker endpoint.
 | -------------------------------------- | ------------------------------ | --------------------------------------- |
 | Dedicated workflow execution identity  | `roles/run.invoker`            | Named broker Cloud Run service only     |
 | Existing task-service adapter identity | Custom dispatcher role         | Pilot project                           |
-| Existing deployer identity             | `roles/iam.serviceAccountUser` | Dedicated workflow service account only |
+| aw-tf-dev (identity root binding)      | `roles/iam.serviceAccountUser` | Dedicated workflow service account only |
 
-The custom role contains exactly the five permissions used by the adapter:
+Bootstrap creates `pilot_durable_tasks_adapter` with `enable_workflows = true` before this module is enabled. This module assigns the existing role and never manages custom roles. The custom role contains exactly the five permissions used by the adapter:
 
 - `workflows.executions.create`
 - `workflows.executions.list`
@@ -60,8 +60,9 @@ ledger and fresh policy on every tick.
 The workflow calls the fixed broker endpoint with OIDC as its dedicated service
 account. Broker ingress and application authorization are owned by the broker
 service. The module grants service invocation but cannot validate that service's
-application logic. The project module retains the existing prohibition on service
-account key creation/upload; this module creates no service-account keys.
+application logic. Bootstrap retains the prohibition on service-account key
+creation/upload; this module creates no service accounts or keys. The attach
+binding belongs to identity/dev; aw-tf-dev is passed as the deployment identity.
 
 ## Outputs
 
@@ -69,8 +70,7 @@ account key creation/upload; this module creates no service-account keys.
 `execution_api_base_url`, `service_account_email`, and `dispatcher_email`.
 The TypeScript adapter consumes `workflow_name`; its injected transport uses
 keyless OAuth to contact the Workflow Executions API. These outputs are metadata,
-not credentials. `permissions` and `iam_bindings` expose the exact permission and
-principal sets for review. The dev environment exposes `workflow_adapter`, which
+not credentials. `permissions` retains the expected permission metadata and `iam_bindings` exposes the exact principal and role sets; bootstrap tests assert the role permissions. The dev environment exposes `workflow_adapter`, which
 is null while disabled.
 
 ## Offline verification
@@ -88,9 +88,9 @@ terraform -chdir=infra/terraform/modules/workflows test
 
 Every test run uses `command = plan` with a mocked provider. Tests assert exact
 permissions and service-account bindings, reject public/human/shared identities,
-check deletion protection and call-log settings, and plan dev with opt-in both
-disabled and enabled. Plan-time mock overrides make computed identity values
-assertable without an apply.
+check deletion protection and call-log settings. The dev root suite plans opt-in
+both disabled and enabled. Plan-time mock overrides make computed identity
+values assertable without an apply.
 
 Terraform validates resource schemas and references; it does not compile the
 Workflows language. The API tests compare the generated source against a reviewed
