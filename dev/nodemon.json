@@ -1,0 +1,15 @@
+{
+  "legacyWatch": true,
+  "watch": [
+    "apps/api/dist",
+    "apps/web/dist",
+    "packages/domain/dist",
+    "packages/policy/dist",
+    "packages/fakes/dist",
+    "agents/skills/incident-analysis/dist",
+    "scripts/adc-probe.mjs"
+  ],
+  "ext": "js,mjs,json",
+  "ignore": ["**/*.tsbuildinfo"],
+  "delay": 1000
+}
