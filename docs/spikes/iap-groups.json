@@ -1,0 +1,39 @@
+{
+  "probe": "iap-groups",
+  "issue": 21,
+  "component": "C-03",
+  "evidenceKind": "offline-static-and-contract",
+  "validation": "UNVERIFIED",
+  "verdict": "DEFER",
+  "reason": "Live proof not possible: no IAP-protected service is deployed because #24 live deploy is on hold by Yu's decision; sandbox IAP allowlist is only user:yu.ishikawa@dr-ubie.com, so Alice/Bob/outsider cannot be exercised.",
+  "observed": {
+    "date": "2026-10-15",
+    "operatorEnvironment": "operator fetch from the Mac",
+    "endpoint": "https://www.gstatic.com/iap/verify/public_key-jwk",
+    "httpStatus": 200,
+    "cacheControl": "public, max-age=3000",
+    "keyCount": 5,
+    "keyGeometry": {
+      "kty": "EC",
+      "crv": "P-256",
+      "alg": "ES256"
+    },
+    "keyIds": "not recorded"
+  },
+  "unverified": {
+    "cloudRunIapSignIn": "unverified",
+    "outsider403": "unverified",
+    "groupMapping": "unverified",
+    "bobRemovalRevocationLag": "unverified (measure when a second user and a deployed service exist)",
+    "liveJwksOutageBehaviour": "unverified"
+  },
+  "proposedSecurityBudget": {
+    "status": "proposal",
+    "targetOwner": "C-05/IAM owner",
+    "maximumRevocationLagMs": 60000,
+    "rationale": "Proposed threshold for owner review; not a measured value or accepted SLO. Aligns with proposed 60 s revocation budget from retrieval spike."
+  },
+  "requestedRegion": "asia-northeast1",
+  "directIapCloudRunAudienceTemplate": "/projects/<projectNumber>/locations/<region>/services/<serviceName>",
+  "fallback": "Offline cryptographic verification with cached JWKS in apps/api/src/auth/iap.ts and Cloud Run configuration helpers in apps/api/src/auth/google-jwks.ts."
+}
