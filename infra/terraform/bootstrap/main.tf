@@ -1,4 +1,6 @@
 # Initial bootstrap uses local state and is the only non-impersonated provider.
+# Audit logging is applied by module.baseline (project_baseline) for allServices.
+#trivy:ignore:GCP-0079
 resource "google_project" "dev" {
   name                = var.project_id
   project_id          = var.project_id
@@ -14,6 +16,8 @@ module "baseline" {
   guard_constraints            = ["iam.automaticIamGrantsForDefaultServiceAccounts", "iam.disableServiceAccountKeyCreation", "iam.disableServiceAccountKeyUpload"]
   deprivilege_default_accounts = true
 }
+# DESIGN D7 intentionally uses Google-managed keys for state encryption, without CMEK.
+#trivy:ignore:GCP-0066
 resource "google_storage_bucket" "state" {
   #checkov:skip=CKV_GCP_62:DESIGN section 6 provisions only a state bucket; allServices Cloud Audit Logs cover access without a second access-log bucket.
   project                     = google_project.dev.project_id

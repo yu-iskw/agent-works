@@ -20,7 +20,7 @@ bootstrap. Move/import it across roots using operator-reviewed state operations;
 never permit its destruction/recreation. Guard policies and default-SA deprivilege
 also move into bootstrap's baseline. Audit/APIs, budget and IAM change addresses
 when modules split: review imports/state moves before planning against existing
-state. D2 renames pilot-* accounts to aw-*; the approved design assumes the old
+state. D2 renames `pilot-*` accounts to `aw-*`; the approved design assumes the old
 accounts have never been applied. If that assumption is false, stop and review a
 migration; do not use an unattended replacement plan.
 

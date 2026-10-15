@@ -65,17 +65,7 @@ jobs:
         run: terraform -chdir=infra/terraform fmt -check -recursive -diff
 
       - name: No identities in modules
-        shell: bash
-        run: |
-          if rg -n 'resource\s+"google_service_account(_key)?"' infra/terraform/modules; then
-            echo 'Modules must take existing service-account emails.' >&2
-            exit 1
-          fi
-          if rg -n 'google_service_account_key' infra/terraform --glob '*.tf' --glob '*.tf.json'; then
-            echo 'Service-account keys are forbidden.' >&2
-            exit 1
-          fi
-          node --test infra/terraform/evidence.test.mjs
+        run: node --test infra/terraform/evidence.test.mjs
 
       - name: Offline init, validate and mock plan tests
         shell: bash

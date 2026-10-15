@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'infra/terraform/**'
-      - '.github/workflows/infra-plan.yml'
+      - infra/terraform/**
+      - .github/workflows/infra-plan.yml
 
 permissions:
   id-token: write
