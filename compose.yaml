@@ -58,28 +58,18 @@ services:
       file: dev/compose.node.yaml
       service: node-dev
     command:
-      - pnpm
-      - --parallel
-      - --filter
-      - '@agent-works/domain'
-      - --filter
-      - '@agent-works/policy'
-      - --filter
-      - '@agent-works/fakes'
-      - --filter
-      - '@agent-works/api'
-      - --filter
-      - '@agent-works/web'
-      - exec
-      - tsc
-      - -b
-      - --watch
-      - --preserveWatchOutput
-      # Poll: file events do not cross the host-to-VM bind mount on macOS and Windows.
-      - --watchFile
-      - priorityPollingInterval
-      - --watchDirectory
-      - dynamicPriorityPolling
+      - sh
+      - -c
+      - >-
+        pnpm --filter @agent-works/incident-analysis exec tsc -p tsconfig.build.json --watch
+        --preserveWatchOutput --watchFile priorityPollingInterval --watchDirectory dynamicPriorityPolling &
+        exec pnpm --parallel
+        --filter '@agent-works/policy'
+        --filter '@agent-works/fakes'
+        --filter '@agent-works/api'
+        --filter '@agent-works/web'
+        exec tsc -b --watch --preserveWatchOutput
+        --watchFile priorityPollingInterval --watchDirectory dynamicPriorityPolling
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -88,7 +78,7 @@ services:
         - CMD
         - sh
         - -c
-        - test -f apps/api/dist/server.js && test -f apps/web/dist/src/server.js && test -f packages/fakes/dist/main.js
+        - test -f apps/api/dist/server.js && test -f apps/web/dist/src/server.js && test -f packages/fakes/dist/main.js && test -f agents/skills/incident-analysis/dist/deliver.js
       interval: 3s
       timeout: 3s
       retries: 40
@@ -196,6 +186,12 @@ services:
         condition: service_healthy
       fake-iap:
         condition: service_healthy
+      fake-drive:
+        condition: service_healthy
+      fake-directory:
+        condition: service_healthy
+      fake-llm:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
@@ -212,6 +208,8 @@ services:
     healthcheck: *healthcheck
     depends_on:
       watch:
+        condition: service_healthy
+      api:
         condition: service_healthy
     ports:
       - 127.0.0.1:${AW_WEB_PORT:-8085}:8080
@@ -234,6 +232,9 @@ services:
         source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
         target: /gcloud
         read_only: true
+    depends_on:
+      watch:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -255,7 +256,7 @@ services:
       - ./apps/api/src/telemetry/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
       - otel-traces:/var/log/otel
     ports:
-      - 127.0.0.1:4318:4318
+      - 127.0.0.1:${AW_OTEL_PORT:-4318}:4318
 
 # Named volumes also used by dev/compose.node.yaml (declared here: extends does not merge
 # top-level volumes).

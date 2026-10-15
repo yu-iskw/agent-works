@@ -27,6 +27,16 @@ export function createProbe({ fetch, readFile: read, env, now = Date.now }) {
   }
 
   async function refreshToken(credentials) {
+    if (
+      typeof credentials.client_id !== 'string' ||
+      !credentials.client_id ||
+      typeof credentials.client_secret !== 'string' ||
+      !credentials.client_secret ||
+      typeof credentials.refresh_token !== 'string' ||
+      !credentials.refresh_token
+    ) {
+      throw new ProbeError('ADC file is missing client_id, client_secret or refresh_token');
+    }
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -59,8 +69,16 @@ export function createProbe({ fetch, readFile: read, env, now = Date.now }) {
   async function accessTokenFor(credentials) {
     if (credentials.type === 'authorized_user') return refreshToken(credentials);
     if (credentials.type === 'impersonated_service_account') {
+      const url = credentials.service_account_impersonation_url;
+      if (
+        typeof url !== 'string' ||
+        !url.startsWith(`${IMPERSONATE_URL}/`) ||
+        !url.endsWith(':generateAccessToken')
+      ) {
+        throw new ProbeError('invalid impersonation url in ADC file');
+      }
       const source = await accessTokenFor(credentials.source_credentials ?? {});
-      return impersonate(credentials.service_account_impersonation_url, source);
+      return impersonate(url, source);
     }
     throw new ProbeError(
       'unsupported credential type: use `gcloud auth application-default login` (no key files)',
@@ -107,7 +125,7 @@ export function createProbe({ fetch, readFile: read, env, now = Date.now }) {
     } catch (error) {
       result = { ok: false, error: error instanceof ProbeError ? error.message : 'probe failed' };
     }
-    cached = { at: now(), result };
+    if (result.ok) cached = { at: now(), result };
     return result;
   }
 

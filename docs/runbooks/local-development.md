@@ -24,7 +24,7 @@ cp .env.example .env
 
 Edit `.env`:
 
-- `GOOGLE_CLOUD_PROJECT`: the dev project id (`ubie-yu-sandbox` for the pilot).
+- `GOOGLE_CLOUD_PROJECT`: the dev project id (`your-gcp-project-id`).
 - `HOST_UID` and `HOST_GID`: output of `id -u` and `id -g`.
 
 Then start the stack:
@@ -39,24 +39,24 @@ Use `docker compose up --wait` to block until everything is healthy.
 
 ## Services
 
-| Service          | Host port | Role                                                 |
-| ---------------- | --------- | ---------------------------------------------------- |
-| `fake-iap`       | 8081      | Entry point: fake IAP proxy in front of `web`        |
-| `fake-drive`     | 8082      | Fake Google Drive                                    |
-| `fake-llm`       | 8083      | Fake model endpoint                                  |
-| `api`            | 8084      | Agent API (talks to Postgres and the fakes)          |
-| `web`            | 8085      | Web app (calls `api`)                                |
-| `fake-directory` | 8086      | Fake directory for roles and groups                  |
-| `fake-workspace` | 8087      | Fake Google Workspace and OAuth                      |
-| `gcp-probe`      | 8090      | Calls Google Cloud with the mounted ADC              |
-| `postgres`       | none      | Ledger and audit store                               |
-| `bootstrap`      | none      | One-shot `pnpm install` and build, then exits        |
-| `watch`          | none      | `tsc --watch` for domain, policy, fakes, api and web |
-| `otel-collector` | 4318      | Optional, `docker compose --profile otel up`         |
+| Service          | Host port | Role                                                                             |
+| ---------------- | --------- | -------------------------------------------------------------------------------- |
+| `fake-iap`       | 8081      | Entry point: fake IAP proxy in front of `web`                                    |
+| `fake-drive`     | 8082      | Fake Google Drive                                                                |
+| `fake-llm`       | 8083      | Fake model endpoint                                                              |
+| `api`            | 8084      | Agent API (talks to Postgres and the fakes)                                      |
+| `web`            | 8085      | Web app (calls `api`)                                                            |
+| `fake-directory` | 8086      | Fake directory for roles and groups                                              |
+| `fake-workspace` | 8087      | Fake Google Workspace and OAuth                                                  |
+| `gcp-probe`      | 8090      | Calls Google Cloud with the mounted ADC                                          |
+| `postgres`       | none      | Ledger and audit store                                                           |
+| `bootstrap`      | none      | One-shot `pnpm install` and build, then exits                                    |
+| `watch`          | none      | `tsc --watch` for domain (via fakes), policy, fakes, api, web, incident-analysis |
+| `otel-collector` | 4318      | Optional, `docker compose --profile otel up`                                     |
 
-All ports bind to 127.0.0.1 and can be changed in `.env` (see `.env.example`).
-Browse `http://localhost:8081` with the header `x-fake-user: alice` to use the app
-as the fake user.
+All ports (including `AW_OTEL_PORT`) bind to 127.0.0.1 and can be changed in `.env`
+(see `.env.example`). Browse `http://localhost:8081` with the header
+`x-fake-user: alice` to use the app as the fake user.
 
 ## Check that it works
 
@@ -75,7 +75,10 @@ call succeeds.
 - The host `~/.config/gcloud` (override with `GCLOUD_CONFIG_DIR`) is mounted read-only
   at `/gcloud` in `api` and `gcp-probe` only. Containers cannot change your gcloud
   configuration. `GOOGLE_APPLICATION_CREDENTIALS` points at the mounted
-  `application_default_credentials.json`.
+  `application_default_credentials.json`. Because the whole gcloud config directory is
+  mounted read-only, any other files in that directory are also readable inside those
+  containers. For stricter isolation, set `GCLOUD_CONFIG_DIR` to a directory holding
+  only a copy of `application_default_credentials.json`.
 - For a service that needs a specific identity, impersonate a service account instead
   of using a key:
   - `gcloud auth application-default login --impersonate-service-account=SA_EMAIL`
@@ -108,12 +111,12 @@ the defaults work there, but setting the variables is harmless.
 
 ## Troubleshooting
 
-| Symptom                                        | Fix                                                                   |
-| ---------------------------------------------- | --------------------------------------------------------------------- |
-| `gcp-probe` unhealthy, `invalid_grant`         | ADC expired: run `gcloud auth application-default login` again        |
-| `gcp-probe` unhealthy, `PERMISSION_DENIED`     | Check the project id and that your user can read the project          |
-| `gcp-probe` unhealthy, `SERVICE_DISABLED`      | Enable the Cloud Resource Manager API on the project                  |
-| `required variable GOOGLE_CLOUD_PROJECT`       | Create `.env` from `.env.example`                                     |
-| `port is already allocated`                    | Stop `compose.dev.yml` (`pnpm dev:down`) or change the port in `.env` |
-| Permission denied on `/gcloud` or `/workspace` | Set `HOST_UID` and `HOST_GID` in `.env`, then `docker compose up -d`  |
-| Stale state or a broken install                | `docker compose down -v` removes the database and dependency volumes  |
+| Symptom                                        | Fix                                                                                                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `gcp-probe` unhealthy, `invalid_grant`         | ADC expired: run `gcloud auth application-default login` again                                                                          |
+| `gcp-probe` unhealthy, `PERMISSION_DENIED`     | Check the project id and that your user can read the project                                                                            |
+| `gcp-probe` unhealthy, `SERVICE_DISABLED`      | Enable the Cloud Resource Manager API on the project                                                                                    |
+| `required variable GOOGLE_CLOUD_PROJECT`       | Create `.env` from `.env.example`                                                                                                       |
+| `port is already allocated`                    | Stop `compose.dev.yml` (`pnpm dev:down`) or change the port in `.env`                                                                   |
+| Permission denied on `/gcloud` or `/workspace` | Set `HOST_UID` and `HOST_GID` in `.env`, then run `docker compose down -v && docker compose up -d --build` (volumes keep old ownership) |
+| Stale state or a broken install                | `docker compose down -v` removes the database and dependency volumes                                                                    |

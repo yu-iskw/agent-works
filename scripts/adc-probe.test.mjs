@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createProbe } from './adc-probe.mjs';
+import { createHandler, createProbe } from './adc-probe.mjs';
 
 const SECRET = 'super-secret-refresh-token';
 const env = {
@@ -81,6 +81,43 @@ describe('adc probe', () => {
     expect(calls.at(-1).init.headers.authorization).toBe('Bearer at-sa');
   });
 
+  it('rejects invalid service_account_impersonation_url without sending bearer token', async () => {
+    for (const badUrl of [
+      'http://evil.example/v1/projects/-/serviceAccounts/sa@demo.iam.gserviceaccount.com:generateAccessToken',
+      'https://evil.example/v1/projects/-/serviceAccounts/sa@demo.iam.gserviceaccount.com:generateAccessToken',
+      'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@demo.iam.gserviceaccount.com:other',
+      123,
+      null,
+    ]) {
+      const impersonated = {
+        type: 'impersonated_service_account',
+        service_account_impersonation_url: badUrl,
+        source_credentials: user,
+      };
+      const { calls, probe } = harness(impersonated, [token, project]);
+      const result = await probe.check();
+      expect(result).toEqual({ ok: false, error: 'invalid impersonation url in ADC file' });
+      expect(calls.every((call) => call.url.startsWith('https://oauth2.googleapis.com/'))).toBe(
+        true,
+      );
+      expect(calls.some((call) => call.init?.headers?.authorization)).toBe(false);
+    }
+  });
+
+  it('rejects authorized_user missing client_id, client_secret or refresh_token before fetch', async () => {
+    for (const field of ['client_id', 'client_secret', 'refresh_token']) {
+      for (const bad of ['', undefined, 123]) {
+        const { calls, probe } = harness({ ...user, [field]: bad }, [token, project]);
+        const result = await probe.check();
+        expect(result).toEqual({
+          ok: false,
+          error: 'ADC file is missing client_id, client_secret or refresh_token',
+        });
+        expect(calls).toHaveLength(0);
+      }
+    }
+  });
+
   it('impersonates AW_IMPERSONATE_SERVICE_ACCOUNT on top of user ADC', async () => {
     const { calls, probe } = harness(
       user,
@@ -130,15 +167,85 @@ describe('adc probe', () => {
     expect(result).toEqual({ ok: false, error: 'token refresh failed: HTTP 400 invalid_grant' });
   });
 
-  it('caches the result for 30 seconds', async () => {
-    const { calls, clock, probe } = harness(user, [token, project]);
-    await probe.check();
-    const first = calls.length;
+  it('caches a successful result for 30 seconds and retries after failure', async () => {
+    let ok = false;
+    const calls = [];
+    const clock = { time: 0 };
+    const probe = createProbe({
+      fetch: async (url) => {
+        calls.push(String(url));
+        if (String(url).startsWith(token.prefix)) {
+          return ok ? token.reply : reply(400, { error: 'invalid_grant' });
+        }
+        return project.reply;
+      },
+      readFile: async () => JSON.stringify(user),
+      env,
+      now: () => clock.time,
+    });
+
+    expect((await probe.check()).ok).toBe(false);
+    expect(calls).toHaveLength(1);
+
+    ok = true;
+    expect((await probe.check()).ok).toBe(true);
+    const afterRecovery = calls.length;
+    expect(afterRecovery).toBe(3);
+
     clock.time = 29_000;
-    await probe.check();
-    expect(calls).toHaveLength(first);
+    expect((await probe.check()).ok).toBe(true);
+    expect(calls).toHaveLength(afterRecovery);
+
     clock.time = 31_000;
-    await probe.check();
-    expect(calls.length).toBeGreaterThan(first);
+    expect((await probe.check()).ok).toBe(true);
+    expect(calls.length).toBeGreaterThan(afterRecovery);
+  });
+});
+
+describe('createHandler', () => {
+  function callHandler(result, url) {
+    const handler = createHandler({ check: async () => result });
+    const res = {
+      status: 0,
+      headers: {},
+      body: '',
+      writeHead(status, headers = {}) {
+        this.status = status;
+        this.headers = headers;
+        return this;
+      },
+      end(chunk = '') {
+        this.body = chunk;
+      },
+    };
+    return handler({ url }, res).then(() => res);
+  }
+
+  it('serves /healthz 200 ok and 503 unhealthy', async () => {
+    const healthy = await callHandler({ ok: true }, '/healthz');
+    expect(healthy.status).toBe(200);
+    expect(healthy.body).toBe('ok');
+
+    const unhealthy = await callHandler({ ok: false, error: 'probe failed' }, '/healthz');
+    expect(unhealthy.status).toBe(503);
+    expect(unhealthy.body).toBe('unhealthy');
+  });
+
+  it('serves /gcp 200 and 503 with JSON body', async () => {
+    const okPayload = { ok: true, projectId: 'demo-project' };
+    const healthy = await callHandler(okPayload, '/gcp');
+    expect(healthy.status).toBe(200);
+    expect(JSON.parse(healthy.body)).toEqual(okPayload);
+
+    const errPayload = { ok: false, error: 'probe failed' };
+    const unhealthy = await callHandler(errPayload, '/gcp');
+    expect(unhealthy.status).toBe(503);
+    expect(JSON.parse(unhealthy.body)).toEqual(errPayload);
+  });
+
+  it('returns 404 for unknown path', async () => {
+    const res = await callHandler({ ok: true }, '/other');
+    expect(res.status).toBe(404);
+    expect(res.body).toBe('');
   });
 });
