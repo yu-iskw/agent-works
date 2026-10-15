@@ -41,7 +41,7 @@ run "bootstrap_contract" {
     error_message = "State must be private, uniform and versioned."
   }
   assert {
-    condition     = google_storage_bucket.state.lifecycle_rule[0].condition[0].num_newer_versions == 30
+    condition     = anytrue([for rule in google_storage_bucket.state.lifecycle_rule : anytrue([for c in rule.condition : c.num_newer_versions == 30])])
     error_message = "Keep thirty archived versions."
   }
   assert {
