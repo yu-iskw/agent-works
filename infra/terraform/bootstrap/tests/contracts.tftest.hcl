@@ -5,7 +5,10 @@ mock_provider "google" {
   }
   mock_resource "google_service_account" {
     override_during = plan
-    defaults        = { name = "projects/aw-test-project/serviceAccounts/mock@aw-test-project.iam.gserviceaccount.com" }
+    defaults = {
+      name  = "projects/aw-test-project/serviceAccounts/aw-tf-mock@aw-test-project.iam.gserviceaccount.com"
+      email = "aw-tf-mock@aw-test-project.iam.gserviceaccount.com"
+    }
   }
 }
 variables {

@@ -1,4 +1,11 @@
 mock_provider "google" {
+  mock_resource "google_service_account" {
+    override_during = plan
+    defaults = {
+      name  = "projects/aw-test-project/serviceAccounts/aw-tf-mock@aw-test-project.iam.gserviceaccount.com"
+      email = "aw-tf-mock@aw-test-project.iam.gserviceaccount.com"
+    }
+  }
   mock_resource "google_iam_workload_identity_pool" {
     override_during = plan
     defaults        = { name = "projects/123456789012/locations/global/workloadIdentityPools/aw-github" }
