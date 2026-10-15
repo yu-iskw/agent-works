@@ -2,13 +2,34 @@ variable "project_id" {
   description = "Project id."
   type        = string
 }
-variable "folder_id" {
-  description = "Folder id."
-  type        = string
-}
 variable "billing_account_id" {
-  description = "Billing account id."
+  description = "Billing account id; required only when enable_billing_budget_iam is true (the budget module in environments/dev takes its own billing_account_id)."
   type        = string
+  default     = null
+  validation {
+    condition     = !var.enable_billing_budget_iam || var.billing_account_id != null
+    error_message = "billing_account_id must be set when enable_billing_budget_iam is true."
+  }
+}
+variable "enable_default_sa_deprivilege" {
+  description = "Deprivilege default service accounts in module.baseline; default false for adopted projects."
+  type        = bool
+  default     = false
+}
+variable "enable_audit_config" {
+  description = "Enable allServices Cloud Audit Logs in module.baseline; default false for adopted projects."
+  type        = bool
+  default     = false
+}
+variable "guard_constraints" {
+  description = "Organization policy guard constraints to enforce in module.baseline; recommended set when the operator holds roles/orgpolicy.policyAdmin: iam.automaticIamGrantsForDefaultServiceAccounts, iam.disableServiceAccountKeyCreation, iam.disableServiceAccountKeyUpload."
+  type        = set(string)
+  default     = []
+}
+variable "enable_billing_budget_iam" {
+  description = "Grant roles/billing.costsManager on billing_account_id to aw-tf-dev; default false."
+  type        = bool
+  default     = false
 }
 variable "operator_member" {
   description = "Operator member."

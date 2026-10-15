@@ -8,7 +8,11 @@ output "org_policies" {
 }
 output "audit_log" {
   description = "Reviewable audit log."
-  value       = { service = google_project_iam_audit_config.all_services.service, log_types = toset([for log in google_project_iam_audit_config.all_services.audit_log_config : log.log_type]) }
+  value       = length(google_project_iam_audit_config.all_services) == 0 ? null : { service = google_project_iam_audit_config.all_services[0].service, log_types = toset([for log in google_project_iam_audit_config.all_services[0].audit_log_config : log.log_type]) }
+}
+output "default_accounts_action" {
+  description = "Reviewable default service accounts action."
+  value       = one(google_project_default_service_accounts.deprivilege[*].action)
 }
 output "iam_bindings" {
   description = "Reviewable iam bindings."

@@ -9,27 +9,47 @@ credentials, secret values or actual ids in tracked tfvars or logs.
 ## Prepare and review
 
 Use Terraform 1.16.5 and Google 8.5.0. Replace the placeholders in each root's
-`terraform.tfvars.example` in protected untracked operator files. Supply the project,
-folder, billing account, Yu's user principal and the manually maintained break-glass
-group. Region is fixed to asia-northeast1. Keep Owner only for initial bootstrap.
-Review a saved plan and approve that exact plan before every operator apply.
+`terraform.tfvars.example` in protected untracked operator files. The target
+project already exists and is adopted via `data "google_project"` (never
+created, no folder, never imported, never destroyed). Supply the project id, Yu's
+user principal and the manually maintained break-glass group; the billing account id
+is only needed in bootstrap if `enable_billing_budget_iam` is turned on. The human
+operator authenticates with `gcloud auth application-default login` (keyless user
+ADC, no SA keys) for the bootstrap root only. Region is fixed to asia-northeast1.
+Keep Owner only for initial bootstrap. Review a saved plan and approve that exact
+plan before every operator apply.
 
-For a previously applied tree, back up state before refactoring. The project
-formerly at `module.dev.google_project.this` belongs at `google_project.dev` in
-bootstrap. Move/import it across roots using operator-reviewed state operations;
-never permit its destruction/recreation. Guard policies and default-SA deprivilege
-also move into bootstrap's baseline. Audit/APIs, budget and IAM change addresses
-when modules split: review imports/state moves before planning against existing
-state. D2 renames `pilot-*` accounts to `aw-*`; the approved design assumes the old
-accounts have never been applied. If that assumption is false, stop and review a
-migration; do not use an unattended replacement plan.
+### Adopting an existing project: checks before the first plan
+
+Run these read-only operator checks against the target project before planning:
+
+```sh
+gcloud projects describe PROJECT_ID
+gcloud billing projects describe PROJECT_ID
+gcloud org-policies list --project=PROJECT_ID
+gcloud projects get-iam-policy PROJECT_ID
+```
+
+No project state move or import operation exists any more; if an earlier state holds
+an old `google_project` resource, remove it from state only through a separately
+reviewed operator step and never destroy it. D2 renames `pilot-*` accounts to
+`aw-*`; the approved design assumes the old accounts have never been applied. If
+that assumption is false, stop and review a migration; do not use an unattended
+replacement plan.
 
 ## Bootstrap: local state first
 
-The human operator uses their own keyless ADC for this root only. It creates the
-project with deletion prevented, bootstrap APIs, enforced key creation/upload and
-default-SA automatic-grant guards, deprivileges default accounts, and enables
-allServices audit reads/writes. It creates aw-tf-identity, aw-tf-dev and aw-tf-plan.
+The human operator uses their own keyless ADC for this root only. Bootstrap adopts
+the existing project via `data "google_project"` and enables the bootstrap APIs.
+Four baseline and billing switches are off by default for adopted projects:
+`guard_constraints`, `enable_audit_config`, `enable_default_sa_deprivilege` and
+`enable_billing_budget_iam`. They default off because an existing project may host
+other workloads: default-SA deprivilege removes Editor from default accounts,
+`allServices` audit config is authoritative and may add logging cost, organization
+policies require `roles/orgpolicy.policyAdmin`, and budget IAM grants
+`roles/billing.costsManager` on a billing account that may be shared.
+
+Bootstrap creates aw-tf-identity, aw-tf-dev and aw-tf-plan.
 Yu receives tokenCreator on those three accounts individually, never project-wide.
 The break-glass group receives tokenCreator only on aw-tf-identity, with no project
 roles and no automatic group membership management.
@@ -70,6 +90,7 @@ Bootstrap owns the conditioned dev projectIamAdmin grant; identity/dev never wri
 including the exact workflow adapter custom role. Never add Owner, Editor or any
 IAM administrator role. Review the condition in the console when the operator
 first deploys it; offline mocks cannot prove IAM's live enforcement.
+IAM Conditions allow at most 10 elements per `hasOnly()` list, so the allowlist is split into equal chunks (currently 2 x 8 roles, titles `approved-runtime-roles-only-N`); bindings are OR'd, so one IAM request can change roles from only one chunk and a single grant cannot mix roles from different chunks.
 
 ## Workload root and secret versions
 
@@ -77,7 +98,9 @@ Initialize environments/dev with bucket, prefix dev and backend impersonation
 aw-tf-dev. Set the provider email to the same account. The root reads identity/dev
 state as aw-tf-dev. Do not supply a test email fallback for a real deployment.
 
-First review/apply the baseline APIs/audit, alerts-only budget, project roles,
+The dev root's `enable_audit_config` and `enable_budget` switches default false for an adopted project (the budget also needs `billing_account_id` and bootstrap's `enable_billing_budget_iam`).
+
+First review/apply the baseline APIs (audit and alerts-only budget only if enabled), project roles,
 Artifact Registry and secret containers with `images = {}`. Only bootstrap owns
 the guard policies, so aw-tf-dev never requires orgpolicy.policyAdmin. The runtime
 API set follows DESIGN section 7, with optional APIs gated by their module flags.
@@ -131,7 +154,9 @@ infrastructure metadata. Do not put secret values in Terraform inputs.
 ## Final Owner removal and break-glass
 
 After state migration and successful identity/dev and workload plan review using
-impersonation, the human's final bootstrap step is removal of Yu's project Owner:
+impersonation, the human's final bootstrap step is removal of Yu's project Owner
+("Keep Owner only for initial bootstrap" refers to the operator's existing role on
+the adopted project):
 
 ```sh
 # Human only, after reviewing that scoped impersonation works.

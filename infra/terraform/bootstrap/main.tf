@@ -1,27 +1,20 @@
-# Initial bootstrap uses local state and is the only non-impersonated provider.
-# Audit logging is applied by module.baseline (project_baseline) for allServices.
-#trivy:ignore:GCP-0079
-resource "google_project" "dev" {
-  #checkov:skip=CKV2_GCP_5:allServices ADMIN_READ/DATA_READ/DATA_WRITE audit config with no exemptions is applied by module.baseline (project_baseline) and asserted in tests/contracts.tftest.hcl.
-  name                = var.project_id
-  project_id          = var.project_id
-  folder_id           = var.folder_id
-  billing_account     = var.billing_account_id
-  auto_create_network = false
-  deletion_policy     = "PREVENT"
+# Initial bootstrap uses local state, is the only non-impersonated provider, and adopts an existing project without creating it.
+data "google_project" "dev" {
+  project_id = var.project_id
 }
 module "baseline" {
   source                       = "../modules/project_baseline"
-  project_id                   = google_project.dev.project_id
+  project_id                   = var.project_id
   apis                         = ["iam.googleapis.com", "iamcredentials.googleapis.com", "storage.googleapis.com", "serviceusage.googleapis.com", "cloudresourcemanager.googleapis.com", "orgpolicy.googleapis.com"]
-  guard_constraints            = ["iam.automaticIamGrantsForDefaultServiceAccounts", "iam.disableServiceAccountKeyCreation", "iam.disableServiceAccountKeyUpload"]
-  deprivilege_default_accounts = true
+  guard_constraints            = var.guard_constraints
+  deprivilege_default_accounts = var.enable_default_sa_deprivilege
+  enable_audit_config          = var.enable_audit_config
 }
 # DESIGN D7 intentionally uses Google-managed keys for state encryption, without CMEK.
 #trivy:ignore:GCP-0066
 resource "google_storage_bucket" "state" {
   #checkov:skip=CKV_GCP_62:DESIGN section 6 provisions only a state bucket; allServices Cloud Audit Logs cover access without a second access-log bucket.
-  project                     = google_project.dev.project_id
+  project                     = var.project_id
   name                        = "${var.project_id}-tfstate"
   location                    = "asia-northeast1"
   uniform_bucket_level_access = true
@@ -43,7 +36,7 @@ locals {
 }
 resource "google_service_account" "terraform" {
   for_each     = local.terraform_accounts
-  project      = google_project.dev.project_id
+  project      = var.project_id
   account_id   = each.key
   display_name = each.key
   depends_on   = [module.baseline]
@@ -61,7 +54,7 @@ resource "google_service_account_iam_member" "breakglass" {
 }
 module "terraform_roles" {
   source     = "../modules/project_iam"
-  project_id = google_project.dev.project_id
+  project_id = var.project_id
   grants = {
     identity = { member = "serviceAccount:${local.terraform_emails["aw-tf-identity"]}", roles = ["roles/iam.serviceAccountAdmin", "roles/iam.workloadIdentityPoolAdmin"] }
     dev      = { member = "serviceAccount:${local.terraform_emails["aw-tf-dev"]}", roles = ["roles/serviceusage.serviceUsageAdmin", "roles/run.admin", "roles/artifactregistry.admin", "roles/secretmanager.admin", "roles/iap.admin", "roles/workflows.admin", "roles/cloudscheduler.admin", "roles/logging.configWriter"] }
@@ -70,6 +63,7 @@ module "terraform_roles" {
   depends_on = [google_service_account.terraform]
 }
 resource "google_billing_account_iam_member" "budget" {
+  count              = var.enable_billing_budget_iam ? 1 : 0
   billing_account_id = var.billing_account_id
   role               = "roles/billing.costsManager"
   member             = "serviceAccount:${local.terraform_emails["aw-tf-dev"]}"
@@ -107,7 +101,7 @@ resource "google_storage_bucket_iam_member" "dev_identity_reader" {
 
 # Workspace discovery lists the bucket, even when object access is prefix scoped.
 resource "google_project_iam_custom_role" "state_list" {
-  project     = google_project.dev.project_id
+  project     = var.project_id
   role_id     = "aw_state_list"
   title       = "Terraform state workspace discovery"
   permissions = ["storage.objects.list"]

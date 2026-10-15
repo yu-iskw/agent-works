@@ -2,7 +2,6 @@ mock_provider "google" {}
 variables {
   project_id                = "aw-test-project"
   project_number            = "123456789012"
-  billing_account_id        = "ABCDEF-ABCDEF-ABCDEF"
   terraform_service_account = "aw-tf-dev@aw-test-project.iam.gserviceaccount.com"
   service_account_emails    = { deployer = "aw-deployer@aw-test-project.iam.gserviceaccount.com", web = "aw-web@aw-test-project.iam.gserviceaccount.com", api = "aw-api@aw-test-project.iam.gserviceaccount.com", tool_broker = "aw-tool-broker@aw-test-project.iam.gserviceaccount.com", workflow = "aw-workflow@aw-test-project.iam.gserviceaccount.com", scheduler = "aw-scheduler@aw-test-project.iam.gserviceaccount.com" }
 }
@@ -21,12 +20,8 @@ run "offline_foundations" {
     error_message = "Default APIs must equal the exact D-list."
   }
   assert {
-    condition     = length(module.budget.thresholds) == 4 && length(module.budget.pubsub_topics) == 0
-    error_message = "Budget only alerts, never automates a shutdown."
-  }
-  assert {
-    condition     = module.baseline.audit_log.service == "allServices" && module.baseline.audit_log.log_types == toset(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
-    error_message = "All-services audit must survive the split."
+    condition     = length(module.budget) == 0 && module.baseline.audit_log == null
+    error_message = "Budget and allServices audit config are off by default for adopted projects."
   }
   assert {
     condition     = length(module.baseline.org_policies) == 0
@@ -48,6 +43,34 @@ run "offline_foundations" {
     condition     = length(regexall("resource\\s+\"", join("\n", [for f in fileset(path.root, "*.tf") : file("${path.root}/${f}")]))) == 0
     error_message = "Dev root resources belong in modules."
   }
+}
+run "audit_opt_in" {
+  command = plan
+  variables {
+    enable_audit_config = true
+  }
+  assert {
+    condition     = module.baseline.audit_log.service == "allServices" && module.baseline.audit_log.log_types == toset(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
+    error_message = "Opt-in audit must cover allServices."
+  }
+}
+run "budget_opt_in" {
+  command = plan
+  variables {
+    enable_budget      = true
+    billing_account_id = "ABCDEF-ABCDEF-ABCDEF"
+  }
+  assert {
+    condition     = length(module.budget) == 1 && length(module.budget[0].thresholds) == 4 && length(module.budget[0].pubsub_topics) == 0
+    error_message = "Budget only alerts, never automates a shutdown."
+  }
+}
+run "budget_requires_billing_account" {
+  command = plan
+  variables {
+    enable_budget = true
+  }
+  expect_failures = [var.billing_account_id]
 }
 run "infra-no-owner-binding" {
   command = plan

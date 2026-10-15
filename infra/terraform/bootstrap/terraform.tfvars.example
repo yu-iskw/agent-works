@@ -1,8 +1,13 @@
 project_id = "PROJECT_ID"
-folder_id = "FOLDER_ID"
-billing_account_id = "BILLING_ACCOUNT_ID"
+# billing_account_id = "BILLING_ACCOUNT_ID"  # only needed when enable_billing_budget_iam = true
 operator_member = "user:yu@example.invalid"
 breakglass_member = "group:aw-breakglass@example.invalid"
+
+# Adopted-project baseline/billing switches (all default off).
+guard_constraints = []                 # org-policy guards; requires roles/orgpolicy.policyAdmin
+enable_audit_config = false            # allServices audit config in bootstrap (environments/dev has its own enable_audit_config, default off)
+enable_default_sa_deprivilege = false  # deprivilege default compute/App Engine service accounts
+enable_billing_budget_iam = false      # grant roles/billing.costsManager on billing_account_id to aw-tf-dev
 
 # Enable matching bootstrap flags BEFORE enabling optional dev modules.
 enable_network = false

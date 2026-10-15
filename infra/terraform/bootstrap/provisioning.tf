@@ -85,7 +85,7 @@ locals {
 }
 resource "google_project_iam_custom_role" "provisioning" {
   for_each    = { for name, permissions in local.provisioning_permissions : name => permissions if local.provisioning_enabled[name] }
-  project     = google_project.dev.project_id
+  project     = var.project_id
   role_id     = "aw_tf_${each.key}"
   title       = "Terraform ${each.key} provisioning"
   permissions = each.value
@@ -93,14 +93,14 @@ resource "google_project_iam_custom_role" "provisioning" {
 }
 resource "google_project_iam_member" "provisioning" {
   for_each   = google_project_iam_custom_role.provisioning
-  project    = google_project.dev.project_id
+  project    = var.project_id
   role       = each.value.name
   member     = "serviceAccount:${local.terraform_emails["aw-tf-dev"]}"
   depends_on = [google_service_account.terraform]
 }
 resource "google_project_iam_custom_role" "workflow_adapter" {
   count       = var.enable_workflows ? 1 : 0
-  project     = google_project.dev.project_id
+  project     = var.project_id
   role_id     = "pilot_durable_tasks_adapter"
   title       = "Pilot workflow dispatcher and callback sender"
   permissions = ["workflows.executions.create", "workflows.executions.list", "workflows.executions.cancel", "workflows.callbacks.list", "workflows.callbacks.send"]

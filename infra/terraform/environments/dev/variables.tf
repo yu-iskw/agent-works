@@ -6,9 +6,24 @@ variable "project_number" {
   description = "Project number."
   type        = string
 }
+variable "enable_audit_config" {
+  description = "Enable allServices Cloud Audit Logs (ADMIN_READ, DATA_READ, DATA_WRITE) in module.baseline; default false so an adopted project keeps its existing audit policy."
+  type        = bool
+  default     = false
+}
+variable "enable_budget" {
+  description = "Create the alerts-only billing budget; default false. Needs billing_account_id and a billing grant for the dev applier (bootstrap enable_billing_budget_iam)."
+  type        = bool
+  default     = false
+}
 variable "billing_account_id" {
-  description = "Billing account id."
+  description = "Billing account id; required only when enable_budget is true."
   type        = string
+  default     = null
+  validation {
+    condition     = !var.enable_budget || (var.billing_account_id != null && var.billing_account_id != "")
+    error_message = "billing_account_id must be set when enable_budget is true."
+  }
 }
 variable "terraform_service_account" {
   description = "Terraform service account."

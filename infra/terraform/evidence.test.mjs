@@ -213,3 +213,14 @@ test('every provider and GCS backend impersonates, including additional blocks',
     }
   }
 });
+
+test('tracked tfvars examples and the bootstrap runbook carry placeholder project ids only', () => {
+  const examples = ['bootstrap', 'identity/dev', 'environments/dev'].map(
+    (root) => `infra/terraform/${root}/terraform.tfvars.example`,
+  );
+  for (const path of examples) {
+    assert.match(readFileSync(path, 'utf8'), /^project_id\s*=\s*"PROJECT_ID"/m, path);
+  }
+  const runbook = readFileSync('docs/runbooks/terraform-bootstrap.md', 'utf8');
+  assert.doesNotMatch(runbook, /ubie-[a-z0-9-]+/);
+});

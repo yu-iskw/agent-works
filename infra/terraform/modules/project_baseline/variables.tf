@@ -16,3 +16,8 @@ variable "deprivilege_default_accounts" {
   type        = bool
   default     = false
 }
+variable "enable_audit_config" {
+  description = "Enable allServices Cloud Audit Logs; default true for workload roots, overridden to false by bootstrap for adopted projects."
+  type        = bool
+  default     = true
+}
