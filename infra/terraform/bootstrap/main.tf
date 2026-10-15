@@ -114,3 +114,37 @@ resource "google_storage_bucket_iam_member" "applier_list" {
   member     = "serviceAccount:${local.terraform_emails[each.key]}"
   depends_on = [google_service_account.terraform]
 }
+
+# aw-tf-bootstrap is ONLY the backend/state identity for the bootstrap root.
+# It holds NO project roles and NO admin roles.
+locals {
+  bootstrap_state_account = "aw-tf-bootstrap"
+  bootstrap_state_email   = "${local.bootstrap_state_account}@${var.project_id}.iam.gserviceaccount.com"
+}
+resource "google_service_account" "bootstrap_state" {
+  project      = var.project_id
+  account_id   = local.bootstrap_state_account
+  display_name = local.bootstrap_state_account
+  depends_on   = [module.baseline]
+}
+resource "google_service_account_iam_member" "bootstrap_state_operator" {
+  service_account_id = google_service_account.bootstrap_state.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = var.operator_member
+}
+resource "google_storage_bucket_iam_member" "bootstrap_state" {
+  bucket = google_storage_bucket.state.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${local.bootstrap_state_email}"
+  condition {
+    title      = "state-prefix-aw-tf-bootstrap"
+    expression = "resource.name.startsWith('projects/_/buckets/${google_storage_bucket.state.name}/objects/bootstrap/')"
+  }
+  depends_on = [google_service_account.bootstrap_state]
+}
+resource "google_storage_bucket_iam_member" "bootstrap_state_list" {
+  bucket     = google_storage_bucket.state.name
+  role       = google_project_iam_custom_role.state_list.name
+  member     = "serviceAccount:${local.bootstrap_state_email}"
+  depends_on = [google_service_account.bootstrap_state]
+}
