@@ -223,4 +223,30 @@ test('tracked tfvars examples and the bootstrap runbook carry placeholder projec
   }
   const runbook = readFileSync('docs/runbooks/terraform-bootstrap.md', 'utf8');
   assert.doesNotMatch(runbook, /ubie-[a-z0-9-]+/);
+  assert.match(runbook, /deploy-dev\.yml/);
+  assert.match(runbook, /infra-plan\.yml/);
+});
+
+test('DESIGN.md and README.md match the implemented codebase without stale pre-implementation text', () => {
+  const design = readFileSync('infra/terraform/DESIGN.md', 'utf8');
+  assert.doesNotMatch(design, /DESIGN ONLY|Nothing implemented/i);
+  assert.doesNotMatch(design, /a09f0a0/);
+  assert.doesNotMatch(design, /\/workspace\/agent-works-operator-checklist\.md/);
+  assert.doesNotMatch(design, /moved from `modules\/environment/);
+  assert.doesNotMatch(
+    design,
+    /modules\/environment\/\{main,identities,guard,budget,catalogue\}\.tf/,
+  );
+  assert.doesNotMatch(design, /modules\/environment\/guard\.tf/);
+  assert.doesNotMatch(design, /modules\/environment\/catalogue\.tf/);
+  assert.doesNotMatch(
+    design,
+    /pilot-(bff|task-service|tool-broker|scheduled-exec|deployer|workflow)/,
+  );
+  assert.match(design, /data "google_project"/);
+  assert.match(design, /deploy-dev\.yml/);
+  assert.match(design, /infra-plan\.yml/);
+
+  const readme = readFileSync('infra/terraform/README.md', 'utf8');
+  assert.match(readme, /Adopted project/i);
 });

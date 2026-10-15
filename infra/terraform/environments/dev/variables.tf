@@ -21,7 +21,7 @@ variable "billing_account_id" {
   type        = string
   default     = null
   validation {
-    condition     = !var.enable_budget || (var.billing_account_id != null && var.billing_account_id != "")
+    condition     = !var.enable_budget || (var.billing_account_id != null && trimspace(var.billing_account_id) != "")
     error_message = "billing_account_id must be set when enable_budget is true."
   }
 }

@@ -83,9 +83,12 @@ aw-tool-broker, aw-workflow and aw-scheduler. aw-analytics and aw-agent are gate
 off. The dev applier gets per-account serviceAccountUser; aw-deployer may attach
 only web and API. Nobody receives human tokenCreator on runtime accounts.
 
-The GitHub pool accepts only yu-iskw/agent-works. The dev principalSet additionally
-requires environment dev and main; the separate plan principalSet accepts PRs or
-manual-main plan events. Review WIF outputs before handing them to issue #24.
+The GitHub pool accepts only yu-iskw/agent-works and pins `job_workflow_ref` on
+`refs/heads/main`. The dev principalSet requires environment `dev`, `refs/heads/main`
+and `.github/workflows/deploy-dev.yml@refs/heads/main` (including `workflow_dispatch`);
+the separate plan principalSet requires `.github/workflows/infra-plan.yml` (`@refs/pull/*` on
+`pull_request`, `@refs/heads/main` on `workflow_dispatch`) and is never satisfied
+by `deploy-dev.yml` jobs. Review WIF outputs before handing them to issue #24.
 Bootstrap owns the conditioned dev projectIamAdmin grant; identity/dev never writes project IAM. The conditional dev projectIamAdmin permits only the single runtime role allowlist,
 including the exact workflow adapter custom role. Never add Owner, Editor or any
 IAM administrator role. Review the condition in the console when the operator

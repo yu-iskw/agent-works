@@ -7,7 +7,7 @@ variable "billing_account_id" {
   type        = string
   default     = null
   validation {
-    condition     = !var.enable_billing_budget_iam || var.billing_account_id != null
+    condition     = !var.enable_billing_budget_iam || (var.billing_account_id != null && trimspace(var.billing_account_id) != "")
     error_message = "billing_account_id must be set when enable_billing_budget_iam is true."
   }
 }
@@ -25,6 +25,14 @@ variable "guard_constraints" {
   description = "Organization policy guard constraints to enforce in module.baseline; recommended set when the operator holds roles/orgpolicy.policyAdmin: iam.automaticIamGrantsForDefaultServiceAccounts, iam.disableServiceAccountKeyCreation, iam.disableServiceAccountKeyUpload."
   type        = set(string)
   default     = []
+  validation {
+    condition = length(setsubtract(var.guard_constraints, toset([
+      "iam.automaticIamGrantsForDefaultServiceAccounts",
+      "iam.disableServiceAccountKeyCreation",
+      "iam.disableServiceAccountKeyUpload",
+    ]))) == 0
+    error_message = "guard_constraints may contain only iam.automaticIamGrantsForDefaultServiceAccounts, iam.disableServiceAccountKeyCreation and iam.disableServiceAccountKeyUpload."
+  }
 }
 variable "enable_billing_budget_iam" {
   description = "Grant roles/billing.costsManager on billing_account_id to aw-tf-dev; default false."

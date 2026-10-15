@@ -37,3 +37,10 @@ run "audit_config_can_be_disabled" {
     error_message = "Audit config can be disabled for adopted projects."
   }
 }
+run "reject_unknown_guard_constraint" {
+  command = plan
+  variables {
+    guard_constraints = ["iam.disableServiceAccountKeyCreationTypo"]
+  }
+  expect_failures = [var.guard_constraints]
+}

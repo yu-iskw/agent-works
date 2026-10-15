@@ -40,6 +40,10 @@ run "exact_identity_and_binding_set" {
     "principalSet://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/aw-github/attribute.access/plan|roles/iam.workloadIdentityUser|aw-tf-plan@aw-test-project.iam.gserviceaccount.com"])
     error_message = "Every binding must equal the literal snapshot."
   }
+  assert {
+    condition     = output.wif_attribute_mapping["attribute.job_workflow_ref"] == "assertion.job_workflow_ref" && output.wif_attribute_mapping["attribute.access"] == "'environment' in assertion && assertion.environment == 'dev' && assertion.ref == 'refs/heads/main' && assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/deploy-dev.yml@refs/heads/main' ? 'dev' : (assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/infra-plan.yml@refs/heads/main' && (assertion.event_name == 'pull_request' || (assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/main')) ? 'plan' : 'denied')" && can(regex("deploy-dev\\.yml@refs/heads/main", output.wif_attribute_condition)) && can(regex("infra-plan\\.yml@refs/heads/main", output.wif_attribute_condition))
+    error_message = "Identity root must expose WIF mapping and condition with deploy-dev.yml and infra-plan.yml pinned on refs/heads/main."
+  }
 }
 run "optional_identities" {
   command = plan
