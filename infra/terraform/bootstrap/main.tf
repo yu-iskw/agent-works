@@ -1,6 +1,4 @@
 # Initial bootstrap uses local state, is the only non-impersonated provider, and adopts an existing project without creating it.
-# Audit logging and org-policy/default-SA guards in module.baseline are opt-in for adopted projects.
-# Existence check and project number only; Terraform never manages or deletes the project.
 data "google_project" "dev" {
   project_id = var.project_id
 }

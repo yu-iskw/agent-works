@@ -47,8 +47,7 @@ Four baseline and billing switches are off by default for adopted projects:
 other workloads: default-SA deprivilege removes Editor from default accounts,
 `allServices` audit config is authoritative and may add logging cost, organization
 policies require `roles/orgpolicy.policyAdmin`, and budget IAM grants
-`roles/billing.costsManager` on a billing account that may be shared. `environments/dev` has its
-own `enable_audit_config` and `enable_budget` switches, also default off.
+`roles/billing.costsManager` on a billing account that may be shared.
 
 Bootstrap creates aw-tf-identity, aw-tf-dev and aw-tf-plan.
 Yu receives tokenCreator on those three accounts individually, never project-wide.

@@ -27,10 +27,9 @@ locals {
   observability = toset(["roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/cloudtrace.agent"])
 }
 module "baseline" {
-  source     = "../../modules/project_baseline"
-  project_id = var.project_id
-  apis       = local.apis
-  # Audit config is opt-in for adopted projects.
+  source              = "../../modules/project_baseline"
+  project_id          = var.project_id
+  apis                = local.apis
   enable_audit_config = var.enable_audit_config
   # Guards and default-SA deprivilege belong exclusively to bootstrap (D5).
 }
