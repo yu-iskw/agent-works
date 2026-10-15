@@ -1,10 +1,7 @@
-# Local development image for compose.yaml. It holds tooling only: no source,
-# no credentials. The repository is bind-mounted at /workspace at run time.
 FROM node:24.13.0-bookworm-slim
 
-# pnpm: same version as CI and `packageManager` in package.json. nodemon restarts the
-# services on rebuilt output; it polls (-L) because inotify events do not cross the
-# host-to-VM bind mount on macOS and Windows, so `node --watch` would never fire.
+# nodemon polls (-L) because inotify events do not cross the host-to-VM bind mount
+# on macOS and Windows, so `node --watch` would never fire.
 RUN npm install --global pnpm@11.0.5 nodemon@3.1.10 \
   && npm cache clean --force
 
@@ -26,8 +23,6 @@ RUN mkdir -p /home/dev /pnpm-store \
 
 WORKDIR /workspace
 
-# Default non-root user; compose overrides it with the host UID.
 USER node
 
-# Health is defined per service in compose.yaml, not on the image.
 HEALTHCHECK NONE

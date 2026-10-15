@@ -1,7 +1,4 @@
-# Shared base for the Node services in ../compose.yaml; not a stack of its own. Paths
-# here are relative to this directory. Services opt in with
-#   extends: {file: dev/compose.node.yaml, service: node-dev}
-# (kept out of compose.yaml because `extends` would also copy a `profiles:` gate).
+# Kept in a separate file because `extends` in compose.yaml would also copy a `profiles:` gate.
 services:
   node-dev:
     build:
@@ -11,15 +8,13 @@ services:
     working_dir: /workspace
     init: true
     # Run as the host user so files written to the bind mount stay yours and the
-    # 0600 ADC file is readable on Linux, where UIDs are not remapped. On macOS and
-    # Windows Docker Desktop this is harmless.
+    # 0600 ADC file is readable on Linux, where UIDs are not remapped.
     user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
     environment:
       HOME: /home/dev
       pnpm_config_store_dir: /pnpm-store
       CI: 'true'
     volumes:
-      # Source, read-write: tsc writes dist/ here and node --watch reloads from it.
       - ..:/workspace
       # Linux node_modules live in named volumes so they never mix with the host's
       # (macOS) node_modules and install is fast on later runs.

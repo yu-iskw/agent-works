@@ -40,6 +40,10 @@ const token = {
   prefix: 'https://oauth2.googleapis.com/token',
   reply: reply(200, { access_token: 'at-1' }),
 };
+const impersonation = {
+  prefix: 'https://iamcredentials.googleapis.com/',
+  reply: reply(200, { accessToken: 'at-sa' }),
+};
 const project = {
   prefix: 'https://cloudresourcemanager.googleapis.com/v3/projects/demo-project',
   reply: reply(200, { state: 'ACTIVE', name: 'projects/1' }),
@@ -68,14 +72,7 @@ describe('adc probe', () => {
         'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@demo.iam.gserviceaccount.com:generateAccessToken',
       source_credentials: user,
     };
-    const { calls, probe } = harness(impersonated, [
-      token,
-      {
-        prefix: 'https://iamcredentials.googleapis.com/',
-        reply: reply(200, { accessToken: 'at-sa' }),
-      },
-      project,
-    ]);
+    const { calls, probe } = harness(impersonated, [token, impersonation, project]);
     const result = await probe.check();
     expect(result).toMatchObject({ ok: true, impersonated: true });
     expect(calls.at(-1).init.headers.authorization).toBe('Bearer at-sa');
@@ -119,18 +116,9 @@ describe('adc probe', () => {
   });
 
   it('impersonates AW_IMPERSONATE_SERVICE_ACCOUNT on top of user ADC', async () => {
-    const { calls, probe } = harness(
-      user,
-      [
-        token,
-        {
-          prefix: 'https://iamcredentials.googleapis.com/',
-          reply: reply(200, { accessToken: 'at-sa' }),
-        },
-        project,
-      ],
-      { AW_IMPERSONATE_SERVICE_ACCOUNT: 'sa@demo.iam.gserviceaccount.com' },
-    );
+    const { calls, probe } = harness(user, [token, impersonation, project], {
+      AW_IMPERSONATE_SERVICE_ACCOUNT: 'sa@demo.iam.gserviceaccount.com',
+    });
     expect(await probe.check()).toMatchObject({ ok: true, impersonated: true });
     expect(calls.some((call) => call.url.includes('sa%40demo.iam.gserviceaccount.com'))).toBe(true);
   });

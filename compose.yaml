@@ -1,17 +1,11 @@
-# Local development stack (issue #156).
-#
-#   cp .env.example .env        # set GOOGLE_CLOUD_PROJECT, HOST_UID, HOST_GID
-#   gcloud auth application-default login
-#   docker compose up
-#
-# Runs the real api and web apps against the in-repo fakes, with source bind-mounted
-# for hot reload, plus a probe that proves containers can call Google Cloud with the
-# host's Application Default Credentials (ADC). No credentials are baked into images
-# or the repository. See docs/runbooks/local-development.md.
-#
-# compose.dev.yml is the separate fake-only stack used by CI e2e. It publishes the
-# same host ports, so run one stack at a time.
+# compose.dev.yml is the fake-only CI e2e stack on the same host ports; run one stack at a time.
 name: aw-dev
+
+x-gcloud-volume: &gcloud-volume
+  type: bind
+  source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
+  target: /gcloud
+  read_only: true
 
 x-healthcheck: &healthcheck
   test:
@@ -37,7 +31,6 @@ services:
       timeout: 3s
       retries: 30
 
-  # One-shot: install Linux dependencies and build once, before anything starts.
   bootstrap:
     extends:
       file: dev/compose.node.yaml
@@ -52,7 +45,6 @@ services:
         --filter "@agent-works/fakes..." build
     restart: 'no'
 
-  # Hot reload, part 1: recompile TypeScript on every save.
   watch:
     extends:
       file: dev/compose.node.yaml
@@ -84,7 +76,6 @@ services:
       retries: 40
       start_period: 5s
 
-  # Hot reload, part 2: every runnable service restarts when its compiled output changes.
   fake-iap:
     extends:
       file: dev/compose.node.yaml
@@ -170,14 +161,10 @@ services:
       IAP_JWKS_URL: http://fake-iap:8080/jwks
       IAP_ISSUER: https://fake-iap.local
       IAP_AUDIENCE: agent-works-dev
-      # ADC for the ADK runner (AGENT_RUNNER=adk) and any Google Cloud client.
       GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT in .env}
     volumes:
-      - type: bind
-        source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
-        target: /gcloud
-        read_only: true
+      - *gcloud-volume
     healthcheck: *healthcheck
     depends_on:
       watch:
@@ -214,8 +201,6 @@ services:
     ports:
       - 127.0.0.1:${AW_WEB_PORT:-8085}:8080
 
-  # Proves a container can call Google Cloud with the mounted ADC (read-only API call).
-  # Healthy only while that call succeeds. GET http://localhost:8090/gcp shows the result.
   gcp-probe:
     extends:
       file: dev/compose.node.yaml
@@ -225,13 +210,9 @@ services:
       PORT: '8090'
       GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT in .env}
-      # Optional keyless identity for the probe, e.g. aw-api@<project>.iam.gserviceaccount.com.
       AW_IMPERSONATE_SERVICE_ACCOUNT: ${AW_IMPERSONATE_SERVICE_ACCOUNT:-}
     volumes:
-      - type: bind
-        source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
-        target: /gcloud
-        read_only: true
+      - *gcloud-volume
     depends_on:
       watch:
         condition: service_healthy
