@@ -17,7 +17,12 @@ output "iam_bindings" {
     }, { for key, binding in google_storage_bucket_iam_member.applier : "state/${key}" => { member = binding.member, role = binding.role, scope = binding.bucket }
     }, { identity_state_reader = { member = google_storage_bucket_iam_member.dev_identity_reader.member, role = google_storage_bucket_iam_member.dev_identity_reader.role, scope = google_storage_bucket_iam_member.dev_identity_reader.bucket }, plan_state = { member = google_storage_bucket_iam_member.plan.member, role = google_storage_bucket_iam_member.plan.role, scope = google_storage_bucket_iam_member.plan.bucket }
     }, { for key, binding in google_billing_account_iam_member.budget : "budget" => { member = binding.member, role = binding.role, scope = var.billing_account_id }
-  })
+    }, {
+    "operator/aw-tf-bootstrap"   = { member = google_service_account_iam_member.bootstrap_state_operator.member, role = google_service_account_iam_member.bootstrap_state_operator.role, scope = "aw-tf-bootstrap" },
+    "state/aw-tf-bootstrap"      = { member = google_storage_bucket_iam_member.bootstrap_state.member, role = google_storage_bucket_iam_member.bootstrap_state.role, scope = google_storage_bucket_iam_member.bootstrap_state.bucket },
+    "state-list/aw-tf-bootstrap" = { member = google_storage_bucket_iam_member.bootstrap_state_list.member, role = google_storage_bucket_iam_member.bootstrap_state_list.role, scope = google_storage_bucket_iam_member.bootstrap_state_list.bucket },
+    }
+  )
 }
 
 output "grantable_roles" {

@@ -26,6 +26,26 @@ run "bootstrap_contract" {
     error_message = "Bootstrap creates exactly three Terraform accounts."
   }
   assert {
+    condition     = google_service_account.bootstrap_state.account_id == "aw-tf-bootstrap" && google_service_account.bootstrap_state.display_name == "aw-tf-bootstrap"
+    error_message = "Bootstrap creates the aw-tf-bootstrap state maintenance account."
+  }
+  assert {
+    condition     = google_service_account_iam_member.bootstrap_state_operator.service_account_id == google_service_account.bootstrap_state.name && google_service_account_iam_member.bootstrap_state_operator.role == "roles/iam.serviceAccountTokenCreator" && google_service_account_iam_member.bootstrap_state_operator.member == var.operator_member
+    error_message = "Bootstrap state maintenance SA tokenCreator is granted only to operator."
+  }
+  assert {
+    condition     = google_storage_bucket_iam_member.bootstrap_state.bucket == "aw-test-project-tfstate" && google_storage_bucket_iam_member.bootstrap_state.role == "roles/storage.objectAdmin" && google_storage_bucket_iam_member.bootstrap_state.member == "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com" && google_storage_bucket_iam_member.bootstrap_state.condition[0].expression == "resource.name.startsWith('projects/_/buckets/aw-test-project-tfstate/objects/bootstrap/')"
+    error_message = "Bootstrap state writes are conditioned to prefix bootstrap/."
+  }
+  assert {
+    condition     = google_storage_bucket_iam_member.bootstrap_state_list.bucket == "aw-test-project-tfstate" && google_storage_bucket_iam_member.bootstrap_state_list.role == google_project_iam_custom_role.state_list.name && google_storage_bucket_iam_member.bootstrap_state_list.member == "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com"
+    error_message = "Bootstrap state SA receives bucket-scoped workspace discovery listing."
+  }
+  assert {
+    condition     = !contains([for binding in values(module.terraform_roles.iam_bindings) : binding.member], "serviceAccount:aw-tf-bootstrap@aw-test-project.iam.gserviceaccount.com")
+    error_message = "aw-tf-bootstrap must have no project roles."
+  }
+  assert {
     condition     = toset(keys(google_service_account_iam_member.operator)) == toset(["aw-tf-identity", "aw-tf-dev", "aw-tf-plan"]) && alltrue([for binding in google_service_account_iam_member.operator : binding.role == "roles/iam.serviceAccountTokenCreator" && binding.member == var.operator_member])
     error_message = "Operator tokens are per-SA only."
   }

@@ -49,27 +49,26 @@ other workloads: default-SA deprivilege removes Editor from default accounts,
 policies require `roles/orgpolicy.policyAdmin`, and budget IAM grants
 `roles/billing.costsManager` on a billing account that may be shared.
 
-Bootstrap creates aw-tf-identity, aw-tf-dev and aw-tf-plan.
-Yu receives tokenCreator on those three accounts individually, never project-wide.
+Bootstrap creates aw-tf-identity, aw-tf-dev, aw-tf-plan and aw-tf-bootstrap.
+Yu receives tokenCreator on those four accounts individually, never project-wide.
 The break-glass group receives tokenCreator only on aw-tf-identity, with no project
 roles and no automatic group membership management.
 
 The state bucket lives in the dev project, has uniform access, public-access
 prevention, versioning retaining thirty noncurrent versions, and Google-managed
 encryption (D7). aw-tf-identity may write only identity/ objects, aw-tf-dev only dev/
-objects and may read identity/ to consume the map. aw-tf-plan may read objects only.
-Both appliers also have bucket-scoped `storage.objects.list` for workspace discovery; object reads/writes remain prefix conditioned. No state key material or CMEK is provisioned.
+objects and may read identity/ to consume the map. aw-tf-bootstrap may write only
+bootstrap/ objects. aw-tf-plan may read objects only (bucket-wide objectViewer covers
+reading bootstrap/ state too; plan has no write access).
+Appliers (including aw-tf-bootstrap) also have bucket-scoped `storage.objects.list` for workspace discovery; object reads/writes remain prefix conditioned. No state key material or CMEK is provisioned.
 
-After reviewing/bootstrap applying locally, the operator migrates bootstrap state
-to prefix bootstrap/. Add a protected bootstrap backend configuration whose GCS
-block includes bucket, prefix and `impersonate_service_account`; backend blocks
-cannot reference input variables. Grant the selected bootstrap maintenance SA
-only the needed bootstrap/ object permissions through a separately reviewed
-bootstrap change before migration. Do not use the dev state writer to write this
-prefix or silently broaden identity/'s permission. Then the human runs
-`terraform init -migrate-state` and verifies the copied state before removing the
-local copy. The checked-in bootstrap root deliberately remains local for the first
-bootstrap; the later backend is operator-owned and always impersonated.
+After reviewing/bootstrap applying locally (which creates aw-tf-bootstrap along with the initial resources), the operator migrates bootstrap state to prefix `bootstrap`. Configure the protected bootstrap backend with:
+
+- `bucket = "PROJECT_ID-tfstate"`
+- `prefix = "bootstrap"`
+- `impersonate_service_account = "aw-tf-bootstrap@PROJECT_ID.iam.gserviceaccount.com"`
+
+Backend blocks cannot reference input variables. The operator applies the added SA once locally before migrating. aw-tf-bootstrap holds only the conditioned `bootstrap/` objectAdmin grant and bucket list permission, with NO project roles and NO admin roles. Privileged bootstrap changes still require the human operator's own ADC (the provider block stays non-impersonated). Do not use the dev state writer to write this prefix or silently broaden identity/'s permission. Then the human runs `terraform init -migrate-state` and verifies the copied state before removing the local copy. The checked-in bootstrap root deliberately remains local for the first bootstrap; the later backend is operator-owned and always impersonated.
 
 ## Identity root
 
@@ -167,7 +166,7 @@ gcloud projects remove-iam-policy-binding PROJECT_ID --member=user:yu@example.in
 ```
 
 Replace placeholders in a protected operator context. Verify Yu can still mint
-tokens only for the three Terraform accounts. The break-glass group has no standing
+tokens only for the four Terraform accounts. The break-glass group has no standing
 project authority; an approved member may impersonate aw-tf-identity for recovery.
 Record incident authorization, investigate allServices audit logs, time-limit group
 membership and remove it after recovery. Bootstrap maintenance or new privileged

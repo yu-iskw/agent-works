@@ -11,11 +11,11 @@ Three rules apply throughout:
 3. Impersonation is mandatory for both providers and GCS state. Bootstrap is the
    one provider exception because it creates the initial accounts. Keys are forbidden.
 
-| Root                | Execution identity                    | Responsibility                                                                                                                                                          |
-| ------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap/`        | Human operator, initially local state | Adopted project (`data "google_project"`), opt-in guard/audit/deprivilege/billing switches, state bucket, aw-tf-identity/dev/plan, conditioned dev IAM and custom roles |
-| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF (`deploy-dev.yml` vs `infra-plan.yml` pinned by `job_workflow_ref` on `refs/heads/main`)                                         |
-| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                                                                                                   |
+| Root                | Execution identity                    | Responsibility                                                                                                                                                                    |
+| ------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap/`        | Human operator, initially local state | Adopted project (`data "google_project"`), opt-in guard/audit/deprivilege/billing switches, state bucket, aw-tf-identity/dev/plan/bootstrap, conditioned dev IAM and custom roles |
+| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF (`deploy-dev.yml` vs `infra-plan.yml` pinned by `job_workflow_ref` on `refs/heads/main`)                                                   |
+| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                                                                                                             |
 
 `modules/environment` is retired. `project_baseline` hardens an existing project;
 bootstrap alone sets its guard and default-account inputs (both opt-in for adopted projects). `budget` is alerts
