@@ -19,22 +19,22 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target deployment environment (dev only)'
+        description: Target deployment environment (dev only)
         required: true
-        default: 'dev'
+        default: dev
         type: choice
         options:
           - dev
       sha:
-        description: 'Full 40-hex commit SHA on origin/main to deploy'
+        description: Full 40-hex commit SHA on origin/main to deploy
         required: true
         type: string
       web_image:
-        description: 'Digest-pinned aw-web image in aw-images (@sha256:...)'
+        description: Digest-pinned aw-web image in aw-images (@sha256:...)
         required: true
         type: string
       api_image:
-        description: 'Digest-pinned aw-api image in aw-images (@sha256:...)'
+        description: Digest-pinned aw-api image in aw-images (@sha256:...)
         required: true
         type: string
 
@@ -58,7 +58,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      CLOUD_RUN_REGION: 'asia-northeast1'
+      CLOUD_RUN_REGION: asia-northeast1
       TF_PROJECT_ID: ${{ vars.TF_PROJECT_ID }}
       DEPLOY_WIF_PROVIDER: ${{ vars.DEPLOY_WIF_PROVIDER }}
       DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
