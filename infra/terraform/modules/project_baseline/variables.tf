@@ -10,6 +10,14 @@ variable "guard_constraints" {
   description = "Guard constraints."
   type        = set(string)
   default     = []
+  validation {
+    condition = length(setsubtract(var.guard_constraints, toset([
+      "iam.automaticIamGrantsForDefaultServiceAccounts",
+      "iam.disableServiceAccountKeyCreation",
+      "iam.disableServiceAccountKeyUpload",
+    ]))) == 0
+    error_message = "guard_constraints may contain only iam.automaticIamGrantsForDefaultServiceAccounts, iam.disableServiceAccountKeyCreation and iam.disableServiceAccountKeyUpload."
+  }
 }
 variable "deprivilege_default_accounts" {
   description = "Deprivilege default accounts."

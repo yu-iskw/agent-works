@@ -70,6 +70,14 @@ run "guards_opt_in" {
   }
 }
 
+run "guards_reject_unknown_constraint" {
+  command = plan
+  variables {
+    guard_constraints = ["iam.disableServiceAccountKeyCreationTypo"]
+  }
+  expect_failures = [var.guard_constraints]
+}
+
 run "audit_opt_in" {
   command = plan
   variables {
@@ -109,6 +117,15 @@ run "billing_iam_requires_account_id" {
   variables {
     enable_billing_budget_iam = true
     billing_account_id        = null
+  }
+  expect_failures = [var.billing_account_id]
+}
+
+run "billing_iam_rejects_blank_account_id" {
+  command = plan
+  variables {
+    enable_billing_budget_iam = true
+    billing_account_id        = "   "
   }
   expect_failures = [var.billing_account_id]
 }
@@ -184,7 +201,9 @@ run "optional_provisioning_permissions" {
       "compute.networks.use",
       "compute.subnetworks.create",
       "compute.subnetworks.delete",
+      "compute.subnetworks.expandIpCidrRange",
       "compute.subnetworks.get",
+      "compute.subnetworks.setPrivateIpGoogleAccess",
       "compute.subnetworks.update",
       "compute.subnetworks.use",
       "compute.regionOperations.get",

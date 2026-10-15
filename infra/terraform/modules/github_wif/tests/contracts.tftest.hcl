@@ -10,8 +10,16 @@ run "approved_interface" {
     error_message = "Repository condition retained."
   }
   assert {
-    condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.access"] == "assertion.event_name == 'pull_request' || (assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/main') ? 'plan' : ('environment' in assertion && assertion.environment == 'dev' && assertion.ref == 'refs/heads/main' ? 'dev' : 'denied')"
-    error_message = "Plan and environment federation remain separate."
+    condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.job_workflow_ref"] == "assertion.job_workflow_ref"
+    error_message = "job_workflow_ref must be mapped for workflow-file pinning."
+  }
+  assert {
+    condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.access"] == "'environment' in assertion && assertion.environment == 'dev' && assertion.ref == 'refs/heads/main' && assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/deploy-dev.yml@refs/heads/main' ? 'dev' : (assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/infra-plan.yml@refs/heads/main' && (assertion.event_name == 'pull_request' || (assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/main')) ? 'plan' : 'denied')"
+    error_message = "Deploy on main (including workflow_dispatch) maps to dev via deploy-dev.yml; plan is pinned to infra-plan.yml."
+  }
+  assert {
+    condition     = var.attribute_condition == "assertion.repository == 'yu-iskw/agent-works' && (('environment' in assertion && assertion.environment == 'dev' && assertion.ref == 'refs/heads/main' && assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/deploy-dev.yml@refs/heads/main') || ((assertion.event_name == 'pull_request' && assertion.job_workflow_ref.startsWith('yu-iskw/agent-works/.github/workflows/infra-plan.yml@refs/pull/')) || (assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/main' && assertion.job_workflow_ref == 'yu-iskw/agent-works/.github/workflows/infra-plan.yml@refs/heads/main')))"
+    error_message = "Default attribute_condition must pin repository and workflow refs on refs/heads/main."
   }
 }
 run "reject_invalid_principal" {

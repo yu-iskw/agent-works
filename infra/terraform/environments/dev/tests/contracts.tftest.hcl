@@ -72,6 +72,14 @@ run "budget_requires_billing_account" {
   }
   expect_failures = [var.billing_account_id]
 }
+run "budget_rejects_blank_billing_account" {
+  command = plan
+  variables {
+    enable_budget      = true
+    billing_account_id = "   "
+  }
+  expect_failures = [var.billing_account_id]
+}
 run "infra-no-owner-binding" {
   command = plan
   assert {
@@ -136,6 +144,29 @@ run "workflow_opt_in" {
   assert {
     condition     = length(module.workflows) == 1 && module.workflows[0].adapter.service_account_email == local.sa.workflow
     error_message = "Workflow must use identity-root execution email."
+  }
+}
+run "workflow_depends_on_tool_broker_module" {
+  command = plan
+  variables {
+    enable_workflows         = true
+    workflow_source_contents = "main:\n  steps:\n    - done:\n        return: null\n"
+    images = {
+      tool_broker = "example.invalid/broker@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  }
+  override_module {
+    target = module.tool_broker[0]
+    outputs = {
+      name         = "aw-tool-broker-managed"
+      uri          = "https://broker.example.invalid"
+      iam_bindings = {}
+      vpc_access   = []
+    }
+  }
+  assert {
+    condition     = output.iam_bindings["broker"].scope == module.tool_broker[0].name && output.iam_bindings["broker"].scope == "aw-tool-broker-managed"
+    error_message = "Workflow broker invoker grant must derive the service name from module.tool_broker."
   }
 }
 run "all_optional_flags" {

@@ -11,15 +11,15 @@ Three rules apply throughout:
 3. Impersonation is mandatory for both providers and GCS state. Bootstrap is the
    one provider exception because it creates the initial accounts. Keys are forbidden.
 
-| Root                | Execution identity                    | Responsibility                                                                                                               |
-| ------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap/`        | Human operator, initially local state | Project, guard policies, default-SA deprivilege, state bucket, aw-tf-identity/dev/plan, conditioned dev IAM and custom roles |
-| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF                                                                                       |
-| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                                                        |
+| Root                | Execution identity                    | Responsibility                                                                                                                                                          |
+| ------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap/`        | Human operator, initially local state | Adopted project (`data "google_project"`), opt-in guard/audit/deprivilege/billing switches, state bucket, aw-tf-identity/dev/plan, conditioned dev IAM and custom roles |
+| `identity/dev/`     | aw-tf-identity                        | Runtime accounts, attach bindings, WIF (`deploy-dev.yml` vs `infra-plan.yml` pinned by `job_workflow_ref` on `refs/heads/main`)                                         |
+| `environments/dev/` | aw-tf-dev (aw-tf-plan in plan CI)     | Modules for workload foundations and runtime services                                                                                                                   |
 
 `modules/environment` is retired. `project_baseline` hardens an existing project;
-bootstrap alone sets its guard and default-account inputs. `budget` is alerts
-only, and `project_iam` owns additive standard project grants; bootstrap custom provisioning grants are colocated with their roles. Bootstrap owns the Workflows custom adapter role; the Workflows module assigns it. Resource IAM lives beside each resource.
+bootstrap alone sets its guard and default-account inputs (both opt-in for adopted projects). `budget` is alerts
+only (opt-in via `enable_budget`), and `project_iam` owns additive standard project grants; bootstrap custom provisioning grants are colocated with their roles. Bootstrap owns the Workflows custom adapter role; the Workflows module assigns it. Resource IAM lives beside each resource.
 
 Dev reads the identity email map using impersonated `terraform_remote_state`.
 Supplying `service_account_emails` bypasses that data source for offline tests.
