@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./ask": {
+      "types": "./src/ask.ts",
+      "import": "./dist/ask.js"
     }
   },
   "scripts": {
