@@ -16,6 +16,7 @@ export const fakeUsers = ['alice', 'bob'] as const;
 
 const users = new Set<string>(fakeUsers);
 const contentTypeHeader = 'content-type';
+const textMediaTypes = new Set(['application/json', 'application/javascript', 'application/xml']);
 const hop = new Set(['connection', 'content-length', 'keep-alive', 'transfer-encoding']);
 const dropResponse = new Set([...hop, 'content-encoding']);
 const skip = new Set([
@@ -144,14 +145,27 @@ async function forward(upstream: string, request: Request, assertion: string): P
 }
 
 async function readUpstream(response: Response): Promise<Reply> {
-  const text = await response.text();
-  const json =
-    text.length > 0 && (response.headers.get(contentTypeHeader) ?? '').includes('application/json');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const type = mediaType(response.headers.get(contentTypeHeader));
+  if (!type.startsWith('text/') && !textMediaTypes.has(type)) {
+    return {
+      status: response.status,
+      body: bytes,
+      headers: replyHeaders(response, bytes.byteLength === 0),
+    };
+  }
+  const text = new TextDecoder().decode(bytes);
+  const json = text.length > 0 && type === 'application/json';
   return {
     status: response.status,
     body: json ? (JSON.parse(text) as unknown) : text,
     headers: replyHeaders(response, text.length === 0),
   };
+}
+
+function mediaType(value: string | null): string {
+  const [type = ''] = (value ?? '').split(';');
+  return type.trim().toLowerCase();
 }
 
 function replyHeaders(response: Response, empty: boolean): ReplyHeaders | undefined {

@@ -276,6 +276,30 @@ describe('fakes', () => {
     }
   });
 
+  it('passes an upstream woff2 body through unchanged', async () => {
+    const font = new Uint8Array([0x00, 0xff, 0x80, 0x0a, 0xc3]);
+    const upstream = await listen(
+      () => ({
+        status: 200,
+        body: font,
+        headers: { 'content-type': 'font/woff2' },
+      }),
+      0,
+    );
+    const proxy = await listen(createIapProxy(upstream.url), 0);
+    try {
+      const response = await fetch(`${proxy.url}/assets/inter.woff2`, {
+        headers: { 'x-fake-user': 'alice' },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('font/woff2');
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(font);
+    } finally {
+      await proxy.close();
+      await upstream.close();
+    }
+  });
+
   it('returns 599 for an unknown script', async () => {
     const llm = await listen(createLlm(), 0);
     try {

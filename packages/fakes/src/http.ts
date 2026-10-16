@@ -71,6 +71,10 @@ async function respond(
       headers: request.headers,
       body: await readBody(request),
     });
+    if (reply.body instanceof Uint8Array) {
+      send(response, reply.status, reply.body, 'application/octet-stream', reply.headers);
+      return;
+    }
     const body = typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body);
     const type = typeof reply.body === 'string' ? textPlain : 'application/json; charset=utf-8';
     send(response, reply.status, body, type, reply.headers);
@@ -82,7 +86,7 @@ async function respond(
 function send(
   response: ServerResponse,
   status: number,
-  body: string,
+  body: string | Uint8Array,
   type: string,
   headers?: ReplyHeaders,
 ): void {
