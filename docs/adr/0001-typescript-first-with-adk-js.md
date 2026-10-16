@@ -24,6 +24,18 @@ Python sketches of the control plane in RFC-001, including the FastAPI backend, 
 
 The rollback path has two cases. If C-02 shows that managed Agent Runtime cannot run this TypeScript agent, deploy that agent on Cloud Run. That path is RFC option C, so session handling, orchestration, agent identity, and safety integration are rebuilt rather than inherited. If C-02 shows that Agent Runtime requires Python, change only the deployment wrapper. The control plane stays TypeScript. Issue 20 still scores each capability as go, no-go, or defer under the RFC section 4.3 replacement rule.
 
+## Runtime dependency boundary
+
+`AgentRunner` is a framework-neutral application contract. Google ADK types and implementation details must not become domain, policy, public API, approval, delegation, or persistence contracts.
+
+The ADK implementation translates between the application runner contract and ADK/model APIs, including normalized errors, cancellation/deadlines, limits, model events, and governed tool requests.
+
+Tool execution requested by an agent must use the same policy, authority, approval, suspension, idempotency, and audit controls as tool execution initiated by deterministic workflows. An ADK function/tool callback is not an authorization boundary.
+
+The API application is the composition root for the current modular monolith. The ADK implementation may initially remain physically inside `apps/api` while the boundary is established and tested; moving it to a dedicated workspace package requires demonstrated dependency or reuse value.
+
+Managed Agent Runtime compatibility remains subject to C-02. This architectural boundary is not evidence that managed hosting has been validated.
+
 ## Consequences
 
 Later packages depend on one TypeScript `AgentRunner` port.
