@@ -12,9 +12,13 @@ test('skeleton.sign-in-ask-cite-audit', async ({ page }) => {
     '0',
   );
   await page.goto('/');
-  const requestId = await page.locator('input[name=requestId]').inputValue();
   await page.getByLabel('Question').fill(question);
+  const posted = page.waitForRequest(
+    (incoming) =>
+      incoming.method() === 'POST' && new URL(incoming.url()).pathname.endsWith('/api/ask'),
+  );
   await page.getByRole('button', { name: 'Ask' }).click();
+  const requestId = ((await posted).postDataJSON() as { requestId: string }).requestId;
 
   const citations = page.getByRole('list', { name: 'Citations' });
   await expect(citations.getByRole('link', { name: 'Triage runbook' })).toHaveAttribute(
@@ -24,7 +28,8 @@ test('skeleton.sign-in-ask-cite-audit', async ({ page }) => {
   expect(psql('select count(*) from audit_events')).toBe('1');
   expect(psql('select initiator_subject from audit_events')).toBe('alice');
 
-  await page.request.post('/', { form: { question, requestId } });
+  const replay = await page.request.post('/api/ask', { data: { question, requestId } });
+  expect(replay.status()).toBe(409);
   expect(psql('select count(*) from audit_events')).toBe('1');
 });
 

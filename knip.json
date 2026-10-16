@@ -7,6 +7,7 @@
   "workspaces": {
     ".": {
       "entry": ["stylelint.config.mjs", "agents/skills/incident-analysis/eval-run.ts"],
+      "ignoreDependencies": ["stylelint-config-standard"],
       "project": [
         "**/*.{js,cjs,mjs,ts,cts,mts}",
         "!packages/**",
@@ -21,7 +22,7 @@
     },
     "apps/web": {
       "entry": ["src/server.ts"],
-      "project": ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"]
+      "project": ["src/**/*.ts", "app/**/*.ts", "client/**/*.{ts,tsx,css}", "*.ts"]
     },
     "packages/*": {
       "project": ["src/**/*.ts"]
