@@ -1,106 +1,99 @@
 ---
 name: web-screen-layout
 description: >-
-  Sets the page frame, prose width, settings rows, and dialog scrolling for
-  agent-works screens. Use when adding or changing a screen under
-  apps/web/client, choosing a width, composing a settings row, or laying out a
-  dialog. Do not use for server HTML in apps/web/app, for where data comes
-  from, or for the Ask question and its citations.
+  Sets the Ask shell, the shared Button, and the prose width for agent-works
+  screens. The shell is a sidebar of questions, a header, a conversation, and
+  a composer, with a mobile overlay below 768px. Use when adding or changing
+  layout under apps/web/client, including the sidebar, the header, the
+  conversation, the composer, or components/ui/button.tsx. Do not use for the
+  thread reducer, for posting /api/ask, or for server HTML in apps/web/app.
 ---
 
 # Web screen layout
 
 ## Purpose
 
-A configuration screen uses one page frame, the prose width, and one row variant. PageShell, PageRows, and Item do not exist yet. The first configuration screen creates them under `apps/web/client/components`. Until those three exist, no screen draws its own bordered card or a second container width.
+The Ask screen is one shell. The regions are a sidebar of questions, a header, a conversation section, and a composer. Shared controls use the Button in `apps/web/client/components/ui/button.tsx`. Variant and size classes come from the lookup tables in that file.
 
-Ask is the only screen today. It is a question, an answer, and citations. It is not a settings card.
+PageShell, PageRows, Item, and dialogs are not in the tree. Do not add them to this shell.
+
+Thread transitions, the per-attempt `requestId`, and the `/api/ask` body `{requestId, question}` are [web-data-access](../web-data-access/SKILL.md).
 
 ## The shape
 
-PageShell is the page. The header carries the title, a short description, and one primary verb. A return link sits above the header when the screen was opened from a list. The return link is not the primary verb.
+`apps/web/client/app.tsx` owns the shell. The sidebar lists threads. The header carries the sidebar toggle, the title, and the theme toggle. The conversation is a `section` with the accessible name Conversation. The composer is the question form under that section.
 
-The body is a prose column. The default width is `max-w-2xl`. A table that must be scanned may use `max-w-5xl`. Every other screen stays on the prose width.
+The desktop query is `(min-width: 768px)`. At 768px and above, an open sidebar docks. Below 768px, an open sidebar is an overlay. A click on the backdrop closes the overlay. Escape closes the overlay.
 
-PageRows is one grouped card. Item is one row in that card. Put a divider between rows, and no divider after the last. A gap between rows makes a stack of cards.
+The header title is Ask when no thread is active. Otherwise the title is the thread title. The thread title is the trimmed first question, or New question when that question is empty.
 
-Keep the document root font size at 15px. A rem-based Tailwind width is then 0.9375 times the pixel value in the Tailwind docs.
+The conversation column and the composer use `max-w-2xl`. The document root font size is 15px in `apps/web/client/styles.css`. Measure a width on the element. Do not hard-code 672.
 
-| Token       | Documented | At 15px |
-| ----------- | ---------- | ------- |
-| `max-w-2xl` | 672px      | 630px   |
-| `max-w-3xl` | 768px      | 720px   |
-| `max-w-5xl` | 1024px     | 960px   |
+The Button lookup tables are `variantClass` and `sizeClass`.
 
-Measure the element. Do not hard-code 672, 768, or 1024.
+| Lookup  | Keys                               |
+| ------- | ---------------------------------- |
+| variant | `primary`, `secondary`, `ghost`    |
+| size    | `default`, `sm`, `icon`, `icon-sm` |
+
+`round` is a separate boolean. True adds `rounded-full`. False adds `rounded-lg`. The defaults are variant `primary`, size `default`, and `round` false.
+
+A thread with no turns is empty. The conversation then shows the heading Ask about your documents. A turn is pending, answered, or failed. Pending is a visible status line with `role=status` and the text Searching the documents. The pulse marks on that card are `aria-hidden`.
+
+Thread history is in memory only and is lost on reload. The empty sidebar says questions appear here until you reload. Do not write threads to storage.
 
 ## Procedures
 
-### 1. Lay out a screen
+### 1. Lay out the shell
 
-1. Open with PageShell. Pass the title and the description. Leave the width at `max-w-2xl` unless the screen is a table that must be scanned. That table may use `max-w-5xl`.
-2. Put the one primary verb in the header.
-3. Put the return link above the header when a list opened this screen.
-4. Group the decisions into sections. Give each section one PageRows card.
-5. Put each decision in an Item. Divide the rows. Do not leave a divider after the last row.
+1. Keep the four regions in `apps/web/client/app.tsx`. The sidebar, the header, the conversation, and the composer stay in that order.
+2. Choose docked or hidden at 768px and above. Choose overlay or hidden below 768px.
+3. Close the overlay on backdrop click and on Escape.
+4. Put the sidebar toggle, the title, and the theme toggle in the header.
+5. Keep the conversation and the composer on `max-w-2xl`.
 
-### 2. Compose a row
+### 2. Use the shared Button
 
-1. Lead with one Tabler icon so the card scans as a list.
-2. Put the title on the first line. Add a second line only when the row needs it.
-3. Put one control or one value at the end of the row.
-4. Put a set of chips or toggles on its own line under the title.
-5. Write the second line in the present tense and state the consequence. "Ask can cite this source." is the shape.
+1. Import Button from `apps/web/client/components/ui/button.tsx`.
+2. Pass a `variant` key and a `size` key from the lookup tables.
+3. Add a new variant or size as a new key on the lookup table and a matching arm in the switch. The switch stays exhaustive.
+4. Use `className` for spacing on one call site. A new visual kind belongs in the lookup table.
+5. Leave PageShell, PageRows, Item, and any second button component uncreated.
 
-### 3. Choose the row kind
+### 3. Show the conversation
 
-Use one row variant for the whole screen. A filled row and a bordered row on the same screen read as two lists.
-
-1. One immediate value uses a switch. It takes effect when switched. There is no save. The second line states the consequence in the present tense.
-2. More than one value uses a summary of the current answer, a chevron, and a dialog. The summary is the answer, as in "2 of 3 sources." Derive it from the query so a save updates it. Editing several values in the row turns the screen into a form.
-3. A read-only value sits at the end of the row. There is no chevron and nothing to click. A chevron means the row opens a dialog.
-
-### 4. Lay out a dialog
-
-1. Give the dialog a header, a body, and a footer.
-2. Make the body a direct child of the dialog content. That body is the element that scrolls.
-3. Do not wrap the header, the body, and the footer in one padded div. The wrap stops the body from scrolling.
+1. When the thread has no turns, show the empty heading Ask about your documents.
+2. When a turn is pending, show the status line Searching the documents with `role=status`.
+3. When a turn is answered, show the answer. Show the source list when `citations` is not empty. Keep the Copy answer button.
+4. When a turn is failed, show the message with `role=alert` and the Try again button.
+5. Leave the reducer transitions to web-data-access. This skill does not mint a `requestId`.
 
 ## Decision tree
 
-- Adding a configuration screen leads to procedure 1, then procedure 2 for each row.
-- Adding a row leads to procedure 2, then procedure 3.
-- A row that toggles one thing uses the switch in procedure 3.
-- A row that edits more than one value uses the summary, the chevron, and procedure 4.
-- A row that only states a value uses the read-only row in procedure 3.
+- A change to the sidebar, the header, the conversation, or the composer leads to procedure 1.
+- A new control leads to procedure 2.
+- A change to empty, pending, answered, or failed markup leads to procedure 3, then web-data-access for the transition.
 - A width that needs pixels is measured on the element.
-- Where the data comes from, and how pending, error, empty, and rows render, is [web-data-access](../web-data-access/SKILL.md).
+- A `requestId`, a reducer action, or `POST /api/ask` belongs to web-data-access.
 
 ## Red flags
 
-| Signal                                           | Meaning                                            | What to do instead                                                                                                                                     |
-| ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A bordered card written in the screen            | The screen drew its own container                  | Use PageRows. The first configuration screen creates PageShell, PageRows, and Item under `apps/web/client/components` and does not keep a private card |
-| A new `max-w-*` on one screen                    | A second container width                           | Keep `max-w-2xl`, or `max-w-5xl` for a table                                                                                                           |
-| A pixel constant of 672, 768, or 1024            | Those pixels assume a 16px root                    | Measure the element                                                                                                                                    |
-| A switch on a row that edits two or more values  | Some values change in the row and some in a dialog | Use a summary, a chevron, and a dialog                                                                                                                 |
-| A chevron on a row that opens nothing            | A destination that does not exist                  | Show the value and omit the chevron                                                                                                                    |
-| Two row variants on one screen                   | The screen looks like two lists                    | Use one variant for every row                                                                                                                          |
-| A save button beside a switch                    | The switch already took effect                     | Remove the save                                                                                                                                        |
-| The return control in the header action          | The header action is the one primary verb          | Put the return link above the header                                                                                                                   |
-| A spinner, a skeleton, or the word Loading       | A placeholder stands in for the answer             | Render nothing. Pending belongs to web-data-access                                                                                                     |
-| A dialog body wrapped with its header and footer | The body will not scroll                           | Make the body a direct scrolling child                                                                                                                 |
+| Signal                                       | Meaning                                  | What to do instead                                                    |
+| -------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
+| A second button component                    | Classes bypass the lookup tables         | Use Button. Add a key when the variant or size is new                 |
+| PageShell, PageRows, Item, or a dialog       | A shared control that is not in the tree | Keep the four shell regions                                           |
+| A docked sidebar below 768px                 | The narrow width has no overlay          | Use the overlay below 768px and close it on backdrop click and Escape |
+| Pending with no status line                  | The wait has no accessible name          | Render Searching the documents with `role=status`                     |
+| The word Loading, or an empty pending branch | The status line was replaced or removed  | Keep the status line. Leave the pulse marks `aria-hidden`             |
+| A pixel constant of 672                      | That pixel value assumes a 16px root     | Measure the element. The root is 15px                                 |
+| Threads written to storage                   | Reload would keep history                | Keep thread state in memory. A reload clears it                       |
 
 ## Error handling
 
-The row summary stays stale after the dialog saves. The screen copied the summary into state. Derive it from the query on each render.
+The overlay covers the conversation and nothing dismisses it. Restore the backdrop click and the Escape handler.
 
-A card is clipped, or its center is visibly wrong. The screen used a pixel constant from the Tailwind docs. Measure the drawn element.
+The pending card is blank. Restore the status line with `role=status` and the text Searching the documents.
 
-Dialog body text paints over the footer. The body is not the scrolling child. Make it a direct child of the dialog content and let that child scroll.
+The header title stays Ask after a thread is active. Use the thread title. Use New question when the first question is empty.
 
-The dialog stops scrolling after a refactor. The body is no longer a direct child. Restore that relationship.
-
-Two configuration screens that should match do not. One of them drew its own card. Delete that wrapper.
-
-The screen cannot use this frame. Say so in the response. Do not invent another width.
+Two call sites style Button with different one-off class strings for the same kind of control. Put that kind in `variantClass` or `sizeClass`.
