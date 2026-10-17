@@ -7,6 +7,7 @@ const askFailedMessage = 'The ask failed.';
 const serviceUnavailableMessage = 'The service is unavailable.';
 
 type AskInput = {
+  readonly requestId: string;
   readonly question: string;
 };
 
@@ -14,7 +15,7 @@ async function postAsk(input: AskInput) {
   let response: Awaited<ReturnType<typeof postJson>>;
   try {
     response = await postJson('/api/ask', {
-      requestId: crypto.randomUUID(),
+      requestId: input.requestId,
       question: input.question,
     });
   } catch {

@@ -3,6 +3,8 @@ import { useState } from 'react';
 
 import { applyTheme, persistTheme } from '../theme';
 
+import { Button } from './ui/button';
+
 import type { Theme } from '../theme';
 
 function readAppliedTheme(): Theme {
@@ -23,13 +25,8 @@ export function ThemeToggle() {
   const Icon = theme === 'dark' ? IconSun : IconMoon;
 
   return (
-    <button
-      type="button"
-      className="inline-flex size-8 items-center justify-center rounded-lg text-foreground hover:bg-muted"
-      aria-label={label}
-      onClick={onToggle}
-    >
-      <Icon size={16} aria-hidden="true" />
-    </button>
+    <Button type="button" variant="ghost" size="icon" aria-label={label} onClick={onToggle}>
+      <Icon className="size-4" aria-hidden="true" />
+    </Button>
   );
 }

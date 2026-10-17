@@ -12,7 +12,7 @@ test('skeleton.sign-in-ask-cite-audit', async ({ page }) => {
     '0',
   );
   await page.goto('/');
-  await page.getByLabel('Question').fill(question);
+  await page.getByLabel('Question', { exact: true }).fill(question);
   const posted = page.waitForRequest(
     (incoming) =>
       incoming.method() === 'POST' && new URL(incoming.url()).pathname.endsWith('/api/ask'),
@@ -20,8 +20,8 @@ test('skeleton.sign-in-ask-cite-audit', async ({ page }) => {
   await page.getByRole('button', { name: 'Ask' }).click();
   const requestId = ((await posted).postDataJSON() as { requestId: string }).requestId;
 
-  const citations = page.getByRole('list', { name: 'Citations' });
-  await expect(citations.getByRole('link', { name: 'Triage runbook' })).toHaveAttribute(
+  const sources = page.getByRole('list', { name: 'Sources' });
+  await expect(sources.getByRole('link', { name: 'Triage runbook' })).toHaveAttribute(
     'href',
     'https://drive.fake.test/d/alice-runbook',
   );
@@ -37,7 +37,7 @@ test('skeleton.submit-to-citation-p95', async ({ page }) => {
   const durationsMs: number[] = [];
   for (let sample = 0; sample < 10; sample += 1) {
     await page.goto('/');
-    await page.getByLabel('Question').fill(question);
+    await page.getByLabel('Question', { exact: true }).fill(question);
     const started = Date.now();
     await page.getByRole('button', { name: 'Ask' }).click();
     await expect(page.getByRole('link', { name: 'Triage runbook' })).toBeVisible();
