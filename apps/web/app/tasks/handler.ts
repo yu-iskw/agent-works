@@ -40,13 +40,23 @@ async function handle(
     return;
   }
 
-  const assertion = request.headers[IAP_ASSERTION_HEADER];
+  const assertion = request.headers['x-goog-iap-jwt-assertion'];
   if (typeof assertion !== 'string' || assertion.length === 0) {
     send(response, 401, 'unauthenticated');
     return;
   }
 
-  const id = match[1];
+  await readTask(apiUrl, load, match[1], assertion, response);
+}
+
+/** Keep response handling separate from request parsing to make denial paths explicit. */
+async function readTask(
+  apiUrl: string,
+  load: typeof fetch,
+  id: string,
+  assertion: string,
+  response: ServerResponse,
+): Promise<void> {
   // Only a fixed API route and the IAP assertion cross this boundary. Do not
   // forward client Authorization, cookies, user identifiers or query strings.
   const upstream = await load(new URL(`/v1/tasks/${id}`, apiUrl), {
