@@ -23,9 +23,7 @@ const task = {
 
 const apiUrl = 'http://api.example';
 
-async function open(
-  load: typeof fetch,
-): Promise<{ readonly server: Server; readonly url: string }> {
+async function open(load: typeof fetch) {
   const server = createWebServer({ apiUrl, fetch: load }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -155,9 +153,8 @@ test.each(['wrong-id', 'invalid-schema', 'redirect', 'unavailable', 'transport']
         headers: { [IAP_ASSERTION_HEADER]: 'signed-user-a' },
         redirect: 'manual',
       });
-      expect(response.status).toBe(
-        scenario === 'wrong-id' || scenario === 'invalid-schema' ? 502 : 503,
-      );
+      const expected = scenario === 'wrong-id' || scenario === 'invalid-schema' ? 502 : 503;
+      expect(response.status).toBe(expected);
       expect(response.headers.get('cache-control')).toBe('no-store');
       const body = await response.text();
       expect(body).not.toContain(task.createdBySub);
