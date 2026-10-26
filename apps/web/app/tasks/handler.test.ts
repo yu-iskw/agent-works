@@ -23,7 +23,9 @@ const task = {
 
 const apiUrl = 'http://api.example';
 
-async function open(load: typeof fetch): Promise<{ readonly server: Server; readonly url: string }> {
+async function open(
+  load: typeof fetch,
+): Promise<{ readonly server: Server; readonly url: string }> {
   const server = createWebServer({ apiUrl, fetch: load }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
