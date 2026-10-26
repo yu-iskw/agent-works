@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url';
 import { createApprovalsHandler } from '../app/approvals/handler.js';
 import { createWorkspaceApprovalsHandler } from '../app/approvals/workspace-handler.js';
 import { createConnectionsApp } from '../app/connections/connections-app.js';
-import { createWebApp } from '../app/web-app.js';
 import { createTaskDetailsHandler } from '../app/tasks/handler.js';
+import { createWebApp } from '../app/web-app.js';
 
 import type { WebAppOptions } from '../app/web-app.js';
 
