@@ -131,8 +131,7 @@ test.each(['wrong-id', 'invalid-schema', 'redirect', 'unavailable', 'transport']
   '%s API failures are fail-closed and redact upstream data',
   async (scenario) => {
     const load: typeof fetch = () => {
-      if (scenario === 'transport')
-        return Promise.reject(new Error('private upstream credential'));
+      if (scenario === 'transport') return Promise.reject(new Error('private upstream credential'));
       if (scenario === 'redirect')
         return Promise.resolve(
           new Response(null, { status: 302, headers: { location: 'https://evil.example' } }),
