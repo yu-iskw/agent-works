@@ -128,9 +128,9 @@ Not fixed, handed to the UI/UX milestone (`docs/m1/NEXT_MILESTONE.md`): the inbo
 
 Files inspected: `01-sign-in-768.png`, `19-connections-768.png`, plus the overflow assertions on 24 screens × 3 widths (all pass). The sign-in card now says "Choose a mock identity to continue" (R11-1).
 
-| ID    | Defect                                                                                                                                                                           | Fix                                                                                                                                  | Files                               |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
-| R12-1 | On the mock stack the source check was titled "Live sources" with a "Check live sources" button, and it said it reads "with your own connections". Neither is true in mock mode. | It is titled "Sources in <segment>" with a "Check sources" button. In fixture mode the text says it reads the local fixture sources. | `apps/web/app/m1/views.tsx`, suites |
+| ID    | Defect                                                                                                                                                                           | Fix                                                                                                                                    | Files                               |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| R12-1 | On the mock stack the source check was titled "Live sources" with a "Check live sources" button, and it said it reads "with your own connections". Neither is true in mock mode. | It is titled "Sources in \<segment\>" with a "Check sources" button. In fixture mode the text says it reads the local fixture sources. | `apps/web/app/m1/views.tsx`, suites |
 
 ## Round 13 (2026-10-30): R12-1 confirmed, no new defects
 
