@@ -327,6 +327,13 @@ export const SOURCE_CAPABILITY: Record<SourceKind, Capability> = {
   github_code: 'github.read',
 };
 
+/** The result of reading one source once on the member's behalf, before any task uses it. */
+export type SourceCheck = {
+  readonly source: SourceKind;
+  readonly status: 'reachable' | 'no_data' | 'not_allowed' | 'unreachable';
+  readonly detail: string;
+};
+
 export const metricsScopeSchema = z.strictObject({
   baseline: z.string().regex(/^\d{4}-\d{2}$/),
   current: z.string().regex(/^\d{4}-\d{2}$/),

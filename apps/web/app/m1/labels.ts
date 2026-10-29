@@ -204,6 +204,8 @@ const ERRORS: Record<string, string> = {
   assignments_required: 'Add at least one assignment, or let the coordinator plan the work.',
   metrics_scope_required: 'Choose the baseline and current months for the comparison.',
   metrics_periods_equal: 'The baseline and current months must differ.',
+  repository_not_allowed:
+    'This segment does not allow that repository. Use one of the repositories it allowlists. Nothing was started.',
   issue_required: 'This segment has no GitHub issue configured. Enter an issue number.',
   stale_version:
     'Someone (or another tab) changed this teammate. Reload to see the latest version.',

@@ -11,6 +11,7 @@ import type {
   MessageView,
   PortableDefinition,
   SkillView,
+  SourceCheck,
   TaskDetail,
   TaskSummary,
   TeammateView,
@@ -209,6 +210,8 @@ export function createSegmentClient(
       call<{ url: string }>(s, seg, 'POST', `/connections/${provider}/start`),
     connectComplete: (s: Session, seg: string, provider: string, body: unknown) =>
       call<{ connection: Connection }>(s, seg, 'POST', `/connections/${provider}/complete`, body),
+    checkSources: (s: Session, seg: string) =>
+      call<{ checks: SourceCheck[] }>(s, seg, 'POST', '/sources/check'),
     disconnect: (s: Session, seg: string, provider: string) =>
       call<{ connections: Connection[] }>(s, seg, 'POST', `/connections/${provider}/disconnect`),
     fixtureDoc: (s: Session, seg: string, id: string) =>

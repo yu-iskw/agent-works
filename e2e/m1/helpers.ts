@@ -112,3 +112,73 @@ export async function waitForStatus(
 export async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${SCREENSHOTS}/${name}.png`, fullPage: true });
 }
+
+export function manifest<T>(name: string): T {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename
+  return JSON.parse(readFileSync(`fixtures/m1/expected/${name}.json`, 'utf8')) as T;
+}
+
+export async function chooseTeammate(page: Page, index: number, name: string): Promise<void> {
+  const select = page.getByLabel(`Specialist ${index + 1}`);
+  const value = await select
+    .locator('option', { hasText: `${name} ·` })
+    .first()
+    .getAttribute('value');
+  if (value === null) throw new Error(`no teammate option ${name}`);
+  await select.selectOption(value);
+}
+
+/** The independent expected answers in `fixtures/m1/expected/<segment>-metrics.json`. */
+export type Metrics = {
+  expected: Record<
+    string,
+    {
+      metric: string;
+      region?: string;
+      channel?: string;
+      baselineValue: number;
+      currentValue: number;
+      changePct: number;
+    }[]
+  >;
+  tolerance: { absolute: number; percentPoints: number };
+};
+
+/** The latest revision's computed comparisons match the manifest within its tolerance. */
+export async function expectCalculations(
+  segment: 'alpha' | 'beta',
+  taskId: string,
+  key: string,
+): Promise<void> {
+  const m = manifest<Metrics>(`${segment}-metrics`);
+  const rows = await db(segment)<
+    {
+      calculations: {
+        metric: string;
+        group: string;
+        baselineValue: number;
+        currentValue: number;
+        changePct: number;
+      }[];
+    }[]
+  >`
+    select calculations from tw_revisions where task_id = ${taskId} order by revision desc limit 1`;
+  const calcs = rows[0]?.calculations ?? [];
+  // eslint-disable-next-line security/detect-object-injection
+  for (const want of m.expected[key] ?? []) {
+    const label = `${key}: ${want.metric} ${want.region ?? want.channel}`;
+    const got = calcs.find(
+      (c) => c.metric === want.metric && c.group === (want.region ?? want.channel),
+    );
+    if (got === undefined) throw new Error(`missing calculation ${label}`);
+    expect(Math.abs(got.baselineValue - want.baselineValue), label).toBeLessThanOrEqual(
+      m.tolerance.absolute,
+    );
+    expect(Math.abs(got.currentValue - want.currentValue), label).toBeLessThanOrEqual(
+      m.tolerance.absolute,
+    );
+    expect(Math.abs(got.changePct - want.changePct), label).toBeLessThanOrEqual(
+      m.tolerance.percentPoints,
+    );
+  }
+}

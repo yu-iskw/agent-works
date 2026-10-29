@@ -8,6 +8,7 @@ import {
   WORKFLOW,
   capabilityLabel,
   errorText,
+  sourceLabel,
   when,
   workflowInfo,
 } from './labels.js';
@@ -21,6 +22,7 @@ import type {
   CapabilityState,
   InboxItem,
   SkillView,
+  SourceCheck,
   TaskSummary,
   TeammateView,
   TemplateView,
@@ -38,6 +40,16 @@ export type PageCtx = {
   readonly nav: NavKey;
   readonly notice?: Notice;
 };
+
+/** A timestamp: UTC text without JavaScript, the viewer's local time with it (UTC kept in the tooltip). */
+export function Time(props: { readonly iso: string | null }): Html | null {
+  if (props.iso === null) return null;
+  return (
+    <time datetime={props.iso} data-local="">
+      {when(props.iso)}
+    </time>
+  );
+}
 
 export const segPath = (segment: Segment | string, path = '') =>
   `/s/${typeof segment === 'string' ? segment : segment.id}${path}`;
@@ -283,7 +295,7 @@ export function Shell(props: {
 
 export function PageHead(props: {
   readonly title: string;
-  readonly lead?: string;
+  readonly lead?: Child;
   readonly children?: readonly Child[];
   readonly crumbs?: readonly { label: string; href: string }[];
 }): Html {
@@ -390,7 +402,9 @@ export function InboxPage(props: {
                         <span class="badge badge-neutral">{INBOX[item.kind].label}</span>{' '}
                         {item.summary}
                       </p>
-                      <p class="subtle">{when(item.createdAt)}</p>
+                      <p class="subtle">
+                        <Time iso={item.createdAt} />
+                      </p>
                     </div>
                     <div class="row">
                       <a
@@ -430,7 +444,9 @@ export function InboxPage(props: {
                   <span>
                     {INBOX[item.kind].label}: {item.summary}
                   </span>
-                  <span>{when(item.resolvedAt)}</span>
+                  <span>
+                    <Time iso={item.resolvedAt} />
+                  </span>
                 </div>
               </li>
             ))}
@@ -548,7 +564,9 @@ function Bubble(props: {
       <div>
         <div class="turn-head">
           <strong>{props.name}</strong>
-          <span>{when(props.at)}</span>
+          <span>
+            <Time iso={props.at} />
+          </span>
         </div>
         <div class="bubble">{props.text}</div>
         {props.children}
@@ -687,7 +705,9 @@ export function TeammatePage(props: {
                       <span>
                         {task.resultOwner === teammate.id ? 'Result owner' : 'Specialist'}
                       </span>
-                      <span>Updated {when(task.updatedAt)}</span>
+                      <span>
+                        Updated <Time iso={task.updatedAt} />
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -981,7 +1001,9 @@ export function SkillPage(props: {
               {versions.map((version) => (
                 <li class="task-item">
                   <span class="task-title">Version {version.version}</span>
-                  <span class="subtle">{when(version.createdAt)}</span>
+                  <span class="subtle">
+                    <Time iso={version.createdAt} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1157,7 +1179,11 @@ function ConnectionCard(props: { readonly ctx: PageCtx; readonly connection: Con
     <section class="card card-body stack-sm" aria-labelledby={`c-${connection.provider}`}>
       <div class="row">
         <h2 id={`c-${connection.provider}`}>{describe.title}</h2>
-        <ConnectionBadge connection={connection} />
+        {ctx.readiness?.sourceMode === 'fixture' ? (
+          <span class="badge badge-neutral">Not needed here</span>
+        ) : (
+          <ConnectionBadge connection={connection} />
+        )}
       </div>
       <p class="muted">{describe.uses}</p>
       {connection.account === null ? null : (
@@ -1165,7 +1191,9 @@ function ConnectionCard(props: { readonly ctx: PageCtx; readonly connection: Con
           <dt>Account</dt>
           <dd>{connection.account}</dd>
           <dt>Connected</dt>
-          <dd>{when(connection.connectedAt)}</dd>
+          <dd>
+            <Time iso={connection.connectedAt} />
+          </dd>
           <dt>Scopes</dt>
           <dd>
             {connection.scopes.length === 0
@@ -1176,7 +1204,9 @@ function ConnectionCard(props: { readonly ctx: PageCtx; readonly connection: Con
           </dd>
         </dl>
       )}
-      <ConnectionActions ctx={ctx} connection={connection} />
+      {ctx.readiness?.sourceMode === 'fixture' ? null : (
+        <ConnectionActions ctx={ctx} connection={connection} />
+      )}
     </section>
   );
 }
@@ -1186,7 +1216,9 @@ function ModelCard(props: { readonly r: Readiness }): Html {
   return (
     <section class="card card-body stack-sm" aria-labelledby="c-model">
       <div class="row">
-        <h2 id="c-model">Model (Vertex AI)</h2>
+        <h2 id="c-model">
+          {r.model.mode === 'stub' ? 'Model (scripted review)' : 'Model (Vertex AI)'}
+        </h2>
         <span
           class={`badge ${r.model.state === 'error' ? 'badge-bad' : r.model.state === 'ready' ? 'badge-ok' : 'badge-neutral'}`}
         >
@@ -1198,8 +1230,9 @@ function ModelCard(props: { readonly r: Readiness }): Html {
         </span>
       </div>
       <p class="muted">
-        The segment calls {r.model.modelId} with the operator's model credential. That credential
-        proves nothing about you and never reads your sources.
+        {r.model.mode === 'stub'
+          ? 'This stack answers with canned review content for UI review. It makes no Vertex calls and uses no credential.'
+          : `The segment calls ${r.model.modelId} with the operator's model credential. That credential proves nothing about you and never reads your sources.`}
       </p>
       <dl class="kv">
         <dt>Model</dt>
@@ -1210,9 +1243,14 @@ function ModelCard(props: { readonly r: Readiness }): Html {
         </dd>
         <dt>Last call</dt>
         <dd>
-          {r.model.lastCall === null
-            ? 'None'
-            : `${r.model.lastCall.outcome}, ${when(r.model.lastCall.at)}${r.model.lastCall.modelVersion === null ? '' : `, ${r.model.lastCall.modelVersion}`}`}
+          {r.model.lastCall === null ? (
+            'None'
+          ) : (
+            <>
+              {r.model.lastCall.outcome}, <Time iso={r.model.lastCall.at} />
+              {r.model.lastCall.modelVersion === null ? '' : `, ${r.model.lastCall.modelVersion}`}
+            </>
+          )}
         </dd>
       </dl>
       {r.model.remediation === null ? null : (
@@ -1224,9 +1262,55 @@ function ModelCard(props: { readonly r: Readiness }): Html {
   );
 }
 
+const CHECK_BADGE: Record<
+  SourceCheck['status'],
+  { readonly label: string; readonly tone: string }
+> = {
+  reachable: { label: 'Reachable', tone: 'badge-ok' },
+  no_data: { label: 'Reachable, no data', tone: 'badge-test' },
+  not_allowed: { label: 'Not allowed here', tone: 'badge-test' },
+  unreachable: { label: 'Not reachable', tone: 'badge-bad' },
+};
+
+function SourceChecks(props: {
+  readonly ctx: PageCtx;
+  readonly checks?: readonly SourceCheck[];
+}): Html {
+  const { ctx, checks } = props;
+  return (
+    <section class="card card-body stack-sm footer-note" aria-labelledby="checks-h">
+      <h2 id="checks-h">Live sources in {ctx.segment.name}</h2>
+      <p class="muted">
+        Reads each source this segment uses once, with your own connections, and reports what it can
+        see. Nothing is changed and no model is called.
+      </p>
+      <form method="post" action={segPath(ctx.segment, '/connections/check')}>
+        <Csrf session={ctx.session} />
+        <SubmitButton label="Check live sources" kind="btn" />
+      </form>
+      <div role="status">
+        {checks === undefined ? null : (
+          <ul class="check-list">
+            {checks.map((check) => (
+              <li>
+                <span class={`badge ${CHECK_BADGE[check.status].tone}`}>
+                  {CHECK_BADGE[check.status].label}
+                </span>
+                <strong>{sourceLabel(check.source)}</strong>
+                <p class="muted">{check.detail}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function ConnectionsPage(props: {
   readonly ctx: PageCtx;
   readonly connections: readonly Connection[];
+  readonly checks?: readonly SourceCheck[];
 }): Html {
   const { ctx } = props;
   return (
@@ -1235,12 +1319,23 @@ export function ConnectionsPage(props: {
         title="Connections"
         lead={`Your own accounts, connected to ${ctx.segment.name} only. Another segment has separate connections, and nobody else can use yours.`}
       />
+      {ctx.readiness?.sourceMode === 'fixture' ? (
+        <div class="notice">
+          <Alert tone="info" live={false}>
+            <p>
+              This stack reads local fixture files instead of Google and GitHub, so no connection is
+              needed here.
+            </p>
+          </Alert>
+        </div>
+      ) : null}
       <div class="grid-2">
         {props.connections.map((connection) => (
           <ConnectionCard ctx={ctx} connection={connection} />
         ))}
         {ctx.readiness === undefined ? null : <ModelCard r={ctx.readiness} />}
       </div>
+      <SourceChecks ctx={ctx} checks={props.checks} />
     </Shell>
   );
 }
@@ -1475,7 +1570,11 @@ export function DocumentPage(props: {
     <Shell ctx={props.ctx} title={props.doc.title}>
       <PageHead
         title={props.doc.title}
-        lead={`Fixture document store (not Google Docs), created ${when(props.doc.createdAt)}.`}
+        lead={
+          <>
+            Fixture document store (not Google Docs), created <Time iso={props.doc.createdAt} />.
+          </>
+        }
       />
       <pre class="code-block doc-page">{props.doc.markdown}</pre>
     </Shell>

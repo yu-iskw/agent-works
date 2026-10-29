@@ -10,8 +10,8 @@ import {
   TASK_STATUS,
   WORKFLOW,
   capabilityLabel,
+  errorText,
   sourceLabel,
-  when,
   workflowInfo,
 } from './labels.js';
 import {
@@ -24,6 +24,7 @@ import {
   SubmitButton,
   TEAMMATES_PATH,
   segPath,
+  Time,
 } from './views.js';
 
 import type { PageCtx } from './views.js';
@@ -106,7 +107,9 @@ export function TasksPage(props: {
                   <span>{WORKFLOW[task.workflow].short}</span>
                   <span>{task.mode === 'manual' ? 'Manual assignment' : 'Coordinator plan'}</span>
                   {task.latestRevision > 0 ? <span>Revision {task.latestRevision}</span> : null}
-                  <span>Updated {when(task.updatedAt)}</span>
+                  <span>
+                    Updated <Time iso={task.updatedAt} />
+                  </span>
                 </div>
               </li>
             ))}
@@ -215,14 +218,63 @@ function AssignmentRows(props: {
   );
 }
 
+/** Engineering scope: repository and issue. A refused repository marks its own field. */
+function EngineeringScope(props: {
+  readonly values: NewTaskValues;
+  readonly errorCode?: string;
+  readonly defaults: { readonly repositories: readonly string[]; readonly issue: number | null };
+}): Html {
+  const refused = props.errorCode === 'repository_not_allowed';
+  return (
+    <div class="row">
+      <div class="field">
+        <label for="repository">Repository</label>
+        <input
+          id="repository"
+          name="repository"
+          value={value(props.values, 'repository', props.defaults.repositories.at(0) ?? '')}
+          required
+          pattern="[\w.-]+/[\w.-]+"
+          aria-invalid={refused ? 'true' : undefined}
+          aria-describedby="repository-hint"
+        />
+        <p class={refused ? 'field-error' : 'hint'} id="repository-hint">
+          {refused ? 'Not allowed here. ' : ''}
+          Allowed in this segment:{' '}
+          {props.defaults.repositories.length === 0
+            ? 'none configured'
+            : props.defaults.repositories.join(', ')}
+          .
+        </p>
+      </div>
+      <div class="field">
+        <label for="issue">Issue number</label>
+        <input
+          id="issue"
+          name="issueNumber"
+          type="number"
+          min="1"
+          required
+          value={value(
+            props.values,
+            'issueNumber',
+            props.defaults.issue === null ? '' : String(props.defaults.issue),
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function NewTaskPage(props: {
   readonly ctx: PageCtx;
   readonly teammates: readonly TeammateView[];
   /** skill id:version to workflows it can synthesize */
   readonly synthesis: ReadonlyMap<string, readonly Workflow[]>;
   readonly values: NewTaskValues;
-  readonly error?: string;
-  readonly defaults: { readonly repository: string | null; readonly issue: number | null };
+  /** The API's error code: shown as text, and the field it concerns is marked. */
+  readonly errorCode?: string;
+  readonly defaults: { readonly repositories: readonly string[]; readonly issue: number | null };
 }): Html {
   const { ctx, teammates } = props;
   const workflow = (value(props.values, 'workflow') || 'research_brief') as Workflow;
@@ -246,10 +298,10 @@ export function NewTaskPage(props: {
           </p>
         </Alert>
       ) : null}
-      {props.error === undefined ? null : (
+      {props.errorCode === undefined ? null : (
         <div class="notice">
           <Alert tone="danger" title="The task was not started">
-            <p>{props.error}</p>
+            <p>{errorText(props.errorCode)}</p>
           </Alert>
         </div>
       )}
@@ -355,34 +407,11 @@ export function NewTaskPage(props: {
           </div>
         ) : null}
         {workflow === 'engineering_proposal' ? (
-          <div class="row">
-            <div class="field">
-              <label for="repository">Repository</label>
-              <input
-                id="repository"
-                name="repository"
-                value={value(props.values, 'repository', props.defaults.repository ?? '')}
-                required
-                pattern="[\w.-]+/[\w.-]+"
-              />
-              <p class="hint">Must be allowlisted for this segment.</p>
-            </div>
-            <div class="field">
-              <label for="issue">Issue number</label>
-              <input
-                id="issue"
-                name="issueNumber"
-                type="number"
-                min="1"
-                required
-                value={value(
-                  props.values,
-                  'issueNumber',
-                  props.defaults.issue === null ? '' : String(props.defaults.issue),
-                )}
-              />
-            </div>
-          </div>
+          <EngineeringScope
+            values={props.values}
+            errorCode={props.errorCode}
+            defaults={props.defaults}
+          />
         ) : null}
         <div class="field">
           <label for="owner">Result owner</label>
@@ -634,7 +663,9 @@ function ApprovalCard(props: {
           <dt>Length</dt>
           <dd>{p.wordCount} words</dd>
           <dt>Expires</dt>
-          <dd>{when(approval.expiresAt)}</dd>
+          <dd>
+            <Time iso={approval.expiresAt} />
+          </dd>
         </dl>
         <div>
           <p class="section-title">Exact content that will be written</p>
@@ -828,7 +859,7 @@ function Published(props: { readonly ctx: PageCtx; readonly approval: ActionAppr
     <Alert tone="ok" title="Published">
       <p>
         Created “{props.approval.proposal.documentTitle}” in {props.approval.proposal.account}.
-        Confirmed by the provider {when(action?.confirmedAt ?? null)}.
+        Confirmed by the provider <Time iso={action?.confirmedAt ?? null} />.
       </p>
       {href === null ? null : (
         <p class="actions">
@@ -863,7 +894,9 @@ function ResultMeta(props: { readonly revision: RevisionView }): Html {
       {revision.generation.repositoryRevision === null ? null : (
         <span>Repository at {revision.generation.repositoryRevision.slice(0, 12)}</span>
       )}
-      <span>{when(revision.createdAt)}</span>
+      <span>
+        <Time iso={revision.createdAt} />
+      </span>
     </p>
   );
 }
@@ -1132,8 +1165,21 @@ function Assignment(props: { readonly a: AssignmentView }): Html {
         {a.attempt > 1 ? ` · attempt ${a.attempt}` : ''}
       </p>
       <p class="asg-times">
-        {a.startedAt === null ? 'Not started' : `Started ${when(a.startedAt)}`}
-        {a.finishedAt === null ? '' : ` · finished ${when(a.finishedAt)}`}
+        {a.startedAt === null ? (
+          'Not started'
+        ) : (
+          <>
+            Started <Time iso={a.startedAt} />
+          </>
+        )}
+        {a.finishedAt === null ? (
+          ''
+        ) : (
+          <>
+            {' '}
+            · finished <Time iso={a.finishedAt} />
+          </>
+        )}
         {a.model === null ? '' : ` · ${a.model.modelVersion} ${a.model.responseId ?? ''}`}
       </p>
       {a.errorMessage === null ? null : <p class="blocked">{a.errorMessage}</p>}
@@ -1244,7 +1290,9 @@ function Discussion(props: { readonly ctx: PageCtx; readonly detail: TaskDetail 
                         ? 'Workbench'
                         : 'Result owner'}
                   </strong>
-                  <span>{when(m.at)}</span>
+                  <span>
+                    <Time iso={m.at} />
+                  </span>
                 </div>
                 <div class="bubble">{m.text}</div>
               </div>
@@ -1340,7 +1388,7 @@ function eventItem(e: TaskDetail['events'][number]): Html {
       <span class={`dot ${dotClass(e.type)}`} aria-hidden="true"></span>
       <p class="tl-summary">{e.summary}</p>
       <p class="tl-meta">
-        {when(e.at)}
+        <Time iso={e.at} />
         {e.durationMs === null ? '' : ` · ${(e.durationMs / 1000).toFixed(1)} s`}
       </p>
     </li>
@@ -1378,7 +1426,11 @@ function PlanHistory(props: { readonly plans: TaskDetail['plans'] }): Html {
         {props.plans.map((p) => (
           <li>
             Version {p.version} by {p.author}: <strong>{p.state}</strong>{' '}
-            {p.decidedAt === null ? '' : `(${when(p.decidedAt)})`}
+            {p.decidedAt === null ? null : (
+              <>
+                (<Time iso={p.decidedAt} />)
+              </>
+            )}
           </li>
         ))}
       </ul>

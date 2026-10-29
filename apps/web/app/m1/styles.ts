@@ -11,6 +11,9 @@ export const m1Styles = `${base}
 }
 .segment-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); padding: 6px var(--space-5); background: var(--seg-soft); border-bottom: 2px solid var(--seg); font-size: 0.86rem; position: sticky; top: 56px; z-index: 19; }
 .segment-bar strong { color: var(--seg); }
+.check-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.check-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.check-list li p { grid-column: 2; overflow-wrap: anywhere; }
 .mode-labels { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .form-grid > .btn { justify-self: start; }
 .activity-more summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; padding: 0 var(--space-4) var(--space-4); }

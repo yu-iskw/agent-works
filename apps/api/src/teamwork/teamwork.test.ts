@@ -22,8 +22,10 @@ import {
 } from './catalog.js';
 import { readSegmentConfig } from './config.js';
 import { Conflict } from './context.js';
+import { checkSources } from './diagnostics.js';
 import { createModelGate } from './model.js';
 import { createFixtureSources } from './sources/fixture.js';
+import { SourceError } from './sources/port.js';
 import {
   createTask,
   decideAction,
@@ -522,6 +524,31 @@ describe('budget, isolation and privacy', () => {
     expect(detail.task.status).toBe('failed');
     expect(detail.task.errorCode).toBe('budget_exhausted');
     expect(await d.gate.used()).toBe(1);
+  });
+
+  it('checks only the sources this member may use, and isolates each source failure', async () => {
+    const base = deps();
+    const read: Deps['sources']['read'] = (request) => {
+      if (request.kind === 'drive_context') return Promise.reject(new SourceError('empty'));
+      if (request.kind === 'github_issue') return Promise.reject(new SyntaxError('bad json'));
+      return Promise.resolve({ items: [], metrics: null, repositoryRevision: null });
+    };
+    const d: Deps = {
+      ...base,
+      config: { ...base.config, capabilities: new Set(['drive.read', 'github.read'] as const) },
+      sources: { ...base.sources, read },
+    };
+    const checks = await checkSources(d, alice);
+    expect(Object.fromEntries(checks.map((check) => [check.source, check.status]))).toEqual({
+      drive_research: 'reachable',
+      drive_context: 'no_data',
+      bigquery_metrics: 'not_allowed',
+      github_issue: 'unreachable',
+      github_code: 'reachable',
+    });
+    const [row] = await sql<{ outcome: string }[]>`
+      select outcome from tw_audit where action = 'sources.check'`;
+    expect(row.outcome).toBe('problems');
   });
 
   it('hides another member’s work as not found', async () => {

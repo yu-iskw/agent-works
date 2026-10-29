@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect } from '@playwright/test';
 
-import { db, taskIdFrom, waitForStatus } from '../helpers.js';
+import { chooseTeammate, db, taskIdFrom, waitForStatus } from '../helpers.js';
 
 import type { Page } from '@playwright/test';
 
@@ -17,11 +17,6 @@ export async function liveMembers(): Promise<Record<Segment, readonly string[]>>
   );
   if (!response.ok) throw new Error(`live members unavailable: ${response.status}`);
   return (await response.json()) as Record<Segment, readonly string[]>;
-}
-
-export function manifest<T>(name: string): T {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
-  return JSON.parse(readFileSync(`fixtures/m1/expected/${name}.json`, 'utf8')) as T;
 }
 
 export type AssignmentSpec = { readonly teammate: string; readonly brief: string };
@@ -61,16 +56,6 @@ export async function startTask(
     await page.getByRole('button', { name: 'Approve plan v1 and start' }).click();
   }
   return id;
-}
-
-export async function chooseTeammate(page: Page, index: number, name: string): Promise<void> {
-  const select = page.getByLabel(`Specialist ${index + 1}`);
-  const value = await select
-    .locator('option', { hasText: `${name} ·` })
-    .first()
-    .getAttribute('value');
-  if (value === null) throw new Error(`no teammate option ${name}`);
-  await select.selectOption(value);
 }
 
 export async function resultText(page: Page): Promise<string> {

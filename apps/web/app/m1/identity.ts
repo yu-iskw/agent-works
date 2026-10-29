@@ -299,15 +299,8 @@ export function createIdentity(deps: {
         LOCAL_TEST,
       );
     },
-    /**
-     * Re-verifies a real member for browser tests: Google exchanges the member's stored refresh
-     * token for a fresh ID token, which is verified exactly like an interactive sign-in. Off unless
-     * AW_E2E_MODE=1 and a secret is configured; served only on the internal listener.
-     */
-    async e2eSession(
-      secret: string | undefined,
-      email: string,
-    ): Promise<{ cookie: string; session: Session }> {
+    /** Every e2e route checks the shared secret here, so each wrong attempt is audited. */
+    async e2eAuthorize(secret: string | undefined): Promise<void> {
       const expected = config.e2eSecret;
       if (expected === undefined) throw new SignInError('disabled');
       if (
@@ -318,6 +311,17 @@ export function createIdentity(deps: {
         await db.audit(null, E2E_AUDIT, 'bad_secret');
         throw new SignInError('forbidden');
       }
+    },
+    /**
+     * Re-verifies a real member for browser tests: Google exchanges the member's stored refresh
+     * token for a fresh ID token, which is verified exactly like an interactive sign-in. Off unless
+     * AW_E2E_MODE=1 and a secret is configured; served only on the internal listener.
+     */
+    async e2eSession(
+      secret: string | undefined,
+      email: string,
+    ): Promise<{ cookie: string; session: Session }> {
+      await this.e2eAuthorize(secret);
       if (config.identity === LOCAL_TEST) return this.localTest(email);
       if (config.google === undefined || deps.verifyGoogle === undefined)
         throw new SignInError('not_configured');

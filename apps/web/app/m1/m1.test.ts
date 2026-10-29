@@ -15,8 +15,13 @@ afterEach(() => {
 
 async function serve(e2eSecret: string | undefined): Promise<string> {
   const handler = createInternalHandler({
-    config: { e2eSecret },
+    config: {
+      e2eSecret,
+      members: new Map([['alpha', new Set(['one@example.test', 'two@example.test'])]]),
+    },
     identity: {
+      e2eAuthorize: (secret) =>
+        secret === e2eSecret ? Promise.resolve() : Promise.reject(new SignInError('forbidden')),
       e2eSession: (secret) =>
         secret === e2eSecret
           ? Promise.reject(new SignInError('reauth_required'))
@@ -73,6 +78,24 @@ describe('e2e session endpoint', () => {
     });
     expect(multibyte.status, 'a same-length multibyte secret is refused, not a crash').toBe(403);
     expect(await right.json()).toEqual({ error: 'reauth_required' });
+  });
+
+  it('lists configured members only with the secret, and only when e2e mode is on', async () => {
+    const off = await serve(undefined);
+    expect(
+      (await fetch(`${off}/internal/e2e/members`, { headers: { 'x-e2e-secret': 's'.repeat(64) } }))
+        .status,
+    ).toBe(404);
+    const secret = 's'.repeat(64);
+    const on = await serve(secret);
+    expect(
+      (await fetch(`${on}/internal/e2e/members`, { headers: { 'x-e2e-secret': 'w'.repeat(64) } }))
+        .status,
+    ).toBe(403);
+    const listed = await fetch(`${on}/internal/e2e/members`, {
+      headers: { 'x-e2e-secret': secret },
+    });
+    expect(await listed.json()).toEqual({ alpha: ['one@example.test', 'two@example.test'] });
   });
 
   it('serves the assertion JWKS without private key material', async () => {

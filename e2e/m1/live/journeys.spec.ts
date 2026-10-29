@@ -2,16 +2,18 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
-import { db, ensureStarterTeam, shot, signInLive, waitForStatus } from '../helpers.js';
-
 import {
   chooseTeammate,
-  liveMembers,
+  db,
+  ensureStarterTeam,
+  expectCalculations,
   manifest,
-  overlap,
-  resultText,
-  startTask,
-} from './live-helpers.js';
+  shot,
+  signInLive,
+  waitForStatus,
+} from '../helpers.js';
+
+import { liveMembers, overlap, resultText, startTask } from './live-helpers.js';
 
 import type { Segment } from './live-helpers.js';
 import type { Page } from '@playwright/test';
@@ -25,20 +27,6 @@ type Research = {
   injectionCanaries: string[];
   revisionRequest: string;
   revisionExpect: string[];
-};
-type Metrics = {
-  expected: Record<
-    string,
-    {
-      metric: string;
-      region?: string;
-      channel?: string;
-      baselineValue: number;
-      currentValue: number;
-      changePct: number;
-    }[]
-  >;
-  tolerance: { absolute: number; percentPoints: number };
 };
 type Engineering = {
   pinnedRevision: string;
@@ -176,7 +164,6 @@ for (const journey of plan)
       >`select count(*)::int as n from wb_actions where task_id = ${id} and status = 'succeeded'`;
       expect(effects[0]?.n, 'exactly one external write').toBe(1);
     } else if (journey.workflow === 'metrics') {
-      const m = manifest<Metrics>(`${s}-metrics`);
       id = await startTask(page, s, {
         workflow: 'metrics_explanation',
         question:
@@ -198,45 +185,14 @@ for (const journey of plan)
         ],
       });
       await waitForStatus(page, s, id, ['ready', 'needs_input', 'failed'], 420_000);
-      const check = async (key: string) => {
-        const rows = await db(s)<
-          {
-            calculations: {
-              metric: string;
-              group: string;
-              baselineValue: number;
-              currentValue: number;
-              changePct: number;
-            }[];
-          }[]
-        >`
-          select calculations from tw_revisions where task_id = ${id} order by revision desc limit 1`;
-        const calcs = rows[0]?.calculations ?? [];
-        // eslint-disable-next-line security/detect-object-injection
-        for (const want of m.expected[key] ?? []) {
-          const got = calcs.find(
-            (c) => c.metric === want.metric && c.group === (want.region ?? want.channel),
-          );
-          expect(got, `${key} ${want.metric}`).toBeDefined();
-          expect(Math.abs(got!.baselineValue - want.baselineValue)).toBeLessThanOrEqual(
-            m.tolerance.absolute,
-          );
-          expect(Math.abs(got!.currentValue - want.currentValue)).toBeLessThanOrEqual(
-            m.tolerance.absolute,
-          );
-          expect(Math.abs(got!.changePct - want.changePct)).toBeLessThanOrEqual(
-            m.tolerance.percentPoints,
-          );
-        }
-      };
-      await check('region:2026-09->2026-10');
+      await expectCalculations(s, id, 'region:2026-09->2026-10');
       await page.reload();
       const text = await resultText(page);
       expect(text).toContain('Hypothesis');
       await page.getByLabel('Group by').last().selectOption('channel');
       await page.getByRole('button', { name: 'Re-run with this comparison' }).click();
       await waitForStatus(page, s, id, ['ready', 'failed'], 420_000);
-      await check('channel:2026-09->2026-10');
+      await expectCalculations(s, id, 'channel:2026-09->2026-10');
     } else {
       const m = manifest<Engineering>('engineering');
       id = await startTask(page, s, {
@@ -291,20 +247,23 @@ for (const journey of plan)
     expect(parallel.overlapMs, 'two assignments executed at the same time').toBeGreaterThan(0);
   });
 
-test('an unallowlisted repository is denied before GitHub is called', async ({ page, context }) => {
+test('an unallowlisted repository is refused before any work or GitHub call', async ({
+  page,
+  context,
+}) => {
   const members = await liveMembers();
   await signInLive(context, members.alpha[0]!);
   const m = manifest<Engineering>('engineering');
+  const objective = `Denial probe ${Date.now()}`;
   await page.goto('/s/alpha/tasks/new?workflow=engineering_proposal');
-  await page.getByLabel('What do you need?').fill('Denial probe');
+  await page.getByLabel('What do you need?').fill(objective);
   await page.getByLabel('Repository').fill(m.deniedRepository);
   await chooseTeammate(page, 0, 'Software engineer');
   await page.getByLabel('Assignment').first().fill('Read the code.');
   await page.getByRole('button', { name: 'Start task' }).click();
-  const id = /\/tasks\/([0-9a-f-]{36})/.exec(page.url())![1]!;
-  await waitForStatus(page, 'alpha', id, ['needs_input', 'failed']);
-  const rows = await db('alpha')<
-    { error_code: string }[]
-  >`select error_code from tw_assignments where task_id = ${id}`;
-  expect(rows[0]?.error_code).toBe('source_policy_denied');
+  await expect(page.getByText('This segment does not allow that repository.')).toBeVisible();
+  const tasks = await db('alpha')<
+    { n: number }[]
+  >`select count(*)::int as n from wb_tasks where objective = ${objective}`;
+  expect(tasks[0]?.n, 'no task was created').toBe(0);
 });

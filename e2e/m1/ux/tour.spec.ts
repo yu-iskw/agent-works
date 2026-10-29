@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 import {
+  chooseTeammate,
   ensureStarterTeam,
   signInLocal,
   taskIdFrom,
@@ -149,6 +150,19 @@ test('UX tour: key journey on video, then every key screen at 375, 768 and 1440'
   await add('18-inbox-with-items');
   await page.goto('/s/alpha/connections');
   await add('19-connections');
+  await add('19b-source-checks', async (p) => {
+    await p.goto('/s/alpha/connections');
+    await p.getByRole('button', { name: 'Check live sources' }).click();
+    await expect(p.locator('.check-list .badge-ok').first()).toBeVisible();
+  });
+  await page.goto('/s/alpha/tasks/new?workflow=engineering_proposal');
+  await page.getByLabel('What do you need?').fill('Denial probe for review');
+  await page.getByLabel('Repository').fill('yu-iskw/aw-m1-not-allowlisted');
+  await chooseTeammate(page, 0, 'Software engineer');
+  await page.getByLabel('Assignment').first().fill('Read the code.');
+  await page.getByRole('button', { name: 'Start task' }).click();
+  await expect(page.getByText('This segment does not allow that repository.')).toBeVisible();
+  await page.screenshot({ path: `${DIR}/19c-repository-refused-1440.png`, fullPage: true });
   await page.goto(`/s/alpha/teammates/${coordinator}/export`);
   await add('20-export');
   await page.goto('/s/alpha/import');

@@ -75,3 +75,41 @@ Files inspected: `video-sheet.png` (13 frames, 48 s), `13-action-approval-1440.p
 Note on captures: a full-page screenshot taken after the `#decision` jump draws the sticky header at the scroll position, partway down the image. That is how the capture is made, not a layout defect; in a real viewport the card lands below the header (R2-1).
 
 Rounds completed before the first checkpoint: 6.
+
+## Round 7 (2026-10-30): checkpoint 2 screens
+
+New in this checkpoint, so the tour gained two screens: the live-source check (`19b-source-checks`) and the refused repository (`19c-repository-refused-1440`). Timestamps now render as `<time>` elements and show the viewer's local time, with UTC in the tooltip (the earlier known issue).
+
+Files inspected: `19b-source-checks-375.png`, `19c-repository-refused-1440.png`.
+
+| ID   | Defect                                                                                                                                                     | Fix                                                                                                           | Files                                    |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| R7-1 | At 375 px the source-check table clipped its Details column inside a sideways scroller, and the source names wrapped onto three or four lines.             | The checks are a list: status badge and source name on one line, details below, wrapping freely.              | `apps/web/app/m1/views.tsx`, `styles.ts` |
+| R7-2 | In fixture mode, both provider cards said "This provider is not configured yet" right above a check showing every source reachable. That is contradictory. | In fixture mode the cards say the stack reads local fixture files, so no connection is needed.                | `views.tsx`                              |
+| R7-3 | The metrics check read "data modified unknown".                                                                                                            | When a source reports no freshness, it says so plainly.                                                       | `apps/api/src/teamwork/diagnostics.ts`   |
+| R7-4 | A refused repository was reported only at the top of the form. The field itself was not marked, and the page did not say which repositories are allowed.   | The repository field gets `aria-invalid`, and its hint becomes an inline error naming the allowed repository. | `task-views.tsx`, `handler.ts`           |
+
+## Round 8 (2026-10-30): round 7 fixes confirmed, no new defects
+
+Files inspected: `19b-source-checks-375.png`, `19c-repository-refused-1440.png`, plus the overflow assertions on 24 screens × 3 widths (all pass, 51 s run). At 375 px each source check is one badge and name line with its details wrapped below, and nothing scrolls sideways (R7-1). In fixture mode both provider cards say no connection is needed (R7-2). The metrics check says "freshness not reported by this source" (R7-3). The refused repository field is marked invalid and names the allowed repository inline (R7-4).
+
+Remaining known issues are unchanged from round 5.
+
+Rounds completed before the second checkpoint: 8.
+
+## Round 9 (2026-10-30): after /code-review and /simplify
+
+Files inspected: `19b-source-checks-768.png`, `19c-repository-refused-1440.png`, plus the overflow assertions on 24 screens × 3 widths (all pass). The fixture note now appears once at the top of Connections instead of inside each provider card. The refused repository hint lists every allowlisted repository.
+
+| ID   | Defect                                                                                                                                                                             | Fix                                                                                                                                        | Files                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| R9-1 | In fixture mode both provider cards still showed a "Not connected" badge right under the note that says no connection is needed.                                                   | In fixture mode the badge reads "Not needed here".                                                                                         | `apps/web/app/m1/views.tsx` |
+| R9-2 | On the scripted review stack, the model card said the segment calls `scripted-ui-review` "with the operator's model credential", which is false: that stack makes no Vertex calls. | The card is titled "Model (scripted review)" and says it answers with canned review content, makes no Vertex calls and uses no credential. | `views.tsx`                 |
+
+## Round 10 (2026-10-30): round 9 fixes confirmed, no new defects
+
+Files inspected: `19-connections-375.png`, plus the overflow assertions on 24 screens × 3 widths (all pass). Both provider cards read "Not needed here" below the single fixture note, and the model card describes the scripted stack accurately. The accessibility suite (axe at three widths) passes again on the local-test stack.
+
+Remaining known issues are unchanged from round 5.
+
+Rounds completed before the second checkpoint: 10.

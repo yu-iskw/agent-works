@@ -59,14 +59,20 @@ function wholeNumber(value: string | undefined, fallback: number): number {
 
 type Secret = (key: string) => string | undefined;
 
-function readSources(secret: Secret, upper: string): SegmentSources {
-  const issue = secret(`AW_M1_${upper}_GITHUB_ISSUE`);
+/** Fixture mode reads the local checkout as this repository and issue, unless configured otherwise. */
+const FIXTURE_GITHUB = { repositories: ['yu-iskw/agent-works'], issue: '1' } as const;
+
+function readSources(secret: Secret, upper: string, sourceMode: SourceMode): SegmentSources {
+  const fixture = sourceMode === 'fixture' ? FIXTURE_GITHUB : undefined;
+  const issue = secret(`AW_M1_${upper}_GITHUB_ISSUE`) ?? fixture?.issue;
+  const repositories = csvList(secret('AW_M1_GITHUB_REPOSITORY'));
   return {
     driveResearchFolder: secret(`AW_M1_${upper}_DRIVE_RESEARCH_FOLDER`),
     driveContextFolder: secret(`AW_M1_${upper}_DRIVE_CONTEXT_FOLDER`),
     bigqueryProject: secret('AW_M1_BIGQUERY_PROJECT'),
     bigqueryDataset: secret(`AW_M1_${upper}_BIGQUERY_DATASET`),
-    githubRepositories: csvList(secret('AW_M1_GITHUB_REPOSITORY')),
+    githubRepositories:
+      repositories.length === 0 ? [...(fixture?.repositories ?? [])] : repositories,
     githubPinnedRef: secret('AW_M1_GITHUB_PINNED_REF'),
     githubIssue: issue === undefined || !/^\d+$/.test(issue) ? undefined : Number(issue),
   };
@@ -135,7 +141,7 @@ export function readSegmentConfig(env: Env): SegmentConfig {
   };
   const google = pair('AW_M1_GOOGLE_CLIENT_ID', 'AW_M1_GOOGLE_CLIENT_SECRET');
   const github = pair('AW_M1_GITHUB_CLIENT_ID', 'AW_M1_GITHUB_CLIENT_SECRET');
-  const sources = readSources(secret, upper);
+  const sources = readSources(secret, upper, sourceMode);
   const capabilities = new Set(
     csvList(env.AW_SEGMENT_CAPABILITIES ?? CAPABILITIES.join(',')).map((item) =>
       capabilitySchema.parse(item),

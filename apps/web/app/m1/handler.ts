@@ -31,7 +31,7 @@ import type { Identity, Session } from './identity.js';
 import type { NewTaskValues } from './task-views.js';
 import type { NavKey, Notice, PageCtx } from './views.js';
 import type { Html } from '../html.js';
-import type { SkillView, TeammateView, Workflow } from '@agent-works/domain/teamwork';
+import type { SkillView, SourceCheck, TeammateView, Workflow } from '@agent-works/domain/teamwork';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 
 const HTML = 'text/html; charset=utf-8';
@@ -608,7 +608,8 @@ async function skillPage(req: SegReq): Promise<void> {
   );
 }
 
-async function connectionsPage(req: SegReq): Promise<void> {
+/** `checks` comes from "Check live sources" and is shown inline; nothing is stored. */
+async function connectionsPage(req: SegReq, checks?: readonly SourceCheck[]): Promise<void> {
   const { app, response, session, segment } = req;
   const [ctx, list] = await Promise.all([
     ctxFor(req, 'connections'),
@@ -619,7 +620,7 @@ async function connectionsPage(req: SegReq): Promise<void> {
         response,
         200,
         'Connections',
-        ConnectionsPage({ ctx, connections: list.value.connections }),
+        ConnectionsPage({ ctx, connections: list.value.connections, checks }),
       )
     : failPage(response, ctx, list);
 }
@@ -656,7 +657,7 @@ function synthesisSkills(
 type NewTaskInput = {
   readonly ctx: PageCtx;
   readonly values: NewTaskValues;
-  readonly error: string | undefined;
+  readonly errorCode?: string;
   readonly status: number;
 };
 
@@ -664,7 +665,7 @@ async function newTaskPage(
   { app, response, session, segment }: Pick<SegReq, 'app' | 'response' | 'session' | 'segment'>,
   input: NewTaskInput,
 ): Promise<void> {
-  const { ctx, values, error, status } = input;
+  const { ctx, values, errorCode, status } = input;
   const [team, catalog] = await Promise.all([
     app.api.teammates(session, segment.id),
     app.api.catalog(session, segment.id),
@@ -681,9 +682,9 @@ async function newTaskPage(
       teammates,
       synthesis,
       values: owner === undefined ? values : { ...values, resultOwner: owner },
-      error,
+      errorCode,
       defaults: {
-        repository: ctx.readiness?.sources.repositories.at(0) ?? null,
+        repositories: ctx.readiness?.sources.repositories ?? [],
         issue: ctx.readiness?.sources.issue ?? null,
       },
     }),
@@ -708,7 +709,6 @@ const GET_ROUTES: readonly Route<SegReq>[] = [
       newTaskPage(req, {
         ctx: await ctxFor(req, 'tasks'),
         values: Object.fromEntries(req.url.searchParams),
-        error: undefined,
         status: 200,
       }),
   },
@@ -854,6 +854,12 @@ async function attachSkill(req: PostReq): Promise<void> {
   return back(req, target, { ok: true, value: null }, 'attachments_saved');
 }
 
+async function checkSources(req: PostReq): Promise<void> {
+  const checks = await req.app.api.checkSources(req.session, req.segment.id);
+  if (!checks.ok) return failPage(req.response, await ctxFor(req, 'connections'), checks);
+  return connectionsPage(req, checks.value.checks);
+}
+
 async function connectStart(req: PostReq): Promise<void> {
   const { app, response, session, segment, m } = req;
   const result = await app.api.connectStart(session, segment.id, m[1]);
@@ -915,7 +921,7 @@ async function createTask(req: PostReq): Promise<void> {
   return newTaskPage(req, {
     ctx,
     values: formValues(form),
-    error: errorText(result.error),
+    errorCode: result.error,
     status: result.status === 404 ? 404 : 400,
   });
 }
@@ -1075,6 +1081,7 @@ const POST_ROUTES: readonly Route<PostReq>[] = [
   { pattern: /^\/tasks$/, handle: createTask },
   { pattern: new RegExp(`^/catalog/skills/(${uuid})/customize$`), handle: customizeSkill },
   { pattern: new RegExp(`^/catalog/skills/(${uuid})/attach$`), handle: attachSkill },
+  { pattern: /^\/connections\/check$/, handle: checkSources },
   { pattern: /^\/connections\/(google|github)\/start$/, handle: connectStart },
   {
     pattern: /^\/connections\/(google|github)\/disconnect$/,

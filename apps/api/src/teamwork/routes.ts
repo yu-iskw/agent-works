@@ -45,6 +45,7 @@ import {
 } from './connections.js';
 import { Conflict, audit } from './context.js';
 import { conversation, postToConversation } from './conversations.js';
+import { checkSources } from './diagnostics.js';
 import {
   cancelTask,
   createTask,
@@ -324,6 +325,11 @@ const workRoutes = (): readonly Entry[] => [
     path: p('/connections'),
     handle: async ({ deps: d, member }) =>
       reply(200, { connections: await connections(d, member) }),
+  },
+  {
+    method: 'POST',
+    path: p('/sources/check'),
+    handle: async ({ deps: d, member }) => reply(200, { checks: await checkSources(d, member) }),
   },
   {
     method: 'POST',

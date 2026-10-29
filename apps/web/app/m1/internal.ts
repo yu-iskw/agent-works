@@ -16,6 +16,11 @@ async function body(request: IncomingMessage): Promise<unknown> {
   }
 }
 
+function e2eSecretOf(request: IncomingMessage): string | undefined {
+  const secret = request.headers['x-e2e-secret'];
+  return typeof secret === 'string' ? secret : undefined;
+}
+
 function reply(response: ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -26,20 +31,19 @@ function reply(response: ServerResponse, status: number, payload: unknown): void
 
 /**
  * The internal listener: the member-assertion JWKS for the segment APIs, and the e2e session
- * endpoint. Compose never publishes this port. The e2e route fails closed: without
- * AW_E2E_MODE=1 and a configured secret (`config.e2eSecret`) it answers 404 like any unknown path.
+ * endpoints. Compose never publishes this port. The e2e routes fail closed: without
+ * AW_E2E_MODE=1 and a configured secret (`config.e2eSecret`) they answer 404 like any unknown path.
  */
 export function createInternalHandler(deps: {
-  readonly config: Pick<WebConfig, 'e2eSecret'>;
-  readonly identity: Pick<Identity, 'e2eSession'>;
+  readonly config: Pick<WebConfig, 'e2eSecret' | 'members'>;
+  readonly identity: Pick<Identity, 'e2eSession' | 'e2eAuthorize'>;
   readonly signer: Pick<AssertionSigner, 'jwks'>;
 }): RequestListener {
   async function e2eSession(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const input = (await body(request)) as { email?: unknown } | undefined;
-    const secret = request.headers['x-e2e-secret'];
     try {
       const done = await deps.identity.e2eSession(
-        typeof secret === 'string' ? secret : undefined,
+        e2eSecretOf(request),
         typeof input?.email === 'string' ? input.email : '',
       );
       return reply(response, 200, {
@@ -53,15 +57,29 @@ export function createInternalHandler(deps: {
       return reply(response, code === 'forbidden' ? 403 : 409, { error: code });
     }
   }
+  /** Configured member emails per segment, in file order, so live suites never read the secrets file. */
+  async function e2eMembers(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    try {
+      await deps.identity.e2eAuthorize(e2eSecretOf(request));
+    } catch {
+      return reply(response, 403, { error: 'forbidden' });
+    }
+    return reply(
+      response,
+      200,
+      Object.fromEntries(
+        [...deps.config.members].map(([segment, emails]) => [segment, [...emails]]),
+      ),
+    );
+  }
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (request.method === 'GET' && request.url === '/internal/jwks')
       return reply(response, 200, deps.signer.jwks);
-    if (
-      request.method === 'POST' &&
-      request.url === '/internal/e2e/session' &&
-      deps.config.e2eSecret !== undefined
-    )
+    const e2eOn = deps.config.e2eSecret !== undefined;
+    if (e2eOn && request.method === 'POST' && request.url === '/internal/e2e/session')
       return e2eSession(request, response);
+    if (e2eOn && request.method === 'GET' && request.url === '/internal/e2e/members')
+      return e2eMembers(request, response);
     return reply(response, 404, { error: 'not_found' });
   }
   return (request, response) => {

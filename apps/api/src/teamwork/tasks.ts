@@ -5,6 +5,7 @@ import {
   capabilitiesForSources,
   deniedSources,
   effectiveSet,
+  repositoryAllowed,
 } from '@agent-works/domain/teamwork-policy';
 
 import { capabilitiesFor, teammateSkills } from './catalog.js';
@@ -98,6 +99,9 @@ function normalizeScope(deps: Deps, workflow: Workflow, scope: TaskScope): TaskS
     const repository = scope.repository ?? deps.config.sources.githubRepositories.at(0) ?? null;
     const issueNumber = scope.issueNumber ?? deps.config.sources.githubIssue ?? null;
     if (repository === null) throw new Conflict('repository_required', 400);
+    // Segment policy, checked before any assignment exists or any provider is called.
+    if (!repositoryAllowed(repository, deps.config.sources.githubRepositories))
+      throw new Conflict('repository_not_allowed', 403);
     if (issueNumber === null) throw new Conflict('issue_required', 400);
     return { ...scope, metrics: null, repository, issueNumber };
   }

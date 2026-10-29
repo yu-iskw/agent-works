@@ -159,8 +159,10 @@ async function refreshRegions(): Promise<string | undefined> {
     const replacement = next.querySelector(
       `[data-live="${(region as HTMLElement).dataset.live ?? ''}"]`,
     );
-    if (replacement === null || replacement.innerHTML === region.innerHTML || busy(region))
-      continue;
+    if (replacement === null) continue;
+    // Localize first so unchanged timestamps compare equal to the already localized page.
+    localizeTimes(replacement);
+    if (replacement.innerHTML === region.innerHTML || busy(region)) continue;
     region.replaceWith(document.importNode(replacement, true));
   }
   for (const form of document.querySelectorAll<HTMLFormElement>('[data-live] form')) {
@@ -244,3 +246,18 @@ for (const fieldset of document.querySelectorAll<HTMLElement>('[data-sources-for
   select.addEventListener('change', () => syncSources(select));
   if (select.value !== '') syncSources(select);
 }
+
+const timeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+/** Shows each timestamp in the viewer's time zone; the UTC value stays in the tooltip. */
+function localizeTimes(root: ParentNode): void {
+  for (const element of root.querySelectorAll<HTMLTimeElement>('time[data-local]')) {
+    const date = new Date(element.dateTime);
+    if (Number.isNaN(date.getTime())) continue;
+    // The server renders the UTC text; keep it as the tooltip.
+    element.title = element.textContent;
+    element.textContent = timeFormat.format(date);
+    delete element.dataset.local;
+  }
+}
+localizeTimes(document);
