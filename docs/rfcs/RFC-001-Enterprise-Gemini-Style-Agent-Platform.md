@@ -152,9 +152,44 @@ Today a typical enterprise chatbot is session-bound, weakly connected to systems
 
 **ADR-005 — Fail closed.** If policy enforcement, identity validation, connector ACL validation, or approval verification is unavailable, deny security-sensitive operations rather than invoking tools directly.
 
+**ADR-006 — Modular application core with explicit adapter boundaries.** The platform remains a TypeScript modular monolith. Business orchestration, authorization semantics, task/approval state transitions, and framework-neutral agent contracts must not depend on a particular HTTP framework, Google ADK implementation, database driver, or external connector SDK. `apps/api` is the HTTP delivery and composition boundary; infrastructure implementations satisfy application-defined ports.
+
+This decision does not require moving every backend module into a package. Extraction is incremental and evidence-driven: code moves when separating it materially improves dependency direction, independent testing, replacement safety, or security enforcement. A directory boundary alone is not evidence that extraction is required.
+
+Google ADK and validated Google Cloud managed services remain the preferred implementations. They are replaceable adapters rather than owners of application-domain semantics. Managed-service adoption remains subject to the existing C-02 go/no-go/defer evidence gates.
+
+Absent a demonstrated requirement, this architecture does not authorize decomposition into independently deployed microservices, a multi-cloud abstraction layer, per-organization backend deployments, a second persistence engine solely for local development, or speculative framework abstractions without a concrete replacement/security boundary.
+
 ---
 
 ## 4. Reference architecture
+
+### Dependency direction
+
+The runtime remains a modular monolith, but dependency direction is explicit:
+
+```text
+Browser
+   |
+   v
+apps/web
+   | versioned API
+   v
+apps/api
+HTTP / authentication / composition
+   |
+   v
+Application use cases
+   |-- Domain
+   |-- Policy
+   |-- AgentRunner port <--- ADK adapter
+   |-- repository ports <--- PostgreSQL adapters
+   '-- tool execution <--- broker/connectors
+```
+
+Dependency direction is toward application/domain abstractions. Runtime invocation may flow from application code into adapters, but application/domain modules do not import concrete infrastructure implementations. This is an architectural boundary, not a requirement to split the modular monolith into independently deployed services.
+
+
 
 ### 4.1 Logical component diagram
 
@@ -219,6 +254,18 @@ flowchart TB
 ---
 
 ## 5. Identity, authentication and authorization
+
+### Invocation authority invariant
+
+Every business-resource tool invocation carries a canonical, server-derived authority context. The authority identifies the authority kind, permitted scopes, resource constraint, expiry, and auditable authorization reference. Delegated execution may only narrow authority; it cannot amplify it.
+
+The tool broker MUST derive or validate execution identity and policy inputs from trusted authenticated state and the canonical authority context. It MUST NOT treat an LLM-produced argument, client-supplied actor identifier, or caller-supplied policy facts as authoritative.
+
+Immediately before a side effect, the broker revalidates authority, applicable policy, approval binding, suspension state, deadline/cancellation state, and any source-system credential required for the operation. Missing, expired, revoked, substituted, or inconsistent authority fails closed.
+
+The agent workload identity and invoking-user authority remain independent controls. Possession of one never implies the other.
+
+
 
 ### 5.1 Workforce authentication: use Google Workspace / Cloud Identity
 
