@@ -156,7 +156,10 @@ codeql-results.sarif
 e2e/artifacts/
 e2e/test-results/
 
-# P0 Playwright output (screenshots, videos and results JSON are kept)
+# P0 Playwright output. Screenshots and videos are regenerated locally by scripts/p0-e2e.mjs; results JSON is kept.
 artifacts/p0/test-results/
 artifacts/p0/report-*/
 artifacts/p0/restart-state.json
+artifacts/p0/screenshots/
+artifacts/p0/videos/
+e2e/p0/__screenshots__/

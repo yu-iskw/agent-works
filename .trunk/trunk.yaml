@@ -37,6 +37,11 @@ lint:
     - yamllint@1.38.0
     - git-diff-check
     - prettier@3.9.6
+  ignore:
+    # Machine-written Playwright results and smoke metadata, rewritten on every P0 suite run.
+    - linters: [prettier]
+      paths:
+        - artifacts/p0/*.json
 actions:
   enabled:
     - trunk-upgrade-available

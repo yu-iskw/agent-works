@@ -35,7 +35,12 @@ export default defineConfig({
     locale: 'en-US',
   },
   projects: [
-    { name: 'fixture', testMatch: /fixture\/.*\.spec\.ts$/ },
+    {
+      name: 'fixture',
+      testMatch: /fixture\/.*\.spec\.ts$/,
+      // No committed baselines exist in CI, so the visual comparison only runs locally.
+      testIgnore: process.env.GITHUB_ACTIONS === 'true' ? /visual\.spec\.ts$/ : undefined,
+    },
     { name: 'misconfig', testMatch: /misconfig\/.*\.spec\.ts$/ },
     { name: 'restart-before', testMatch: /restart\/before\.spec\.ts$/ },
     { name: 'restart-after', testMatch: /restart\/after\.spec\.ts$/ },

@@ -1,0 +1,420 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/workspace/node_modules/@playwright/test/cli.js",
+      "test",
+      "-c",
+      "e2e/p0/playwright.config.ts",
+      "visual",
+      "--update-snapshots=all",
+      "--project",
+      "fixture"
+    ],
+    "configFile": "/workspace/e2e/p0/playwright.config.ts",
+    "rootDir": "/workspace/e2e/p0",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "fixture",
+        "name": "fixture",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixture\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "misconfig",
+        "name": "misconfig",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/misconfig\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-before",
+        "name": "restart-before",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/before\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-after",
+        "name": "restart-after",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/after\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "real-llm",
+        "name": "real-llm",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/real-llm\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../../artifacts/p0/results-visual-baselines.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "../../artifacts/p0/report-visual-baselines",
+          "open": "never"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "all",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixture/visual.spec.ts",
+      "file": "fixture/visual.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign-in page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 529,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/sign-in.png, writing actual.\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T11:22:41.462Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "sign-in-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/sign-in.png"
+                    },
+                    {
+                      "name": "sign-in-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-sign-in-page-fixture/sign-in-actual.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c46b4f4f757d7f3bdabf-23f7ecd7d8e81ece7b3f",
+          "file": "fixture/visual.spec.ts",
+          "line": 22,
+          "column": 5
+        },
+        {
+          "title": "home composer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 813,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/home-composer.png, writing actual.\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T11:22:42.116Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "home-composer-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/home-composer.png"
+                    },
+                    {
+                      "name": "home-composer-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-home-composer-fixture/home-composer-actual.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c46b4f4f757d7f3bdabf-92eff9d3250268241606",
+          "file": "fixture/visual.spec.ts",
+          "line": 27,
+          "column": 5
+        },
+        {
+          "title": "task waiting for approval",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2954,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/approval-panel.png, writing actual.\n"
+                    },
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/report-draft.png, writing actual.\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T11:22:42.938Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "approval-panel-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/approval-panel.png"
+                    },
+                    {
+                      "name": "approval-panel-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-task-waiting-for-approval-fixture/approval-panel-actual.png"
+                    },
+                    {
+                      "name": "report-draft-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/report-draft.png"
+                    },
+                    {
+                      "name": "report-draft-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-task-waiting-for-approval-fixture/report-draft-actual.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c46b4f4f757d7f3bdabf-dc258c39b10903b4acc1",
+          "file": "fixture/visual.spec.ts",
+          "line": 35,
+          "column": 5
+        },
+        {
+          "title": "failed task",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2574,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/failed-turn.png, writing actual.\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T11:22:45.905Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "failed-turn-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/failed-turn.png"
+                    },
+                    {
+                      "name": "failed-turn-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-failed-task-fixture/failed-turn-actual.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c46b4f4f757d7f3bdabf-cd4e511e4013228eb643",
+          "file": "fixture/visual.spec.ts",
+          "line": 47,
+          "column": 5
+        },
+        {
+          "title": "mobile task header and navigation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 472,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "A snapshot doesn't exist at /workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/mobile-nav-open.png, writing actual.\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T11:22:48.489Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "mobile-nav-open-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/e2e/p0/__screenshots__/fixture/visual.spec.ts/mobile-nav-open.png"
+                    },
+                    {
+                      "name": "mobile-nav-open-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/artifacts/p0/test-results/fixture-visual-mobile-task-header-and-navigation-fixture/mobile-nav-open-actual.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c46b4f4f757d7f3bdabf-2a3c048e892a5e7d0bf5",
+          "file": "fixture/visual.spec.ts",
+          "line": 56,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-29T11:22:40.993Z",
+    "duration": 8114.479,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

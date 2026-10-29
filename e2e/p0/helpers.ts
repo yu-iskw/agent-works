@@ -30,7 +30,7 @@ export async function taskCount(owner: string): Promise<number> {
 
 export async function signIn(page: Page, user: 'alice' | 'bob' = 'alice'): Promise<void> {
   await page.goto('/_auth/sign-in');
-  await page.getByRole('button', { name: new RegExp(`Continue as ${user}`) }).click();
+  await page.getByRole('button', { name: `Continue as ${user}@example.test` }).click();
   await expect(page.getByRole('heading', { name: 'New task' })).toBeVisible();
 }
 

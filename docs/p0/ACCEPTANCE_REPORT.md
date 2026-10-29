@@ -5,16 +5,16 @@ Date: 2026-10-29. Branch `yu-iskw/p0-workbench`, uncommitted working tree on top
 Rancher Desktop (Docker 29.5.3, Compose v5.3.1), Node 24.13.0 and pnpm 11.0.5 inside containers,
 Playwright 1.63.0 image, Vertex AI project `ubie-yu-sandbox`, location `global`.
 
-| Gate                           | Result                         | Basis                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G0 Reproducibility             | **PASS**                       | From zero `aw-p0` volumes, `pnpm p0:up` built and reached all-healthy in 54 s; every service healthcheck green; restart suite proves history survives a restart of every service including Postgres; no credentials in images (runtime image is Node + pnpm only) or in git.                                                               |
-| G1 Real-model proof            | **PASS**                       | `gemini-3.8-flash` (publisher model, GA) discovered in `global`; dedicated smoke inside `api` and the real-llm browser flagship both called Vertex and asserted `mode=vertex`, model version and response ID.                                                                                                                              |
-| G2 Functional P0               | **PASS** (Workspace simulated) | Prompt → persisted events → fixture Drive evidence → real Gemini draft → contextual approval → exactly one simulated Docs write → durable completed task. **Live Google Drive/Docs: pending, not claimed.**                                                                                                                                |
-| G3 Automated coverage          | **PASS**                       | All required browser cases pass with 0 skipped, 0 flaky, `forbidOnly`; unit/integration, lint, typecheck, build pass. Trunk itself cannot run in the agent sandbox (see Limitations); its ESLint and Prettier checks were run directly and pass.                                                                                           |
-| G4 Security and data integrity | **PASS**                       | No known critical/high finding open in the implemented flow after `/code-review` (21 findings, 17 fixed, 4 dismissed with reasons). Negative tests cover owner isolation, CSRF, stale/replayed approvals, idempotency, XSS and unsafe links. Dependency CVE scan (`pnpm lint:security`) could not run in the sandbox; see Remaining risks. |
-| G5 Accessibility/responsive    | **PASS**                       | axe: 0 critical/serious on 9 screens; keyboard-only flagship passes; 375/768/1440 with no horizontal overflow; status announcements and reduced motion verified.                                                                                                                                                                           |
-| G6 Visual polish and evidence  | **PASS**                       | 26 screenshots, a playable real-model flagship video, a passing visual regression suite with reviewed baselines, and a human review checklist in `UX_REVIEW.md`. Subjective quality still needs the human checklist.                                                                                                                       |
-| G7 Documentation and handoff   | **PASS**                       | `docs/p0/README.md`, `BASELINE.md`, `PROGRESS.md`, `UX_REVIEW.md`, this report.                                                                                                                                                                                                                                                            |
+| Gate                           | Result                         | Basis                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G0 Reproducibility             | **PASS**                       | From zero `aw-p0` volumes, `pnpm p0:up` built and reached all-healthy in 54 s; every service healthcheck green; restart suite proves history survives a restart of every service including Postgres; no credentials in images (runtime image is Node + pnpm only) or in git.                                                                                                             |
+| G1 Real-model proof            | **PASS**                       | `gemini-3.8-flash` (publisher model, GA) discovered in `global`; dedicated smoke inside `api` and the real-llm browser flagship both called Vertex and asserted `mode=vertex`, model version and response ID.                                                                                                                                                                            |
+| G2 Functional P0               | **PASS** (Workspace simulated) | Prompt → persisted events → fixture Drive evidence → real Gemini draft → contextual approval → exactly one simulated Docs write → durable completed task. **Live Google Drive/Docs: pending, not claimed.**                                                                                                                                                                              |
+| G3 Automated coverage          | **PASS**                       | All required browser cases pass with 0 skipped, 0 flaky, `forbidOnly`; unit/integration, lint, typecheck, build pass. Trunk itself cannot run in the agent sandbox (see Limitations); its ESLint and Prettier checks were run directly and pass.                                                                                                                                         |
+| G4 Security and data integrity | **PASS**                       | No known critical/high finding open in the implemented flow after `/code-review` (21 findings, 17 fixed, 4 dismissed with reasons). Negative tests cover owner isolation, CSRF, stale/replayed approvals, idempotency, XSS and unsafe links. Dependency CVE scan (`pnpm lint:security`) could not run in the sandbox; see Remaining risks.                                               |
+| G5 Accessibility/responsive    | **PASS**                       | axe: 0 critical/serious on 9 screens; keyboard-only flagship passes; 375/768/1440 with no horizontal overflow; status announcements and reduced motion verified.                                                                                                                                                                                                                         |
+| G6 Visual polish and evidence  | **PASS**                       | 26 screenshots captured by the suites (local, not committed), a playable real-model flagship video (recorded locally by the real suite, not committed), a passing local visual regression suite with reviewed baselines (local-only by Yu's decision; not committed, not run in CI), and a human review checklist in `UX_REVIEW.md`. Subjective quality still needs the human checklist. |
+| G7 Documentation and handoff   | **PASS**                       | `docs/p0/README.md`, `BASELINE.md`, `PROGRESS.md`, `UX_REVIEW.md`, this report.                                                                                                                                                                                                                                                                                                          |
 
 ## Final run (after code review and /simplify)
 
@@ -68,9 +68,9 @@ Playwright results (`artifacts/p0/results-*.json`):
 
 ## Artifacts
 
-- Screenshots: `artifacts/p0/screenshots/` (`01`–`14` fixture states at 375/768/1280/1440, `20`–`25` real model). The GCP project ID is masked in captures.
-- Video: `artifacts/p0/videos/flagship-real-gemini.webm` (prompt → real Gemini → evidence → approval → simulated doc).
-- Visual baselines: `e2e/p0/__screenshots__/fixture/visual.spec.ts/` (6 images, reviewed).
+- Screenshots: written to `artifacts/p0/screenshots/` by every suite run (`01`–`14` fixture states at 375/768/1280/1440, `20`–`25` real model; GCP project ID masked). They are gitignored and no CI workflow uploads them; rerun `node scripts/p0-e2e.mjs all` to regenerate.
+- Video: `node scripts/p0-e2e.mjs real` records the flagship flow (prompt → real Gemini → evidence → approval → simulated doc) to `artifacts/p0/videos/flagship-real-gemini.webm`. Gitignored and not uploaded by any CI workflow.
+- Visual baselines: local-only by Yu's decision. `e2e/p0/__screenshots__/` is gitignored; `scripts/p0-e2e.mjs fixture` generates them on a checkout that has none, and CI skips `visual.spec.ts` (`GITHUB_ACTIONS=true`). Regeneration command in `README.md`. The 6 local baselines were reviewed.
 - Results: `artifacts/p0/results-{fixture,misconfig,restart-before,restart-after,real-llm}.json`.
 
 ## Review rounds
@@ -97,6 +97,24 @@ the broker approval store (different claim contract and self-approval semantics)
 schema reuse (thought parts), a shared JSON-body helper (would migrate nine unrelated callers),
 304 polling, optional legacy `/v1/ask` config (outside P0).
 
+## CI round 1 (PR #177 at 19a7d49)
+
+| Failing job            | Root cause                                                                                                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trunk Check            | Two `security/detect-non-literal-regexp` hits (`routes.ts`, `e2e/p0/helpers.ts`), a named-as-default import, quoted `user:` values, `dev/p0/build.sh` not shfmt-formatted, Dockerfiles without a non-root `USER` / `HEALTHCHECK`, and Prettier on machine-written `artifacts/p0/*.json` | Literal route regexes; string name match in the helper; named `AxeBuilder` import; `user: root/node/ubuntu` (same UIDs, no YAML 1.1 ambiguity); shfmt 3.6.0 applied; `USER node` and `HEALTHCHECK NONE`. Generated `artifacts/p0/*.json` is excluded from Prettier only (`.trunk/trunk.yaml`, `.prettierignore`) because every suite run rewrites it. |
+| Generate and scan SBOM | Same Dockerfile findings, plus OSV advisories published 2026-10-20/21 against `vite@8.0.16` (launch-editor, fs.allow), `zod@4.6.5` (GHSA-mrhx-c7xc-m3w5, high) and `vitest`/`@vitest/mocker@4.1.11`. Main carries the same versions.                                                    | `vite` → 8.3.5, `vitest` and `@vitest/coverage-v8` → 4.1.12, `zod` → 4.6.7 in every manifest, and a `zod: 4.6.7` override because `@google/adk` and `knip` otherwise keep 4.6.5. All versions are past the 7-day release-age quarantine.                                                                                                              |
+| e2e-security           | `e2e/playwright.config.ts` makes one project per `e2e/` directory, so `e2e/p0` became a project and the job's `security` path filter picked up `e2e/p0/fixture/security.spec.ts`, which needs the P0 stack                                                                              | `p0` excluded from the generic project list like `adversarial`; it runs through `e2e/p0/playwright.config.ts` and `scripts/p0-e2e.mjs`. The job still runs the same 12 existing security tests (`--list` before: 16 incl. 4 P0, after: 12).                                                                                                           |
+
+Verified locally with the CI tools in containers: yamllint 1.38.0 on `compose.p0.yaml` clean,
+Trivy 0.72.0 config scan of `dev/` 0 HIGH/CRITICAL, OSV-scanner 2.4.0 on `pnpm-lock.yaml` "No
+issues found", shfmt 3.6.0 diff clean, Prettier 3.9.6 `--check` on every changed file clean,
+ESLint `--max-warnings 0` on the P0 code clean.
+
+Media policy (Yu): screenshots, videos and visual baselines are no longer committed. With the
+baselines moved away, `node scripts/p0-e2e.mjs fixture` regenerated 6 baselines (5 tests) and
+then passed 33/33; with `GITHUB_ACTIONS=true` the fixture project lists 28 tests and no visual
+spec. The full `p0-e2e all` run before this change passed (fixture, misconfig, restart, real).
+
 ## Security and local-only safeguards
 
 See `README.md` "Security assumptions". In short: the fake IAP is trusted only through
@@ -110,10 +128,9 @@ key; CSP forbids inline script; ADC is a read-only mount on `api` only and logs 
 
 - **Live Workspace is not implemented.** Drive and Docs are fixtures; OAuth consent and the
   `drive.file` write scope are future work.
-- **Trunk and `pnpm lint:security` (Trivy, OSV-scanner) did not run.** On the host the
-  sandbox blocks Trunk's telemetry host and crash reporter; in a container Trunk resolves the
-  worktree to a lowercased macOS path. Run `pnpm lint && pnpm lint:security` on the Mac before
-  merge. New runtime dependency: `google-auth-library@10.9.1` (already in the lockfile
+- **Trunk itself cannot run in the agent sandbox** (host: telemetry and crash reporter blocked;
+  container: worktree resolves to a lowercased macOS path). CI runs it; locally each underlying
+  tool was run directly (see CI round 1). New runtime dependency: `google-auth-library@10.9.1` (already in the lockfile
   transitively). New dev dependencies: `@axe-core/playwright@4.14.0`, `postgres@3.4.9` (root).
 - One smoke call timed out once (60 s) and did not reproduce in seven later calls; the smoke
   now retries once on transient codes.

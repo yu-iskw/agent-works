@@ -3,10 +3,11 @@
 //   node scripts/p0-e2e.mjs fixture|misconfig|restart|real|all
 // fixture/misconfig/restart make no Vertex calls. real makes 2 (smoke + flagship).
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const compose = ['compose', '-f', 'compose.p0.yaml'];
+const baselines = 'e2e/p0/__screenshots__';
 const artifacts = 'artifacts/p0';
 const baseEnv = {
   ...process.env,
@@ -44,7 +45,7 @@ function up(mode) {
   return env;
 }
 
-function playwright(env, project, suite) {
+function playwright(env, project, suite, extra = []) {
   const result = docker(
     [
       ...compose,
@@ -59,12 +60,21 @@ function playwright(env, project, suite) {
       'test',
       '-c',
       'e2e/p0/playwright.config.ts',
+      ...extra,
       '--project',
       project,
     ],
     env,
   );
   return result.status === 0;
+}
+
+// Visual baselines are local-only (gitignored, Yu's decision). A checkout without them gets
+// fresh ones from the current UI first; review them before trusting later comparisons.
+function ensureBaselines(env) {
+  if (existsSync(baselines)) return true;
+  process.stdout.write(`no ${baselines}; generating local visual baselines\n`);
+  return playwright(env, 'fixture', 'visual-baselines', ['visual', '--update-snapshots=all']);
 }
 
 function collectVideos() {
@@ -86,7 +96,8 @@ function collectVideos() {
 
 const suites = {
   fixture() {
-    return playwright(up('stub'), 'fixture', 'fixture');
+    const env = up('stub');
+    return ensureBaselines(env) && playwright(env, 'fixture', 'fixture');
   },
   misconfig() {
     const ok = playwright(up('misconfig'), 'misconfig', 'misconfig');

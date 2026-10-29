@@ -1,8 +1,9 @@
 # P0 UX review
 
 Reviewer: Claude (agent), 2026-10-29. Method: read every screenshot under
-`artifacts/p0/screenshots/` at 375, 768, 1280 and 1440 px, the visual baselines in
-`e2e/p0/__screenshots__/`, and the real-model video, then fix and re-capture. This is an
+`artifacts/p0/screenshots/` at 375, 768, 1280 and 1440 px (produced locally by
+`node scripts/p0-e2e.mjs`, gitignored, so the file names below refer to local captures), the local-only visual baselines in
+`e2e/p0/__screenshots__/` (gitignored by Yu's decision; regenerated locally), and the locally recorded real-model video, then fix and re-capture. This is an
 **automated proxy plus one agent's visual judgment**. It is not a usability study with real
 users; see the human checklist at the end.
 
@@ -72,7 +73,7 @@ Tests cannot judge these. A person should check them before calling the UI good:
 - [ ] Is the difference between "Draft, not published" and "Published to Simulated Google Docs" obvious?
 - [ ] Are the risk bullets useful, or do they read as boilerplate?
 - [ ] Does the activity timeline feel like real progress rather than noise?
-- [ ] Is the real-model report (see `24-real-report-draft-1440.png`) something an engineering manager would send?
+- [ ] Is the real-model report (run `node scripts/p0-e2e.mjs real`, then open `artifacts/p0/screenshots/24-real-report-draft-1440.png`) something an engineering manager would send?
 - [ ] Do the simulated labels feel clear without being alarming?
 - [ ] On a phone, is reaching Approve acceptable?
 - [ ] Dark mode: does it look intentional?

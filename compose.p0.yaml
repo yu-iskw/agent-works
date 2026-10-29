@@ -28,7 +28,7 @@ services:
       context: dev/p0
     image: aw-p0:local
     # Root only so a rebuild can always replace files a previous run wrote under another UID.
-    user: '0:0'
+    user: root
     working_dir: /app
     environment:
       HOME: /home/app
@@ -136,7 +136,7 @@ services:
       dockerfile: toolbox.Dockerfile
     image: aw-p0-toolbox:local
     # initdb needs a passwd entry, which only the image's own `node` user has.
-    user: '1000:1000'
+    user: node
     environment:
       DATABASE_URL: postgres://postgres@postgres:5432/postgres
     depends_on:
@@ -149,7 +149,7 @@ services:
     profiles: [tools]
     image: mcr.microsoft.com/playwright:v1.63.0-noble
     working_dir: /workspace
-    user: '1000:1000'
+    user: ubuntu
     environment:
       HOME: /tmp
       P0_BASE_URL: http://fake-iap:8080

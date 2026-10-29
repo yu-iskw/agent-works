@@ -7,4 +7,5 @@ RUN npm install --global pnpm@11.0.5 && npm cache clean --force
 RUN mkdir -p /home/app/.config /app /pnpm-store && chmod -R 0777 /home/app /app /pnpm-store
 ENV HOME=/home/app
 WORKDIR /app
+USER node
 HEALTHCHECK NONE

@@ -17,8 +17,16 @@ import type { WorkspacePort } from './workspace.js';
 
 type ApiRequest = Parameters<Route>[0];
 
-const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-const taskPath = new RegExp(`^/v1/workbench/tasks/(${uuid})$`);
+const taskPath =
+  /^\/v1\/workbench\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const cancelPath =
+  /^\/v1\/workbench\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/cancel$/;
+const retryPath =
+  /^\/v1\/workbench\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/retry$/;
+const reconcilePath =
+  /^\/v1\/workbench\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/reconcile$/;
+const approvalPath =
+  /^\/v1\/workbench\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/approval$/;
 const drivePath = /^\/v1\/workbench\/fixture\/drive\/([a-z0-9-]{1,80})$/;
 const docPath = /^\/v1\/workbench\/fixture\/docs\/(fxdoc-[a-f0-9]{16})$/;
 
@@ -66,8 +74,6 @@ type RouteContext = {
 type Handler = (ctx: RouteContext, params: readonly string[]) => ApiReply | Promise<ApiReply>;
 type Entry = { readonly method: 'GET' | 'POST'; readonly path: RegExp; readonly handle: Handler };
 
-const actionPath = (verb: string): RegExp => new RegExp(`^/v1/workbench/tasks/(${uuid})/${verb}$`);
-
 /** A command that answers with the task summary when it ran, 404 when the owner has no such task. */
 const command =
   (run: (service: WorkbenchService, ownerSub: string, id: string) => Promise<boolean>): Handler =>
@@ -110,18 +116,18 @@ const table: readonly Entry[] = [
   },
   {
     method: 'POST',
-    path: actionPath('cancel'),
+    path: cancelPath,
     handle: command((s, sub, id) => s.cancel(sub, id)),
   },
-  { method: 'POST', path: actionPath('retry'), handle: command((s, sub, id) => s.retry(sub, id)) },
+  { method: 'POST', path: retryPath, handle: command((s, sub, id) => s.retry(sub, id)) },
   {
     method: 'POST',
-    path: actionPath('reconcile'),
+    path: reconcilePath,
     handle: command((s, sub, id) => s.reconcile(sub, id)),
   },
   {
     method: 'POST',
-    path: actionPath('approval'),
+    path: approvalPath,
     handle: async ({ deps, owner, request }, [id]) => {
       const parsed = workbenchDecisionSchema.safeParse(json(request.body));
       if (!parsed.success) return invalid;

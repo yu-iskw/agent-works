@@ -129,26 +129,33 @@ docker compose -f compose.p0.yaml run --rm -T --no-deps toolbox sh -c 'pnpm type
 Outputs:
 
 - `artifacts/p0/results-<suite>.json`: Playwright JSON results per suite.
-- `artifacts/p0/screenshots/`: state screenshots (`01`–`14` fixture, `20`–`25` real model).
-- `artifacts/p0/videos/flagship-real-gemini.webm`: the real-model flagship flow.
+- `artifacts/p0/screenshots/`: state screenshots (`01`–`14` fixture, `20`–`25` real model). Written locally by each suite run and gitignored; no CI workflow uploads them.
+- `artifacts/p0/videos/flagship-real-gemini.webm`: the real-model flagship flow, recorded locally by the `real` suite. Gitignored; no CI workflow uploads it.
 - `artifacts/p0/vertex-smoke.json`, `artifacts/p0/real-llm-evidence.json`: sanitised
   real-call metadata.
 - `artifacts/p0/test-results/` and `artifacts/p0/report-*/`: traces and HTML reports
   (gitignored, kept on failure).
 
-### Visual baselines
+### Visual baselines (local only)
 
-`e2e/p0/fixture/visual.spec.ts` compares deterministic states against
-`e2e/p0/__screenshots__/`. Times, ids and fingerprints are masked. To update after an
-intended UI change:
+Visual regression is local-only by Yu's decision: baselines are not committed
+(`e2e/p0/__screenshots__/` is gitignored) and CI never runs `e2e/p0/fixture/visual.spec.ts`
+(the P0 config ignores it when `GITHUB_ACTIONS=true`). Times, ids and fingerprints are masked.
 
-```bash
-docker compose -f compose.p0.yaml run --rm --no-deps -T e2e \
-  node_modules/.bin/playwright test -c e2e/p0/playwright.config.ts --project fixture visual --update-snapshots
-```
+- First run on a checkout: `node scripts/p0-e2e.mjs fixture` sees no baselines, generates them
+  from the current UI, then runs the full suite against them. Review the new PNGs before
+  trusting later comparisons, because a first run cannot catch a regression.
+- Regenerate after an intended UI change (stack running in stub mode, for example after
+  `node scripts/p0-e2e.mjs fixture`):
 
-Open every changed PNG and confirm the change is the one you intended before committing.
-Never update baselines to make an unexplained diff pass.
+  ```bash
+  docker compose -f compose.p0.yaml run --rm --no-deps -T e2e \
+    node_modules/.bin/playwright test -c e2e/p0/playwright.config.ts visual \
+    --update-snapshots=all --project fixture
+  ```
+
+Open every changed PNG and confirm the change is the one you intended. Never update baselines
+to make an unexplained diff pass.
 
 ## Cost controls
 

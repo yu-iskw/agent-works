@@ -41,7 +41,7 @@ Inside `api` (`docker compose -f compose.p0.yaml exec -T api ...`):
 
 ## Real Vertex call budget
 
-Used: **13 / 200** (final). Concurrency 1.
+Used: **15 / 200**. Concurrency 1.
 
 | #   | When (UTC) | Where                                   | Result                                   |
 | --- | ---------- | --------------------------------------- | ---------------------------------------- |
@@ -83,6 +83,13 @@ Used: **13 / 200** (final). Concurrency 1.
 - [ ] Commit (GPG), push, draft PR: **done by Orca's main loop from the Mac shell**, not from this sandbox (Yu's decision)
 - [ ] Run `pnpm lint && pnpm lint:security` on the Mac (Trunk cannot run in the sandbox)
 
+## CI round 1 (PR #177, 2026-10-29)
+
+Trunk Check, SBOM and e2e-security failed at 19a7d49. Root causes and fixes are in
+`ACCEPTANCE_REPORT.md` "CI round 1". Local rerun after the fixes: toolbox gates green (3139
+tests, ESLint 0 problems), `p0-e2e all` green; yamllint, Trivy, OSV-scanner, shfmt and
+Prettier 3.9.6 run directly and clean. Screenshots and videos untracked and gitignored.
+
 ## Status: READY TO COMMIT (2026-10-29)
 
 All gates pass on the final tree. See `docs/p0/ACCEPTANCE_REPORT.md`.
@@ -104,6 +111,12 @@ All gates pass on the final tree. See `docs/p0/ACCEPTANCE_REPORT.md`.
   model capability caveat; grid card margin; see `docs/p0/UX_REVIEW.md`.
 
 ## Decisions
+
+- Screenshots and videos are not committed (Yu, 2026-10-29): `artifacts/p0/screenshots/` and
+  `artifacts/p0/videos/` are gitignored and regenerated locally by `scripts/p0-e2e.mjs`.
+- Visual regression is local-only (Yu, 2026-10-29): `e2e/p0/__screenshots__/` is gitignored, the
+  runner generates baselines when absent, and CI ignores `visual.spec.ts`. Verified by moving
+  the baselines away: the runner regenerated 6 and the fixture suite passed 33/33.
 
 - Workspace: fixture adapter only, labelled simulated (Yu's decision).
 - Runtime: `compose.p0.yaml` (new) so `compose.yaml`/`compose.dev.yml` users are unaffected.

@@ -12,3 +12,4 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends postgresql-16 \
   && apt-get clean
 USER node
+HEALTHCHECK NONE
