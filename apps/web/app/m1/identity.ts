@@ -26,7 +26,8 @@ export type Session = {
 };
 
 export const SESSION_COOKIE = 'aw_m1_session';
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+/** Session lifetime; the cookie and the server-side row expire together. */
+export const SESSION_TTL_S = 12 * 60 * 60;
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 const GOOGLE_ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com']);
 const GOOGLE_JWKS = 'https://www.googleapis.com/oauth2/v3/certs';
@@ -186,7 +187,7 @@ export function createIdentity(deps: {
     if (segmentsFor(config, user.email).length === 0) throw new SignInError('not_a_member');
     const id = randomBytes(32).toString('base64url');
     const csrf = randomBytes(32).toString('hex');
-    const expiresAt = new Date(now().getTime() + SESSION_TTL_MS);
+    const expiresAt = new Date(now().getTime() + SESSION_TTL_S * 1000);
     await db.sql`
       insert into m1_sessions (id_sha256, sub, email, name, idp, csrf, created_at, expires_at)
       values (${sha256(id)}, ${user.sub}, ${user.email}, ${user.name}, ${idp}, ${csrf}, ${now()}, ${expiresAt})
@@ -227,8 +228,12 @@ export function createIdentity(deps: {
       if (cookieValue !== undefined)
         await db.sql`delete from m1_sessions where id_sha256 = ${sha256(cookieValue)}`;
     },
-    /** Authorization code flow with state, nonce and PKCE; all three are single-use and expire. */
-    async startGoogle(returnTo: string): Promise<string> {
+    /**
+     * Authorization code flow with state, nonce and PKCE; all three are single-use and expire. The
+     * caller binds `state` to the starting browser with a cookie, so a callback link cannot sign
+     * someone else into the caller's account.
+     */
+    async startGoogle(returnTo: string): Promise<{ url: string; state: string }> {
       if (config.google === undefined) throw new SignInError('not_configured');
       const state = randomBytes(24).toString('base64url');
       const nonce = randomBytes(24).toString('base64url');
@@ -250,7 +255,7 @@ export function createIdentity(deps: {
         access_type: config.e2eSecret === undefined ? 'online' : 'offline',
         prompt: config.e2eSecret === undefined ? 'select_account' : 'consent select_account',
       });
-      return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, state };
     },
     async completeGoogle(
       code: string,

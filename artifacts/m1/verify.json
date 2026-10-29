@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-29T23:36:20.524Z",
+  "gates": {
+    "test": "PASS",
+    "e2eLocal": "PASS",
+    "doctor": "FAIL",
+    "restart": "PASS"
+  },
+  "outOfScope": {
+    "e2eLive": "MOVED to a later milestone by Yu's decision (M1 is mock-only)",
+    "visualBaselineReview": "MOVED to the UI/UX milestone by Yu's decision (M17)",
+    "usabilityReview": "MOVED to the UI/UX milestone by Yu's decision (M19)"
+  },
+  "note": "Moved gates are reported separately and never counted as passed by this script."
+}

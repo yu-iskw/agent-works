@@ -21,6 +21,8 @@ import type postgres from 'postgres';
 
 type Db = postgres.Sql | Tx;
 
+const same = <T>(value: T) => value;
+
 export type TaskRow = {
   id: string;
   owner_sub: string;
@@ -163,7 +165,6 @@ export async function touchTask(
   patch: TaskPatch = {},
   from?: TeamworkStatus,
 ): Promise<boolean> {
-  const same = <T>(value: T) => value;
   const rows = await tx`
     update wb_tasks set version = version + 1, updated_at = ${deps.now()},
       status = ${column(patch.status, tx`status`, same)},
@@ -211,7 +212,10 @@ type AssignmentFields = {
 const stopsWork = (status: AssignmentStatus): boolean =>
   TERMINAL_ASSIGNMENT.has(status) || status === 'needs_input';
 
-/** Moves an assignment along an allowed edge; a queued one gets a fresh deadline. Undefined means it was not moved. */
+/**
+ * Moves an assignment along an allowed edge. Its deadline starts when it starts running, so waiting
+ * for a dependency or a free worker never counts against it. Undefined means it was not moved.
+ */
 export async function moveAssignment(
   deps: Deps,
   tx: Tx,
@@ -221,7 +225,6 @@ export async function moveAssignment(
 ): Promise<AssignmentRow | undefined> {
   if (!canAssignmentTransition(assignment.status, to)) return undefined;
   const at = deps.now();
-  const same = <T>(value: T) => value;
   const rows = await tx<AssignmentRow[]>`
     update tw_assignments set status = ${to}, updated_at = ${at},
       attempt = attempt + ${fields.attemptIncrement === true ? 1 : 0},
@@ -234,7 +237,7 @@ export async function moveAssignment(
       error_message = ${column(fields.error, tx`error_message`, (error) => error.message)},
       started_at = ${to === 'running' ? at : tx`started_at`},
       finished_at = ${stopsWork(to) ? at : to === 'queued' ? null : tx`finished_at`},
-      deadline_at = ${to === 'queued' ? new Date(at.getTime() + deps.config.assignmentDeadlineMs) : tx`deadline_at`}
+      deadline_at = ${to === 'running' ? new Date(at.getTime() + deps.config.assignmentDeadlineMs) : tx`deadline_at`}
     where id = ${assignment.id} and status = ${assignment.status}
     returning *
   `;
@@ -244,21 +247,34 @@ export async function moveAssignment(
   return moved;
 }
 
-/** Queues a new attempt of an assignment and its job. Undefined means the assignment was not movable. */
+/**
+ * Moves an assignment to a new queued attempt. Its job is queued by `releaseReady`, which the
+ * caller runs once after all of its changes. Undefined means the assignment was not movable.
+ */
 export async function requeue(
   deps: Deps,
   tx: Tx,
   assignment: Pick<AssignmentRow, 'id' | 'status'>,
   fields: Omit<AssignmentFields, 'attemptIncrement'> = {},
 ): Promise<AssignmentRow | undefined> {
-  const moved = await moveAssignment(deps, tx, assignment, 'queued', {
+  return moveAssignment(deps, tx, assignment, 'queued', {
     ...fields,
     attemptIncrement: true,
     error: fields.error ?? null,
   });
-  if (moved !== undefined)
-    await enqueue(deps, tx, moved.task_id, 'assignment', `${moved.id}:${moved.attempt}`);
-  return moved;
+}
+
+/**
+ * Queues the job of every queued assignment whose dependencies all succeeded, so an approved plan
+ * runs in the order it was reviewed. Every path that queues work ends here; `enqueue` ignores a
+ * job that is already open.
+ */
+export async function releaseReady(deps: Deps, tx: Tx, taskId: string): Promise<void> {
+  const rows = await assignmentsFor(tx, taskId);
+  const succeeded = new Set(rows.filter((a) => a.status === 'succeeded').map((a) => a.key));
+  for (const a of rows)
+    if (a.status === 'queued' && a.depends_on.every((key) => succeeded.has(key)))
+      await enqueue(deps, tx, taskId, 'assignment', `${a.id}:${a.attempt}`);
 }
 
 export async function enqueue(

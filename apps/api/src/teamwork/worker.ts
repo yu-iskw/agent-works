@@ -1,13 +1,17 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { SOURCE_CAPABILITY, publishProposalSchema } from '@agent-works/domain/teamwork';
 import { diffRevisions, missingSections } from '@agent-works/domain/teamwork-evidence';
-import { capabilityStates, deniedSources } from '@agent-works/domain/teamwork-policy';
+import {
+  effectiveSet,
+  deniedSources,
+  hasDependencyCycle,
+} from '@agent-works/domain/teamwork-policy';
 
 import { createScheduleWorker } from '../scheduling/worker.js';
 import { ModelError, modelRemediation } from '../workbench/model-port.js';
 
-import { capabilitiesFor, memberCapabilities, teammateSkills } from './catalog.js';
-import { connectedProviders, tokenSource } from './connections.js';
+import { capabilitiesFor, teammateSkills } from './catalog.js';
+import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import {
   WORKFLOW_SOURCES,
@@ -26,6 +30,7 @@ import {
   assignmentsFor,
   calculationsFor,
   enqueue,
+  releaseReady,
   evidenceFor,
   latestPlanVersion,
   moveAssignment,
@@ -93,6 +98,13 @@ async function claim(deps: Deps): Promise<Job | undefined> {
   return rows.at(0);
 }
 
+async function renewLease(deps: Deps, job: Job): Promise<void> {
+  await deps.sql`
+    update tw_jobs set lease_until = now() + make_interval(secs => ${LEASE_SECONDS}), updated_at = now()
+    where id = ${job.id} and lease_token = ${job.lease_token} and state = 'running'
+  `;
+}
+
 async function finish(deps: Deps, job: Job): Promise<void> {
   await deps.sql`
     update tw_jobs set state = 'done', lease_until = null, updated_at = now()
@@ -152,14 +164,8 @@ async function releaseDependents(
 ): Promise<readonly AssignmentRow[]> {
   const byKey = new Map(live.map((a) => [a.key, a]));
   const changed = new Map<string, AssignmentRow>();
-  for (const waiting of live.filter(
-    (a) => a.status === 'queued' && a.attempt === 1 && a.depends_on.length > 0,
-  )) {
+  for (const waiting of live.filter((a) => a.status === 'queued' && a.depends_on.length > 0)) {
     const needs = waiting.depends_on.map((key) => byKey.get(key)?.status);
-    if (needs.every((status) => status === 'succeeded')) {
-      await enqueue(deps, tx, taskId, 'assignment', waiting.id);
-      continue;
-    }
     if (
       needs.some(
         (status) =>
@@ -176,6 +182,7 @@ async function releaseDependents(
       if (failed !== undefined) changed.set(failed.id, failed);
     }
   }
+  await releaseReady(deps, tx, taskId);
   return live.map((a) => changed.get(a.id) ?? a);
 }
 
@@ -263,22 +270,19 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     teammates.map((t) => t.id),
   );
   const connected = await connectedProviders(deps, member.sub);
-  const entitled = memberCapabilities(deps, member);
   const allowed = new Set(WORKFLOW_SOURCES[task.workflow]);
   const effectiveFor = new Map(
-    teammates.map((t) => [
-      t.id,
-      new Set(
-        capabilityStates({
-          segment: deps.config.capabilities,
-          member: entitled,
-          teammate: new Set(t.capability_requests),
-          connected,
-        })
-          .filter((s) => s.effective)
-          .map((s) => s.capability),
+    await Promise.all(
+      teammates.map(
+        async (t) =>
+          [
+            t.id,
+            effectiveSet(
+              await capabilitiesFor(deps, member, t.capability_requests, undefined, connected),
+            ),
+          ] as const,
       ),
-    ]),
+    ),
   );
   const roster = teammates
     .filter((t) => t.id !== coordinator.id)
@@ -337,12 +341,14 @@ async function plan(deps: Deps, job: Job): Promise<void> {
       return { ...a, key };
     });
   const keys = new Set(assignments.map((a) => a.key));
+  const linked = assignments.map((a) => ({
+    ...a,
+    dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
+  }));
   const content: PlanContent = {
     summary: proposal.summary || 'Coordinator plan',
-    assignments: assignments.map((a) => ({
-      ...a,
-      dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
-    })),
+    // A cyclic proposal would never start; run it in parallel and let the member review that.
+    assignments: hasDependencyCycle(linked) ? linked.map((a) => ({ ...a, dependsOn: [] })) : linked,
     synthesisOwner: task.result_owner,
     expectedEffects: proposal.expectedEffects,
   };
@@ -497,6 +503,13 @@ async function loadAssignment(
   return task === undefined ? undefined : { assignment, task };
 }
 
+async function pastDeadline(deps: Deps, assignmentId: string): Promise<boolean> {
+  const rows = await deps.sql<
+    { deadline_at: Date }[]
+  >`select deadline_at from tw_assignments where id = ${assignmentId}`;
+  return (rows.at(0)?.deadline_at.getTime() ?? Infinity) < deps.now().getTime();
+}
+
 const cancelling = (task: TaskRow | undefined): boolean =>
   task?.status === 'cancel_requested' || task?.status === 'cancelled';
 
@@ -523,7 +536,8 @@ async function startAssignment(
     );
     return false;
   }
-  if (assignment.deadline_at.getTime() < deps.now().getTime()) {
+  // A crashed run resumes only within the deadline it got when it started.
+  if (resumed && assignment.deadline_at.getTime() < deps.now().getTime()) {
     await failAssignment(
       deps,
       assignment,
@@ -548,16 +562,6 @@ async function startAssignment(
       });
     return moved !== undefined;
   });
-}
-
-/** One token lookup per provider for the run; every source of the assignment shares it. */
-function cachedTokens(source: TokenSource): TokenSource {
-  const tokens = new Map<Parameters<TokenSource>[0], Promise<string>>();
-  return (provider) => {
-    const cached = tokens.get(provider) ?? source(provider);
-    tokens.set(provider, cached);
-    return cached;
-  };
 }
 
 type SourceOutcome =
@@ -613,7 +617,7 @@ async function gatherSources(
   assignment: AssignmentRow,
   member: Member,
 ): Promise<Gathered | undefined> {
-  const token = cachedTokens(tokenSource(deps, member.sub));
+  const token = oncePerProvider(tokenSource(deps, member.sub));
   const outcomes = await Promise.all(
     assignment.sources.map((kind) => readSource(deps, task, assignment, token, kind)),
   );
@@ -760,6 +764,14 @@ async function runAssignment(deps: Deps, job: Job): Promise<void> {
       : await numberCalculations(deps, task, assignment, gathered.metrics, evidence);
   if (cancelling(await readTask(deps.sql, undefined, task.id)))
     return failAssignment(deps, assignment, 'cancelled', 'cancelled', 'cancelled');
+  if (await pastDeadline(deps, assignment.id))
+    return failAssignment(
+      deps,
+      assignment,
+      'timed_out',
+      'deadline',
+      'The assignment passed its deadline.',
+    );
   const context: CallContext = {
     taskId: task.id,
     assignmentId: assignment.id,
@@ -1120,24 +1132,12 @@ async function publish(deps: Deps, job: Job): Promise<void> {
       detail: { code: error.code },
     });
     if (uncertain)
-      await withTask(deps, undefined, task.id, async (tx, locked) => {
-        if (locked.status !== 'publishing') return;
-        await moveTask(deps, tx, locked, {
-          to: 'outcome_uncertain',
-          events: [
-            {
-              type: 'action.uncertain',
-              summary:
-                'Google Docs did not confirm the write. It may or may not exist. Check before retrying.',
-              durationMs: Date.now() - started,
-            },
-          ],
-          error: {
-            code: 'outcome_uncertain',
-            message:
-              'Google Docs did not confirm the write. Use "Check for the document" first; it will not be created twice.',
-          },
-        });
+      await markUncertain(deps, task.id, {
+        summary:
+          'Google Docs did not confirm the write. It may or may not exist. Check before retrying.',
+        message:
+          'Google Docs did not confirm the write. Use "Check for the document" first; it will not be created twice.',
+        durationMs: Date.now() - started,
       });
     else
       await failTask(deps, task.id, 'publishing', 'publish', {
@@ -1145,6 +1145,22 @@ async function publish(deps: Deps, job: Job): Promise<void> {
         message: `Google Docs refused the write. Nothing was created. ${sourceRemediation[error.code]}`,
       });
   }
+}
+
+/** A write that may or may not have happened: the member checks for the document before any retry. */
+async function markUncertain(
+  deps: Deps,
+  taskId: string,
+  text: { readonly summary: string; readonly message: string; readonly durationMs?: number },
+): Promise<void> {
+  await withTask(deps, undefined, taskId, async (tx, locked) => {
+    if (locked.status !== 'publishing') return;
+    await moveTask(deps, tx, locked, {
+      to: 'outcome_uncertain',
+      events: [{ type: 'action.uncertain', summary: text.summary, durationMs: text.durationMs }],
+      error: { code: 'outcome_uncertain', message: text.message },
+    });
+  });
 }
 
 async function reply(deps: Deps, job: Job): Promise<void> {
@@ -1279,24 +1295,17 @@ async function quarantine(deps: Deps, job: Job): Promise<void> {
   if (task === undefined) return;
   if (job.kind === 'publish' && task.status === 'publishing') {
     await deps.sql`update wb_actions set status = 'uncertain', updated_at = ${deps.now()} where approval_id = ${job.ref}`;
-    await withTask(deps, undefined, task.id, async (tx, locked) => {
-      if (locked.status === 'publishing')
-        await moveTask(deps, tx, locked, {
-          to: 'outcome_uncertain',
-          events: [
-            {
-              type: 'action.uncertain',
-              summary:
-                'An internal error interrupted the write. Check for the document before retrying.',
-            },
-          ],
-          error: { code: 'outcome_uncertain', message: 'An internal error interrupted the write.' },
-        });
+    await markUncertain(deps, task.id, {
+      summary: 'An internal error interrupted the write. Check for the document before retrying.',
+      message: 'An internal error interrupted the write.',
     });
     return;
   }
-  const stage = job.kind === 'plan' ? 'planning' : 'synthesis';
-  await failTask(deps, task.id, job.kind === 'plan' ? 'planning' : 'synthesizing', stage, {
+  const [from, stage] =
+    job.kind === 'plan'
+      ? (['planning', 'planning'] as const)
+      : (['synthesizing', 'synthesis'] as const);
+  await failTask(deps, task.id, from, stage, {
     code: 'internal_error',
     message: 'An internal error stopped this step. Retry it.',
   });
@@ -1311,12 +1320,22 @@ export function createWorker(deps: Deps, onError: (error: unknown) => void, poll
   async function runOne(): Promise<boolean> {
     const job = await claim(deps);
     if (job === undefined) return false;
+    // A long step keeps its lease, so no other loop claims the job and runs it a second time.
+    const heartbeat = setInterval(
+      () => {
+        renewLease(deps, job).catch(onError);
+      },
+      (LEASE_SECONDS * 1000) / 3,
+    );
     try {
-      await HANDLERS[job.kind](deps, job);
+      // Assignments report repeated crashes themselves (startAssignment); other kinds stop here.
+      if (job.kind !== 'assignment' && job.attempts > MAX_JOB_ATTEMPTS) await quarantine(deps, job);
+      else await HANDLERS[job.kind](deps, job);
     } catch (error) {
       onError(error);
       await quarantine(deps, job).catch(onError);
     } finally {
+      clearInterval(heartbeat);
       await finish(deps, job);
     }
     return true;

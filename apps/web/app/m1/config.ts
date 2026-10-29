@@ -20,6 +20,10 @@ export type WebConfig = {
   readonly missing: readonly string[];
 };
 
+/** The secrets-file key that lists a segment's members. */
+const membersKey = (segmentId: string) =>
+  `AW_M1_${segmentId.toUpperCase().replaceAll('-', '_')}_MEMBERS`;
+
 export const LOCAL_TEST_MEMBERS = ['alice@local.test', 'bob@local.test'] as const;
 const LOCAL_TEST: IdentityMode = 'local-test';
 
@@ -57,9 +61,7 @@ function membersOf(
       new Set(
         identity === LOCAL_TEST
           ? LOCAL_TEST_MEMBERS
-          : csvList(get(`AW_M1_${segment.id.toUpperCase().replaceAll('-', '_')}_MEMBERS`)).map(
-              (e) => e.toLowerCase(),
-            ),
+          : csvList(get(membersKey(segment.id))).map((e) => e.toLowerCase()),
       ),
     ]),
   );
@@ -77,7 +79,7 @@ function missingConfig(
       : []),
     ...config.segments
       .filter((s) => (config.members.get(s.id)?.size ?? 0) === 0)
-      .map((s) => `AW_M1_${s.id.toUpperCase()}_MEMBERS`),
+      .map((s) => membersKey(s.id)),
   ];
 }
 

@@ -13,6 +13,7 @@ import {
   deniedSources,
   effectiveSet,
   repositoryAllowed,
+  hasDependencyCycle,
 } from './teamwork-policy.js';
 import { inspectPortable, parsePortable, toPortable } from './teamwork-portable.js';
 import {
@@ -380,5 +381,20 @@ describe('inbox reducer', () => {
       desiredInbox({ ...base, status: 'awaiting_action_approval', pendingApproval: { id: 'p' } }),
     ).toEqual([expect.objectContaining({ kind: 'approval', ref: 'approval:p' })]);
     expect(desiredInbox({ ...base, status: 'publishing' })).toEqual([]);
+  });
+});
+
+describe('plan dependencies', () => {
+  const plan = (edges: Record<string, string[]>) =>
+    Object.entries(edges).map(([key, dependsOn]) => ({ key, dependsOn }));
+
+  it('accepts chains and fan-in', () => {
+    expect(hasDependencyCycle(plan({ a: [], b: ['a'], c: ['a', 'b'] }))).toBe(false);
+  });
+
+  it('finds direct, indirect and partial cycles', () => {
+    expect(hasDependencyCycle(plan({ a: ['b'], b: ['a'] }))).toBe(true);
+    expect(hasDependencyCycle(plan({ a: ['c'], b: ['a'], c: ['b'] }))).toBe(true);
+    expect(hasDependencyCycle(plan({ free: [], a: ['b'], b: ['a'] }))).toBe(true);
   });
 });

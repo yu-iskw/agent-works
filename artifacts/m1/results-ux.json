@@ -39,7 +39,7 @@
         "timeout": 120000
       },
       {
-        "outputDir": "/workspace/artifacts/m1/videos/ux-round-10",
+        "outputDir": "/workspace/artifacts/m1/videos/ux-round-13",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -147,18 +147,18 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 47952,
+                  "duration": 51723,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-29T19:38:35.543Z",
+                  "startTime": "2026-10-29T23:23:13.751Z",
                   "annotations": [],
                   "attachments": [
                     {
                       "name": "video",
                       "contentType": "video/webm",
-                      "path": "/workspace/artifacts/m1/videos/ux-round-10/ux-tour-UX-tour-key-journe-b8dce--screen-at-375-768-and-1440-ux/video.webm"
+                      "path": "/workspace/artifacts/m1/videos/ux-round-13/ux-tour-UX-tour-key-journe-b8dce--screen-at-375-768-and-1440-ux/video.webm"
                     }
                   ]
                 }
@@ -176,8 +176,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-29T19:38:35.103Z",
-    "duration": 49104.743,
+    "startTime": "2026-10-29T23:23:13.237Z",
+    "duration": 53015.608,
     "expected": 1,
     "skipped": 0,
     "unexpected": 0,

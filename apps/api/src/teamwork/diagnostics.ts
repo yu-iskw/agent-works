@@ -1,7 +1,7 @@
 import { SOURCE_CAPABILITY, SOURCE_KINDS } from '@agent-works/domain/teamwork';
 
 import { memberCapabilities } from './catalog.js';
-import { tokenSource } from './connections.js';
+import { oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import { SourceError, sourceRemediation } from './sources/port.js';
 
@@ -65,16 +65,6 @@ async function checkOne(deps: Deps, token: TokenSource, source: SourceKind): Pro
       error instanceof SourceError ? sourceRemediation[error.code] : sourceRemediation.unavailable;
     return { source, status: 'unreachable', detail };
   }
-}
-
-/** Shares one pending token per provider, so a near-expiry Google token is refreshed once. */
-function oncePerProvider(source: TokenSource): TokenSource {
-  const pending = new Map<Parameters<TokenSource>[0], Promise<string>>();
-  return (provider) => {
-    const hit = pending.get(provider) ?? source(provider);
-    pending.set(provider, hit);
-    return hit;
-  };
 }
 
 function describe(result: SourceResult): string {

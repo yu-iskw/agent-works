@@ -5,6 +5,7 @@ import {
   capabilitiesForSources,
   deniedSources,
   effectiveSet,
+  hasDependencyCycle,
   repositoryAllowed,
 } from '@agent-works/domain/teamwork-policy';
 
@@ -23,6 +24,7 @@ import {
   moveTask,
   postMessage,
   readTask,
+  releaseReady,
   requeue,
   supersedeLivePlan,
   syncInbox,
@@ -30,6 +32,7 @@ import {
   withTask,
 } from './store.js';
 
+import type { Provider } from './connections.js';
 import type { Deps, Member, Tx } from './context.js';
 import type { AssignmentRow, TaskRow } from './store.js';
 import type {
@@ -52,6 +55,7 @@ import type {
 } from '@agent-works/domain/teamwork';
 import type postgres from 'postgres';
 
+const DOCS_PUBLISH: Capability = 'docs.publish';
 const APPROVAL_TTL_MS = 60 * 60 * 1000;
 
 export function summary(row: TaskRow): TaskSummary {
@@ -183,7 +187,6 @@ async function dispatch(
         ${planVersion}, 'queued', ${new Date(at.getTime() + deps.config.assignmentDeadlineMs)}, ${at}, ${at},
         ${tx.json([...(item.dependsOn ?? [])])})
     `;
-    if ((item.dependsOn ?? []).length === 0) await enqueue(deps, tx, task.id, 'assignment', id);
     await appendEvent(deps, tx, task.id, {
       type: 'assignment.queued',
       summary: `Assigned ${teammate.name}: ${item.key}`,
@@ -195,6 +198,7 @@ async function dispatch(
       },
     });
   }
+  await releaseReady(deps, tx, task.id);
 }
 
 function checkCreateInput(input: TaskCreate): void {
@@ -588,6 +592,7 @@ export async function checkPlan(
   for (const assignment of content.assignments)
     if (assignment.dependsOn.some((key) => !keys.has(key) || key === assignment.key))
       throw new Conflict('bad_dependency', 400);
+  if (hasDependencyCycle(content.assignments)) throw new Conflict('bad_dependency', 400);
   const capabilities = new Set(
     content.assignments.flatMap((assignment) => [...capabilitiesForSources(assignment.sources)]),
   );
@@ -762,6 +767,25 @@ async function followUpRevise(deps: Deps, { tx, task, id, input }: FollowUpConte
   await enqueue(deps, tx, id, 'synthesis', `${id}:${task.latest_revision + 1}`);
 }
 
+/** `roots` plus every candidate that `joins` the growing set, repeated until nothing joins. */
+function closure(
+  roots: readonly AssignmentRow[],
+  candidates: readonly AssignmentRow[],
+  joins: (candidate: AssignmentRow, keys: ReadonlySet<string>) => boolean,
+): readonly AssignmentRow[] {
+  const keys = new Set(roots.map((a) => a.key));
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const a of candidates)
+      if (!keys.has(a.key) && joins(a, keys)) {
+        keys.add(a.key);
+        grew = true;
+      }
+  }
+  return candidates.filter((a) => keys.has(a.key));
+}
+
 async function followUpRescope(
   deps: Deps,
   { tx, task, id, input }: FollowUpContext,
@@ -772,18 +796,20 @@ async function followUpRescope(
   assertRevisable(task);
   if (metrics.baseline === metrics.current) throw new Conflict('metrics_periods_equal', 400);
   const comparison = `Comparison changed to ${metrics.baseline} vs ${metrics.current} by ${metrics.groupBy}`;
-  const data = (await assignmentsFor(tx, id)).filter(
-    (a) => a.status === 'succeeded' && a.sources.includes('bigquery_metrics'),
-  );
+  const succeeded = (await assignmentsFor(tx, id)).filter((a) => a.status === 'succeeded');
+  const data = succeeded.filter((a) => a.sources.includes('bigquery_metrics'));
   if (data.length === 0) throw new Conflict('no_data_assignment');
-  // The rerun is a new attempt of the same reviewed assignment; sources and capabilities are unchanged.
-  for (const assignment of data)
+  // The rerun is a new attempt of the same reviewed assignment; sources and capabilities are
+  // unchanged. Assignments built on the data's output re-run too, after it, for the new periods.
+  const dependents = closure(data, succeeded, (a, keys) => a.depends_on.some((k) => keys.has(k)));
+  for (const assignment of dependents)
     await requeue(deps, tx, assignment, { output: null, calculations: [] });
+  await releaseReady(deps, tx, id);
   await moveTask(deps, tx, task, {
     to: 'running',
     patch: {
       scope: { ...task.scope, metrics },
-      revision_request: `${input.text} (comparison changed to ${metrics.baseline} vs ${metrics.current} by ${metrics.groupBy})`,
+      revision_request: `${input.text} (${comparison.toLowerCase()})`,
     },
     events: [
       {
@@ -799,6 +825,7 @@ async function followUpAnswer(deps: Deps, { tx, task, id, input }: FollowUpConte
   if (assignment === undefined) throw new Conflict('not_found', 404);
   if (assignment.status !== 'needs_input') throw new Conflict('not_waiting_for_answer');
   await requeue(deps, tx, assignment, { answer: input.text });
+  await releaseReady(deps, tx, id);
   await appendEvent(deps, tx, id, {
     type: 'assignment.answered',
     summary: `You answered ${assignment.teammate_snapshot.name}`,
@@ -880,7 +907,12 @@ export async function decideMissing(
         (a) => input.assignmentIds.length === 0 || input.assignmentIds.includes(a.id),
       );
       if (chosen.length === 0) throw new Conflict('nothing_to_retry');
-      for (const assignment of chosen) await requeue(deps, tx, assignment);
+      // A chosen assignment that waits for another missing one needs that one re-run too.
+      const needed = closure(chosen, missing, (a, keys) =>
+        missing.some((r) => keys.has(r.key) && r.depends_on.includes(a.key)),
+      );
+      for (const assignment of needed) await requeue(deps, tx, assignment);
+      await releaseReady(deps, tx, id);
       await moveTask(deps, tx, task, {
         to: 'running',
         events: [
@@ -990,19 +1022,7 @@ export async function preparePublish(
     if (task.status !== 'ready' && task.status !== 'completed')
       throw new Conflict(`cannot_publish_${task.status}`);
     if (revision !== task.latest_revision) throw new Conflict('stale_revision');
-    const owner = (
-      await tx<
-        { capability_requests: Capability[] }[]
-      >`select capability_requests from tw_teammates where id = ${task.result_owner}`
-    ).at(0);
-    const states = await capabilitiesFor(
-      deps,
-      member,
-      owner?.capability_requests ?? [],
-      new Set(['docs.publish']),
-      connected,
-    );
-    if (!effectiveSet(states).has('docs.publish') || account === null)
+    if (!(await canPublish(deps, tx, member, task, connected)) || account === null)
       throw new Conflict('capability_denied', 403);
     const rev = (
       await tx<
@@ -1057,6 +1077,32 @@ export async function preparePublish(
   });
 }
 
+/**
+ * The publish gate: segment, member entitlement, the result owner's requests and the connection.
+ * Checked when a publication is prepared and again when it is approved, since either can change.
+ */
+async function canPublish(
+  deps: Deps,
+  tx: Tx,
+  member: Member,
+  task: TaskRow,
+  connected?: ReadonlySet<Provider>,
+): Promise<boolean> {
+  const owner = (
+    await tx<
+      { capability_requests: Capability[] }[]
+    >`select capability_requests from tw_teammates where id = ${task.result_owner}`
+  ).at(0);
+  const states = await capabilitiesFor(
+    deps,
+    member,
+    owner?.capability_requests ?? [],
+    new Set([DOCS_PUBLISH]),
+    connected,
+  );
+  return effectiveSet(states).has(DOCS_PUBLISH);
+}
+
 export async function decideAction(
   deps: Deps,
   member: Member,
@@ -1090,6 +1136,9 @@ export async function decideAction(
     const proposal = publishProposalSchema.parse(approval.proposal);
     if (publishDigest(proposal) !== approval.payload_sha256)
       throw new Conflict('approval_tampered');
+    // Entitlement can change between preparing and approving (for example a read-only member).
+    if (input.decision === 'approve' && !(await canPublish(deps, tx, member, task)))
+      throw new Conflict('capability_denied', 403);
     const at = deps.now();
     // A task that already published keeps its completed state when a later publish is declined.
     const published = await tx`

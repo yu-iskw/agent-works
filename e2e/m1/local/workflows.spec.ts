@@ -12,7 +12,7 @@ import {
 } from '../helpers.js';
 
 // Real model, fixture sources: the metrics and engineering workflows end to end. Fixture runs
-// prove the product flow and the deterministic numbers; only the live suite counts for M10.
+// prove the product flow and the deterministic numbers. M1 is mock-only, so these are its M10 evidence.
 
 test('metrics: exact calculations, a regrouped comparison as a new revision', async ({ page }) => {
   test.setTimeout(600_000);
@@ -55,6 +55,60 @@ test('metrics: exact calculations, a regrouped comparison as a new revision', as
   expect(revisions[1]?.request).toMatch(/by channel/);
   await page.goto(`/s/alpha/tasks/${id}/compare?from=1&to=2`);
   await shot(page, 'local-metrics-compare-1440');
+});
+
+test('metrics in beta: exact calculations from the beta fixture data', async ({ page }) => {
+  test.setTimeout(600_000);
+  await signInLocal(page);
+  await ensureStarterTeam(page, 'beta');
+  await page.goto('/s/beta/tasks/new?workflow=metrics_explanation');
+  await page
+    .getByLabel('What do you need?')
+    .fill('Why did bookings and no-shows change between September and October?');
+  await chooseTeammate(page, 0, 'Data analyst');
+  await page
+    .getByLabel('Assignment')
+    .nth(0)
+    .fill('Report the largest metric changes with exact values and units.');
+  await chooseTeammate(page, 1, 'Business context researcher');
+  await page
+    .getByLabel('Assignment')
+    .nth(1)
+    .fill('Find policy changes or closures in the window that could explain the changes.');
+  await page.getByRole('button', { name: 'Start task' }).click();
+  const id = taskIdFrom(page);
+  expect(await waitForStatus(page, 'beta', id, ['ready', 'needs_input', 'failed'], 420_000)).toBe(
+    'ready',
+  );
+  await expectCalculations('beta', id, 'region:2026-09->2026-10');
+});
+
+test('engineering in alpha: one specialist reads the issue and pinned code, the proposal is ready', async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInLocal(page);
+  await ensureStarterTeam(page, 'alpha');
+  await page.goto('/s/alpha/tasks/new?workflow=engineering_proposal');
+  await page
+    .getByLabel('What do you need?')
+    .fill('Propose how members could download a finished task report as CSV.');
+  await chooseTeammate(page, 0, 'Software engineer');
+  await page
+    .getByLabel('Assignment')
+    .nth(0)
+    .fill(
+      'Find the code that renders and downloads task reports, and list the files a CSV export would touch. Do not ask questions; state assumptions.',
+    );
+  await page.getByRole('button', { name: 'Start task' }).click();
+  const id = taskIdFrom(page);
+  expect(await waitForStatus(page, 'alpha', id, ['ready', 'needs_input', 'failed'], 420_000)).toBe(
+    'ready',
+  );
+  const evidence = await db('alpha')<
+    { source_kind: string }[]
+  >`select distinct source_kind from wb_evidence where task_id = ${id}`;
+  expect(evidence.map((e) => e.source_kind).sort()).toEqual(['github_code', 'github_issue']);
 });
 
 test('engineering: reviewed plan, pinned code evidence, a revision, and a refused repository', async ({
@@ -133,7 +187,7 @@ test('the setup check reads every source of the segment with the member connecti
 }) => {
   await signInLocal(page);
   await page.goto('/s/alpha/connections');
-  await page.getByRole('button', { name: 'Check live sources' }).click();
+  await page.getByRole('button', { name: 'Check sources' }).click();
   await expect(page.locator('.check-list .badge-ok')).toHaveCount(5);
   const calls = await db('alpha')<
     { n: number }[]

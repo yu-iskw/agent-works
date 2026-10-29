@@ -39,7 +39,7 @@
     "p0:e2e": "node scripts/p0-e2e.mjs all",
     "m1:doctor": "node scripts/m1/run.mjs doctor",
     "m1:up": "node scripts/m1/run.mjs up",
-    "m1:up:local": "node scripts/m1/run.mjs up --local-test",
+    "m1:up:local": "node scripts/m1/run.mjs up",
     "m1:down": "node scripts/m1/run.mjs down",
     "m1:reset": "node scripts/m1/run.mjs reset",
     "m1:test": "node scripts/m1/run.mjs test",

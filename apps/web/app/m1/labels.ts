@@ -216,6 +216,8 @@ const ERRORS: Record<string, string> = {
   segment_not_found: 'You do not have access to that segment.',
   not_member: 'Your account is not a member of this segment.',
   unauthenticated: 'Your session ended. Sign in again.',
+  segment_auth_failed:
+    'The segment service did not accept this request. Wait a few seconds and reload. If it continues, restart the stack.',
   bad_contract:
     'The segment backend returned an unexpected response. Reload to see the current state.',
   csrf: 'Your session token did not match. Reload the page and try again.',

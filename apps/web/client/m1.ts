@@ -212,6 +212,8 @@ if (poller !== null) {
 if (document.querySelector('[data-live="conversation"] .status-active') !== null) {
   const again = () =>
     window.setTimeout(async () => {
+      // A background tab does not need the reply yet; it catches up when shown again.
+      if (document.hidden) return again();
       await refreshRegions().catch(() => undefined);
       if (document.querySelector('[data-live="conversation"] .status-active') !== null) again();
       else say('Reply received');
@@ -228,7 +230,8 @@ if (/[?&](notice|error)=/.test(window.location.search)) {
 }
 
 /** Ticks only the sources the chosen specialist can use, and greys out the rest. */
-function syncSources(select: HTMLSelectElement): void {
+/** A newly picked specialist ticks every source it can use; on load the member's ticks stay. */
+function syncSources(select: HTMLSelectElement, keepTicks: boolean): void {
   const usable = new Set(
     (select.selectedOptions.item(0)?.dataset.sources ?? '').split(' ').filter(Boolean),
   );
@@ -237,14 +240,14 @@ function syncSources(select: HTMLSelectElement): void {
     `[data-sources-for="${select.id}"] input[type="checkbox"]`,
   )) {
     box.disabled = picked && !usable.has(box.value);
-    box.checked = picked && usable.has(box.value);
+    box.checked = picked && usable.has(box.value) && (!keepTicks || box.checked);
   }
 }
 for (const fieldset of document.querySelectorAll<HTMLElement>('[data-sources-for]')) {
   const select = document.getElementById(fieldset.dataset.sourcesFor ?? '');
   if (!(select instanceof HTMLSelectElement)) continue;
-  select.addEventListener('change', () => syncSources(select));
-  if (select.value !== '') syncSources(select);
+  select.addEventListener('change', () => syncSources(select, false));
+  if (select.value !== '') syncSources(select, true);
 }
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });

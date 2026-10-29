@@ -3,6 +3,8 @@
 # Only api-alpha and api-beta call Vertex AI, so only they mount host ADC (read-only). The
 # operator's secrets file is mounted read-only into web and the two segment APIs; the docker CLI
 # never reads it. Each segment has its own Postgres service, volume, key volume and budget.
+# Networks enforce the isolation: each Postgres is reachable only on its own network, so
+# api-alpha cannot connect to pg-beta or pg-web. Only web and the e2e test runner join all three.
 name: aw-m1
 
 x-app: &app
@@ -76,14 +78,17 @@ services:
   pg-web:
     <<: *pg
     volumes: [m1-pg-web:/var/lib/postgresql/data]
+    networks: [web-db]
 
   pg-alpha:
     <<: *pg
     volumes: [m1-pg-alpha:/var/lib/postgresql/data]
+    networks: [alpha]
 
   pg-beta:
     <<: *pg
     volumes: [m1-pg-beta:/var/lib/postgresql/data]
+    networks: [beta]
 
   # Key volumes are created root-owned; this one-shot hands them to the app UID with mode 0700.
   keys-init:
@@ -118,6 +123,7 @@ services:
         target: /run/aw-m1
         read_only: true
       - m1-keys-alpha:/data/keys
+    networks: [default, alpha]
     depends_on:
       pg-alpha:
         condition: service_healthy
@@ -145,6 +151,7 @@ services:
         target: /run/aw-m1
         read_only: true
       - m1-keys-beta:/data/keys
+    networks: [default, beta]
     depends_on:
       pg-beta:
         condition: service_healthy
@@ -177,6 +184,7 @@ services:
         read_only: true
     ports:
       - 127.0.0.1:${AW_M1_PORT:-8280}:8080
+    networks: [default, web-db, alpha, beta]
     depends_on:
       pg-web:
         condition: service_healthy
@@ -195,6 +203,7 @@ services:
     user: node
     environment:
       DATABASE_URL: postgres://postgres@pg-alpha:5432/postgres
+    networks: [default, alpha]
 
   # Browser tests against the running stack, inside its network. Gets only the e2e session secret.
   e2e:
@@ -208,6 +217,8 @@ services:
       M1_INTERNAL_URL: http://web:8081
       M1_AUTH_DIR: /auth
       CI: 'true'
+    # Reads every database directly to check backend invariants the UI cannot show.
+    networks: [default, web-db, alpha, beta]
     volumes:
       - .:/workspace
       - node-modules-root:/workspace/node_modules
@@ -216,6 +227,15 @@ services:
         source: ${AW_M1_SECRETS_DIR:-${HOME}/.config/agent-works-m1}/e2e-session.secret
         target: /run/aw-m1/e2e-session.secret
         read_only: true
+
+networks:
+  default:
+  web-db:
+    internal: true
+  alpha:
+    internal: true
+  beta:
+    internal: true
 
 volumes:
   m1-app:

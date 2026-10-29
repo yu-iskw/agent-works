@@ -1,5 +1,7 @@
 # M1 live test resources
 
+> **Not needed for M1.** By Yu's decision (2026-10-30), M1 is mock-only apart from the real model. This document is kept for the later milestone that adds real sign-in and live integrations (`docs/m1/NEXT_MILESTONE.md`).
+
 The live acceptance gates read real Drive, BigQuery and GitHub data under each member's own authorization. Yu creates and shares every resource below. The agent never creates cloud resources, datasets, Drive files or IAM bindings, and never writes to GitHub.
 
 Two segments are configured: **alpha** (synthetic retail SaaS) and **beta** (synthetic clinic network). Every resource is dedicated to this campaign and named with the `aw-m1-` prefix, so cleanup can be scoped to it.

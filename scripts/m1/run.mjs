@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // M1 lifecycle and verification. Everything runs in Compose; this host script only orchestrates.
-//   node scripts/m1/run.mjs doctor [--live]      prerequisites; --live also spends 1 Vertex call per segment
-//   node scripts/m1/run.mjs up [--local-test]    build, migrate, start both segments, wait for health
+// M1 is mock-only by Yu's decision (2026-10-30): mock identities, fixture sources, mocked Google and
+// GitHub, real Vertex. The live stack (--live-stack, e2e live) is kept for a later milestone.
+//   node scripts/m1/run.mjs doctor [--vertex] [--live-stack]   prerequisites; --vertex spends 1 call per segment
+//   node scripts/m1/run.mjs up [--live-stack]    build, migrate, start both segments, wait for health
 //   node scripts/m1/run.mjs down                 stop, keep data
-//   node scripts/m1/run.mjs reset --yes-delete-m1-volumes [--local-test]   delete only that M1 project's volumes
+//   node scripts/m1/run.mjs reset --yes-delete-m1-volumes [--live-stack]   delete only that M1 project's volumes
 //   node scripts/m1/run.mjs test                 build, typecheck, ESLint, unit and integration tests
 //   node scripts/m1/run.mjs e2e [local|live]     browser suites (local: labelled local-test identity)
 //   node scripts/m1/run.mjs ux <round>           UI review round (scripted model, no Vertex calls)
 //   node scripts/m1/run.mjs restart              kill a segment API mid-assignment, restart everything, verify recovery
-//   node scripts/m1/run.mjs evidence             live journeys with video, plus screenshot sweep
-//   node scripts/m1/run.mjs verify               every machine gate; non-zero on any failure or missing live prerequisite
+//   node scripts/m1/run.mjs evidence [--index-only]   mock-stack journeys with video, plus an evidence index
+//   node scripts/m1/run.mjs verify               every M1 machine gate; non-zero on any failure
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -40,12 +42,13 @@ const appServices = [
   'web',
 ];
 
-/** Keys the live stack needs; doctor reports each as set or missing, never a value. */
+/**
+ * Keys the later-milestone live stack needs (Google sign-in, Drive and Docs); doctor --live-stack
+ * reports each as set or missing, never a value. M1 itself needs none of them.
+ */
 const REQUIRED = [
   'AW_M1_GOOGLE_CLIENT_ID',
   'AW_M1_GOOGLE_CLIENT_SECRET',
-  'AW_M1_GITHUB_CLIENT_ID',
-  'AW_M1_GITHUB_CLIENT_SECRET',
   'AW_M1_ALPHA_MEMBERS',
   'AW_M1_BETA_MEMBERS',
   'AW_M1_E2E_SESSION_SECRET',
@@ -53,12 +56,6 @@ const REQUIRED = [
   'AW_M1_ALPHA_DRIVE_CONTEXT_FOLDER',
   'AW_M1_BETA_DRIVE_RESEARCH_FOLDER',
   'AW_M1_BETA_DRIVE_CONTEXT_FOLDER',
-  'AW_M1_BIGQUERY_PROJECT',
-  'AW_M1_ALPHA_BIGQUERY_DATASET',
-  'AW_M1_BETA_BIGQUERY_DATASET',
-  'AW_M1_GITHUB_REPOSITORY',
-  'AW_M1_ALPHA_GITHUB_ISSUE',
-  'AW_M1_BETA_GITHUB_ISSUE',
 ];
 
 const MODES = {
@@ -67,7 +64,6 @@ const MODES = {
     AW_M1_SOURCE_MODE: 'live',
     AW_M1_FIXTURE_FAULTS: '0',
     AW_M1_E2E_MODE: '1',
-    AW_M1_PORT: '8280',
     AW_M1_MAX_MODEL_CALLS_PER_SEGMENT: '200',
   },
   // UI review rounds: scripted model, so a round costs no Vertex calls. Labelled on every page.
@@ -76,7 +72,6 @@ const MODES = {
     AW_M1_SOURCE_MODE: 'fixture',
     AW_M1_FIXTURE_FAULTS: '1',
     AW_M1_E2E_MODE: '0',
-    AW_M1_PORT: '8282',
     AW_M1_LLM_MODE: 'scripted',
   },
   'local-test': {
@@ -84,7 +79,6 @@ const MODES = {
     AW_M1_SOURCE_MODE: 'fixture',
     AW_M1_FIXTURE_FAULTS: '1',
     AW_M1_E2E_MODE: '0',
-    AW_M1_PORT: '8281',
     AW_M1_MAX_MODEL_CALLS_PER_SEGMENT: '100',
   },
 };
@@ -160,7 +154,10 @@ function doctor(args) {
   );
   add(
     'compose config',
-    docker([...compose, 'config', '--quiet'], baseEnv, { capture: true, quiet: true }).status === 0,
+    docker([...composeFor('local-test'), 'config', '--quiet'], currentEnv('local-test'), {
+      capture: true,
+      quiet: true,
+    }).status === 0,
   );
   const adc = join(
     process.env.GCLOUD_CONFIG_DIR ?? join(homedir(), '.config/gcloud'),
@@ -173,6 +170,33 @@ function doctor(args) {
       ? 'run `gcloud auth application-default login` if calls fail with adc_unavailable'
       : 'run `gcloud auth application-default login` on the host',
   );
+  if (args.includes('--live-stack')) liveStackChecks(add);
+  if (args.includes('--vertex')) {
+    for (const segment of ['alpha', 'beta']) {
+      const result = docker(
+        [
+          ...composeFor('local-test'),
+          'run',
+          '--rm',
+          '--no-deps',
+          '-T',
+          `api-${segment}`,
+          'node',
+          'apps/api/dist/teamwork/smoke.js',
+        ],
+        currentEnv('local-test'),
+        { capture: true, quiet: true },
+      );
+      const line = result.stdout.trim().split('\n').at(-1) ?? '';
+      add(`vertex smoke (${segment})`, result.status === 0, line);
+    }
+  }
+  report('doctor', { checks });
+  return checks.every((check) => check.ok) ? 0 : 1;
+}
+
+/** Secrets for the later-milestone live stack; not needed for M1. */
+function liveStackChecks(add) {
   const file = secretsFile();
   add(
     'secrets file',
@@ -196,34 +220,12 @@ function doctor(args) {
       missing.length === 0 ? `${REQUIRED.length} keys` : `missing: ${missing.join(', ')}`,
     );
   }
-  if (args.includes('--live')) {
-    for (const segment of ['alpha', 'beta']) {
-      const result = docker(
-        [
-          ...compose,
-          'run',
-          '--rm',
-          '--no-deps',
-          '-T',
-          `api-${segment}`,
-          'node',
-          'apps/api/dist/teamwork/smoke.js',
-        ],
-        { ...baseEnv, ...MODES.live },
-        { capture: true, quiet: true },
-      );
-      const line = result.stdout.trim().split('\n').at(-1) ?? '';
-      add(`vertex smoke (${segment})`, result.status === 0, line);
-    }
-  }
-  report('doctor', { checks });
-  return checks.every((check) => check.ok) ? 0 : 1;
 }
 
 function requireLive() {
   if (secretsFile() === undefined) {
     process.stderr.write(
-      `Live mode needs ${join(secretsDir, 'm1.env')} (docs/m1/SETUP_OAUTH.md). Nothing was started. For the labelled local-test stack use: up --local-test\n`,
+      `Live mode needs ${join(secretsDir, 'm1.env')} (docs/m1/SETUP_OAUTH.md). Nothing was started. M1 uses the mock stack: pnpm m1:up\n`,
     );
     return false;
   }
@@ -239,13 +241,7 @@ function requireLive() {
 
 function up(mode) {
   if (mode === 'live' && !requireLive()) return 1;
-  const env = { ...baseEnv, ...MODES[mode] };
-  if (mode !== 'live' && !existsSync(secretsDir)) {
-    const empty = join(process.env.TMPDIR ?? '/tmp', 'aw-m1-no-secrets');
-    mkdirSync(empty, { recursive: true });
-    writeFileSync(join(empty, 'e2e-session.secret'), '');
-    env.AW_M1_SECRETS_DIR = empty;
-  }
+  const env = currentEnv(mode);
   if (
     docker(['image', 'inspect', 'aw-m1:local'], env, { capture: true, quiet: true }).status !== 0
   ) {
@@ -277,10 +273,15 @@ function up(mode) {
   return 0;
 }
 
+/** Mock stacks never mount the secrets directory, even when one exists on the host. */
 function currentEnv(mode) {
-  const env = { ...baseEnv, ...MODES[mode] };
-  if (mode !== 'live' && !existsSync(secretsDir))
-    env.AW_M1_SECRETS_DIR = join(process.env.TMPDIR ?? '/tmp', 'aw-m1-no-secrets');
+  const env = { ...baseEnv, ...MODES[mode], AW_M1_PORT: PROJECTS[mode].port };
+  if (mode !== 'live') {
+    const empty = join(process.env.TMPDIR ?? '/tmp', 'aw-m1-no-secrets');
+    mkdirSync(empty, { recursive: true });
+    writeFileSync(join(empty, 'e2e-session.secret'), '');
+    env.AW_M1_SECRETS_DIR = empty;
+  }
   return env;
 }
 
@@ -352,15 +353,9 @@ function playwright(project, suite, extra = [], vars = {}) {
 }
 
 function e2e(project) {
-  if (project === 'live') {
-    if (!requireLive()) return 2;
-    const started = up('live');
-    if (started !== 0) return started;
-    return playwright('live', 'live');
-  }
-  const started = up('local-test');
+  const started = up(project === 'live' ? 'live' : 'local-test');
   if (started !== 0) return started;
-  return playwright('local', 'local');
+  return playwright(project, project);
 }
 
 /** One UI review round on the scripted-model stack: key-journey video plus screens at 375/768/1440. */
@@ -395,29 +390,26 @@ function restart() {
   return playwright('restart-after', 'restart-after');
 }
 
-function evidence() {
-  mkdirSync(join(artifacts, 'screenshots'), { recursive: true });
-  const live = e2e('live');
-  const local = e2e('local');
+/** `--index-only` indexes the existing artifacts without rerunning the suite (no Vertex calls). */
+function evidence(args) {
+  const local = args.includes('--index-only') ? 0 : e2e('local');
   const files = (dir) =>
     existsSync(dir)
       ? readdirSync(dir, { recursive: true })
           .map(String)
-          .filter((f) => /\.(png|webm|json)$/.test(f))
+          .filter((f) => /\.(png|webm)$/.test(f))
           .sort()
       : [];
   const index = [
     '# M1 evidence index (local, gitignored)',
     '',
-    `Generated ${new Date().toISOString()}. Live suite exit ${live}, local suite exit ${local}.`,
+    `Generated ${new Date().toISOString()}. Mock stack: mock identities, fixture sources, mocked Google and GitHub, real Vertex. ${args.includes('--index-only') ? 'Indexed existing artifacts.' : `Local suite exit ${local}.`}`,
     '',
     '## Screenshots',
     ...files(join(artifacts, 'screenshots')).map((f) => `- screenshots/${f}`),
     '',
     '## Videos',
-    ...files(join(artifacts, 'test-results', 'live'))
-      .filter((f) => f.endsWith('.webm'))
-      .map((f) => `- test-results/live/${f}`),
+    ...files(join(artifacts, 'videos', 'local')).map((f) => `- videos/local/${f}`),
     '',
     '## Machine-readable results',
     ...readdirSync(artifacts)
@@ -426,28 +418,27 @@ function evidence() {
     '',
   ];
   writeFileSync(join(artifacts, 'evidence-index.md'), index.join('\n'));
-  return live === 0 && local === 0 ? 0 : 1;
+  return local;
 }
 
 function verify() {
   const gates = {};
-  gates.doctor = doctor(['--live']) === 0 ? 'PASS' : 'FAIL';
   gates.test = test() === 0 ? 'PASS' : 'FAIL';
   gates.e2eLocal = e2e('local') === 0 ? 'PASS' : 'FAIL';
+  // After e2e, so the stack is built; the smoke reads the served model version from Vertex.
+  gates.doctor = doctor(['--vertex']) === 0 ? 'PASS' : 'FAIL';
   gates.restart = restart() === 0 ? 'PASS' : 'FAIL';
-  const live = e2e('live');
-  gates.e2eLive = live === 0 ? 'PASS' : live === 2 ? 'BLOCKED' : 'FAIL';
-  const human = {
-    visualBaselineReview: 'PENDING',
-    usabilityReview: 'PENDING',
-    videoPlaybackReview: 'PENDING',
+  const outOfScope = {
+    e2eLive: "MOVED to a later milestone by Yu's decision (M1 is mock-only)",
+    visualBaselineReview: "MOVED to the UI/UX milestone by Yu's decision (M17)",
+    usabilityReview: "MOVED to the UI/UX milestone by Yu's decision (M19)",
   };
   report('verify', {
     gates,
-    human,
-    note: 'Human gates are reported separately and never counted as passed by this script.',
+    outOfScope,
+    note: 'Moved gates are reported separately and never counted as passed by this script.',
   });
-  process.stdout.write(`${JSON.stringify({ gates, human }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ gates, outOfScope }, null, 2)}\n`);
   return Object.values(gates).every((value) => value === 'PASS') ? 0 : 1;
 }
 
@@ -458,7 +449,7 @@ switch (command) {
     code = doctor(args);
     break;
   case 'up':
-    code = up(args.includes('--local-test') ? 'local-test' : 'live');
+    code = up(args.includes('--live-stack') ? 'live' : 'local-test');
     break;
   case 'down':
     code = Math.max(
@@ -474,7 +465,7 @@ switch (command) {
       );
       code = 2;
     } else {
-      const mode = args.includes('--local-test') ? 'local-test' : 'live';
+      const mode = args.includes('--live-stack') ? 'live' : 'local-test';
       code = docker([...composeFor(mode), 'down', '--volumes'], currentEnv(mode)).status ?? 1;
     }
     break;
@@ -491,14 +482,14 @@ switch (command) {
     code = restart();
     break;
   case 'evidence':
-    code = evidence();
+    code = evidence(args);
     break;
   case 'verify':
     code = verify();
     break;
   default:
     process.stderr.write(
-      'usage: node scripts/m1/run.mjs doctor|up|down|reset|test|e2e|evidence|verify\n',
+      'usage: node scripts/m1/run.mjs doctor|up|down|reset|test|e2e|ux|restart|evidence|verify\n',
     );
     code = 2;
 }

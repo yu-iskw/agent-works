@@ -113,3 +113,29 @@ Files inspected: `19-connections-375.png`, plus the overflow assertions on 24 sc
 Remaining known issues are unchanged from round 5.
 
 Rounds completed before the second checkpoint: 10.
+
+## Round 11 (2026-10-30): mock-only rescope
+
+By Yu's decision M1 is mock-only apart from the real model, so the labels changed: the segment bar says "Mock identity", the sign-in card says "Mock identities", and Connections says Google and GitHub are mocked. Files inspected: `01-sign-in-375.png`, `02-inbox-375.png`, plus the overflow assertions on 24 screens × 3 widths (all pass).
+
+| ID    | Defect                                                                                                                                | Fix                                                               | Files                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------- |
+| R11-1 | In mock mode, the sign-in card still said "Sign in with your work Google account", right above the notice that identities are mocked. | In mock mode the line reads "Choose a mock identity to continue." | `apps/web/app/m1/views.tsx` |
+
+Not fixed, handed to the UI/UX milestone (`docs/m1/NEXT_MILESTONE.md`): the inbox has no paging. After 11 rounds of accumulated review tasks it is about 9,000 px tall at 375 px.
+
+## Round 12 (2026-10-30): after the final /code-review and /simplify
+
+Files inspected: `01-sign-in-768.png`, `19-connections-768.png`, plus the overflow assertions on 24 screens × 3 widths (all pass). The sign-in card now says "Choose a mock identity to continue" (R11-1).
+
+| ID    | Defect                                                                                                                                                                           | Fix                                                                                                                                  | Files                               |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| R12-1 | On the mock stack the source check was titled "Live sources" with a "Check live sources" button, and it said it reads "with your own connections". Neither is true in mock mode. | It is titled "Sources in <segment>" with a "Check sources" button. In fixture mode the text says it reads the local fixture sources. | `apps/web/app/m1/views.tsx`, suites |
+
+## Round 13 (2026-10-30): R12-1 confirmed, no new defects
+
+Files inspected: `19b-source-checks-375.png`, plus the overflow assertions on 24 screens × 3 widths (all pass). The check is titled "Sources in Alpha Retail", the button reads "Check sources", and the text says it reads the local fixture sources. Every mode label (mock identity, fixture sources, scripted model) shows at 375 px.
+
+Remaining known issues are handed to the UI/UX milestone in `docs/m1/NEXT_MILESTONE.md`.
+
+Rounds completed in M1: 13.

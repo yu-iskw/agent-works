@@ -37,7 +37,8 @@ const at = new Date().toISOString();
 try {
   const result = await gate.generate(
     { taskId: null, assignmentId: null, purpose: 'smoke' },
-    { system: 'Reply with the single word ok.', prompt: 'ok?', maxOutputTokens: 64 },
+    // Gemini 3.8 counts thinking tokens against this cap; at 64 the visible reply can be empty.
+    { system: 'Reply with the single word ok.', prompt: 'ok?', maxOutputTokens: 1024 },
   );
   process.stdout.write(
     `${JSON.stringify({

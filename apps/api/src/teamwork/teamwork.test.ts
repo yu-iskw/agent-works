@@ -464,6 +464,28 @@ describe('review regressions', () => {
     );
   });
 
+  it('refuses a plan whose dependencies form a cycle, so no task can wait forever', async () => {
+    const d = deps();
+    const ids = await team(d, alice);
+    const worker = createWorker(d, () => undefined);
+    const { task } = await createTask(d, alice, research(ids.coordinator, 'coordinated'));
+    await worker.drain();
+    const plan = (await taskDetail(d, alice, task.id))!.plans[0];
+    const [first, second] = plan.content.assignments;
+    await expect(
+      editPlan(d, alice, task.id, {
+        baseVersion: 1,
+        content: {
+          ...plan.content,
+          assignments: [
+            { ...first, dependsOn: [second.key] },
+            { ...second, dependsOn: [first.key] },
+          ],
+        },
+      }),
+    ).rejects.toThrow('bad_dependency');
+  });
+
   it('returns the same task for concurrent submits of one form', async () => {
     const d = deps();
     const ids = await team(d, alice);

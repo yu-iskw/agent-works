@@ -8,38 +8,41 @@ Members delegate work to personal AI specialists, step away, and come back to de
 
 Work runs in one of two isolated **segments** (`alpha`, `beta`). Each has its own backend, database, catalog, teammates, tasks, connections, token key and model budget.
 
-## What is real
+## What is real in M1
 
-| Part                          | Status                                                                                                                                                                                                                                                                                                                                                                |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                         | **Real.** Vertex AI `gemini-3.8-flash`, project `ubie-yu-sandbox`, location `global`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. There is no stub, replay or fallback model in the segment APIs. `LLM_MODE` other than `vertex` refuses every generation.                                                                               |
-| Member identity               | **Real Google OpenID Connect** in live mode (authorization code, PKCE, state, nonce, RS256 ID-token verification, server-side sessions). Local-test mode offers `alice@local.test` and `bob@local.test`, labelled on every page. Those identities can never satisfy a live gate, because the segment APIs accept assertions only from the issuer matching their mode. |
-| Drive, Docs, BigQuery, GitHub | **Real** in live mode, using each member's own per-segment OAuth connection. Local-test mode reads the seed files in `fixtures/m1/`, and every item says `FIXTURE (local seed file, not a live service)`. Fixture runs never count as live evidence.                                                                                                                  |
+By Yu's decision (2026-10-30), M1 is **mock-only** apart from the model. Real sign-in and live Google and GitHub integrations move to a later milestone (`docs/m1/NEXT_MILESTONE.md`).
 
-The model credential (ADC) proves nothing about the member and is never used to read sources. Sign-in proves who the member is. Source access is connected separately in each segment.
+| Part                          | Status                                                                                                                                                                                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model                         | **Real.** Vertex AI `gemini-3.8-flash`, project `ubie-yu-sandbox`, location `global`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. The segment APIs have no stub, replay or fallback model.                                                                                     |
+| Member identity               | **Mock.** `alice@local.test` and `bob@local.test`, labelled "Mock identity" on every page. The segment APIs accept assertions only from the issuer matching their mode, so a mock identity can never pass as a Google one. The Google OpenID Connect code is built and unit-tested but not exercised in M1. |
+| Drive, Docs, BigQuery, GitHub | **Fixture or mock.** Sources are the seed files in `fixtures/m1/`, and every item says `FIXTURE (local seed file, not a live service)`. Publishing goes to a fixture document store labelled "not Google Docs". The Connections page says Google and GitHub are mocked.                                     |
+
+The model credential (ADC) proves nothing about the member and is never used to read sources.
 
 ## Setup
 
 1. Docker with Compose v2 (Rancher Desktop works).
 2. `gcloud auth application-default login`, then `gcloud auth application-default set-quota-project ubie-yu-sandbox`. Plain `gcloud auth login` does not create ADC.
-3. OAuth clients and the local secrets file: `docs/m1/SETUP_OAUTH.md`. An empty template is in `docs/m1/m1.env.example`.
-4. Live test resources (Drive folders, BigQuery datasets, GitHub issues): `docs/m1/SETUP_RESOURCES.md`.
-5. `pnpm m1:doctor` checks prerequisites without printing secrets. `pnpm m1:doctor -- --live` also spends one Vertex call per segment (stack must be up).
+3. `pnpm m1:doctor` checks prerequisites without printing secrets. `pnpm m1:doctor -- --vertex` also spends one Vertex call per segment (run `pnpm m1:up` first).
+
+No OAuth client, secrets file or cloud resource is needed for M1. `SETUP_OAUTH.md`, `SETUP_RESOURCES.md` and `m1.env.example` are kept for the later live milestone.
 
 ## Commands
 
-| Command                                    | Does                                                                                                                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm m1:up`                               | Build into a volume, migrate, start both segments in live mode, wait for health. Refuses to start and lists missing settings if any live prerequisite is absent. |
-| `pnpm m1:up:local`                         | Start the separate local-test stack (project `aw-m1-local`, `http://localhost:8281`) with local-test identities and fixture sources. The model is still real.    |
-| `pnpm m1:down`                             | Stop both stacks and keep their data.                                                                                                                            |
-| `pnpm m1:reset -- --yes-delete-m1-volumes` | Delete the live stack's volumes (add `--local-test` for the local stack). This also deletes the call ledger, so run it only after the campaign.                  |
-| `pnpm m1:test`                             | In the toolbox: install, build, typecheck, ESLint, every unit and integration test.                                                                              |
-| `pnpm m1:e2e:local` / `pnpm m1:e2e:live`   | Playwright in the `e2e` container against the matching stack, with retries disabled.                                                                             |
-| `pnpm m1:evidence`                         | Live journeys with video, plus the screenshot sweep, into `artifacts/m1/` with `evidence-index.md`.                                                              |
-| `pnpm m1:verify`                           | Every machine gate. Non-zero if any fails or a live prerequisite is missing. Human gates are reported as `PENDING` and never counted as passed.                  |
+| Command                                    | Does                                                                                                                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm m1:up`                               | Build into a volume, migrate, and start both segments on the mock stack (project `aw-m1-local`, `http://localhost:8281`); wait for health. The model is real.                                         |
+| `pnpm m1:down`                             | Stop every M1 stack and keep its data.                                                                                                                                                                |
+| `pnpm m1:reset -- --yes-delete-m1-volumes` | Delete the mock stack's volumes, including its call ledger, so run it only after the campaign.                                                                                                        |
+| `pnpm m1:test`                             | In the toolbox: install, build, typecheck, ESLint, every unit and integration test.                                                                                                                   |
+| `pnpm m1:e2e:local`                        | Playwright in the `e2e` container against the mock stack, with retries disabled. Videos go to `artifacts/m1/videos/local/`.                                                                           |
+| `pnpm m1:restart`                          | Kill a segment API mid-assignment, restart the whole stack, and check that the work finishes once.                                                                                                    |
+| `pnpm m1:ux <round>`                       | A UI review round on the scripted-model stack (`http://localhost:8282`, no Vertex calls): screenshots at three widths and a journey video.                                                            |
+| `pnpm m1:evidence`                         | The mock-stack suite with videos, plus `artifacts/m1/evidence-index.md`. `pnpm m1:evidence -- --index-only` indexes existing artifacts without rerunning the suite or spending Vertex calls.          |
+| `pnpm m1:verify`                           | Every M1 machine gate: tests, the browser suite, the restart suite and the Vertex smoke. Non-zero if any fails. Moved gates (live suite, M17, M19) are listed separately and never counted as passed. |
 
-The live app is `http://localhost:8280`. Only `web` publishes a port, bound to `127.0.0.1`. Its internal port 8081 (assertion JWKS and the gated e2e session endpoint) is never published.
+Later milestone only: `node scripts/m1/run.mjs up --live-stack` and `pnpm m1:e2e:live` need the OAuth client and resources in the setup documents. Only `web` publishes a port, bound to `127.0.0.1`. Its internal port 8081 (assertion JWKS and the gated e2e session endpoint) is never published.
 
 ## Architecture
 
@@ -75,10 +78,10 @@ Unknown citation IDs are dropped. Every fact or calculation is then checked dete
 
 Yu's campaign limit is 600 real Vertex calls. Every request reserves a ledger row in `wb_model_calls` under an advisory lock before it leaves the process. Retries (at most one, only for `rate_limited` and `unavailable`) are separate rows, and restarts cannot reset the count. Each Compose project and segment has its own durable ledger, and the caps sum to 600:
 
-| Ledger                                | Cap       |
-| ------------------------------------- | --------- |
-| live `aw-m1` alpha / beta             | 200 / 200 |
-| local-test `aw-m1-local` alpha / beta | 100 / 100 |
+| Ledger                                       | Cap       |
+| -------------------------------------------- | --------- |
+| live `aw-m1` alpha / beta (smoke only in M1) | 200 / 200 |
+| local-test `aw-m1-local` alpha / beta        | 100 / 100 |
 
 Per-call output caps are 4096 tokens for plans, 6144 for contributions, 8192 for synthesis and 1024 for replies, with a 60 s timeout. Gemini 3.8 counts thinking tokens against the cap. Usage is shown in the header and on Connections, and is recorded in `docs/m1/PROGRESS.md`.
 
@@ -95,7 +98,6 @@ Per-call output caps are 4096 tokens for plans, 6144 for contributions, 8192 for
 
 | Symptom                                   | Fix                                                                                           |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `m1:up` lists missing settings            | Fill `~/.config/agent-works-m1/m1.env` (SETUP_OAUTH, SETUP_RESOURCES).                        |
 | Model `adc_unavailable`                   | `gcloud auth application-default login`, then `pnpm m1:up`.                                   |
 | `model_not_found`                         | Location must be `global`; the model is not served in `us-central1`.                          |
 | `budget_exhausted`                        | The ledger cap was reached. Raising it is Yu's decision, never automatic.                     |

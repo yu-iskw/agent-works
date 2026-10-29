@@ -4,9 +4,10 @@ import { readFileSync } from 'node:fs';
 import { artifactMarkdown } from '@agent-works/domain/teamwork-evidence';
 
 import { readBody } from '../body.js';
+import { h } from '../html.js';
 
 import { segmentsFor } from './config.js';
-import { SESSION_COOKIE, SignInError } from './identity.js';
+import { SESSION_COOKIE, SESSION_TTL_S, SignInError } from './identity.js';
 import { errorText } from './labels.js';
 import { m1Styles } from './styles.js';
 import { ComparePage, NewTaskPage, TaskPage, TasksPage } from './task-views.js';
@@ -37,7 +38,6 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 const HTML = 'text/html; charset=utf-8';
 const PRE_COOKIE = 'aw_m1_pre';
 const MAX_FORM = 262_144;
-const SESSION_TTL = 12 * 3600;
 // A literal, so the route patterns stay statically checkable; it matches UUID_PATTERN in the domain package.
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
@@ -182,16 +182,8 @@ function render(
 ): void {
   response.writeHead(status, { ...securityHeaders, 'content-type': HTML, ...extra });
   response.end(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(title)} · Agent Works</title><link rel="stylesheet" href="/assets/m1.css"><script src="/assets/m1.js" defer></script></head><body>${body.html}</body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${h('title', null, `${title} · Agent Works`).html}<link rel="stylesheet" href="/assets/m1.css"><script src="/assets/m1.js" defer></script></head><body>${body.html}</body></html>`,
   );
-}
-
-function escape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
 }
 
 function redirect(
@@ -268,7 +260,6 @@ function failPage(
   ctx: PageCtx | undefined,
   result: { status: number; error: string },
 ): void {
-  if (result.error === 'unauthenticated') return redirect(response, '/sign-in');
   const status = result.status === 404 ? 404 : result.status >= 500 ? 502 : result.status;
   render(
     response,
@@ -347,27 +338,39 @@ function signInPage({ app, response, url, session }: Req): void {
   );
 }
 
+const LOGIN_COOKIE = 'aw_m1_login';
+const loginCookie = (value: string, maxAge: number) =>
+  `${LOGIN_COOKIE}=${value}; Path=/auth/google; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
+
 async function googleStart({ app, response }: Req): Promise<void> {
   try {
-    return redirect(response, await app.identity.startGoogle('/'));
+    const { url, state } = await app.identity.startGoogle('/');
+    return redirect(response, url, { 'set-cookie': loginCookie(state, 600) });
   } catch (error) {
     return redirect(response, signInError(error));
   }
 }
 
-async function googleCallback({ app, response, url }: Req): Promise<void> {
+async function googleCallback({ app, response, url, jar }: Req): Promise<void> {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
+  const clear = loginCookie('', 0);
   if (code === null || state === null)
     return redirect(
       response,
       `/sign-in?error=${url.searchParams.get('error') === 'access_denied' ? 'access_denied' : 'bad_state'}`,
+      { 'set-cookie': clear },
     );
+  // The state must come back to the browser that started the flow (login CSRF).
+  if (!same(jar.get(LOGIN_COOKIE), state))
+    return redirect(response, '/sign-in?error=bad_state', { 'set-cookie': clear });
   try {
     const done = await app.identity.completeGoogle(code, state);
-    return redirect(response, '/', { 'set-cookie': sessionCookie(done.cookie, SESSION_TTL) });
+    return redirect(response, '/', {
+      'set-cookie': [sessionCookie(done.cookie, SESSION_TTL_S), clear],
+    });
   } catch (error) {
-    return redirect(response, signInError(error));
+    return redirect(response, signInError(error), { 'set-cookie': clear });
   }
 }
 
@@ -381,7 +384,7 @@ async function localTestSignIn({ app, request, response, jar }: Req): Promise<vo
     return redirect(response, '/sign-in?error=bad_state');
   try {
     const done = await app.identity.localTest(form.get('email') ?? '');
-    return redirect(response, '/', { 'set-cookie': sessionCookie(done.cookie, SESSION_TTL) });
+    return redirect(response, '/', { 'set-cookie': sessionCookie(done.cookie, SESSION_TTL_S) });
   } catch (error) {
     return redirect(response, signInError(error));
   }
@@ -608,7 +611,7 @@ async function skillPage(req: SegReq): Promise<void> {
   );
 }
 
-/** `checks` comes from "Check live sources" and is shown inline; nothing is stored. */
+/** `checks` comes from "Check sources" and is shown inline; nothing is stored. */
 async function connectionsPage(req: SegReq, checks?: readonly SourceCheck[]): Promise<void> {
   const { app, response, session, segment } = req;
   const [ctx, list] = await Promise.all([

@@ -52,7 +52,12 @@ test('the segment and member stay identifiable on a narrow screen, and navigatio
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signInLocal(page);
-  await expect(page.getByRole('note', { name: 'Active segment' })).toContainText('Alpha Retail');
+  const segmentBar = page.getByRole('note', { name: 'Active segment' });
+  await expect(segmentBar).toContainText('Alpha Retail');
+  await expect(segmentBar, 'mock and fixture modes are labelled at 375 px').toContainText(
+    'Mock identity',
+  );
+  await expect(segmentBar).toContainText('Fixture sources');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
   await page.getByRole('button', { name: 'Menu' }).focus();

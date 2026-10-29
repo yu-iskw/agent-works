@@ -49,6 +49,7 @@ export default defineConfig({
     },
     { name: 'restart-before', testMatch: /restart\/before\.spec\.ts$/ },
     { name: 'restart-after', testMatch: /restart\/after\.spec\.ts$/, timeout: 360_000 },
+    // Later milestone: needs real Google sign-in and live sources. Not part of M1 (mock-only).
     {
       name: 'live',
       testMatch: /live\/.*\.spec\.ts$/,

@@ -18,7 +18,7 @@ Source prompt: `/Users/yu/orca-prompts/agent-works-m1/prompt.md`, including Yu's
 
 ## Real Vertex call budget
 
-Used by this campaign: **105 / 600** (2026-10-30, recounted from the four ledgers after the checkpoint 2 local suite). Ledgers: live `aw-m1` alpha 4/200, beta 1/200. Local-test `aw-m1-local` alpha 59/100, beta 41/100 (2 rows stay `pending` from the restart suite's deliberate kill; they still count). A full local suite costs about 15 alpha and 11 beta calls, so local-test alpha has room for about two more full runs. UX rounds 1-10 used the scripted model: 0 calls. The `aw-m1` volumes also hold my first local-test rows (owners `local-test:*`); they are kept because deleting them would reset the ledger.
+Used by this campaign: **141 / 600** (2026-10-30, recounted from the four ledgers after the final `m1:verify`). Ledgers: live `aw-m1` alpha 4/200, beta 1/200. Local-test `aw-m1-local` alpha 79/100, beta 57/100. UX rounds 1-13 used the scripted model: 0 calls. Reallocating the per-ledger caps for the next milestone is Yu's decision.
 
 | #   | When (UTC)             | Segment | Purpose                                                                                       | Result                                                                                                                     |
 | --- | ---------------------- | ------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -30,40 +30,40 @@ Used by this campaign: **105 / 600** (2026-10-30, recounted from the four ledger
 
 ## External dependencies (asked of Yu)
 
-| Ask                                                        | File                         | Status                                              |
-| ---------------------------------------------------------- | ---------------------------- | --------------------------------------------------- |
-| Google OAuth client, GitHub OAuth App, secrets file        | `docs/m1/SETUP_OAUTH.md`     | requested 2026-10-29                                |
-| Drive folders, BigQuery datasets and grants, GitHub issues | `docs/m1/SETUP_RESOURCES.md` | requested 2026-10-29                                |
-| Three usability reviewers                                  | `docs/m1/UX_REVIEW.md`       | requested 2026-10-29 (needs a runnable build first) |
+| Ask                                                        | File                         | Status                                |
+| ---------------------------------------------------------- | ---------------------------- | ------------------------------------- |
+| Google OAuth client, GitHub OAuth App, secrets file        | `docs/m1/SETUP_OAUTH.md`     | withdrawn 2026-10-30: M1 is mock-only |
+| Drive folders, BigQuery datasets and grants, GitHub issues | `docs/m1/SETUP_RESOURCES.md` | withdrawn 2026-10-30: M1 is mock-only |
+| Three usability reviewers                                  | `docs/m1/UX_REVIEW.md`       | moved to the UI/UX milestone          |
 
 ## Acceptance ledger
 
 Owner is the agent unless stated. Status values are PASS, FAIL, BLOCKED and PENDING.
 
-| ID  | Criterion                                                                       | Owner        | Status                  | Evidence                                                                                                                                                                                                                                          | Updated    | Remaining                                                      |
-| --- | ------------------------------------------------------------------------------- | ------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------- |
-| M0  | Baseline and reuse plan recorded; unrelated work preserved                      | agent        | PASS                    | `docs/m1/BASELINE.md`; tree was clean at start                                                                                                                                                                                                    | 2026-10-29 | none                                                           |
-| M1  | Both segment stacks build, migrate, become ready, stop, restart                 | agent        | PASS (local-test stack) | `pnpm m1:up:local` (all services healthy), `pnpm m1:restart` (API killed mid-assignment, then full stop and start), `results-restart-*.json`                                                                                                      | 2026-10-30 | the live stack (`pnpm m1:up`) needs Yu's `m1.env`              |
-| M2  | Requested Gemini model verified from runtime, no fallback                       | agent        | PASS (smoke)            | `docker compose -f compose.m1.yaml run --rm --no-deps -T api-<seg> node apps/api/dist/teamwork/smoke.js`; budget rows above; every call row records the served model                                                                              | 2026-10-29 | rerun in final `m1:verify`                                     |
-| M3  | Two real members authenticate and use authorized access                         | agent + Yu   | BLOCKED                 | sign-in, session and assertion code plus unit tests; local-test identities use a separate issuer                                                                                                                                                  | 2026-10-30 | OAuth client (SETUP_OAUTH)                                     |
-| M4  | Two segment backends isolate data and pending responses                         | agent        | PASS (local)            | `isolation.spec.ts` (4 tests: other member and other segment, forged and missing assertions, CSRF and origin, escaping); separate databases, volumes and token keys per segment                                                                   | 2026-10-30 | repeat with real members in the live suite                     |
-| M5  | Curated templates and skills, private customization and reuse                   | agent        | PASS (local)            | `catalog.spec.ts`: private skill copy on two teammates, original version unchanged                                                                                                                                                                | 2026-10-30 | none                                                           |
-| M6  | Exports exclude credentials and private data; import uses recipient permissions | agent        | PASS (local)            | `catalog.spec.ts` export canaries and recipient-owned import; `teamwork.test.ts` portable scanner tests                                                                                                                                           | 2026-10-30 | none                                                           |
-| M7  | Conversations, task discussion, revisions and inbox agree                       | agent        | PASS (local)            | `conversation.spec.ts`, `coordinated.spec.ts` (revision, inbox), restart suite                                                                                                                                                                    | 2026-10-30 | none                                                           |
-| M8  | Manual assignments run in parallel within caps                                  | agent        | PENDING (local PASS)    | `manual-research.spec.ts` on the real model: two assignments overlap; worker concurrency 2                                                                                                                                                        | 2026-10-30 | overlap records from a live journey                            |
-| M9  | Coordinator plans are real-model and version-bound before dispatch              | agent        | PASS (local)            | `coordinated.spec.ts` (real-model plan, edit, approve exact version, nothing dispatched before), `failures.spec.ts` (cancel a planned task dispatches nothing), digest tests in `teamwork.test.ts`                                                | 2026-10-30 | none                                                           |
-| M10 | Three workflows succeed in both segments                                        | agent + Yu   | BLOCKED                 | all three workflows pass locally on the real model with fixture sources: `manual-research`, `coordinated`, `workflows.spec.ts` (metrics, engineering)                                                                                             | 2026-10-30 | live resources (SETUP_RESOURCES)                               |
-| M11 | Claims, numbers, freshness and uncertainty meet rubrics                         | agent        | PENDING (local PASS)    | `workflows.spec.ts`: every computed comparison matches `fixtures/m1/expected/*` within tolerance, including the channel regroup; claim-support tests; engineering result pinned to a commit                                                       | 2026-10-30 | live data and a sampled evidence review                        |
-| M12 | Consequential actions bind target, content and revision; no duplicates          | agent + Yu   | BLOCKED                 | local: exact-revision approval, stale and replayed approval refused, reconcile through `appProperties` (integration tests, `coordinated.spec.ts` publish once)                                                                                    | 2026-10-30 | a real Docs write needs OAuth                                  |
-| M13 | Failure paths recoverable and honest                                            | agent        | PASS (local)            | `failures.spec.ts`, missing-contribution and reconcile tests, restart suite, refused repository (`workflows.spec.ts`)                                                                                                                             | 2026-10-30 | live provider errors                                           |
-| M14 | Build, lint, type, security, unit, integration, P0 regressions pass             | agent + Orca | PASS (checkpoint 1)     | toolbox: `pnpm build`, `pnpm typecheck`, `pnpm lint:eslint` (0 problems), `pnpm test` 3189 passed; Mac (Orca Conductor): `pnpm lint`, `pnpm lint:security`, `pnpm knip` pass; PR #178 CI 19/19                                                    | 2026-10-30 | rerun at each checkpoint                                       |
-| M15 | Critical E2E pass with retries disabled; live and CI status separate            | agent        | PENDING (local PASS)    | `pnpm m1:e2e:local` with `retries: 0`; `results-local.json`; the live suite is never counted until it runs                                                                                                                                        | 2026-10-30 | live suite                                                     |
-| M16 | Responsive, keyboard and accessibility (zero critical or serious)               | agent        | PASS (local)            | `a11y.spec.ts` axe 0 critical/serious on 7 pages × 3 widths, keyboard menu and segment switch; tour overflow assertions on 24 screens × 3 widths                                                                                                  | 2026-10-30 | human keyboard check during M19                                |
-| M17 | Visual inspection, reviewed baselines, later comparison passes                  | agent + Yu   | PENDING                 | 8 inspected UX rounds in `docs/m1/UX_ITERATIONS.md`                                                                                                                                                                                               | 2026-10-30 | Yu reviews the round-8 captures as baselines; later comparison |
-| M18 | Three real-model live videos, playable and sanitized                            | agent        | PENDING                 | local real-model suite videos under `artifacts/m1/videos/local/` (not live)                                                                                                                                                                       | 2026-10-30 | needs M10                                                      |
-| M19 | Human usability gate with real reviewers                                        | Yu           | PENDING                 | `docs/m1/UX_REVIEW.md`                                                                                                                                                                                                                            | 2026-10-29 | reviewers                                                      |
-| M20 | Credential handling, permissions, budgets, audit                                | agent        | PENDING (local PASS)    | ADC mounted read-only into `api-alpha` and `api-beta` only (`docker inspect`); no credential files in `aw-m1:local`; 0 token-pattern hits in service logs; sealed tokens, capability intersection tests, durable per-ledger call caps, `tw_audit` | 2026-10-30 | repeat the checks with real OAuth tokens                       |
-| M21 | Setup, troubleshooting, evidence and verification reproducible                  | agent        | PENDING                 | `docs/m1/README.md`, `m1.env.example`, `ACCEPTANCE_REPORT.md`, `pnpm m1:verify`                                                                                                                                                                   | 2026-10-30 | final `m1:verify` run after the live gates                     |
+| ID  | Criterion                                                                       | Owner        | Status                                       | Evidence                                                                                              | Updated    | Remaining                                |
+| --- | ------------------------------------------------------------------------------- | ------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------- |
+| M0  | Baseline and reuse plan recorded; unrelated work preserved                      | agent        | PASS                                         | `docs/m1/BASELINE.md`                                                                                 | 2026-10-29 | none                                     |
+| M1  | Both segment stacks build, migrate, become ready, stop, restart                 | agent        | PASS                                         | `pnpm m1:up` (mock stack), `pnpm m1:restart`                                                          | 2026-10-30 | none                                     |
+| M2  | Requested Gemini model verified from runtime, no fallback                       | agent        | PASS                                         | `doctor --vertex` inside `pnpm m1:verify`                                                             | 2026-10-30 | none                                     |
+| M3  | Two members authenticate (mock, by Yu's decision)                               | agent        | PASS (mock)                                  | two mock members, `isolation.spec.ts`; no real sign-in claimed                                        | 2026-10-30 | real Google sign-in in a later milestone |
+| M4  | Two segment backends isolate data and pending responses                         | agent        | PASS                                         | `isolation.spec.ts`                                                                                   | 2026-10-30 | none                                     |
+| M5  | Curated templates and skills, private customization and reuse                   | agent        | PASS                                         | `catalog.spec.ts`                                                                                     | 2026-10-30 | none                                     |
+| M6  | Exports exclude credentials and private data; import uses recipient permissions | agent        | PASS                                         | `catalog.spec.ts`, portable scanner tests                                                             | 2026-10-30 | none                                     |
+| M7  | Conversations, task discussion, revisions and inbox agree                       | agent        | PASS                                         | `conversation.spec.ts`, `coordinated.spec.ts`, restart suite                                          | 2026-10-30 | none                                     |
+| M8  | Manual assignments run in parallel within caps                                  | agent        | PASS                                         | `manual-research.spec.ts` overlap on the real model                                                   | 2026-10-30 | none                                     |
+| M9  | Coordinator plans are real-model and version-bound before dispatch              | agent        | PASS                                         | `coordinated.spec.ts`, `failures.spec.ts`, digest tests                                               | 2026-10-30 | none                                     |
+| M10 | Three workflows in both segments (fixture sources, real model)                  | agent        | PASS (fixture)                               | research, metrics and engineering journeys in both segments                                           | 2026-10-30 | live in a later milestone                |
+| M11 | Claims, numbers, freshness, uncertainty (fixture)                               | agent        | PASS (fixture)                               | manifest match in `workflows.spec.ts`, claim-support tests                                            | 2026-10-30 | live data later                          |
+| M12 | Consequential actions bind target, content and revision (fixture Docs)          | agent        | PASS (fixture)                               | exact-revision approval, refusal, reconcile, publish once                                             | 2026-10-30 | real Docs write later                    |
+| M13 | Failure paths recoverable and honest                                            | agent        | PASS                                         | `failures.spec.ts`, refusal, restart suite                                                            | 2026-10-30 | none                                     |
+| M14 | Build, lint, type, security, unit, integration, P0 regressions pass             | agent + Orca | PASS (toolbox); Mac checks pending           | `pnpm m1:verify` (toolbox gates); Mac: Trunk, `lint:security`, knip                                   | 2026-10-30 | Mac checks and CI for the final commit   |
+| M15 | Critical E2E pass with retries disabled; live counted separately                | agent        | PASS (19/19)                                 | `results-local.json`; live suite out of scope                                                         | 2026-10-30 | none                                     |
+| M16 | Responsive, keyboard and accessibility                                          | agent        | PASS                                         | axe at three widths, keyboard tests, mock labels at 375 px, overflow assertions                       | 2026-10-30 | none                                     |
+| M17 | Visual baselines                                                                | Yu           | MOVED to the UI/UX milestone (Yu's decision) | 13 rounds in `UX_ITERATIONS.md`                                                                       | 2026-10-30 | `NEXT_MILESTONE.md`                      |
+| M18 | Three real-model videos (fixture sources)                                       | agent        | PASS (fixture)                               | `artifacts/m1/videos/local/` (gitignored)                                                             | 2026-10-30 | live videos later                        |
+| M19 | Human usability gate                                                            | Yu           | MOVED to the UI/UX milestone (Yu's decision) | `UX_REVIEW.md`                                                                                        | 2026-10-30 | `NEXT_MILESTONE.md`                      |
+| M20 | Credential handling, permissions, budgets, audit (mock tokens)                  | agent        | PASS (mock)                                  | ADC mounts, no secrets mount on mock stacks, image and log scans, policy tests, call caps, `tw_audit` | 2026-10-30 | real tokens later                        |
+| M21 | Setup, troubleshooting, evidence and verification reproducible                  | agent        | PASS                                         | `README.md`, `ACCEPTANCE_REPORT.md`, `pnpm m1:verify`, `pnpm m1:evidence`                             | 2026-10-30 | none                                     |
 
 ## Commits and PR
 
@@ -105,6 +105,7 @@ Budget rule for the rest of the campaign: pause and print `NEEDS_YU:` at 550 of 
 
 ## Decisions
 
+- Yu, 2026-10-30 07:33 JST: M1 is **mock-only** apart from the real model (D1 = B). No real OAuth client, sign-in, Drive, Docs, BigQuery or GitHub; Yu does no setup. M3, M10, M11, M12, M18 and M20 are rescoped to mock or fixture evidence and never claimed as live. GitHub OAuth is out of scope and GitHub is mocked in tests; BigQuery uses fixtures only. M17 and M19 move to the next UI/UX milestone as its entry gates (D2). `pnpm m1:up` now starts the mock stack; the live stack stays behind `--live-stack` for later.
 - Yu, 2026-10-29: APPROVED the read-only GitHub OAuth App and the secret-gated `POST /internal/e2e/session`. The endpoint is served only by `web`'s internal listener (port 8081, never published, so only loopback and the Compose network reach it). It requires `AW_M1_E2E_MODE=1` **and** `AW_M1_E2E_SESSION_SECRET`, and returns 404 otherwise, so it fails closed. A unit test proves it is disabled by default. Yu does the OAuth, resource and GitHub setup and fills `~/.config/agent-works-m1/m1.env`.
 
 - One web BFF, two segment APIs, three Postgres services (`pg-web`, `pg-alpha`, `pg-beta`). Separate databases and volumes are simpler to prove isolated than roles on one server.
@@ -115,11 +116,12 @@ Budget rule for the rest of the campaign: pause and print `NEEDS_YU:` at 550 of 
 
 ## Next steps
 
-1. Checkpoint 2: `/code-review` and `/simplify` on the checkpoint 2 diff, full gates, full local suite, restart suite, UX round, then READY_TO_COMMIT.
-2. When Yu's `m1.env` exists: `pnpm m1:doctor -- --live`, `pnpm m1:up`, then the live suite (`pnpm m1:e2e:live`) for M3, M8, M10, M12 and M18.
-3. Final: `/code-review` and `/simplify` over the whole branch, `pnpm m1:verify`, and the final `ACCEPTANCE_REPORT.md`.
+1. Close M1: final `/code-review` and `/simplify` over the whole branch, `pnpm m1:verify`, `pnpm m1:evidence`, READY_TO_COMMIT.
+2. Next milestone (UI/UX): `docs/m1/NEXT_MILESTONE.md`.
 
 ## Lessons
+
+- 2026-10-30: the Vertex smoke's 64-token cap failed `m1:verify` with `empty_response`, because Gemini 3.8 spends thinking tokens against the cap. The same cause showed up in the first smoke on 2026-10-29 as `MAX_TOKENS`. Rule: no Gemini 3.8 call gets fewer than 1024 output tokens.
 
 - 2026-10-30: I edited `0018_teamwork.sql` after the local databases had applied it, so `depends_on` existed only on the newest stack and task creation failed with a `PostgresError` on the older ones. The UX stack was fresh, so the UX rounds passed while the local suites failed. Fix: the column moved to an idempotent `0019`. Rule, now in `apps/api/migrations/README.md`: never edit a migration any database has applied.
 
@@ -142,6 +144,48 @@ Budget rule for the rest of the campaign: pause and print `NEEDS_YU:` at 550 of 
 - An API-side `required` flag on connections: the page-level fixture check covers the one case.
 - A shared denied-repository e2e helper: the three copies differ in segment, member and screenshot needs.
 - A `shortRevision` helper: three call sites with one `slice(0, 12)` each.
+
+## Final whole-branch review (2026-10-30)
+
+`/code-review` (10 findings), all fixed:
+
+- Cyclic plans are rejected or flattened.
+- Retried and rescoped dependents wait for their upstream (one `releaseReady`).
+- Deadlines start when a run starts.
+- Login state is bound to the browser by cookie.
+- Each Postgres sits on its own internal network.
+- Jobs renew their lease, and every job kind has an attempt cap.
+- P0 queries ignore teamwork rows (`kind`, `segment is null`).
+- A segment 401 no longer loops through sign-in.
+- One token memo helper.
+- Also fixed:
+  - The publish gate is re-checked at approval.
+  - The new-task form keeps the member's source ticks.
+  - The members key in the missing-config report is correct.
+
+`/simplify` (4 reviewers) applied:
+
+- 401 translated in the segment client.
+- `canPublish` shared by prepare and approve.
+- `plan()` uses `capabilitiesFor`.
+- One `markUncertain`.
+- One dependency `closure`.
+- `run.mjs` derives ports, makes one live check and has a complete usage line.
+- Shared `SESSION_TTL_S` and `membersKey`.
+- `h('title')` instead of a private escaper.
+- Shared `ApiResult`.
+- The conversation poller pauses in hidden tabs.
+- Small cleanups.
+
+`/simplify` skips, with reasons:
+
+- Separate teamwork tables or views instead of `kind` filters: a schema migration that P0 must re-prove; later milestone.
+- A shared BFF client, CSRF and cookie helpers, static-asset helpers and client script with P0: cross-module refactors that touch P0; UI/UX milestone.
+- Readiness caching, batched evidence inserts, a single inbox sync per transaction, the reply N+1, idle-claim backoff: performance work with no measured problem at M1 scale.
+- Typed `ConflictCode` labels, an API-side connection `required` flag, a shared metrics form component, readiness zod schemas: UI/UX milestone.
+- Merging `wholeNumber` with P0's `callLimit`: the two treat an empty value differently.
+- Reusing P0's `appendEvent`: needs P0's event type widened.
+- A nullable `deadline_at`: needs a migration; the queued value is now a placeholder that is overwritten at start.
 
 ## Decisions (later)
 

@@ -152,7 +152,7 @@ test('UX tour: key journey on video, then every key screen at 375, 768 and 1440'
   await add('19-connections');
   await add('19b-source-checks', async (p) => {
     await p.goto('/s/alpha/connections');
-    await p.getByRole('button', { name: 'Check live sources' }).click();
+    await p.getByRole('button', { name: 'Check sources' }).click();
     await expect(p.locator('.check-list .badge-ok').first()).toBeVisible();
   });
   await page.goto('/s/alpha/tasks/new?workflow=engineering_proposal');

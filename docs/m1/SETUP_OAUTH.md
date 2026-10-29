@@ -1,5 +1,7 @@
 # M1 identity and OAuth setup
 
+> **Not needed for M1.** By Yu's decision (2026-10-30), M1 is mock-only apart from the real model. This document is kept for the later milestone that adds real sign-in and live integrations (`docs/m1/NEXT_MILESTONE.md`).
+
 This is the one-time setup for real member sign-in and delegated source access. Yu does every step in a host browser. The agent never sees, prints or commits a secret value. The stack reads secrets only from a local file outside the repository.
 
 ## What the two credentials are for
@@ -46,6 +48,8 @@ Sign-in asks only for `openid email profile` (with offline access so the end-to-
 
 ## 2. GitHub OAuth App (read-only)
 
+Out of scope by Yu's decision: there is no real GitHub OAuth App, and GitHub is mocked in tests. The steps below stay only as reference.
+
 GitHub, then **Settings**, **Developer settings**, **OAuth Apps**, **New OAuth App**:
 
 - Application name: `Agent Works M1 (local)`
@@ -70,9 +74,6 @@ Fill `~/.config/agent-works-m1/m1.env` with:
 # Google OAuth client from section 1
 AW_M1_GOOGLE_CLIENT_ID=
 AW_M1_GOOGLE_CLIENT_SECRET=
-# GitHub OAuth App from section 2
-AW_M1_GITHUB_CLIENT_ID=
-AW_M1_GITHUB_CLIENT_SECRET=
 # Members: Google account emails, comma separated. Membership is enforced by each segment API.
 AW_M1_ALPHA_MEMBERS=member1@example.com,member2@example.com
 AW_M1_BETA_MEMBERS=member1@example.com,member2@example.com

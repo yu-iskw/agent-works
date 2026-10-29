@@ -74,6 +74,23 @@ export function deniedSources(
   });
 }
 
+/** True when `dependsOn` edges form a cycle: every assignment on it would wait forever. */
+export function hasDependencyCycle(
+  assignments: readonly { readonly key: string; readonly dependsOn: readonly string[] }[],
+): boolean {
+  const edges = new Map(assignments.map((a) => [a.key, a.dependsOn]));
+  const state = new Map<string, 'visiting' | 'done'>();
+  const visit = (key: string): boolean => {
+    const seen = state.get(key);
+    if (seen !== undefined) return seen === 'visiting';
+    state.set(key, 'visiting');
+    const cyclic = (edges.get(key) ?? []).some(visit);
+    state.set(key, 'done');
+    return cyclic;
+  };
+  return assignments.some((a) => visit(a.key));
+}
+
 /** owner/name match against the segment allowlist, case-insensitive like GitHub. */
 export function repositoryAllowed(repository: string, allowlist: readonly string[]): boolean {
   const wanted = repository.toLowerCase();

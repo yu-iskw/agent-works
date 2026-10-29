@@ -5,6 +5,7 @@ import { segmentsFor } from './config.js';
 
 import type { Segment, WebConfig } from './config.js';
 import type { AssertionSigner, Session } from './identity.js';
+import type { ApiResult } from '../workbench/api.js';
 import type {
   CapabilityState,
   InboxItem,
@@ -19,9 +20,7 @@ import type {
 } from '@agent-works/domain/teamwork';
 import type { PortableFinding } from '@agent-works/domain/teamwork-portable';
 
-export type ApiResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly status: number; readonly error: string };
+export type { ApiResult } from '../workbench/api.js';
 
 export type Connection = {
   readonly provider: 'google' | 'github';
@@ -125,6 +124,9 @@ export function createSegmentClient(
     }
     const payload = (await response.json().catch(() => undefined)) as
       Record<string, unknown> | undefined;
+    // web checks the member's own session before any call, so a 401 here means the segment API
+    // rejected web's assertion (for example right after a key rotation), not a signed-out member.
+    if (response.status === 401) return { ok: false, status: 503, error: 'segment_auth_failed' };
     if (!response.ok)
       return {
         ok: false,

@@ -312,7 +312,7 @@ async function refreshGoogle(deps: Deps, row: Row): Promise<string> {
       refresh_token: deps.sealer.open(row.sealed_refresh),
       grant_type: 'refresh_token',
     }),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
   });
   const body = (await response.json().catch(() => ({}))) as GoogleToken;
   if (!response.ok || body.access_token === undefined) {
@@ -329,6 +329,16 @@ async function refreshGoogle(deps: Deps, row: Row): Promise<string> {
     where owner_sub = ${row.owner_sub} and provider = 'google'
   `;
   return body.access_token;
+}
+
+/** Shares one pending token per provider, so a near-expiry Google token is refreshed once. */
+export function oncePerProvider(source: TokenSource): TokenSource {
+  const pending = new Map<Parameters<TokenSource>[0], Promise<string>>();
+  return (provider) => {
+    const hit = pending.get(provider) ?? source(provider);
+    pending.set(provider, hit);
+    return hit;
+  };
 }
 
 /** Access tokens for one member in this segment only; never another member's, never ADC. */

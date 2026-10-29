@@ -157,7 +157,7 @@ const NAV: readonly { key: NavKey; label: string; icon: IconName; path: string }
 function modeLabels(ctx: PageCtx): readonly string[] {
   const r = ctx.readiness;
   return [
-    ...(ctx.session.idp === 'local-test' ? ['Local test identity'] : []),
+    ...(ctx.session.idp === 'local-test' ? ['Mock identity'] : []),
     ...(r?.sourceMode === 'fixture' ? ['Fixture sources'] : []),
     ...(r?.model.mode === 'stub' ? ['Scripted model, no Vertex calls'] : []),
   ];
@@ -1279,14 +1279,16 @@ function SourceChecks(props: {
   const { ctx, checks } = props;
   return (
     <section class="card card-body stack-sm footer-note" aria-labelledby="checks-h">
-      <h2 id="checks-h">Live sources in {ctx.segment.name}</h2>
+      <h2 id="checks-h">Sources in {ctx.segment.name}</h2>
       <p class="muted">
-        Reads each source this segment uses once, with your own connections, and reports what it can
-        see. Nothing is changed and no model is called.
+        {ctx.readiness?.sourceMode === 'fixture'
+          ? 'Reads each local fixture source this segment uses once and reports what it can see.'
+          : 'Reads each source this segment uses once, with your own connections, and reports what it can see.'}{' '}
+        Nothing is changed and no model is called.
       </p>
       <form method="post" action={segPath(ctx.segment, '/connections/check')}>
         <Csrf session={ctx.session} />
-        <SubmitButton label="Check live sources" kind="btn" />
+        <SubmitButton label="Check sources" kind="btn" />
       </form>
       <div role="status">
         {checks === undefined ? null : (
@@ -1323,8 +1325,8 @@ export function ConnectionsPage(props: {
         <div class="notice">
           <Alert tone="info" live={false}>
             <p>
-              This stack reads local fixture files instead of Google and GitHub, so no connection is
-              needed here.
+              This stack reads local fixture files, and Google and GitHub are mocked, so no
+              connection is needed here. Live connections come in a later milestone.
             </p>
           </Alert>
         </div>
@@ -1478,7 +1480,10 @@ export function SignInPage(props: {
             <h1>Agent Works</h1>
           </div>
           <p class="muted">
-            Personal AI teammates for your segments. Sign in with your work Google account.
+            Personal AI teammates for your segments.{' '}
+            {props.identity === 'google'
+              ? 'Sign in with your work Google account.'
+              : 'Choose a mock identity to continue.'}
           </p>
           {props.error === undefined ? null : (
             <Alert tone="danger" title="Sign-in did not complete">
@@ -1498,10 +1503,11 @@ export function SignInPage(props: {
           ) : (
             <form class="stack-sm" method="post" action="/auth/local-test">
               <input type="hidden" name="csrf" value={props.csrf} />
-              <Alert tone="warn" title="Local test identities">
+              <Alert tone="warn" title="Mock identities">
                 <p>
-                  This stack runs in local-test mode. These identities are not real sign-ins and
-                  cannot satisfy a live gate.
+                  This stack uses mock identities, not a real Google sign-in. Sources are local
+                  fixture files, and Google and GitHub are mocked. Nothing here counts as live
+                  evidence.
                 </p>
               </Alert>
               <button class="btn provider-btn" type="submit" name="email" value="alice@local.test">
@@ -1512,10 +1518,12 @@ export function SignInPage(props: {
               </button>
             </form>
           )}
-          <p class="subtle">
-            Sign-in proves who you are. Access to Drive, BigQuery and GitHub is connected separately
-            in each segment.
-          </p>
+          {props.identity === 'google' ? (
+            <p class="subtle">
+              Sign-in proves who you are. Access to Drive, BigQuery and GitHub is connected
+              separately in each segment.
+            </p>
+          ) : null}
         </div>
       </div>
     </main>
