@@ -1,0 +1,180 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/workspace/node_modules/@playwright/test/cli.js",
+      "test",
+      "-c",
+      "e2e/m1",
+      "--project=restart-after"
+    ],
+    "configFile": "/workspace/e2e/m1/playwright.config.ts",
+    "rootDir": "/workspace/e2e/m1",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/artifacts/m1/videos/restart-after",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "local",
+        "name": "local",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/local\\/.*\\.spec\\.ts$/"],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/videos/ux-round-0",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "ux",
+        "name": "ux",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/ux\\/.*\\.spec\\.ts$/"],
+        "timeout": 600000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/restart-after",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-before",
+        "name": "restart-before",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/restart\\/before\\.spec\\.ts$/"],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/restart-after",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-after",
+        "name": "restart-after",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/restart\\/after\\.spec\\.ts$/"],
+        "timeout": 360000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/restart-after",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "live",
+        "name": "live",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/live\\/.*\\.spec\\.ts$/"],
+        "timeout": 900000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      ["list", null],
+      [
+        "json",
+        {
+          "outputFile": "../../artifacts/m1/results-restart-after.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "../../artifacts/m1/report-restart-after",
+          "open": "never"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "restart/after.spec.ts",
+      "file": "restart/after.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "work interrupted by a killed worker and a full restart finishes once, with nothing lost",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 360000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "restart-after",
+              "projectName": "restart-after",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 31108,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T18:07:54.258Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ee14f3a491502d8d1247-51ea554ad7ce650517fe",
+          "file": "restart/after.spec.ts",
+          "line": 7,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-29T18:07:53.871Z",
+    "duration": 31736.934,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

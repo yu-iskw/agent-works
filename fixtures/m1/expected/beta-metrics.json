@@ -1,0 +1,282 @@
+{
+  "segment": "beta",
+  "dataset": "aw_m1_beta",
+  "rowCount": 1656,
+  "dateRange": ["2026-08-01", "2026-10-31"],
+  "units": {
+    "bookings": "appointments",
+    "completed_visits": "appointments",
+    "no_shows": "appointments"
+  },
+  "tolerance": {
+    "absolute": 0.01,
+    "percentPoints": 0.1
+  },
+  "injectedEffects": [
+    {
+      "metric": "no_shows",
+      "region": "NA",
+      "channel": "web",
+      "from": "2026-10-06",
+      "to": "2026-10-31",
+      "factor": 0.7
+    },
+    {
+      "metric": "no_shows",
+      "region": "NA",
+      "channel": "phone",
+      "from": "2026-10-06",
+      "to": "2026-10-31",
+      "factor": 0.7
+    },
+    {
+      "metric": "bookings",
+      "region": "EMEA",
+      "channel": "phone",
+      "from": "2026-10-13",
+      "to": "2026-10-24",
+      "factor": 0.55
+    },
+    {
+      "metric": "completed_visits",
+      "region": "EMEA",
+      "channel": "phone",
+      "from": "2026-10-13",
+      "to": "2026-10-24",
+      "factor": 0.55
+    },
+    {
+      "metric": "bookings",
+      "region": "EMEA",
+      "channel": "web",
+      "from": "2026-10-13",
+      "to": "2026-10-24",
+      "factor": 1.2
+    }
+  ],
+  "emptyPeriod": "2025-01",
+  "expected": {
+    "region:2026-09->2026-10": [
+      {
+        "metric": "bookings",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 37097,
+        "currentValue": 37738,
+        "changePct": 1.7
+      },
+      {
+        "metric": "bookings",
+        "region": "EMEA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 28340,
+        "currentValue": 28811,
+        "changePct": 1.7
+      },
+      {
+        "metric": "bookings",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 17062,
+        "currentValue": 17538,
+        "changePct": 2.8
+      },
+      {
+        "metric": "completed_visits",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 31448,
+        "currentValue": 32408,
+        "changePct": 3.1
+      },
+      {
+        "metric": "completed_visits",
+        "region": "EMEA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 24216,
+        "currentValue": 23393,
+        "changePct": -3.4
+      },
+      {
+        "metric": "completed_visits",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 14621,
+        "currentValue": 14991,
+        "changePct": 2.5
+      },
+      {
+        "metric": "no_shows",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 3059,
+        "currentValue": 2353,
+        "changePct": -23.1
+      },
+      {
+        "metric": "no_shows",
+        "region": "EMEA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 2369,
+        "currentValue": 2429,
+        "changePct": 2.5
+      },
+      {
+        "metric": "no_shows",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 1413,
+        "currentValue": 1457,
+        "changePct": 3.1
+      }
+    ],
+    "channel:2026-09->2026-10": [
+      {
+        "metric": "bookings",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 53052,
+        "currentValue": 55699,
+        "changePct": 5
+      },
+      {
+        "metric": "bookings",
+        "channel": "phone",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 29447,
+        "currentValue": 28388,
+        "changePct": -3.6
+      },
+      {
+        "metric": "completed_visits",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 45115,
+        "currentValue": 46534,
+        "changePct": 3.1
+      },
+      {
+        "metric": "completed_visits",
+        "channel": "phone",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 25170,
+        "currentValue": 24258,
+        "changePct": -3.6
+      },
+      {
+        "metric": "no_shows",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 4163,
+        "currentValue": 3796,
+        "changePct": -8.8
+      },
+      {
+        "metric": "no_shows",
+        "channel": "phone",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 2678,
+        "currentValue": 2443,
+        "changePct": -8.8
+      }
+    ],
+    "region:2026-08->2026-10": [
+      {
+        "metric": "bookings",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 37859,
+        "currentValue": 37738,
+        "changePct": -0.3
+      },
+      {
+        "metric": "bookings",
+        "region": "EMEA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 29028,
+        "currentValue": 28811,
+        "changePct": -0.7
+      },
+      {
+        "metric": "bookings",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 17494,
+        "currentValue": 17538,
+        "changePct": 0.3
+      },
+      {
+        "metric": "completed_visits",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 32133,
+        "currentValue": 32408,
+        "changePct": 0.9
+      },
+      {
+        "metric": "completed_visits",
+        "region": "EMEA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 24734,
+        "currentValue": 23393,
+        "changePct": -5.4
+      },
+      {
+        "metric": "completed_visits",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 14879,
+        "currentValue": 14991,
+        "changePct": 0.8
+      },
+      {
+        "metric": "no_shows",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 3141,
+        "currentValue": 2353,
+        "changePct": -25.1
+      },
+      {
+        "metric": "no_shows",
+        "region": "EMEA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 2415,
+        "currentValue": 2429,
+        "changePct": 0.6
+      },
+      {
+        "metric": "no_shows",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 1441,
+        "currentValue": 1457,
+        "changePct": 1.1
+      }
+    ]
+  }
+}

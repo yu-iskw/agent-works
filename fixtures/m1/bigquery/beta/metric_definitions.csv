@@ -1,0 +1,4 @@
+metric,definition,unit,owner,updated_at
+bookings,"Appointments booked on the day (UTC).",appointments,Clinic operations,2026-09-30T00:00:00Z
+completed_visits,"Appointments attended on the day (UTC).",appointments,Clinic operations,2026-09-30T00:00:00Z
+no_shows,"Booked appointments neither attended nor cancelled, by appointment day (UTC).",appointments,Clinic operations,2026-09-30T00:00:00Z

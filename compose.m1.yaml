@@ -1,0 +1,240 @@
+# Agent Works M1: personal AI teammates on two isolated segment backends.
+#   pnpm m1:up   (build, migrate, start, wait)   then open http://localhost:8280
+# Only api-alpha and api-beta call Vertex AI, so only they mount host ADC (read-only). The
+# operator's secrets file is mounted read-only into web and the two segment APIs; the docker CLI
+# never reads it. Each segment has its own Postgres service, volume, key volume and budget.
+name: aw-m1
+
+x-app: &app
+  image: aw-m1:local
+  init: true
+  working_dir: /app
+  restart: unless-stopped
+  user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - fetch('http://127.0.0.1:8080/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+    interval: 3s
+    timeout: 3s
+    retries: 60
+    start_period: 5s
+
+x-pg: &pg
+  image: postgres:16-alpine
+  restart: unless-stopped
+  environment:
+    POSTGRES_HOST_AUTH_METHOD: trust
+  healthcheck:
+    test: [CMD, pg_isready, -U, postgres, -h, 127.0.0.1]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+x-segment-env: &segment-env
+  HOME: /home/app
+  CLOUDSDK_CONFIG: /home/app/.config/gcloud
+  GOOGLE_APPLICATION_CREDENTIALS: /home/app/.config/gcloud/application_default_credentials.json
+  GOOGLE_CLOUD_PROJECT: ${AW_M1_GOOGLE_CLOUD_PROJECT:-ubie-yu-sandbox}
+  GOOGLE_CLOUD_LOCATION: ${AW_M1_GOOGLE_CLOUD_LOCATION:-global}
+  VERTEX_MODEL_ID: ${AW_M1_VERTEX_MODEL_ID-gemini-3.8-flash}
+  VERTEX_MAX_OUTPUT_TOKENS: ${AW_M1_VERTEX_MAX_OUTPUT_TOKENS:-8192}
+  LLM_MODE: ${AW_M1_LLM_MODE:-vertex}
+  AW_IDENTITY: ${AW_M1_IDENTITY:-google}
+  AW_LOCAL_TEST_MEMBERS: alice@local.test,bob@local.test
+  AW_SOURCE_MODE: ${AW_M1_SOURCE_MODE:-live}
+  AW_FIXTURE_FAULTS: ${AW_M1_FIXTURE_FAULTS:-0}
+  AW_MAX_MODEL_CALLS: ${AW_M1_MAX_MODEL_CALLS_PER_SEGMENT:-200}
+  AW_WORKER_CONCURRENCY: ${AW_M1_CONCURRENCY:-2}
+  AW_PUBLIC_URL: http://localhost:${AW_M1_PORT:-8280}
+  AW_SECRETS_FILE: /run/aw-m1/m1.env
+  AW_KEY_DIR: /data/keys
+  AW_ASSERTION_JWKS_URL: http://web:8081/internal/jwks
+
+services:
+  # One-shot: copy the checkout (read-only mount) into the m1-app volume, install, build, exit.
+  builder:
+    build:
+      context: dev/p0
+    image: aw-m1:local
+    # Root only so a rebuild can always replace files a previous run wrote under another UID.
+    user: root
+    working_dir: /app
+    environment:
+      HOME: /home/app
+      CI: 'true'
+      pnpm_config_store_dir: /pnpm-store
+    volumes:
+      - .:/src:ro
+      - m1-app:/app
+      - m1-pnpm-store:/pnpm-store
+    command: [sh, /src/dev/m1/build.sh]
+    restart: 'no'
+
+  pg-web:
+    <<: *pg
+    volumes: [m1-pg-web:/var/lib/postgresql/data]
+
+  pg-alpha:
+    <<: *pg
+    volumes: [m1-pg-alpha:/var/lib/postgresql/data]
+
+  pg-beta:
+    <<: *pg
+    volumes: [m1-pg-beta:/var/lib/postgresql/data]
+
+  # Key volumes are created root-owned; this one-shot hands them to the app UID with mode 0700.
+  keys-init:
+    image: postgres:16-alpine
+    user: root
+    command:
+      - sh
+      - -c
+      - for d in /keys/web /keys/alpha /keys/beta; do chown ${HOST_UID:-1000}:${HOST_GID:-1000} $$d && chmod 700 $$d; done
+    volumes:
+      - m1-keys-web:/keys/web
+      - m1-keys-alpha:/keys/alpha
+      - m1-keys-beta:/keys/beta
+    restart: 'no'
+
+  api-alpha:
+    <<: *app
+    command: [node, apps/api/dist/teamwork/server.js]
+    environment:
+      <<: *segment-env
+      AW_SEGMENT_ID: alpha
+      AW_SEGMENT_NAME: Alpha Retail
+      DATABASE_URL: postgres://postgres@pg-alpha:5432/postgres
+    volumes:
+      - m1-app:/app:ro
+      - type: bind
+        source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
+        target: /home/app/.config/gcloud
+        read_only: true
+      - type: bind
+        source: ${AW_M1_SECRETS_DIR:-${HOME}/.config/agent-works-m1}
+        target: /run/aw-m1
+        read_only: true
+      - m1-keys-alpha:/data/keys
+    depends_on:
+      pg-alpha:
+        condition: service_healthy
+      builder:
+        condition: service_completed_successfully
+      keys-init:
+        condition: service_completed_successfully
+
+  api-beta:
+    <<: *app
+    command: [node, apps/api/dist/teamwork/server.js]
+    environment:
+      <<: *segment-env
+      AW_SEGMENT_ID: beta
+      AW_SEGMENT_NAME: Beta Health
+      DATABASE_URL: postgres://postgres@pg-beta:5432/postgres
+    volumes:
+      - m1-app:/app:ro
+      - type: bind
+        source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
+        target: /home/app/.config/gcloud
+        read_only: true
+      - type: bind
+        source: ${AW_M1_SECRETS_DIR:-${HOME}/.config/agent-works-m1}
+        target: /run/aw-m1
+        read_only: true
+      - m1-keys-beta:/data/keys
+    depends_on:
+      pg-beta:
+        condition: service_healthy
+      builder:
+        condition: service_completed_successfully
+      keys-init:
+        condition: service_completed_successfully
+
+  # BFF: Google sign-in, sessions, segment registry, CSRF, server-rendered pages. Port 8080 is
+  # published on loopback; port 8081 (JWKS, e2e session) stays on the compose network.
+  web:
+    <<: *app
+    command: [node, apps/web/dist/src/m1-server.js]
+    environment:
+      HOME: /home/app
+      AW_IDENTITY: ${AW_M1_IDENTITY:-google}
+      AW_PUBLIC_URL: http://localhost:${AW_M1_PORT:-8280}
+      AW_SECRETS_FILE: /run/aw-m1/m1.env
+      AW_KEY_DIR: /data/keys
+      AW_E2E_MODE: ${AW_M1_E2E_MODE:-0}
+      DATABASE_URL: postgres://postgres@pg-web:5432/postgres
+      AW_SEGMENTS: alpha=http://api-alpha:8080|Alpha Retail,beta=http://api-beta:8080|Beta Health
+      AW_ALLOWED_BACKEND_HOSTS: api-alpha,api-beta
+    volumes:
+      - m1-app:/app:ro
+      - m1-keys-web:/data/keys
+      - type: bind
+        source: ${AW_M1_SECRETS_DIR:-${HOME}/.config/agent-works-m1}
+        target: /run/aw-m1
+        read_only: true
+    ports:
+      - 127.0.0.1:${AW_M1_PORT:-8280}:8080
+    depends_on:
+      pg-web:
+        condition: service_healthy
+      builder:
+        condition: service_completed_successfully
+      keys-init:
+        condition: service_completed_successfully
+
+  # Build, lint and unit-test inside Linux.
+  toolbox:
+    profiles: [tools]
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    image: aw-p0-toolbox:local
+    user: node
+    environment:
+      DATABASE_URL: postgres://postgres@pg-alpha:5432/postgres
+
+  # Browser tests against the running stack, inside its network. Gets only the e2e session secret.
+  e2e:
+    profiles: [tools]
+    image: mcr.microsoft.com/playwright:v1.63.0-noble
+    working_dir: /workspace
+    user: ubuntu
+    environment:
+      HOME: /tmp
+      M1_BASE_URL: http://web:8080
+      M1_INTERNAL_URL: http://web:8081
+      M1_AUTH_DIR: /auth
+      CI: 'true'
+    volumes:
+      - .:/workspace
+      - node-modules-root:/workspace/node_modules
+      - e2e-auth:/auth
+      - type: bind
+        source: ${AW_M1_SECRETS_DIR:-${HOME}/.config/agent-works-m1}/e2e-session.secret
+        target: /run/aw-m1/e2e-session.secret
+        read_only: true
+
+volumes:
+  m1-app:
+  m1-pnpm-store:
+  m1-pg-web:
+  m1-pg-alpha:
+  m1-pg-beta:
+  m1-keys-web:
+  m1-keys-alpha:
+  m1-keys-beta:
+  e2e-auth:
+  node-modules-api-contract:
+  node-modules-api:
+  node-modules-cli:
+  node-modules-common:
+  node-modules-domain:
+  node-modules-fakes:
+  node-modules-incident-analysis:
+  node-modules-policy:
+  node-modules-root:
+  node-modules-web:
+  pnpm-store:

@@ -1,0 +1,266 @@
+{
+  "segment": "alpha",
+  "dataset": "aw_m1_alpha",
+  "rowCount": 1656,
+  "dateRange": ["2026-08-01", "2026-10-31"],
+  "units": {
+    "signups": "accounts",
+    "active_users": "accounts",
+    "revenue_usd": "USD"
+  },
+  "tolerance": {
+    "absolute": 0.01,
+    "percentPoints": 0.1
+  },
+  "injectedEffects": [
+    {
+      "metric": "signups",
+      "region": "EU",
+      "channel": "web",
+      "from": "2026-10-03",
+      "to": "2026-10-31",
+      "factor": 0.78
+    },
+    {
+      "metric": "revenue_usd",
+      "region": "EU",
+      "channel": "web",
+      "from": "2026-10-03",
+      "to": "2026-10-31",
+      "factor": 0.93
+    },
+    {
+      "metric": "signups",
+      "region": "APAC",
+      "channel": "partner",
+      "from": "2026-10-01",
+      "to": "2026-10-31",
+      "factor": 1.18
+    }
+  ],
+  "emptyPeriod": "2025-01",
+  "expected": {
+    "region:2026-09->2026-10": [
+      {
+        "metric": "signups",
+        "region": "EU",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 14881,
+        "currentValue": 12754,
+        "changePct": -14.3
+      },
+      {
+        "metric": "signups",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 19657,
+        "currentValue": 20367,
+        "changePct": 3.6
+      },
+      {
+        "metric": "signups",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 11466,
+        "currentValue": 12386,
+        "changePct": 8
+      },
+      {
+        "metric": "active_users",
+        "region": "EU",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 183355,
+        "currentValue": 188910,
+        "changePct": 3
+      },
+      {
+        "metric": "active_users",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 243408,
+        "currentValue": 252271,
+        "changePct": 3.6
+      },
+      {
+        "metric": "active_users",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 142092,
+        "currentValue": 146628,
+        "changePct": 3.2
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "EU",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 320465.88,
+        "currentValue": 311594.59,
+        "changePct": -2.8
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "NA",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 425678.69,
+        "currentValue": 439268.73,
+        "changePct": 3.2
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "APAC",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 247890.21,
+        "currentValue": 256051.52,
+        "changePct": 3.3
+      }
+    ],
+    "channel:2026-09->2026-10": [
+      {
+        "metric": "signups",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 35168,
+        "currentValue": 33828,
+        "changePct": -3.8
+      },
+      {
+        "metric": "signups",
+        "channel": "partner",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 10836,
+        "currentValue": 11679,
+        "changePct": 7.8
+      },
+      {
+        "metric": "active_users",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 434792,
+        "currentValue": 449901,
+        "changePct": 3.5
+      },
+      {
+        "metric": "active_users",
+        "channel": "partner",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 134063,
+        "currentValue": 137908,
+        "changePct": 2.9
+      },
+      {
+        "metric": "revenue_usd",
+        "channel": "web",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 759771.46,
+        "currentValue": 765365,
+        "changePct": 0.7
+      },
+      {
+        "metric": "revenue_usd",
+        "channel": "partner",
+        "baseline": "2026-09",
+        "current": "2026-10",
+        "baselineValue": 234263.32,
+        "currentValue": 241549.84,
+        "changePct": 3.1
+      }
+    ],
+    "region:2026-08->2026-10": [
+      {
+        "metric": "signups",
+        "region": "EU",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 15077,
+        "currentValue": 12754,
+        "changePct": -15.4
+      },
+      {
+        "metric": "signups",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 20141,
+        "currentValue": 20367,
+        "changePct": 1.1
+      },
+      {
+        "metric": "signups",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 11667,
+        "currentValue": 12386,
+        "changePct": 6.2
+      },
+      {
+        "metric": "active_users",
+        "region": "EU",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 186985,
+        "currentValue": 188910,
+        "changePct": 1
+      },
+      {
+        "metric": "active_users",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 249204,
+        "currentValue": 252271,
+        "changePct": 1.2
+      },
+      {
+        "metric": "active_users",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 145069,
+        "currentValue": 146628,
+        "changePct": 1.1
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "EU",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 327630.28,
+        "currentValue": 311594.59,
+        "changePct": -4.9
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "NA",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 439262.74,
+        "currentValue": 439268.73,
+        "changePct": 0
+      },
+      {
+        "metric": "revenue_usd",
+        "region": "APAC",
+        "baseline": "2026-08",
+        "current": "2026-10",
+        "baselineValue": 254776.17,
+        "currentValue": 256051.52,
+        "changePct": 0.5
+      }
+    ]
+  }
+}

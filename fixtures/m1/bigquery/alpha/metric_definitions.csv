@@ -1,0 +1,4 @@
+metric,definition,unit,owner,updated_at
+signups,"Accounts that completed email verification on the day (UTC).",accounts,Analytics,2026-09-30T00:00:00Z
+active_users,"Distinct accounts with at least one session on the day (UTC).",accounts,Analytics,2026-09-30T00:00:00Z
+revenue_usd,"Recognised subscription revenue on the day, excluding tax.",USD,Finance,2026-09-30T00:00:00Z

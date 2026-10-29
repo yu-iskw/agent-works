@@ -120,7 +120,7 @@ export async function lockTask(
   id: string,
 ): Promise<TaskRow | undefined> {
   const rows = await tx<TaskRow[]>`
-    select * from wb_tasks where id = ${id}
+    select * from wb_tasks where id = ${id} and kind = 'flagship'
     ${ownerSub === undefined ? tx`` : tx`and owner_sub = ${ownerSub}`}
     for update
   `;
@@ -223,7 +223,8 @@ async function create(
 
 async function list(sql: postgres.Sql, ownerSub: string): Promise<readonly WorkbenchTaskSummary[]> {
   const rows = await sql<TaskRow[]>`
-    select * from wb_tasks where owner_sub = ${ownerSub} order by created_at desc limit 100
+    select * from wb_tasks where owner_sub = ${ownerSub} and kind = 'flagship'
+    order by created_at desc limit 100
   `;
   return rows.map(summary);
 }
@@ -234,7 +235,7 @@ async function taskRow(
   id: string,
 ): Promise<TaskRow | undefined> {
   const rows = await sql<TaskRow[]>`
-    select * from wb_tasks where id = ${id} and owner_sub = ${ownerSub}
+    select * from wb_tasks where id = ${id} and owner_sub = ${ownerSub} and kind = 'flagship'
   `;
   return rows.at(0);
 }
@@ -537,7 +538,7 @@ async function readiness(
     lastModelCall(deps.sql, info),
     deps.sql<{ n: number }[]>`
       select count(*)::int as n from wb_tasks
-      where owner_sub = ${owner.sub} and status = 'waiting_approval'
+      where owner_sub = ${owner.sub} and kind = 'flagship' and status = 'waiting_approval'
     `,
   ]);
   const { state, errorCode } = modelHealth(deps.model, credentials, last);

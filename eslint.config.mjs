@@ -115,6 +115,8 @@ export default [
       '.serena/**',
       '.trunk/**',
       '**/*.generated.ts',
+      // Local test output (reports, traces, screenshots); never source.
+      'artifacts/**',
     ],
   },
   {

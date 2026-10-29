@@ -62,7 +62,7 @@ async function claim(sql: postgres.Sql): Promise<Claimed | undefined> {
       lease_token = gen_random_uuid()
     where id = (
       select id from wb_tasks
-      where status in ('queued', 'running', 'cancel_requested', 'executing')
+      where kind = 'flagship' and status in ('queued', 'running', 'cancel_requested', 'executing')
         and (lease_until is null or lease_until < now())
       order by updated_at
       limit 1
@@ -344,7 +344,7 @@ async function persistDraft(deps: WorkbenchDeps, task: Claimed, draft: Draft): P
         requested_at, expires_at)
       values (${deps.newId()}, ${task.id}, ${tx.json(proposal)}, ${tx.json(document)}, ${digest},
         'pending', ${at}, ${new Date(at.getTime() + approvalTtlMs)})
-      on conflict (task_id) do update set id = excluded.id, proposal = excluded.proposal,
+      on conflict (task_id) where subject = 'flagship_doc' do update set id = excluded.id, proposal = excluded.proposal,
         document = excluded.document, payload_sha256 = excluded.payload_sha256, state = 'pending',
         requested_at = excluded.requested_at, expires_at = excluded.expires_at,
         decided_by = null, decided_at = null
