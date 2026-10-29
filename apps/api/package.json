@@ -11,14 +11,15 @@
     "@agent-works/fakes": "workspace:*",
     "@types/node": "24.19.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "@agent-works/domain": "workspace:*",
+    "@agent-works/incident-analysis": "workspace:*",
     "@agent-works/policy": "workspace:*",
     "@google/adk": "2.2.0",
+    "google-auth-library": "10.9.1",
     "postgres": "3.4.9",
-    "zod": "4.6.5",
-    "@agent-works/incident-analysis": "workspace:*"
+    "zod": "4.6.7"
   }
 }

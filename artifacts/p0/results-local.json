@@ -1,0 +1,735 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/workspace/node_modules/@playwright/test/cli.js",
+      "test",
+      "-c",
+      "e2e/p0/playwright.config.ts",
+      "--project",
+      "fixture",
+      "--list"
+    ],
+    "configFile": "/workspace/e2e/p0/playwright.config.ts",
+    "rootDir": "/workspace/e2e/p0",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "fixture",
+        "name": "fixture",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [
+          "/visual\\.spec\\.ts$/"
+        ],
+        "testMatch": [
+          "/fixture\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "misconfig",
+        "name": "misconfig",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/misconfig\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "restart-before",
+        "name": "restart-before",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/before\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "restart-after",
+        "name": "restart-after",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/after\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "real-llm",
+        "name": "real-llm",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/real-llm\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../../artifacts/p0/results-local.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "../../artifacts/p0/report-local",
+          "open": "never"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixture/a11y.spec.ts",
+      "file": "fixture/a11y.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "primary screens have no critical or serious axe violations",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-d7b760d2254a39ebaff1",
+          "file": "fixture/a11y.spec.ts",
+          "line": 33,
+          "column": 5
+        },
+        {
+          "title": "the flagship flow completes with the keyboard alone",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-515e1e14c194bcb085dd",
+          "file": "fixture/a11y.spec.ts",
+          "line": 55,
+          "column": 5
+        },
+        {
+          "title": "status changes are announced to assistive technology",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-aa6f455ab21f4462fe31",
+          "file": "fixture/a11y.spec.ts",
+          "line": 93,
+          "column": 5
+        },
+        {
+          "title": "reduced motion disables animation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-185434776261b1e98a9e",
+          "file": "fixture/a11y.spec.ts",
+          "line": 102,
+          "column": 5
+        },
+        {
+          "title": "responsive layout at 375x812",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-ae55d9b253b82edc89b6",
+          "file": "fixture/a11y.spec.ts",
+          "line": 117,
+          "column": 7
+        },
+        {
+          "title": "responsive layout at 768x1024",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-e44782befd3ab95b57b7",
+          "file": "fixture/a11y.spec.ts",
+          "line": 117,
+          "column": 7
+        },
+        {
+          "title": "responsive layout at 1440x900",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "c2ff992ed6a9354b5447-3505d0e76d2f1c9553e2",
+          "file": "fixture/a11y.spec.ts",
+          "line": 117,
+          "column": 7
+        }
+      ]
+    },
+    {
+      "title": "fixture/errors.spec.ts",
+      "file": "fixture/errors.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "[stub:unavailable] shows a recoverable failure",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-919e226e63ed27a2c7f3",
+          "file": "fixture/errors.spec.ts",
+          "line": 26,
+          "column": 7
+        },
+        {
+          "title": "[stub:rate-limit] shows a recoverable failure",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-76844b742ce62817699f",
+          "file": "fixture/errors.spec.ts",
+          "line": 26,
+          "column": 7
+        },
+        {
+          "title": "[stub:timeout] shows a recoverable failure",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-8327c8967d4218386cbc",
+          "file": "fixture/errors.spec.ts",
+          "line": 26,
+          "column": 7
+        },
+        {
+          "title": "[fixture:drive-denied] shows a recoverable failure",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-0ee59404c3122183bcc2",
+          "file": "fixture/errors.spec.ts",
+          "line": 26,
+          "column": 7
+        },
+        {
+          "title": "[fixture:empty] shows a recoverable failure",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-f5a24a3cbc11e38fc08d",
+          "file": "fixture/errors.spec.ts",
+          "line": 26,
+          "column": 7
+        },
+        {
+          "title": "a failed write is retried without duplicating",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-12958e826c410a9ec4a7",
+          "file": "fixture/errors.spec.ts",
+          "line": 42,
+          "column": 5
+        },
+        {
+          "title": "an unconfirmed write is uncertain and reconciles to exactly one document",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-2bda9245861db66d9b26",
+          "file": "fixture/errors.spec.ts",
+          "line": 53,
+          "column": 5
+        },
+        {
+          "title": "unknown task ids get a clear not-found page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "abd647548abd5496119a-bb1dedbe58d45561aa52",
+          "file": "fixture/errors.spec.ts",
+          "line": 69,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "fixture/flow.spec.ts",
+      "file": "fixture/flow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "stack is healthy and the app opens without console errors",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-e710e21b3c91bd4758c0",
+          "file": "fixture/flow.spec.ts",
+          "line": 23,
+          "column": 5
+        },
+        {
+          "title": "creates a task from the keyboard with validation and one submission",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-0af92e221bd103bc5f74",
+          "file": "fixture/flow.spec.ts",
+          "line": 41,
+          "column": 5
+        },
+        {
+          "title": "server rejects an empty objective with a field error",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-960ef7dd95cf7dff06ba",
+          "file": "fixture/flow.spec.ts",
+          "line": 61,
+          "column": 5
+        },
+        {
+          "title": "shows real progress, evidence, draft and a contextual approval",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-b210ded5e2f34c0f930b",
+          "file": "fixture/flow.spec.ts",
+          "line": 76,
+          "column": 5
+        },
+        {
+          "title": "citations match recorded evidence and the exported record",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-7cd9bf5f9222f241a8ca",
+          "file": "fixture/flow.spec.ts",
+          "line": 118,
+          "column": 5
+        },
+        {
+          "title": "reject writes nothing; approve writes exactly once and links the result",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-6b5afc9a7cf95a93d8bc",
+          "file": "fixture/flow.spec.ts",
+          "line": 140,
+          "column": 5
+        },
+        {
+          "title": "stale and replayed approvals fail safely",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-ea136af1dbc526300459",
+          "file": "fixture/flow.spec.ts",
+          "line": 165,
+          "column": 5
+        },
+        {
+          "title": "cancel stops a running task and a waiting one without writing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-1f760f244ff01ba44c59",
+          "file": "fixture/flow.spec.ts",
+          "line": 200,
+          "column": 5
+        },
+        {
+          "title": "history lists only my tasks and survives a refresh",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "9dcbe457be2578e5ca39-c32ae49f2c102f8f70a0",
+          "file": "fixture/flow.spec.ts",
+          "line": 215,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "fixture/security.spec.ts",
+      "file": "fixture/security.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a second identity cannot see or act on another owner’s task",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac667f7f0d75e329cd94-b2b045ee8ea64aa1574f",
+          "file": "fixture/security.spec.ts",
+          "line": 15,
+          "column": 5
+        },
+        {
+          "title": "requests without the CSRF token or from a foreign origin are refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac667f7f0d75e329cd94-a80d073d61d3f5d2080c",
+          "file": "fixture/security.spec.ts",
+          "line": 58,
+          "column": 5
+        },
+        {
+          "title": "unauthenticated requests never reach task data",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac667f7f0d75e329cd94-bcc236e56cf93d468c4a",
+          "file": "fixture/security.spec.ts",
+          "line": 81,
+          "column": 5
+        },
+        {
+          "title": "prompt and source-title injection render as inert text",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "fixture",
+              "projectName": "fixture",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac667f7f0d75e329cd94-5fcd7ab369801003cfa3",
+          "file": "fixture/security.spec.ts",
+          "line": 89,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-29T11:25:47.836Z",
+    "duration": 206.60699999999997,
+    "expected": 0,
+    "skipped": 28,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

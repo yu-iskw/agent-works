@@ -33,6 +33,8 @@ minimumReleaseAgeExclude:
   - baseline-browser-mapping
 
 overrides:
+  # GHSA-mrhx-c7xc-m3w5 fixed in 4.6.6; @google/adk and knip otherwise keep 4.6.5
+  zod: 4.6.7
   # GHSA-r292-9mhp-454m fixed in 7.5.21+
   tar: 7.5.22
   # GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7, GHSA-q2hr-2g5m-vwhr fixed in 5.0.12

@@ -4,15 +4,15 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && tsc -p client"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "@agent-works/domain": "workspace:*",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   }
 }

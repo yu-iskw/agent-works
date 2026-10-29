@@ -22,7 +22,10 @@ function hasSpec(directory: string): boolean {
 const projects = readdirSync(root, { withFileTypes: true })
   .filter(
     (entry) =>
-      entry.name !== 'adversarial' && entry.isDirectory() && hasSpec(join(root, entry.name)),
+      // p0 targets compose.p0.yaml through its own config (e2e/p0/playwright.config.ts).
+      !['adversarial', 'p0'].includes(entry.name) &&
+      entry.isDirectory() &&
+      hasSpec(join(root, entry.name)),
   )
   .map((entry) => ({
     name: entry.name,

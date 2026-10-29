@@ -39,6 +39,7 @@ import {
   controlledVerify,
   emergencyAudit,
 } from './suspension/runtime.js';
+import { createWorkbenchRuntime } from './workbench/runtime.js';
 
 import type { Caller } from './auth/iap.js';
 import type { SearchContext } from '@agent-works/domain';
@@ -158,6 +159,11 @@ const scheduling = await createScheduleRuntime({
   now,
   configurationPath: process.env.AW_SCHEDULE_CONFIG,
 });
+// Opt-in: only compose.p0.yaml sets WORKBENCH_ENABLED, so other deployments get no tables, routes or poller.
+const workbench =
+  process.env.WORKBENCH_ENABLED === '1'
+    ? await createWorkbenchRuntime(sql, verify, process.env)
+    : undefined;
 const controlledApp = (deps: Parameters<typeof createApp>[0]) =>
   controlledListener(createApp(deps), enforcement);
 const server = createServer(
@@ -176,6 +182,7 @@ const server = createServer(
     oauth,
     oauthConnections: { read: createPostgresOAuthConnectionsReader(sql), now },
     approvals: { store: createPostgresApprovalStore(sql) },
+    workbench: workbench?.route,
     wire: {
       groups: (caller) => groups(caller.sub),
       ledger,
@@ -214,6 +221,7 @@ const server = createServer(
 
 worker.start();
 scheduling.worker.start();
+workbench?.start();
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
@@ -221,6 +229,7 @@ async function shutdown() {
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
   await worker.stop();
   await scheduling.worker.stop();
+  await workbench?.stop();
   await closed;
   await sql.end({ timeout: 5 });
 }

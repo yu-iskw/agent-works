@@ -65,6 +65,11 @@
       "types": "./src/user-memory-pii.ts",
       "development": "./src/user-memory-pii.ts",
       "import": "./dist/user-memory-pii.js"
+    },
+    "./workbench": {
+      "types": "./src/workbench.ts",
+      "development": "./src/workbench.ts",
+      "import": "./dist/workbench.js"
     }
   },
   "scripts": {
@@ -74,13 +79,13 @@
     "bench": "tsc -p tsconfig.json && node dist/bench.js"
   },
   "dependencies": {
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
     "fast-check": "4.10.2",
     "prettier": "3.8.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }

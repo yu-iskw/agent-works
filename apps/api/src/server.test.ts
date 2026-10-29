@@ -74,6 +74,11 @@ vi.mock('./credentials/postgres.js', () => ({
 vi.mock('./routes/oauth-connections-read.js', () => ({
   createPostgresOAuthConnectionsReader: vi.fn(() => () => Promise.resolve([])),
 }));
+vi.mock('./workbench/runtime.js', () => ({
+  createWorkbenchRuntime: vi.fn(() =>
+    Promise.resolve({ route: vi.fn(), start: vi.fn(), stop: vi.fn(() => Promise.resolve()) }),
+  ),
+}));
 vi.mock('./broker/approvals.js', () => ({ createPostgresApprovalStore: vi.fn(() => ({})) }));
 vi.mock('./ledger/postgres-ledger.js', async () => {
   const { createMemoryLedgerPort } = await import('./ports/memory/ledger-port.js');

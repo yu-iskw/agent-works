@@ -14,6 +14,9 @@ export default defineProject({
       '@agent-works/domain/user-memory-pii': fileURLToPath(
         new URL('../../packages/domain/src/user-memory-pii.ts', import.meta.url),
       ),
+      '@agent-works/domain/workbench': fileURLToPath(
+        new URL('../../packages/domain/src/workbench.ts', import.meta.url),
+      ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),

@@ -150,6 +150,7 @@ describe('end-to-end IAP verifier with Google config', () => {
     await expect(verify(token)).resolves.toEqual({
       sub: 'accounts.google.com:10001',
       assertion: token,
+      email: 'alice@example.com',
     });
   });
 

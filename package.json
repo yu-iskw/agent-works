@@ -33,14 +33,18 @@
     "api:generate": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract generate",
     "prebuild": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract build",
     "pretest": "pnpm --filter @agent-works/domain build && pnpm --filter @agent-works/api-contract build",
-    "typecheck": "pnpm --recursive exec tsc --noEmit"
+    "typecheck": "pnpm --recursive exec tsc --noEmit",
+    "p0:up": "docker compose -f compose.p0.yaml up --build -d --wait --wait-timeout 600 --force-recreate builder fake-directory api web fake-iap",
+    "p0:down": "docker compose -f compose.p0.yaml down",
+    "p0:e2e": "node scripts/p0-e2e.mjs all"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "1.63.0",
     "@trunkio/launcher": "^1.3.4",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "4.1.12",
     "@vitest/eslint-plugin": "^1.6.16",
     "eslint": "^10.2.0",
     "eslint-import-resolver-typescript": "^4.4.4",
@@ -49,11 +53,12 @@
     "eslint-plugin-sonarjs": "^4.0.3",
     "eslint-plugin-unicorn": "^64.0.0",
     "knip": "^6.39.0",
+    "postgres": "3.4.9",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.11",
-    "zod": "4.6.5"
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12",
+    "zod": "4.6.7"
   },
   "packageManager": "pnpm@11.0.5",
   "engines": {
