@@ -2,7 +2,7 @@
 
 Status: **incomplete.** M1 is done only when M0 to M21 all pass. The gates that need Yu's setup (real OAuth members, live Drive, Docs, BigQuery and GitHub resources) and human reviewers are still BLOCKED or PENDING. Every other gate has local evidence on the real model.
 
-Date: 2026-10-30. Branch `yu-iskw/m1-teammates`, checkpoint 2 on top of `348172f` (draft PR https://github.com/yu-iskw/agent-works/pull/178). Environment: macOS host, Rancher Desktop, Node 24.13.0 and pnpm 11 inside containers, Playwright 1.63 image, Vertex AI project `ubie-yu-sandbox`, location `global`, model `gemini-3.8-flash`.
+Date: 2026-10-30. Branch `yu-iskw/m1-teammates`, checkpoint 2 on top of `348172f` (draft PR <https://github.com/yu-iskw/agent-works/pull/178>). Environment: macOS host, Rancher Desktop, Node 24.13.0 and pnpm 11 inside containers, Playwright 1.63 image, Vertex AI project `ubie-yu-sandbox`, location `global`, model `gemini-3.8-flash`.
 
 The day-to-day ledger with owners and remaining work is in `docs/m1/PROGRESS.md`. This report records the evidence and what it does and does not prove.
 

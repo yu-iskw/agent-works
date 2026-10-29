@@ -67,9 +67,10 @@ Owner is the agent unless stated. Status values are PASS, FAIL, BLOCKED and PEND
 
 ## Commits and PR
 
-| Checkpoint | Commit                                                                   | PR                                                      | Notes                                                                              |
-| ---------- | ------------------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 1          | `348172f` (GPG-signed by Orca, includes Trunk's reformat of PROGRESS.md) | https://github.com/yu-iskw/agent-works/pull/178 (draft) | 19/19 CI checks pass; Mac `pnpm knip` and `pnpm lint` pass (run by Orca Conductor) |
+| Checkpoint | Commit                                                                   | PR                                                              | Notes                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1          | `348172f` (GPG-signed by Orca, includes Trunk's reformat of PROGRESS.md) | [#178](https://github.com/yu-iskw/agent-works/pull/178) (draft) | 19/19 CI checks pass; Mac `pnpm knip` and `pnpm lint` pass (run by Orca Conductor)                                                      |
+| 2          | `fffa281`                                                                | [#178](https://github.com/yu-iskw/agent-works/pull/178) (draft) | CI failed on knip (exported `Metrics` type in `e2e/m1/helpers.ts`) and markdownlint MD034 (bare PR URLs); fixed in the follow-up commit |
 
 Budget rule for the rest of the campaign: pause and print `NEEDS_YU:` at 550 of 600 real calls.
 

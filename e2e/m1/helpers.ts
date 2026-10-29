@@ -129,7 +129,7 @@ export async function chooseTeammate(page: Page, index: number, name: string): P
 }
 
 /** The independent expected answers in `fixtures/m1/expected/<segment>-metrics.json`. */
-export type Metrics = {
+type Metrics = {
   expected: Record<
     string,
     {
