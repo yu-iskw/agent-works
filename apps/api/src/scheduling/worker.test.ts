@@ -29,7 +29,7 @@ test('worker stop waits for its pending fire before database shutdown', async ()
         release = resolve;
       }),
   );
-  const worker = createScheduleWorker({ tick } as unknown as Scheduler, vi.fn());
+  const worker = createScheduleWorker({ tick }, vi.fn());
   worker.start();
   const stop = worker.stop();
   let stopped = false;

@@ -65,6 +65,11 @@
       "types": "./src/user-memory-pii.ts",
       "development": "./src/user-memory-pii.ts",
       "import": "./dist/user-memory-pii.js"
+    },
+    "./workbench": {
+      "types": "./src/workbench.ts",
+      "development": "./src/workbench.ts",
+      "import": "./dist/workbench.js"
     }
   },
   "scripts": {

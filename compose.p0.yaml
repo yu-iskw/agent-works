@@ -1,0 +1,176 @@
+# Agent Works P0 workbench: `docker compose -f compose.p0.yaml up --build --wait`, then open
+# http://localhost:8180. Only `api` calls Vertex AI, so only `api` mounts host ADC (read-only).
+name: aw-p0
+
+x-app: &app
+  image: aw-p0:local
+  init: true
+  working_dir: /app
+  volumes:
+    - p0-app:/app:ro
+  restart: unless-stopped
+  user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - fetch('http://127.0.0.1:8080/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+    interval: 3s
+    timeout: 3s
+    retries: 40
+    start_period: 5s
+
+services:
+  # One-shot: copy the checkout (read-only mount) into the p0-app volume, install, build, exit.
+  builder:
+    build:
+      context: dev/p0
+    image: aw-p0:local
+    # Root only so a rebuild can always replace files a previous run wrote under another UID.
+    user: '0:0'
+    working_dir: /app
+    environment:
+      HOME: /home/app
+      CI: 'true'
+      pnpm_config_store_dir: /pnpm-store
+    volumes:
+      - .:/src:ro
+      - p0-app:/app
+      - p0-pnpm-store:/pnpm-store
+    command: [sh, /src/dev/p0/build.sh]
+    restart: 'no'
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - p0-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -h, 127.0.0.1]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Local-only identity: signs IAP-shaped JWTs with an ephemeral key for alice/bob. The api
+  # trusts it only because IAP_ISSUER/IAP_JWKS_URL below name it; production config names Google.
+  fake-iap:
+    <<: *app
+    command: [node, packages/fakes/dist/main.js, iap]
+    environment:
+      UPSTREAM_URL: http://web:8080
+      FAKE_IAP_SIGN_IN: '1'
+    depends_on:
+      web:
+        condition: service_healthy
+      builder:
+        condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:${AW_P0_PORT:-8180}:8080
+
+  fake-directory:
+    <<: *app
+    command: [node, packages/fakes/dist/main.js, directory]
+    depends_on:
+      builder:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    command: [node, apps/api/dist/server.js]
+    environment:
+      HOME: /home/app
+      WORKBENCH_ENABLED: '1'
+      CLOUDSDK_CONFIG: /home/app/.config/gcloud
+      GOOGLE_APPLICATION_CREDENTIALS: /home/app/.config/gcloud/application_default_credentials.json
+      GOOGLE_CLOUD_PROJECT: ${AW_P0_GOOGLE_CLOUD_PROJECT:-ubie-yu-sandbox}
+      GOOGLE_CLOUD_LOCATION: ${AW_P0_GOOGLE_CLOUD_LOCATION:-global}
+      VERTEX_MODEL_ID: ${AW_P0_VERTEX_MODEL_ID-gemini-3.8-flash}
+      LLM_MODE: ${AW_P0_LLM_MODE:-vertex}
+      WORKBENCH_MAX_MODEL_CALLS: ${AW_P0_MAX_MODEL_CALLS:-150}
+      WORKSPACE_FIXTURE_FAULTS: ${AW_P0_FIXTURE_FAULTS:-0}
+      DATABASE_URL: postgres://postgres@postgres:5432/postgres
+      DIRECTORY_URL: http://fake-directory:8080
+      # Legacy /v1/ask dependencies are not part of P0 and stay unreachable on purpose.
+      DRIVE_URL: http://legacy-drive.invalid
+      LLM_URL: http://legacy-llm.invalid
+      IAP_JWKS_URL: http://fake-iap:8080/jwks
+      IAP_ISSUER: https://fake-iap.local
+      IAP_AUDIENCE: agent-works-dev
+    volumes:
+      - p0-app:/app:ro
+      - type: bind
+        source: ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}
+        target: /home/app/.config/gcloud
+        read_only: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fake-directory:
+        condition: service_healthy
+      builder:
+        condition: service_completed_successfully
+
+  web:
+    <<: *app
+    command: [node, apps/web/dist/src/server.js]
+    environment:
+      AW_DEV_STACK: '1'
+      API_URL: http://api:8080
+      WEB_WORKBENCH: '1'
+      WEB_TRUSTED_ORIGINS: http://localhost:${AW_P0_PORT:-8180},http://127.0.0.1:${AW_P0_PORT:-8180},http://fake-iap:8080
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Build, lint and unit-test inside Linux: `docker compose -f compose.p0.yaml run --rm toolbox pnpm test`.
+  toolbox:
+    profiles: [tools]
+    extends:
+      file: dev/compose.node.yaml
+      service: node-dev
+    build:
+      context: dev
+      dockerfile: toolbox.Dockerfile
+    image: aw-p0-toolbox:local
+    # initdb needs a passwd entry, which only the image's own `node` user has.
+    user: '1000:1000'
+    environment:
+      DATABASE_URL: postgres://postgres@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Browser tests against the running stack, inside its network:
+  # `docker compose -f compose.p0.yaml run --rm e2e node_modules/.bin/playwright test -c e2e/p0`.
+  e2e:
+    profiles: [tools]
+    image: mcr.microsoft.com/playwright:v1.63.0-noble
+    working_dir: /workspace
+    user: '1000:1000'
+    environment:
+      HOME: /tmp
+      P0_BASE_URL: http://fake-iap:8080
+      DATABASE_URL: postgres://postgres@postgres:5432/postgres
+      CI: 'true'
+    volumes:
+      - .:/workspace
+      - node-modules-root:/workspace/node_modules
+
+volumes:
+  p0-app:
+  p0-pnpm-store:
+  p0-postgres-data:
+  node-modules-api-contract:
+  node-modules-api:
+  node-modules-cli:
+  node-modules-common:
+  node-modules-domain:
+  node-modules-fakes:
+  node-modules-incident-analysis:
+  node-modules-policy:
+  node-modules-root:
+  node-modules-web:
+  pnpm-store:

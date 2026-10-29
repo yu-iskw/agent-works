@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && tsc -p client"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

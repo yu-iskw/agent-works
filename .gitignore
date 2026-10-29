@@ -155,3 +155,8 @@ codeql-results.sarif
 
 e2e/artifacts/
 e2e/test-results/
+
+# P0 Playwright output (screenshots, videos and results JSON are kept)
+artifacts/p0/test-results/
+artifacts/p0/report-*/
+artifacts/p0/restart-state.json

@@ -28,7 +28,15 @@ const skip = new Set([
   IAP_ASSERTION_HEADER,
 ]);
 
+const userCookie = 'aw_fake_user';
+const signInPath = '/_auth/sign-in';
+
 type Fault = 'bad-sig' | 'bad-aud' | 'expired';
+
+export type IapProxyOptions = {
+  /** Local browser sign-in: a cookie picks alice or bob. Off unless FAKE_IAP_SIGN_IN=1. */
+  readonly signIn?: boolean;
+};
 
 type SigningKeys = {
   jwk: ReturnType<typeof publicJwk>;
@@ -36,14 +44,20 @@ type SigningKeys = {
   decoyKey: KeyObject;
 };
 
-export function createIapProxy(upstream: string): Handler {
+export function createIapProxy(upstream: string, options: IapProxyOptions = {}): Handler {
   const signing = createSigningKeys();
   return async (request) => {
     if (request.method === 'GET' && request.url.pathname === '/jwks') {
       return { status: 200, body: { keys: [signing.jwk] } };
     }
-    const user = header(request.headers, 'x-fake-user');
+    if (options.signIn === true && request.url.pathname.startsWith('/_auth/'))
+      return signIn(request);
+    const user =
+      header(request.headers, 'x-fake-user') ??
+      (options.signIn === true ? cookieUser(request) : undefined);
     if (user === undefined || !users.has(user)) {
+      if (options.signIn === true && request.method === 'GET')
+        return { status: 303, body: '', headers: { location: signInPath } };
       return { status: 401, body: { error: 'unauthenticated' } };
     }
     const fault = readFault(header(request.headers, 'x-fake-iap'));
@@ -150,25 +164,61 @@ async function readUpstream(response: Response): Promise<Reply> {
   return {
     status: response.status,
     body: json ? (JSON.parse(text) as unknown) : text,
-    headers: replyHeaders(response, text.length === 0),
+    headers: replyHeaders(response),
   };
 }
 
-function replyHeaders(response: Response, empty: boolean): ReplyHeaders | undefined {
+/** Like IAP, forwards every backend header; only hop-by-hop and framing headers are dropped. */
+function replyHeaders(response: Response): ReplyHeaders | undefined {
   const entries: [string, string][] = [];
-  if (empty) {
-    response.headers.forEach((value, name) => {
-      if (name === 'set-cookie' || dropResponse.has(name)) return;
-      entries.push([name, value]);
-    });
-  } else {
-    const location = response.headers.get('location');
-    if (location !== null) entries.push(['location', location]);
-    const contentType = response.headers.get(contentTypeHeader);
-    if (contentType !== null) entries.push([contentTypeHeader, contentType]);
-  }
+  response.headers.forEach((value, name) => {
+    if (name === 'set-cookie' || dropResponse.has(name)) return;
+    entries.push([name, value]);
+  });
   const cookies = response.headers.getSetCookie();
   if (entries.length === 0 && cookies.length === 0) return undefined;
   const headers: ReplyHeaders = Object.fromEntries(entries);
   return cookies.length === 0 ? headers : { ...headers, 'set-cookie': cookies };
+}
+
+function cookieUser(request: Request): string | undefined {
+  return header(request.headers, 'cookie')
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${userCookie}=`))
+    ?.slice(userCookie.length + 1);
+}
+
+const signInPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Local sign-in · Agent Works</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f5f6f8;color:#16191f}main{background:#fff;border:1px solid #d9dde4;border-radius:12px;padding:32px;max-width:420px;width:calc(100% - 32px)}h1{font-size:1.4rem;margin:0 0 8px}p{color:#464e5b}button{display:block;width:100%;margin-top:12px;min-height:44px;font:inherit;font-weight:600;border-radius:8px;border:1px solid #2f54d6;background:#2f54d6;color:#fff;cursor:pointer}button.alt{background:#fff;color:#2341ad}button:focus-visible{outline:3px solid #2f54d6;outline-offset:2px}</style></head><body><main><h1>Local test sign-in</h1><p>This local-only proxy stands in for Google Cloud IAP. Pick a test identity. It never runs in production.</p><form method="post" action="/_auth/sign-in"><button name="user" value="alice">Continue as alice@example.test</button><button class="alt" name="user" value="bob">Continue as bob@example.test</button></form></main></body></html>`;
+
+function signIn(request: Request): Reply {
+  const path = request.url.pathname;
+  if (request.method === 'GET' && path === signInPath)
+    return {
+      status: 200,
+      body: signInPage,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    };
+  if (request.method === 'GET' && path === '/_auth/sign-out')
+    return {
+      status: 303,
+      body: '',
+      headers: {
+        location: signInPath,
+        'set-cookie': `${userCookie}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+      },
+    };
+  if (request.method === 'POST' && path === signInPath) {
+    const user = new URLSearchParams(request.body.toString('utf8')).get('user');
+    if (user === null || !users.has(user)) return { status: 400, body: 'unknown user' };
+    return {
+      status: 303,
+      body: '',
+      headers: {
+        location: '/',
+        'set-cookie': `${userCookie}=${user}; Path=/; HttpOnly; SameSite=Lax`,
+      },
+    };
+  }
+  return { status: 404, body: 'not found' };
 }

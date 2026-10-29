@@ -161,8 +161,16 @@ describe('IAP verifier', () => {
       ...validClaims(frozenNow),
       email: 'alice@other.test',
     });
-    await expect(verify(example)).resolves.toStrictEqual({ sub: 'alice', assertion: example });
-    await expect(verify(other)).resolves.toStrictEqual({ sub: 'alice', assertion: other });
+    await expect(verify(example)).resolves.toStrictEqual({
+      sub: 'alice',
+      assertion: example,
+      email: 'alice@example.test',
+    });
+    await expect(verify(other)).resolves.toStrictEqual({
+      sub: 'alice',
+      assertion: other,
+      email: 'alice@other.test',
+    });
     expect(example).not.toEqual(other);
   });
 

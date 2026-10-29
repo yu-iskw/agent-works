@@ -1,0 +1,240 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/workspace/node_modules/@playwright/test/cli.js",
+      "test",
+      "-c",
+      "e2e/p0/playwright.config.ts",
+      "--project",
+      "real-llm"
+    ],
+    "configFile": "/workspace/e2e/p0/playwright.config.ts",
+    "rootDir": "/workspace/e2e/p0",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "fixture",
+        "name": "fixture",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixture\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "misconfig",
+        "name": "misconfig",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/misconfig\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-before",
+        "name": "restart-before",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/before\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-after",
+        "name": "restart-after",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/restart\\/after\\.spec\\.ts$/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspace/artifacts/p0/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "real-llm",
+        "name": "real-llm",
+        "testDir": "/workspace/e2e/p0",
+        "testIgnore": [],
+        "testMatch": [
+          "/real-llm\\/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../../artifacts/p0/results-real-llm.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "../../artifacts/p0/report-real-llm",
+          "open": "never"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "real-llm/flagship.spec.ts",
+      "file": "real-llm/flagship.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "readiness reports the real Vertex model",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "real-llm",
+              "projectName": "real-llm",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 805,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T10:36:08.188Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/p0/test-results/real-llm-flagship-readiness-reports-the-real-Vertex-model-real-llm/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "63da10de883693a5f8df-e22cb3474b313c51de47",
+          "file": "real-llm/flagship.spec.ts",
+          "line": 21,
+          "column": 5
+        },
+        {
+          "title": "flagship flow on real Gemini: prompt, evidence, draft, approval, one write",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "real-llm",
+              "projectName": "real-llm",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 26989,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T10:36:09.097Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/p0/test-results/real-llm-flagship-flagship-57fe8-ce-draft-approval-one-write-real-llm/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "63da10de883693a5f8df-a05a4edc48786761fa0e",
+          "file": "real-llm/flagship.spec.ts",
+          "line": 30,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-29T10:36:07.775Z",
+    "duration": 28476.95,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

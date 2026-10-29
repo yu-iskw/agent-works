@@ -9,6 +9,7 @@
       "entry": [
         "stylelint.config.mjs",
         "scripts/adc-probe.mjs",
+        "e2e/p0/playwright.config.ts",
         "tools/finops/*.mjs",
         "tools/slo/*.mjs",
         "tools/restore-drill/*.mjs"
@@ -24,6 +25,7 @@
     "apps/api": {
       "entry": [
         "src/server.ts",
+        "src/workbench/vertex-smoke.ts",
         "src/reliability/dlq-service.ts",
         "src/reliability/postgres-dlq.ts",
         "src/reliability/retry-budget.ts",

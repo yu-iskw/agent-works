@@ -1,0 +1,11 @@
+{
+  "recordedAt": "2026-10-29T10:36:35.695Z",
+  "taskId": "ee2d7327-eb5f-46da-a81c-589a67a0bea7",
+  "mode": "vertex",
+  "configuredModel": "gemini-3.8-flash",
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "miHjas2rEI-Nx9gPrZ_E8AM",
+  "latencyMs": 19948,
+  "callAt": "2026-10-29T10:36:29.858Z",
+  "workspace": "fixture (simulated)"
+}

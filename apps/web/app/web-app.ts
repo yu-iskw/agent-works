@@ -232,7 +232,7 @@ function send(response: ServerResponse, status: number, body: string, type: stri
   response.end(body);
 }
 
-function headerValue(request: IncomingMessage, name: string): string | undefined {
+export function headerValue(request: IncomingMessage, name: string): string | undefined {
   const wanted = name.toLowerCase();
   for (const [key, value] of Object.entries(request.headers)) {
     if (key.toLowerCase() !== wanted) continue;

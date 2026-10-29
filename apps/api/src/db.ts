@@ -32,7 +32,8 @@ export async function openDatabase(url: string): Promise<postgres.Sql> {
   return sql;
 }
 
-async function applyMigration(
+/** Runs `body` once per `name`, inside the caller's transaction, and records it. */
+export async function applyMigration(
   tx: postgres.TransactionSql,
   name: string,
   body: string,

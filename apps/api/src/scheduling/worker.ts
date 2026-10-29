@@ -1,9 +1,9 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { Scheduler } from './service.js';
+/** Polls `tick` until stopped; a second start is a no-op and stop waits for the running tick. */
 export function createScheduleWorker(
-  scheduler: Scheduler,
-  onError: () => void,
+  scheduler: { tick(): Promise<void> },
+  onError: (error: unknown) => void,
   intervalMs = 1000,
 ): { start(): void; stop(): Promise<void> } {
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 1) throw new RangeError('worker interval');
@@ -13,13 +13,13 @@ export function createScheduleWorker(
     while (!signal.aborted) {
       try {
         await scheduler.tick();
-      } catch {
-        onError();
+      } catch (error) {
+        onError(error);
       }
       try {
         await delay(intervalMs, undefined, { signal });
-      } catch {
-        if (!isStopped(signal)) onError();
+      } catch (error) {
+        if (!isStopped(signal)) onError(error);
       }
     }
   }

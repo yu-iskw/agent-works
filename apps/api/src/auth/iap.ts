@@ -4,7 +4,15 @@ import type { JsonWebKey, KeyObject } from 'node:crypto';
 
 type Brand<T, B extends string> = T & { readonly __brand: B };
 
-export type Caller = Brand<{ readonly sub: string; readonly assertion: string }, 'VerifiedCaller'>;
+export type Caller = Brand<
+  {
+    readonly sub: string;
+    readonly assertion: string;
+    /** Present only when the verified claims carry a string email; display use only. */
+    readonly email?: string;
+  },
+  'VerifiedCaller'
+>;
 
 const missing = 'missing';
 const malformed = 'malformed';
@@ -60,8 +68,9 @@ export function createIapVerifier(options: IapVerifierOptions): VerifyAssertion 
   return (assertion) => verifyToken(options, cache, assertion);
 }
 
-function mint(sub: string, assertion: string): Caller {
-  return { sub, assertion } as Caller;
+function mint(claims: Claims, assertion: string): Caller {
+  const { sub, email } = claims;
+  return { sub, assertion, ...(email === undefined ? {} : { email }) } as Caller;
 }
 
 type KeyCache = {
@@ -161,7 +170,7 @@ async function verifyToken(
   if (!signed) throw new Unauthenticated(badSignature);
   const claims = readClaims(token.claimsPart);
   assertClaims(claims, options, (options.now ?? Date.now)());
-  return mint(claims.sub, assertion);
+  return mint(claims, assertion);
 }
 
 function parseToken(assertion: string | undefined): Token {
@@ -193,6 +202,7 @@ type Claims = {
   sub: string;
   exp: number;
   iat: number;
+  email?: string;
 };
 
 function readClaims(part: string): Claims {
@@ -208,7 +218,14 @@ function readClaims(part: string): Claims {
   ) {
     throw new Unauthenticated(badClaims);
   }
-  return { iss: value.iss, aud, sub: value.sub, exp: value.exp, iat: value.iat };
+  return {
+    iss: value.iss,
+    aud,
+    sub: value.sub,
+    exp: value.exp,
+    iat: value.iat,
+    ...(typeof value.email === 'string' ? { email: value.email } : {}),
+  };
 }
 
 function assertClaims(claims: Claims, options: IapVerifierOptions, nowMs: number): void {

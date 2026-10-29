@@ -14,7 +14,7 @@ if (role === 'iap') {
     process.stderr.write('UPSTREAM_URL is required\n');
     process.exit(1);
   }
-  await listen(createIapProxy(upstream), port);
+  await listen(createIapProxy(upstream, { signIn: process.env.FAKE_IAP_SIGN_IN === '1' }), port);
 } else if (role === 'drive')
   await listen(createDrive(process.env.DIRECTORY_URL, process.env.DRIVE_WORKER_TOKEN), port);
 else if (role === 'llm') await listen(createLlm(), port);

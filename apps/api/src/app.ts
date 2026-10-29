@@ -24,6 +24,7 @@ const textType = 'text/plain; charset=utf-8';
 type AppDeps = RouteDeps & {
   readonly approvals?: Omit<ApprovalsDeps, 'verify'>;
   readonly oauth?: OAuthFlow;
+  readonly workbench?: Route;
 };
 
 export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestListener {
@@ -62,22 +63,30 @@ export function createApp(deps: AppDeps, env: RouteEnv = process.env): RequestLi
     ['oauth-connect', oauthDeps === undefined ? undefined : createOAuthConnectRoute(oauthDeps)],
     ['oauth-revoke', oauthDeps === undefined ? undefined : createOAuthRevokeRoute(oauthDeps)],
   ]);
+  const resolve = (method: string, pathname: string): Route | undefined => {
+    if (deps.workbench !== undefined && pathname.startsWith('/v1/workbench/'))
+      return deps.workbench;
+    const slot = matchSlot(method, pathname);
+    if (slot === undefined) return undefined;
+    return selectRoute(routes.has(slot.id) ? { ...slot, real: routes.get(slot.id) } : slot, env);
+  };
   return (request, response) => {
-    void dispatch(listener, env, routes, request, response);
+    void dispatch(listener, resolve, request, response);
   };
 }
 
+type Resolve = (method: string, pathname: string) => Route | undefined;
+
 async function dispatch(
   listener: RequestListener,
-  env: RouteEnv,
-  routes: ReadonlyMap<string, Route | undefined>,
+  resolve: Resolve,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   try {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-    const slot = matchSlot(request.method ?? 'GET', url.pathname);
-    if (slot === undefined) {
+    const route = resolve(request.method ?? 'GET', url.pathname);
+    if (route === undefined) {
       listener(request, response);
       return;
     }
@@ -87,10 +96,6 @@ async function dispatch(
       response.end(JSON.stringify({ error: 'too_large' }));
       return;
     }
-    const route = selectRoute(
-      routes.has(slot.id) ? { ...slot, real: routes.get(slot.id) } : slot,
-      env,
-    );
     const reply = await route({
       method: request.method ?? 'GET',
       path: url.pathname,

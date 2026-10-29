@@ -15,10 +15,11 @@
   },
   "dependencies": {
     "@agent-works/domain": "workspace:*",
+    "@agent-works/incident-analysis": "workspace:*",
     "@agent-works/policy": "workspace:*",
     "@google/adk": "2.2.0",
+    "google-auth-library": "10.9.1",
     "postgres": "3.4.9",
-    "zod": "4.6.5",
-    "@agent-works/incident-analysis": "workspace:*"
+    "zod": "4.6.5"
   }
 }

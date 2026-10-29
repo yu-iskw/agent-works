@@ -19,6 +19,9 @@ importers:
 
   .:
     devDependencies:
+      '@axe-core/playwright':
+        specifier: ^4.14.0
+        version: 4.14.0(playwright-core@1.63.0)
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -58,6 +61,9 @@ importers:
       knip:
         specifier: ^6.39.0
         version: 6.39.0
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
@@ -94,6 +100,9 @@ importers:
       '@google/adk':
         specifier: 2.2.0
         version: 2.2.0(@grpc/grpc-js@1.14.5)
+      google-auth-library:
+        specifier: 10.9.1
+        version: 10.9.1
       postgres:
         specifier: 3.4.9
         version: 3.4.9
@@ -243,6 +252,12 @@ packages:
         optional: true
       express:
         optional: true
+
+  '@axe-core/playwright@4.14.0':
+    resolution: {integrity: sha512-SGUhG5PIHd2eMdpgBF2PyQLOhX+qyDR2PT4cmoS4Qk2ak+jX/rrSvst9l0PGv5WTHolKpUMvVmoHpr4cZgf1RQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/helper-string-parser@7.27.1':
     resolution: {integrity: sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA==}
@@ -1291,6 +1306,10 @@ packages:
 
   async@3.2.6:
     resolution: {integrity: sha512-htCUDlxyyCLMgaM3xXg0C0LW2xqfuQ6p05pCEIsXuyQ+a1koYKTuBMzRNwmybfLgvJDMd0r1LTn4+E0Ti6C2AA==}
+
+  axe-core@4.14.0:
+    resolution: {integrity: sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNdQLK81IBRXmSxHfMAOkSqQeRxT/0dwNDz2GOm3zzpcQ==}
+    engines: {node: '>=4'}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -2492,6 +2511,11 @@ snapshots:
     optionalDependencies:
       '@grpc/grpc-js': 1.14.5
 
+  '@axe-core/playwright@4.14.0(playwright-core@1.63.0)':
+    dependencies:
+      axe-core: 4.14.0
+      playwright-core: 1.63.0
+
   '@babel/helper-string-parser@7.27.1': {}
 
   '@babel/helper-validator-identifier@7.28.5': {}
@@ -3432,6 +3456,8 @@ snapshots:
       js-tokens: 10.0.0
 
   async@3.2.6: {}
+
+  axe-core@4.14.0: {}
 
   balanced-match@4.0.4: {}
 
