@@ -9,6 +9,9 @@ const migrations = [
   '0017_workbench.sql',
   '0018_teamwork.sql',
   '0019_teamwork_dependencies.sql',
+  '0020_model_call_campaign.sql',
+  '0021_ui_workspace.sql',
+  '0022_member_files.sql',
 ] as const;
 
 /** Idempotent: applied once under an advisory lock, recorded in schema_migrations. */

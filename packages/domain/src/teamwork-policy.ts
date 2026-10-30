@@ -23,10 +23,12 @@ export type CapabilityInputs = {
  */
 export function capabilityStates(inputs: CapabilityInputs): readonly CapabilityState[] {
   return CAPABILITIES.map((capability) => {
-    const requested = inputs.teammate.has(capability);
-    const permitted = inputs.segment.has(capability) && inputs.member.has(capability);
     // eslint-disable-next-line security/detect-object-injection
-    const connected = inputs.connected.has(CAPABILITY_PROVIDER[capability]);
+    const provider = CAPABILITY_PROVIDER[capability];
+    // A capability with no provider is granted to every teammate the segment allows it for.
+    const requested = provider === null || inputs.teammate.has(capability);
+    const permitted = inputs.segment.has(capability) && inputs.member.has(capability);
+    const connected = provider === null || inputs.connected.has(provider);
     const inTask = inputs.task === undefined || inputs.task.has(capability);
     const effective = requested && permitted && connected && inTask;
     return { capability, requested, permitted, connected, effective, reason: reason() };
@@ -37,8 +39,7 @@ export function capabilityStates(inputs: CapabilityInputs): readonly CapabilityS
       if (!inputs.member.has(capability))
         return 'Your membership in this segment does not include it.';
       if (!connected)
-        // eslint-disable-next-line security/detect-object-injection
-        return `Connect ${CAPABILITY_PROVIDER[capability] === 'google' ? 'Google' : 'GitHub'} in this segment.`;
+        return `Connect ${provider === 'google' ? 'Google' : 'GitHub'} in this segment.`;
       if (!inTask) return 'Not needed by this task.';
       return null;
     }

@@ -45,6 +45,8 @@ export type SegmentConfig = {
   readonly github: OAuthClient | undefined;
   readonly keyDir: string;
   readonly maxModelCalls: number;
+  /** Budget campaign the cap counts; unset keeps counting the calls made before campaigns. */
+  readonly modelCampaign: string | null;
   readonly concurrency: number;
   readonly assignmentDeadlineMs: number;
   /** Names of required settings that are missing; readiness lists them, never their values. */
@@ -170,6 +172,7 @@ export function readSegmentConfig(env: Env): SegmentConfig {
     github,
     keyDir: env.AW_KEY_DIR ?? '/data/keys',
     maxModelCalls: wholeNumber(env.AW_MAX_MODEL_CALLS, 200),
+    modelCampaign: env.AW_MODEL_CAMPAIGN?.trim() || null,
     concurrency: Math.max(1, Math.min(4, wholeNumber(env.AW_WORKER_CONCURRENCY, 2))),
     assignmentDeadlineMs: wholeNumber(env.AW_ASSIGNMENT_DEADLINE_MS, 5 * 60_000),
     missing: missingSettings({ upper, identity, sourceMode, members, google, github, sources }),

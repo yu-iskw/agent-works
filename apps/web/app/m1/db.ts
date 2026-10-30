@@ -25,6 +25,14 @@ create table if not exists m1_refresh_tokens (
   sealed text not null,
   updated_at timestamptz not null
 );
+create table if not exists m1_preferences (
+  sub text not null,
+  scope text not null,
+  key text not null,
+  value jsonb not null,
+  updated_at timestamptz not null,
+  primary key (sub, scope, key)
+);
 create table if not exists m1_web_audit (
   id bigserial primary key,
   at timestamptz not null default now(),

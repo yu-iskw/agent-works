@@ -3,18 +3,24 @@ import {
   TEAMWORK_API_VERSION,
   UUID_PATTERN,
   actionDecisionSchema,
+  attachmentUploadSchema,
   connectionCompleteSchema,
   conversationPostSchema,
+  conversationQuerySchema,
+  conversationReadSchema,
   followUpSchema,
   importSchema,
+  inboxListQuerySchema,
   missingDecisionSchema,
   planDecisionSchema,
   planEditSchema,
   planReplanSchema,
   publishRequestSchema,
+  resultListQuerySchema,
   skillAttachSchema,
   skillCustomizeSchema,
   taskCreateSchema,
+  taskListQuerySchema,
   teammateCreateSchema,
   teammateUpdateSchema,
 } from '@agent-works/domain/teamwork';
@@ -22,6 +28,7 @@ import {
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { headerValue } from '../http.js';
 
+import { getAttachment, removeAttachment, uploadAttachment } from './attachments.js';
 import {
   createStarterTeam,
   createTeammate,
@@ -30,7 +37,7 @@ import {
   getTeammate,
   importTeammate,
   listSkills,
-  listTeammates,
+  listTeammateRows,
   listTemplates,
   setSkill,
   skillVersions,
@@ -44,7 +51,7 @@ import {
   tokenSource,
 } from './connections.js';
 import { Conflict, audit } from './context.js';
-import { conversation, postToConversation } from './conversations.js';
+import { conversation, conversationPage, markRead, postToConversation } from './conversations.js';
 import { checkSources } from './diagnostics.js';
 import {
   cancelTask,
@@ -56,6 +63,8 @@ import {
   editPlan,
   followUp,
   inbox,
+  listInbox,
+  listResults,
   listTasks,
   preparePublish,
   reconcileTask,
@@ -92,6 +101,13 @@ function body<T>(schema: z.ZodType<T>, request: Request): T {
     throw new Conflict('invalid_request', 400);
   }
   const parsed = schema.safeParse(raw);
+  if (!parsed.success) throw new Conflict('invalid_request', 400);
+  return parsed.data;
+}
+
+/** Query parameters are the other request boundary; a bad one is a 400 like a bad body. */
+function query<T>(schema: z.ZodType<T>, request: Request): T {
+  const parsed = schema.safeParse(Object.fromEntries(request.query));
   if (!parsed.success) throw new Conflict('invalid_request', 400);
   return parsed.data;
 }
@@ -137,7 +153,7 @@ function catalogRoutes(readiness: Readiness): readonly Entry[] {
       method: 'GET',
       path: p('/teammates'),
       handle: async ({ deps: d, member }) =>
-        reply(200, { teammates: await listTeammates(d, member) }),
+        reply(200, { teammates: await listTeammateRows(d, member) }),
     },
     {
       method: 'POST',
@@ -191,11 +207,51 @@ function catalogRoutes(readiness: Readiness): readonly Entry[] {
       },
     },
     {
+      method: 'GET',
+      path: p(`/conversations/${uuid}`),
+      handle: async ({ deps: d, member, request }, [id]) => {
+        const page = await conversationPage(d, member, id, query(conversationQuerySchema, request));
+        return page === undefined ? notFound : reply(200, { segment: d.config.segment, ...page });
+      },
+    },
+    {
+      method: 'POST',
+      path: p(`/conversations/${uuid}/read`),
+      handle: async ({ deps: d, member, request }, [id]) =>
+        reply(200, {
+          read: await markRead(d, member, id, body(conversationReadSchema, request).upToMessageId),
+        }),
+    },
+    {
       method: 'POST',
       path: p(`/conversations/${uuid}/messages`),
       handle: async ({ deps: d, member, request }, [id]) => {
         await postToConversation(d, member, id, body(conversationPostSchema, request));
         return reply(202, { accepted: true });
+      },
+    },
+    {
+      method: 'POST',
+      path: p(`/conversations/${uuid}/attachments`),
+      handle: async ({ deps: d, member, request }, [id]) =>
+        reply(201, {
+          attachment: await uploadAttachment(d, member, id, body(attachmentUploadSchema, request)),
+        }),
+    },
+    {
+      method: 'GET',
+      path: p(`/attachments/${uuid}`),
+      handle: async ({ deps: d, member }, [id]) => {
+        const found = await getAttachment(d, member, id);
+        return found === undefined ? notFound : reply(200, found);
+      },
+    },
+    {
+      method: 'POST',
+      path: p(`/attachments/${uuid}/remove`),
+      handle: async ({ deps: d, member }, [id]) => {
+        await removeAttachment(d, member, id);
+        return reply(200, { removed: true });
       },
     },
   ];
@@ -205,7 +261,23 @@ const workRoutes = (): readonly Entry[] => [
   {
     method: 'GET',
     path: p('/tasks'),
-    handle: async ({ deps: d, member }) => reply(200, { tasks: await listTasks(d, member) }),
+    // Without parameters the M1 pages still get their 200 newest tasks; the workspace pages.
+    handle: async ({ deps: d, member, request }) => {
+      const input =
+        request.query.size === 0
+          ? { status: 'all' as const, q: '', cursor: undefined, limit: 200 }
+          : query(taskListQuerySchema, request);
+      const page = await listTasks(d, member, input);
+      return reply(200, { tasks: page.items, nextCursor: page.nextCursor });
+    },
+  },
+  {
+    method: 'GET',
+    path: p('/results'),
+    handle: async ({ deps: d, member, request }) => {
+      const page = await listResults(d, member, query(resultListQuerySchema, request));
+      return reply(200, { results: page.items, nextCursor: page.nextCursor });
+    },
   },
   {
     method: 'POST',
@@ -310,7 +382,13 @@ const workRoutes = (): readonly Entry[] => [
   {
     method: 'GET',
     path: p('/inbox'),
-    handle: async ({ deps: d, member }) => reply(200, { items: await inbox(d, member) }),
+    // Without parameters the M1 inbox page keeps open-first plus the last week; the workspace pages.
+    handle: async ({ deps: d, member, request }) => {
+      if (request.query.size === 0)
+        return reply(200, { items: await inbox(d, member), nextCursor: null });
+      const page = await listInbox(d, member, query(inboxListQuerySchema, request));
+      return reply(200, { items: page.items, nextCursor: page.nextCursor });
+    },
   },
   {
     method: 'POST',
@@ -418,7 +496,14 @@ export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Rea
     try {
       return await entry.handle({ deps, member, request }, params);
     } catch (error) {
-      if (error instanceof Conflict) return { status: error.status, body: { error: error.code } };
+      if (error instanceof Conflict)
+        return {
+          status: error.status,
+          body:
+            error.detail === undefined
+              ? { error: error.code }
+              : { error: error.code, detail: error.detail },
+        };
       throw error;
     }
   }

@@ -93,6 +93,7 @@ function modelReadiness(
     credentials: adc,
     callsUsed: used,
     callsLimit: gate.limit,
+    campaign: gate.campaign,
     concurrency,
     lastCall:
       lastCall === undefined
@@ -138,6 +139,7 @@ export async function createTeamworkRuntime(input: {
     segment: config.segment,
     model: vertex.model,
     limit: config.maxModelCalls,
+    campaign: config.modelCampaign,
     now,
   });
   const sources =

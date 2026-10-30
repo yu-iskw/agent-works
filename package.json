@@ -49,7 +49,17 @@
     "m1:ux": "node scripts/m1/run.mjs ux",
     "m1:restart": "node scripts/m1/run.mjs restart",
     "m1:evidence": "node scripts/m1/run.mjs evidence",
-    "m1:verify": "node scripts/m1/run.mjs verify"
+    "m1:verify": "node scripts/m1/run.mjs verify",
+    "ui:doctor": "node scripts/ui/run.mjs doctor",
+    "ui:up": "node scripts/ui/run.mjs up",
+    "ui:down": "node scripts/ui/run.mjs down",
+    "ui:restart": "node scripts/ui/run.mjs restart",
+    "ui:test": "node scripts/ui/run.mjs test",
+    "ui:e2e": "node scripts/ui/run.mjs e2e",
+    "ui:visual": "node scripts/ui/run.mjs visual",
+    "ui:evidence": "node scripts/ui/run.mjs evidence",
+    "ui:verify": "node scripts/ui/run.mjs verify",
+    "ui:seed-review": "node scripts/ui/run.mjs seed-review"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

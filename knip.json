@@ -14,7 +14,9 @@
         "tools/slo/*.mjs",
         "tools/restore-drill/*.mjs",
         "e2e/m1/playwright.config.ts",
-        "scripts/m1/*.mjs"
+        "scripts/m1/*.mjs",
+        "e2e/ui/playwright.config.ts",
+        "scripts/ui/*.mjs"
       ],
       "project": [
         "**/*.{js,cjs,mjs,ts,cts,mts}",
@@ -53,8 +55,15 @@
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": ["src/server.ts", "src/m1-server.ts", "client/m1.ts"],
-      "project": ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"]
+      "entry": ["src/server.ts", "src/m1-server.ts", "client/m1.ts", "client/workspace/main.tsx"],
+      "project": [
+        "src/**/*.ts",
+        "app/**/*.ts",
+        "app/**/*.tsx",
+        "shared/**/*.ts",
+        "client/**/*.ts",
+        "client/**/*.tsx"
+      ]
     },
     "packages/*": {
       "project": ["src/**/*.ts"]

@@ -115,3 +115,38 @@ const ITEMS_BY_STATUS: Record<TeamworkStatus, ItemsFor> = {
 export function desiredInbox(snapshot: InboxSnapshot): readonly DesiredItem[] {
   return ITEMS_BY_STATUS[snapshot.status](snapshot);
 }
+
+/** Inbox kinds that get a persisted card in the conversation; `completed` already has `result_ready`. */
+export const CARD_KINDS = ['question', 'plan_review', 'approval', 'failed', 'uncertain'] as const;
+export type CardKind = (typeof CARD_KINDS)[number];
+
+export type CardAnchor = {
+  readonly kind: CardKind;
+  /** Short factual body of the anchor row; the card itself is derived from task state. */
+  readonly text: string;
+  readonly clientRequestId: string;
+};
+
+const CARD_TEXT: Record<CardKind, (ref: string) => string> = {
+  plan_review: (ref) => `Plan v${ref.slice('plan:'.length)} needs your review`,
+  question: (ref) =>
+    ref.startsWith('missing:')
+      ? `${ref.slice('missing:'.length).split(',').length} contribution(s) did not finish`
+      : 'A teammate needs your answer',
+  approval: () => 'Publishing needs your approval',
+  failed: () => 'This task stopped',
+  uncertain: () => 'Publishing outcome is uncertain',
+};
+
+/**
+ * The conversation row a newly desired inbox item anchors, or null for informational items. The
+ * client request id is one per task and ref, so re-running the sync cannot post a second row.
+ */
+export function cardAnchor(taskId: string, item: DesiredItem): CardAnchor | null {
+  const kind = (CARD_KINDS as readonly string[]).includes(item.kind)
+    ? (item.kind as CardKind)
+    : null;
+  if (kind === null) return null;
+  // eslint-disable-next-line security/detect-object-injection
+  return { kind, text: CARD_TEXT[kind](item.ref), clientRequestId: `card:${taskId}:${item.ref}` };
+}

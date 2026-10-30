@@ -31,6 +31,7 @@ const gate = createModelGate({
   segment: config.segment,
   model: createVertexModel(vertex),
   limit: config.maxModelCalls,
+  campaign: config.modelCampaign,
   now: () => new Date(),
 });
 const at = new Date().toISOString();

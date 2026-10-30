@@ -180,3 +180,21 @@ artifacts/m1/*.webm
 artifacts/m1/*.zip
 e2e/m1/__screenshots__/
 .scratch/
+
+# UI/UX milestone local evidence (never commit media or baselines)
+artifacts/ui/reference/
+artifacts/ui/screenshots/
+artifacts/ui/videos/
+artifacts/ui/baselines/
+artifacts/ui/test-results/
+artifacts/ui/report-*/
+artifacts/ui/contact-sheet/
+artifacts/ui/**/*.png
+artifacts/ui/**/*.webm
+artifacts/ui/**/*.mp4
+artifacts/ui/**/*.zip
+docs/ui/reference/*.png
+artifacts/ui/*.json
+artifacts/ui/*.md
+artifacts/ui/usability/
+artifacts/ui/contact-sheet.html

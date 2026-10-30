@@ -9,6 +9,7 @@ import {
 } from './teamwork-evidence.js';
 import { desiredInbox } from './teamwork-inbox.js';
 import {
+  capabilitiesForSources,
   capabilityStates,
   deniedSources,
   effectiveSet,
@@ -105,6 +106,34 @@ describe('effective capabilities', () => {
   it('matches repositories exactly against the allowlist', () => {
     expect(repositoryAllowed('Yu-Iskw/Agent-Works', ['yu-iskw/agent-works'])).toBe(true);
     expect(repositoryAllowed('yu-iskw/agent-works-fork', ['yu-iskw/agent-works'])).toBe(false);
+  });
+
+  it('grants member files to every teammate the segment allows, with no request or connection', () => {
+    const unconnected = capabilityStates({
+      segment: all,
+      member: new Set(['drive.read', 'files.read']),
+      teammate: new Set(['drive.read']),
+      connected: new Set(),
+    });
+    expect([...effectiveSet(unconnected)]).toEqual(['files.read']);
+    expect(deniedSources(['member_file'], unconnected)).toEqual([]);
+    expect(deniedSources(['drive_research'], unconnected)).toHaveLength(1);
+    expect(capabilitiesForSources(['member_file', 'drive_context'])).toEqual(
+      new Set(['files.read', 'drive.read']),
+    );
+    const segmentDenied = capabilityStates({
+      segment: new Set(['drive.read']),
+      member: all,
+      teammate: all,
+      connected: new Set(['google']),
+    });
+    expect(deniedSources(['member_file'], segmentDenied)).toEqual([
+      {
+        source: 'member_file',
+        capability: 'files.read',
+        reason: 'This segment does not allow it.',
+      },
+    ]);
   });
 });
 

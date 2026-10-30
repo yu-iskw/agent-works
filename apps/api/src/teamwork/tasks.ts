@@ -1,5 +1,11 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-import { TEAMWORK_API_VERSION, publishProposalSchema } from '@agent-works/domain/teamwork';
+import {
+  TASK_LIST_STATUS_FILTER,
+  TEAMWORK_API_VERSION,
+  decodeCursor,
+  encodeCursor,
+  publishProposalSchema,
+} from '@agent-works/domain/teamwork';
 import { artifactMarkdown } from '@agent-works/domain/teamwork-evidence';
 import {
   capabilitiesForSources,
@@ -9,6 +15,7 @@ import {
   repositoryAllowed,
 } from '@agent-works/domain/teamwork-policy';
 
+import { resolveAttachments } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, connections } from './connections.js';
 import { Conflict, audit } from './context.js';
@@ -17,6 +24,7 @@ import {
   appendEvent,
   assignmentsFor,
   cancelJobs,
+  conversationFor,
   enqueue,
   evidenceFor,
   latestPlanVersion,
@@ -39,16 +47,21 @@ import type {
   ActionApprovalView,
   ArtifactContent,
   Capability,
+  Cursor,
   InboxItem,
+  InboxListQuery,
   MetricsScope,
   PlanContent,
   PlanView,
   PublishProposal,
+  ResultEntry,
+  ResultListQuery,
   RevisionView,
   SkillDefinition,
   SourceKind,
   TaskCreate,
   TaskDetail,
+  TaskListQuery,
   TaskScope,
   TaskSummary,
   Workflow,
@@ -166,14 +179,20 @@ async function dispatch(
   const skills = await teammateSkills(tx, [...teammates.keys()]);
   const connected = await connectedProviders(deps, member.sub);
   const at = deps.now();
+  // Files the member attached are task inputs: every assignment reads them, whatever else it reads.
+  const withFiles = (task.scope.attachmentIds ?? []).length > 0;
   for (const item of work) {
     const teammate = teammates.get(item.teammateId);
     if (teammate === undefined) throw new Conflict('teammate_not_found', 400);
+    const sources: readonly SourceKind[] =
+      withFiles && !item.sources.includes('member_file')
+        ? [...item.sources, 'member_file']
+        : item.sources;
     const states = await capabilitiesFor(
       deps,
       member,
       teammate.capability_requests,
-      capabilitiesForSources(item.sources),
+      capabilitiesForSources(sources),
       connected,
     );
     const id = deps.newId();
@@ -183,7 +202,7 @@ async function dispatch(
       values (${id}, ${task.id}, ${item.key}, ${teammate.id},
         ${tx.json({ name: teammate.name, role: teammate.role, instructions: teammate.instructions, version: teammate.version })},
         ${tx.json((skills.get(teammate.id) ?? []).map((s) => ({ id: s.id, version: s.version, name: s.name, definition: s.definition })))},
-        ${item.brief}, ${item.deliverable}, ${tx.json([...item.sources])}, ${tx.json([...effectiveSet(states)])},
+        ${item.brief}, ${item.deliverable}, ${tx.json([...sources])}, ${tx.json([...effectiveSet(states)])},
         ${planVersion}, 'queued', ${new Date(at.getTime() + deps.config.assignmentDeadlineMs)}, ${at}, ${at},
         ${tx.json([...(item.dependsOn ?? [])])})
     `;
@@ -194,7 +213,7 @@ async function dispatch(
         assignmentId: id,
         teammate: teammate.name,
         planVersion,
-        sources: item.sources.join(','),
+        sources: sources.join(','),
       },
     });
   }
@@ -301,6 +320,7 @@ export async function createTask(
     }
     const owners = await checkOwner(tx, member, input);
     await checkSourcesUsable(deps, member, input, owners);
+    await resolveAttachments(tx, member, input.conversationId, scope.attachmentIds ?? []);
     const id = deps.newId();
     const at = deps.now();
     const status = input.mode === 'manual' ? 'running' : 'planning';
@@ -347,11 +367,118 @@ export async function createTask(
   });
 }
 
-export async function listTasks(deps: Deps, member: Member): Promise<readonly TaskSummary[]> {
-  const rows = await deps.sql<TaskRow[]>`
-    select * from wb_tasks where kind = 'teamwork' and owner_sub = ${member.sub} order by updated_at desc limit 200
+export type Page<T> = { readonly items: readonly T[]; readonly nextCursor: string | null };
+
+/** The cursor a query carries, or undefined when it has none; a foreign cursor is a bad request. */
+function cursorOf(raw: string | undefined): Cursor | undefined {
+  if (raw === undefined) return undefined;
+  const cursor = decodeCursor(raw);
+  if (cursor === undefined) throw new Conflict('invalid_cursor', 400);
+  return cursor;
+}
+
+/** `limit + 1` rows tell whether a next page exists without a count query. */
+function page<R, T>(
+  rows: readonly R[],
+  limit: number,
+  view: (row: R) => T,
+  cursor: (row: R) => Cursor,
+): Page<T> {
+  const held = rows.slice(0, limit);
+  const last = held.at(-1);
+  return {
+    items: held.map(view),
+    nextCursor: rows.length > limit && last !== undefined ? encodeCursor(cursor(last)) : null,
+  };
+}
+
+/** A case-insensitive substring pattern with the member's wildcards escaped. */
+const likePattern = (q: string): string => `%${q.replaceAll(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+const rowCursor = (row: { updated_at: Date; id: string }): Cursor => ({
+  at: row.updated_at.toISOString(),
+  id: row.id,
+});
+
+/** Newest first by (updated_at, id). Timestamps are written at millisecond precision, so the cursor loses nothing. */
+export async function listTasks(
+  deps: Deps,
+  member: Member,
+  query: TaskListQuery,
+): Promise<Page<TaskSummary>> {
+  const sql = deps.sql;
+  const cursor = cursorOf(query.cursor);
+  const statuses =
+    query.status === 'all' || query.status === 'attention'
+      ? undefined
+      : [...TASK_LIST_STATUS_FILTER[query.status]];
+  const rows = await sql<TaskRow[]>`
+    select t.* from wb_tasks t where t.kind = 'teamwork' and t.owner_sub = ${member.sub}
+    ${statuses === undefined ? sql`` : sql`and t.status = any(${statuses}::text[])`}
+    ${query.status === 'attention' ? sql`and exists (select 1 from tw_inbox i where i.task_id = t.id and i.state = 'open')` : sql``}
+    ${query.q === '' ? sql`` : sql`and (t.title ilike ${likePattern(query.q)} or t.objective ilike ${likePattern(query.q)})`}
+    ${cursor === undefined ? sql`` : sql`and (t.updated_at, t.id) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`}
+    order by t.updated_at desc, t.id desc limit ${query.limit + 1}
   `;
-  return rows.map(summary);
+  return page(rows, query.limit, summary, rowCursor);
+}
+
+type ResultRow = {
+  task_id: string;
+  task_title: string;
+  revision: number;
+  latest_revision: number;
+  title: string;
+  owner_id: string;
+  owner_name: string | null;
+  conversation_id: string | null;
+  created_at: Date;
+};
+
+/** Every artifact revision of the member's tasks, newest first; `q` matches task and artifact titles. */
+export async function listResults(
+  deps: Deps,
+  member: Member,
+  query: ResultListQuery,
+): Promise<Page<ResultEntry>> {
+  const sql = deps.sql;
+  const raw = cursorOf(query.cursor);
+  // The results cursor id is `<taskId>:<revision>`, the rest of the sort key after created_at.
+  const cursor =
+    raw === undefined
+      ? undefined
+      : { at: raw.at, taskId: raw.id.split(':')[0], revision: Number(raw.id.split(':')[1]) };
+  const rows = await sql<ResultRow[]>`
+    select r.task_id, t.title as task_title, r.revision, t.latest_revision, r.content->>'title' as title,
+      t.result_owner as owner_id, tm.name as owner_name, t.conversation_id, r.created_at
+    from tw_revisions r
+    join wb_tasks t on t.id = r.task_id and t.kind = 'teamwork' and t.owner_sub = ${member.sub}
+    left join tw_teammates tm on tm.id = t.result_owner
+    where true
+    ${query.q === '' ? sql`` : sql`and (t.title ilike ${likePattern(query.q)} or r.content->>'title' ilike ${likePattern(query.q)})`}
+    ${
+      cursor === undefined
+        ? sql``
+        : sql`and (r.created_at < ${cursor.at}::timestamptz or (r.created_at = ${cursor.at}::timestamptz
+            and (r.task_id, r.revision) > (${cursor.taskId}::uuid, ${cursor.revision})))`
+    }
+    order by r.created_at desc, r.task_id, r.revision limit ${query.limit + 1}
+  `;
+  return page(
+    rows,
+    query.limit,
+    (row): ResultEntry => ({
+      taskId: row.task_id,
+      taskTitle: row.task_title,
+      revision: row.revision,
+      latestRevision: row.latest_revision,
+      title: row.title,
+      producedBy: { id: row.owner_id, name: row.owner_name ?? 'Teammate' },
+      conversationId: row.conversation_id,
+      createdAt: row.created_at.toISOString(),
+    }),
+    (row) => ({ at: row.created_at.toISOString(), id: `${row.task_id}:${row.revision}` }),
+  );
 }
 
 type PlanRow = {
@@ -844,13 +971,7 @@ export async function followUp(
     const duplicate =
       await tx`select 1 from tw_messages where owner_sub = ${member.sub} and client_request_id = ${input.clientRequestId}`;
     if (duplicate.length > 0) return;
-    const conversationId =
-      task.conversation_id ??
-      (
-        await tx<
-          { conversation_id: string }[]
-        >`select conversation_id from tw_teammates where id = ${task.result_owner}`
-      ).at(0)?.conversation_id;
+    const conversationId = await conversationFor(tx, task);
     if (conversationId === undefined) throw new Conflict('not_found', 404);
     const messageId = await postMessage(deps, tx, {
       conversationId,
@@ -1259,35 +1380,60 @@ export async function reconcileTask(
   });
 }
 
+type InboxRow = {
+  id: string;
+  kind: InboxItem['kind'];
+  task_id: string;
+  title: string;
+  ref: string;
+  summary: string;
+  state: InboxItem['state'];
+  created_at: Date;
+  resolved_at: Date | null;
+};
+
+const inboxItem = (row: InboxRow): InboxItem => ({
+  id: row.id,
+  kind: row.kind,
+  taskId: row.task_id,
+  taskTitle: row.title,
+  ref: row.ref,
+  summary: row.summary,
+  state: row.state,
+  createdAt: row.created_at.toISOString(),
+  resolvedAt: row.resolved_at?.toISOString() ?? null,
+});
+
+/** The M1 inbox page: everything open, then the last week's resolved items. */
 export async function inbox(deps: Deps, member: Member): Promise<readonly InboxItem[]> {
-  const rows = await deps.sql<
-    {
-      id: string;
-      kind: InboxItem['kind'];
-      task_id: string;
-      title: string;
-      ref: string;
-      summary: string;
-      state: InboxItem['state'];
-      created_at: Date;
-      resolved_at: Date | null;
-    }[]
-  >`
+  const rows = await deps.sql<InboxRow[]>`
     select i.id, i.kind, i.task_id, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
     from tw_inbox i join wb_tasks t on t.id = i.task_id
     where i.owner_sub = ${member.sub} and (i.state = 'open' or i.resolved_at > now() - interval '7 days')
     order by i.state = 'open' desc, i.created_at desc limit 200
   `;
-  return rows.map((row) => ({
+  return rows.map(inboxItem);
+}
+
+/** One state at a time, newest first by (created_at, id); `resolved` includes dismissed items. */
+export async function listInbox(
+  deps: Deps,
+  member: Member,
+  query: InboxListQuery,
+): Promise<Page<InboxItem>> {
+  const sql = deps.sql;
+  const cursor = cursorOf(query.cursor);
+  const rows = await sql<InboxRow[]>`
+    select i.id, i.kind, i.task_id, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
+    from tw_inbox i join wb_tasks t on t.id = i.task_id
+    where i.owner_sub = ${member.sub}
+    ${query.state === 'open' ? sql`and i.state = 'open'` : sql`and i.state <> 'open'`}
+    ${cursor === undefined ? sql`` : sql`and (i.created_at, i.id) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`}
+    order by i.created_at desc, i.id desc limit ${query.limit + 1}
+  `;
+  return page(rows, query.limit, inboxItem, (row) => ({
+    at: row.created_at.toISOString(),
     id: row.id,
-    kind: row.kind,
-    taskId: row.task_id,
-    taskTitle: row.title,
-    ref: row.ref,
-    summary: row.summary,
-    state: row.state,
-    createdAt: row.created_at.toISOString(),
-    resolvedAt: row.resolved_at?.toISOString() ?? null,
   }));
 }
 
