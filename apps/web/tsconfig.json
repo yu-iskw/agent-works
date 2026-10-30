@@ -14,5 +14,5 @@
     "jsxFragmentFactory": "Fragment",
     "types": ["node"]
   },
-  "include": ["src", "app"]
+  "include": ["src", "app", "shared"]
 }

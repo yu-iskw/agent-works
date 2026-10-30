@@ -1,10 +1,13 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { artifactMarkdown } from '@agent-works/domain/teamwork-evidence';
 
 import { readBody } from '../body.js';
 import { h } from '../html.js';
+import { csrfOk, same } from '../workspace/csrf.js';
+import { securityHeaders } from '../workspace/headers.js';
+import { handleApi, handleShell } from '../workspace/routes.js';
 
 import { segmentsFor } from './config.js';
 import { SESSION_COOKIE, SESSION_TTL_S, SignInError } from './identity.js';
@@ -32,6 +35,7 @@ import type { Identity, Session } from './identity.js';
 import type { NewTaskValues } from './task-views.js';
 import type { NavKey, Notice, PageCtx } from './views.js';
 import type { Html } from '../html.js';
+import type { PreferencesStore } from '../workspace/preferences.js';
 import type { SkillView, SourceCheck, TeammateView, Workflow } from '@agent-works/domain/teamwork';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 
@@ -40,15 +44,6 @@ const PRE_COOKIE = 'aw_m1_pre';
 const MAX_FORM = 262_144;
 // A literal, so the route patterns stay statically checkable; it matches UUID_PATTERN in the domain package.
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-
-const securityHeaders = {
-  'content-security-policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://github.com; base-uri 'none'; object-src 'none'",
-  'x-content-type-options': 'nosniff',
-  'referrer-policy': 'same-origin',
-  'x-frame-options': 'DENY',
-  'cache-control': 'no-store',
-};
 
 const NOTICES: Record<string, Notice> = {
   task_started: {
@@ -103,6 +98,7 @@ export type HandlerDeps = {
   readonly config: WebConfig;
   readonly identity: Identity;
   readonly api: SegmentClient;
+  readonly prefs: PreferencesStore;
 };
 
 type Asset = { readonly body: string; readonly type: string; readonly etag: string };
@@ -142,10 +138,16 @@ function asset(body: string, type: string): Asset {
   return { body, type, etag: `"${createHash('sha256').update(body).digest('hex').slice(0, 32)}"` };
 }
 
-function loadScript(): string {
-  // Static path inside this package's build output, never request controlled.
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
-  return readFileSync(new URL('../../client/m1.js', import.meta.url), 'utf8');
+/** Build output next to this file's compiled location; the workspace bundle may be absent in tests. */
+function loadBuilt(file: string, type: string): Asset | undefined {
+  try {
+    // Static names inside this package's build output, never request controlled.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    return asset(readFileSync(new URL(`../../client/${file}`, import.meta.url), 'utf8'), type);
+  } catch {
+    console.warn(JSON.stringify({ level: 'warn', component: 'm1-web', missingAsset: file }));
+    return undefined;
+  }
 }
 
 function cookies(request: IncomingMessage): ReadonlyMap<string, string> {
@@ -164,13 +166,6 @@ function cookies(request: IncomingMessage): ReadonlyMap<string, string> {
 async function readForm(request: IncomingMessage): Promise<URLSearchParams | undefined> {
   const body = await readBody(request, MAX_FORM);
   return body === undefined ? undefined : new URLSearchParams(body.toString('utf8'));
-}
-
-function same(a: string | null | undefined, b: string): boolean {
-  if (a === null || a === undefined) return false;
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function render(
@@ -227,15 +222,6 @@ const lines = (value: string | null) =>
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-
-function originOk(app: App, request: IncomingMessage): boolean {
-  const origin =
-    request.headers.origin ??
-    (request.headers.referer === undefined
-      ? undefined
-      : URL.parse(request.headers.referer)?.origin);
-  return origin !== undefined && app.origins.has(origin);
-}
 
 async function ctxFor(
   req: Pick<SegReq, 'app' | 'session' | 'segment' | 'url'>,
@@ -378,8 +364,13 @@ async function localTestSignIn({ app, request, response, jar }: Req): Promise<vo
   const form = await readForm(request);
   if (
     form === undefined ||
-    !same(form.get('csrf'), jar.get(PRE_COOKIE) ?? '') ||
-    !originOk(app, request)
+    !csrfOk({
+      headers: request.headers,
+      presented: form.get('csrf'),
+      sessionCsrf: jar.get(PRE_COOKIE) ?? '',
+      origins: app.origins,
+      json: false,
+    })
   )
     return redirect(response, '/sign-in?error=bad_state');
   try {
@@ -698,6 +689,7 @@ const GET_ROUTES: readonly Route<SegReq>[] = [
   { pattern: /^\/(?:inbox)?$/, handle: inboxPage },
   { pattern: /^\/teammates$/, handle: teammatesPage },
   { pattern: new RegExp(`^/teammates/(${uuid})$`), handle: teammatePage },
+  { pattern: new RegExp(`^/pages/teammates/(${uuid})$`), handle: teammatePage },
   { pattern: new RegExp(`^/teammates/(${uuid})/export$`), handle: exportPage },
   { pattern: new RegExp(`^/teammates/(${uuid})/export\\.json$`), handle: exportJson },
   {
@@ -1146,7 +1138,8 @@ async function get(req: Signed): Promise<void> {
   if (segment === undefined)
     return failPage(response, undefined, { status: 404, error: 'segment_not_found' });
   const base = { app, response, url, session, segment };
-  const hit = match(GET_ROUTES, seg.sub === '' ? '/inbox' : seg.sub);
+  if (await handleShell({ deps: app, response, url, session, segment })) return;
+  const hit = match(GET_ROUTES, seg.sub);
   if (hit === undefined)
     return failPage(response, await ctxFor(base, 'none'), { status: 404, error: 'not_found' });
   return hit.route.handle({ ...base, m: hit.m });
@@ -1156,7 +1149,15 @@ async function post(req: Signed): Promise<void> {
   const { app, request, response, url, jar, session } = req;
   const form = await readForm(request);
   if (form === undefined) return json(response, 413, { error: 'too_large' });
-  if (!same(form.get('csrf'), session.csrf) || !originOk(app, request))
+  if (
+    !csrfOk({
+      headers: request.headers,
+      presented: form.get('csrf'),
+      sessionCsrf: session.csrf,
+      origins: app.origins,
+      json: false,
+    })
+  )
     return render(
       response,
       403,
@@ -1188,11 +1189,13 @@ async function handle(app: App, request: IncomingMessage, response: ServerRespon
     (route) => route.method === method && route.path === url.pathname,
   );
   if (open !== undefined) return open.handle(req);
+  const isApi = url.pathname.startsWith('/api/');
   if (session === undefined) {
-    if (method === 'GET' && url.pathname.endsWith('/version'))
+    if (isApi || (method === 'GET' && url.pathname.endsWith('/version')))
       return json(response, 401, { error: 'unauthenticated' });
     return redirect(response, '/sign-in');
   }
+  if (isApi) return handleApi(app, { request, response, url, session });
   const signed: Signed = { ...req, session };
   return method === 'POST' ? post(signed) : get(signed);
 }
@@ -1200,10 +1203,16 @@ async function handle(app: App, request: IncomingMessage, response: ServerRespon
 export function createM1Handler(deps: HandlerDeps): RequestListener {
   const app: App = {
     ...deps,
-    assets: new Map([
-      ['/assets/m1.css', asset(m1Styles, 'text/css; charset=utf-8')],
-      ['/assets/m1.js', asset(loadScript(), 'text/javascript; charset=utf-8')],
-    ]),
+    assets: new Map(
+      (
+        [
+          ['/assets/m1.css', asset(m1Styles, 'text/css; charset=utf-8')],
+          ['/assets/m1.js', loadBuilt('m1.js', 'text/javascript; charset=utf-8')],
+          ['/assets/workspace.js', loadBuilt('workspace.js', 'text/javascript; charset=utf-8')],
+          ['/assets/workspace.css', loadBuilt('workspace.css', 'text/css; charset=utf-8')],
+        ] as const
+      ).flatMap(([path, found]) => (found === undefined ? [] : [[path, found] as const])),
+    ),
     origins: new Set([
       deps.config.publicUrl,
       deps.config.publicUrl.replace('localhost', '127.0.0.1'),

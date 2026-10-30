@@ -12,11 +12,14 @@ import { Conflict, audit } from './context.js';
 import type { Provider } from './connections.js';
 import type { Deps, Member, Tx } from './context.js';
 import type {
+  Accent,
+  AvatarId,
   Capability,
   CapabilityState,
   PortableDefinition,
   SkillDefinition,
   SkillView,
+  TeammateRow as TeammateRowView,
   TeammateView,
   TemplateDefinition,
   TemplateView,
@@ -187,6 +190,8 @@ type TeammateRow = {
   capability_requests: Capability[];
   version: number;
   conversation_id: string;
+  avatar: AvatarId | null;
+  accent: Accent | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -291,6 +296,7 @@ async function views(
     version: row.version,
     origin: row.origin,
     conversationId: row.conversation_id,
+    appearance: { avatar: row.avatar, accent: row.accent },
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }));
@@ -298,6 +304,72 @@ async function views(
 
 export async function listTeammates(deps: Deps, member: Member): Promise<readonly TeammateView[]> {
   return views(deps, member, await teammateRows(deps.sql, member.sub));
+}
+
+type ActivityRow = {
+  id: string;
+  last_text: string | null;
+  last_at: Date | null;
+  last_role: 'member' | 'teammate' | 'system' | null;
+  unread: boolean;
+  working: boolean;
+  needs_attention: boolean;
+  unread_result: boolean;
+};
+
+const PREVIEW_CHARS = 140;
+const preview = (text: string): string =>
+  text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS - 1).trimEnd()}\u2026` : text;
+
+/**
+ * The sidebar's teammate rows: each teammate with its last message and the three distinct states
+ * the member reads at a glance. One query over the member's teammates; a task is linked to a
+ * teammate's conversation when it was started there or, lacking one, when the teammate owns it.
+ */
+export async function listTeammateRows(
+  deps: Deps,
+  member: Member,
+): Promise<readonly TeammateRowView[]> {
+  const base = await listTeammates(deps, member);
+  if (base.length === 0) return [];
+  const activity = await deps.sql<ActivityRow[]>`
+    select t.id, lm.body as last_text, lm.created_at as last_at, lm.role as last_role,
+      exists (select 1 from tw_messages m where m.conversation_id = t.conversation_id and m.role <> 'member'
+        and (r.owner_sub is null or (m.created_at, m.id) > (r.last_read_at, r.last_read_message_id))) as unread,
+      (exists (select 1 from wb_tasks k where k.kind = 'teamwork' and k.owner_sub = t.owner_sub
+          and (k.conversation_id = t.conversation_id or (k.conversation_id is null and k.result_owner = t.id))
+          and k.status in ('planning', 'running', 'synthesizing', 'publishing'))
+        or exists (select 1 from tw_assignments a where a.teammate_id = t.id and a.status = 'running')
+        or exists (select 1 from tw_messages m where m.conversation_id = t.conversation_id and m.reply_state = 'pending')
+      ) as working,
+      exists (select 1 from tw_inbox i join wb_tasks k on k.id = i.task_id
+        where i.state = 'open' and i.kind in ('question', 'plan_review', 'approval', 'failed', 'uncertain')
+          and (k.conversation_id = t.conversation_id or (k.conversation_id is null and k.result_owner = t.id))) as needs_attention,
+      exists (select 1 from tw_messages m where m.conversation_id = t.conversation_id and m.card->>'kind' = 'result_ready'
+        and (r.owner_sub is null or (m.created_at, m.id) > (r.last_read_at, r.last_read_message_id))) as unread_result
+    from tw_teammates t
+    left join tw_conversation_reads r on r.owner_sub = t.owner_sub and r.conversation_id = t.conversation_id
+    left join lateral (
+      select body, created_at, role from tw_messages m where m.conversation_id = t.conversation_id
+      order by created_at desc, id desc limit 1
+    ) lm on true
+    where t.owner_sub = ${member.sub} and not t.archived
+  `;
+  const byId = new Map(activity.map((row) => [row.id, row]));
+  return base.map((teammate) => {
+    const row = byId.get(teammate.id);
+    return {
+      ...teammate,
+      lastMessage:
+        row?.last_at == null || row.last_text === null || row.last_role === null
+          ? null
+          : { text: preview(row.last_text), at: row.last_at.toISOString(), role: row.last_role },
+      unread: row?.unread ?? false,
+      working: row?.working ?? false,
+      needsAttention: row?.needs_attention ?? false,
+      unreadResult: row?.unread_result ?? false,
+    };
+  });
 }
 
 export async function getTeammate(
@@ -430,10 +502,15 @@ export async function updateTeammate(
     readonly name: string;
     readonly role: string;
     readonly instructions: string;
+    readonly avatar?: AvatarId | null;
+    readonly accent?: Accent | null;
   },
 ): Promise<TeammateView> {
-  const updated = await deps.sql`
+  const sql = deps.sql;
+  const updated = await sql`
     update tw_teammates set name = ${input.name}, role = ${input.role}, instructions = ${input.instructions},
+      avatar = ${input.avatar === undefined ? sql`avatar` : input.avatar},
+      accent = ${input.accent === undefined ? sql`accent` : input.accent},
       version = version + 1, updated_at = ${deps.now()}
     where id = ${id} and owner_sub = ${member.sub} and version = ${input.expectedVersion} and not archived
     returning id

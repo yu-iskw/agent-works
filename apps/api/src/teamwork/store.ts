@@ -3,7 +3,7 @@ import {
   canAssignmentTransition,
   canTeamworkTransition,
 } from '@agent-works/domain/teamwork';
-import { desiredInbox } from '@agent-works/domain/teamwork-inbox';
+import { cardAnchor, desiredInbox } from '@agent-works/domain/teamwork-inbox';
 
 import type { Deps, Tx } from './context.js';
 import type {
@@ -11,6 +11,7 @@ import type {
   Calculation,
   Contribution,
   EvidenceView,
+  MessageCard,
   SkillDefinition,
   SourceKind,
   TaskScope,
@@ -313,12 +314,40 @@ export async function supersedeLivePlan(tx: Tx, taskId: string): Promise<void> {
   await tx`update tw_plans set state = 'superseded' where task_id = ${taskId} and state in ('proposed', 'approved')`;
 }
 
-/** Re-derives the task's open inbox items from its current state, in the caller's transaction. */
+/**
+ * The conversation a task's cards and follow-ups go to: the one it was started from, else the
+ * result owner's own conversation.
+ */
+export async function conversationFor(
+  db: Db,
+  task: Pick<TaskRow, 'conversation_id' | 'result_owner'>,
+): Promise<string | undefined> {
+  if (task.conversation_id !== null) return task.conversation_id;
+  const rows = await db<
+    { conversation_id: string }[]
+  >`select conversation_id from tw_teammates where id = ${task.result_owner}`;
+  return rows.at(0)?.conversation_id;
+}
+
+/**
+ * Re-derives the task's open inbox items from its current state, in the caller's transaction.
+ * Each newly opened decision also gets one anchor row in the task's conversation, keyed by task
+ * and ref, so the timeline, the inbox and the task record resolve the same item together.
+ */
 export async function syncInbox(deps: Deps, tx: Tx, taskId: string): Promise<void> {
   const task = (
     await tx<
-      Pick<TaskRow, 'owner_sub' | 'status' | 'version' | 'latest_revision'>[]
-    >`select owner_sub, status, version, latest_revision from wb_tasks where id = ${taskId}`
+      Pick<
+        TaskRow,
+        | 'owner_sub'
+        | 'status'
+        | 'version'
+        | 'latest_revision'
+        | 'title'
+        | 'conversation_id'
+        | 'result_owner'
+      >[]
+    >`select owner_sub, status, version, latest_revision, title, conversation_id, result_owner from wb_tasks where id = ${taskId}`
   ).at(0);
   if (task === undefined) return;
   const [assignments, planVersion, approvals] = await Promise.all([
@@ -342,17 +371,39 @@ export async function syncInbox(deps: Deps, tx: Tx, taskId: string): Promise<voi
     publishedApproval: approvals.find((a) => a.status === 'succeeded') ?? null,
   });
   const at = deps.now();
-  for (const item of desired)
-    await tx`
+  const opened: string[] = [];
+  for (const item of desired) {
+    const inserted = await tx<{ ref: string }[]>`
       insert into tw_inbox (id, owner_sub, task_id, kind, ref, summary, state, created_at)
       values (${deps.newId()}, ${task.owner_sub}, ${taskId}, ${item.kind}, ${item.ref}, ${item.summary}, 'open', ${at})
-      on conflict (task_id, ref) do nothing
+      on conflict (task_id, ref) do nothing returning ref
     `;
+    if (inserted.length > 0) opened.push(item.ref);
+  }
   const refs = desired.map((item) => item.ref);
   await tx`
     update tw_inbox set state = 'resolved', resolved_at = ${at}
     where task_id = ${taskId} and state = 'open' and not (ref = any(${refs}::text[]))
   `;
+  const anchors = desired
+    .filter((item) => opened.includes(item.ref))
+    .map((item) => ({ item, anchor: cardAnchor(taskId, item) }));
+  if (anchors.every(({ anchor }) => anchor === null)) return;
+  const conversationId = await conversationFor(tx, task);
+  if (conversationId === undefined) return;
+  for (const { item, anchor } of anchors) {
+    if (anchor === null) continue;
+    await postMessage(deps, tx, {
+      conversationId,
+      ownerSub: task.owner_sub,
+      role: 'system',
+      body: anchor.text,
+      taskId,
+      card: { kind: anchor.kind, taskId, title: task.title, ref: item.ref },
+      clientRequestId: anchor.clientRequestId,
+      onDuplicate: 'ignore',
+    });
+  }
 }
 
 type EvidenceRow = {
@@ -410,21 +461,28 @@ export async function postMessage(
     readonly role: 'member' | 'teammate' | 'system';
     readonly body: string;
     readonly taskId?: string | null;
-    readonly card?: {
-      readonly kind: string;
-      readonly taskId: string;
-      readonly title: string;
-    } | null;
+    readonly card?: MessageCard | null;
     readonly clientRequestId?: string | null;
     readonly replyState?: 'pending' | 'done' | 'failed' | null;
+    /** `ignore` keeps an existing row with the same client request id and returns its id. */
+    readonly onDuplicate?: 'ignore';
+    /** Files a member message carries; already resolved as the member's own in this conversation. */
+    readonly attachmentIds?: readonly string[];
   },
 ): Promise<string> {
   const id = deps.newId();
-  await tx`
-    insert into tw_messages (id, conversation_id, owner_sub, client_request_id, role, body, task_id, card, reply_state, created_at)
+  const rows = await tx<{ id: string }[]>`
+    insert into tw_messages (id, conversation_id, owner_sub, client_request_id, role, body, task_id, card, reply_state, created_at, attachment_ids)
     values (${id}, ${message.conversationId}, ${message.ownerSub}, ${message.clientRequestId ?? null}, ${message.role},
       ${message.body}, ${message.taskId ?? null}, ${message.card === undefined || message.card === null ? null : tx.json(message.card)},
-      ${message.replyState ?? null}, ${deps.now()})
+      ${message.replyState ?? null}, ${deps.now()}, ${tx.json([...(message.attachmentIds ?? [])])})
+    ${message.onDuplicate === 'ignore' ? tx`on conflict (owner_sub, client_request_id) do nothing` : tx``}
+    returning id
   `;
-  return id;
+  if (rows.length > 0 || message.clientRequestId === undefined || message.clientRequestId === null)
+    return id;
+  const existing = await tx<
+    { id: string }[]
+  >`select id from tw_messages where owner_sub = ${message.ownerSub} and client_request_id = ${message.clientRequestId}`;
+  return existing.at(0)?.id ?? id;
 }

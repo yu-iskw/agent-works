@@ -8,6 +8,7 @@ import { openWebDb } from '../app/m1/db.js';
 import { createM1Handler } from '../app/m1/handler.js';
 import { createAssertionSigner, createGoogleVerifier, createIdentity } from '../app/m1/identity.js';
 import { createInternalHandler } from '../app/m1/internal.js';
+import { createPreferencesStore } from '../app/workspace/preferences.js';
 
 const config = readWebConfig(process.env);
 const db = await openWebDb(config.databaseUrl, config.keyDir);
@@ -18,7 +19,12 @@ const identity = createIdentity({
   verifyGoogle:
     config.google === undefined ? undefined : createGoogleVerifier(config.google.clientId),
 });
-const handler = createM1Handler({ config, identity, api: createSegmentClient(config, signer) });
+const handler = createM1Handler({
+  config,
+  identity,
+  api: createSegmentClient(config, signer),
+  prefs: createPreferencesStore(db),
+});
 
 createServer((request, response) => {
   if (request.method === 'GET' && request.url === '/healthz') {

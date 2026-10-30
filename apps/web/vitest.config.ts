@@ -52,6 +52,6 @@ export default defineProject({
   },
   test: {
     name: '@agent-works/web',
-    include: ['app/**/*.test.{ts,tsx}'],
+    include: ['app/**/*.test.{ts,tsx}', 'shared/**/*.test.ts', 'client/**/*.test.{ts,tsx}'],
   },
 });

@@ -32,14 +32,17 @@ export type SegmentId = z.infer<typeof segmentIdSchema>;
 /**
  * Every capability a teammate can request, keyed to the external provider that backs it
  * (a capability needs that connection). Granting is a backend policy decision
- * (`teamwork-policy.ts`); model output can name these but never enable one.
+ * (`teamwork-policy.ts`); model output can name these but never enable one. A `null` provider
+ * marks a capability the segment grants to every teammate without a connection: reading the
+ * files the member attached is one.
  */
 export const CAPABILITY_PROVIDER = {
   'drive.read': 'google',
   'docs.publish': 'google',
   'bigquery.query': 'google',
   'github.read': 'github',
-} as const satisfies Record<string, 'google' | 'github'>;
+  'files.read': null,
+} as const satisfies Record<string, 'google' | 'github' | null>;
 export type Capability = keyof typeof CAPABILITY_PROVIDER;
 export const CAPABILITIES = Object.keys(CAPABILITY_PROVIDER) as readonly Capability[];
 export const capabilitySchema = z.enum(CAPABILITIES);
@@ -152,6 +155,32 @@ export const capabilityStateSchema = z.strictObject({
 });
 export type CapabilityState = z.infer<typeof capabilityStateSchema>;
 
+/**
+ * Display identity a member picks for a personal teammate. Closed sets, so a value can never be
+ * a URL or free text; stored on the teammate row only and never snapshotted, templated or exported.
+ */
+export const AVATAR_IDS = [
+  'leaf',
+  'sun',
+  'moon',
+  'wave',
+  'spark',
+  'stone',
+  'bloom',
+  'orbit',
+] as const;
+export const avatarIdSchema = z.enum(AVATAR_IDS);
+export type AvatarId = z.infer<typeof avatarIdSchema>;
+export const ACCENTS = ['mint', 'amber', 'lavender', 'blue', 'coral', 'slate'] as const;
+export const accentSchema = z.enum(ACCENTS);
+export type Accent = z.infer<typeof accentSchema>;
+
+export const appearanceSchema = z.strictObject({
+  avatar: avatarIdSchema.nullable(),
+  accent: accentSchema.nullable(),
+});
+export type Appearance = z.infer<typeof appearanceSchema>;
+
 export const teammateViewSchema = z.strictObject({
   id,
   name: text.max(80),
@@ -163,6 +192,7 @@ export const teammateViewSchema = z.strictObject({
   version: z.number().int().positive(),
   origin: z.enum(['template', 'imported']),
   conversationId: id,
+  appearance: appearanceSchema,
   createdAt: at,
   updatedAt: at,
 });
@@ -179,6 +209,9 @@ export const teammateUpdateSchema = z.strictObject({
   name: text.max(80),
   role: text.max(160),
   instructions: text.max(4000),
+  /** Omitted keeps the stored value; null clears it. */
+  avatar: avatarIdSchema.nullable().optional(),
+  accent: accentSchema.nullable().optional(),
 });
 
 export const skillAttachSchema = z.strictObject({
@@ -315,6 +348,7 @@ export const SOURCE_KINDS = [
   'bigquery_metrics',
   'github_issue',
   'github_code',
+  'member_file',
 ] as const;
 export const sourceKindSchema = z.enum(SOURCE_KINDS);
 export type SourceKind = z.infer<typeof sourceKindSchema>;
@@ -325,6 +359,7 @@ export const SOURCE_CAPABILITY: Record<SourceKind, Capability> = {
   bigquery_metrics: 'bigquery.query',
   github_issue: 'github.read',
   github_code: 'github.read',
+  member_file: 'files.read',
 };
 
 /** The result of reading one source once on the member's behalf, before any task uses it. */
@@ -333,6 +368,58 @@ export type SourceCheck = {
   readonly status: 'reachable' | 'no_data' | 'not_allowed' | 'unreachable';
   readonly detail: string;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Member files: bounded text a member attaches in a conversation, read by tasks as evidence.
+
+/** UTF-8 bytes of text one file may hold. */
+export const ATTACHMENT_MAX_BYTES = 200 * 1024;
+/** Files one message or task scope may carry. */
+export const ATTACHMENT_MAX_PER_MESSAGE = 5;
+export const ATTACHMENT_NAME_MAX = 120;
+/** Characters of the file shown as its preview. */
+export const ATTACHMENT_PREVIEW_CHARS = 600;
+export const ATTACHMENT_MEDIA_TYPES = [
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+] as const;
+export const attachmentMediaTypeSchema = z.enum(ATTACHMENT_MEDIA_TYPES);
+export type AttachmentMediaType = z.infer<typeof attachmentMediaTypeSchema>;
+
+/**
+ * The upload body. `mediaType` is a plain string so an unsupported type is refused with a
+ * message that names it, not a schema error; the content rules live with the API's validator.
+ */
+export const attachmentUploadSchema = z.strictObject({
+  name: z.string().trim().min(1).max(ATTACHMENT_NAME_MAX),
+  mediaType: z.string().trim().min(1).max(100),
+  /** Bounded in characters here; the byte limit is checked where it can be explained. */
+  text: z.string().max(ATTACHMENT_MAX_BYTES * 4),
+});
+export type AttachmentUpload = z.infer<typeof attachmentUploadSchema>;
+
+/** What a message or task carries about a file: enough for a chip, never the content. */
+export const attachmentRefSchema = z.strictObject({
+  id,
+  name: text.max(ATTACHMENT_NAME_MAX),
+  mediaType: attachmentMediaTypeSchema,
+  sizeBytes: z.number().int().positive(),
+});
+export type AttachmentRef = z.infer<typeof attachmentRefSchema>;
+
+export const attachmentViewSchema = attachmentRefSchema.extend({
+  sha256: sha256DigestSchema,
+  createdAt: at,
+  preview: z.string().max(ATTACHMENT_PREVIEW_CHARS),
+  lines: z.number().int().positive(),
+  /** Set once the member removed it; a referenced file keeps serving as provenance. */
+  removedAt: at.nullable(),
+});
+export type AttachmentView = z.infer<typeof attachmentViewSchema>;
+
+const attachmentIds = z.array(id).max(ATTACHMENT_MAX_PER_MESSAGE);
 
 export const metricsScopeSchema = z.strictObject({
   baseline: z.string().regex(/^\d{4}-\d{2}$/),
@@ -361,6 +448,8 @@ export const taskScopeSchema = z.strictObject({
     .regex(/^[\w.-]+\/[\w.-]+$/)
     .nullable(),
   issueNumber: z.number().int().positive().nullable(),
+  /** Member files from the task's conversation, read by every assignment as `member_file` evidence. */
+  attachmentIds: attachmentIds.optional(),
 });
 export type TaskScope = z.infer<typeof taskScopeSchema>;
 
@@ -526,28 +615,42 @@ export const actionApprovalViewSchema = z.strictObject({
 });
 export type ActionApprovalView = z.infer<typeof actionApprovalViewSchema>;
 
+export const MESSAGE_CARD_KINDS = [
+  'task_created',
+  'plan_review',
+  'result_ready',
+  'question',
+  'approval',
+  'failed',
+  'uncertain',
+] as const;
+export type MessageCardKind = (typeof MESSAGE_CARD_KINDS)[number];
+
+/**
+ * A persisted pointer from a conversation to a task. It fixes where a card sits in the timeline;
+ * what the card says is derived from the task's current state. `ref` is the inbox ref the card
+ * anchors (`plan:2`, `approval:<id>`), or `revision:<n>` for a result; rows written before the
+ * UI milestone have none.
+ */
+export const messageCardSchema = z.strictObject({
+  kind: z.enum(MESSAGE_CARD_KINDS),
+  taskId: id,
+  title: text,
+  ref: z.string().optional(),
+});
+export type MessageCard = z.infer<typeof messageCardSchema>;
+
 export const messageViewSchema = z.strictObject({
   id,
   role: z.enum(['member', 'teammate', 'system']),
   text: text.max(8000),
   taskId: id.nullable(),
-  card: z
-    .strictObject({
-      kind: z.enum([
-        'task_created',
-        'plan_review',
-        'result_ready',
-        'question',
-        'approval',
-        'failed',
-      ]),
-      taskId: id,
-      title: text,
-    })
-    .nullable(),
+  card: messageCardSchema.nullable(),
   /** A member question still waiting for the teammate's reply. */
   pending: z.boolean(),
   at,
+  /** Files sent with a member message. The API always sets it; clients built before it may omit it. */
+  attachments: z.array(attachmentRefSchema).optional(),
 });
 export type MessageView = z.infer<typeof messageViewSchema>;
 
@@ -680,4 +783,148 @@ export const actionDecisionSchema = z.strictObject({
 export const conversationPostSchema = z.strictObject({
   clientRequestId: id,
   text: text.max(4000),
+  /** Files uploaded to this conversation by the member; the reply may read them. */
+  attachmentIds: attachmentIds.optional(),
 });
+
+// ---------------------------------------------------------------------------------------------
+// Bounded listing. Every list the workspace renders is paged by an opaque cursor so a member with
+// hundreds of tasks never gets them all in one response.
+
+/** Position of the last row a page held: the ordering timestamp (ISO, ms) and the row id. */
+export type Cursor = { readonly at: string; readonly id: string };
+
+const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,200}$/;
+export const cursorSchema = z.string().regex(CURSOR_PATTERN);
+
+export function encodeCursor(cursor: Cursor): string {
+  return Buffer.from(`${cursor.at}|${cursor.id}`, 'utf8').toString('base64url');
+}
+
+/** Undefined for anything that is not a cursor this server produced. */
+export function decodeCursor(raw: string): Cursor | undefined {
+  if (!CURSOR_PATTERN.test(raw)) return undefined;
+  const [atPart, ...rest] = Buffer.from(raw, 'base64url').toString('utf8').split('|');
+  const idPart = rest.join('|');
+  if (idPart.length === 0 || Number.isNaN(Date.parse(atPart))) return undefined;
+  return { at: atPart, id: idPart };
+}
+
+/** A query string value: an empty string means the parameter was not given. */
+const blankAsAbsent = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema);
+
+export const LIST_LIMIT_MAX = 50;
+const limit = z.coerce.number().int().min(1).max(LIST_LIMIT_MAX).default(25);
+const search = z.string().trim().max(200).default('');
+
+export const TASK_LIST_STATUSES = ['all', 'running', 'attention', 'completed'] as const;
+export type TaskListStatus = (typeof TASK_LIST_STATUSES)[number];
+
+/**
+ * Which task statuses each Work filter shows. `attention` is not a status set: it is any task
+ * with an open inbox item, so the Work tab and the inbox agree on what needs the member.
+ */
+export const TASK_LIST_STATUS_FILTER: Record<
+  Exclude<TaskListStatus, 'all' | 'attention'>,
+  readonly TeamworkStatus[]
+> = {
+  running: ['planning', 'running', 'synthesizing', 'publishing', 'cancel_requested'],
+  completed: ['completed'],
+};
+
+export const taskListQuerySchema = z.object({
+  status: blankAsAbsent(z.enum(TASK_LIST_STATUSES).default('all')),
+  q: blankAsAbsent(search),
+  cursor: blankAsAbsent(cursorSchema.optional()),
+  limit: blankAsAbsent(limit),
+});
+export type TaskListQuery = z.infer<typeof taskListQuerySchema>;
+
+export const inboxListQuerySchema = z.object({
+  state: blankAsAbsent(z.enum(['open', 'resolved']).default('open')),
+  cursor: blankAsAbsent(cursorSchema.optional()),
+  limit: blankAsAbsent(limit),
+});
+export type InboxListQuery = z.infer<typeof inboxListQuerySchema>;
+
+export const resultListQuerySchema = z.object({
+  q: blankAsAbsent(search),
+  cursor: blankAsAbsent(cursorSchema.optional()),
+  limit: blankAsAbsent(limit),
+});
+export type ResultListQuery = z.infer<typeof resultListQuerySchema>;
+
+/** One artifact revision in the Results tab; the producing teammate is the task's result owner. */
+export const resultEntrySchema = z.strictObject({
+  taskId: id,
+  taskTitle: text,
+  revision: z.number().int().positive(),
+  latestRevision: z.number().int().positive(),
+  title: text,
+  producedBy: z.strictObject({ id, name: text }),
+  conversationId: id.nullable(),
+  createdAt: at,
+});
+export type ResultEntry = z.infer<typeof resultEntrySchema>;
+
+export const teammateRowSchema = teammateViewSchema.extend({
+  lastMessage: z
+    .strictObject({ text: z.string(), at, role: z.enum(['member', 'teammate', 'system']) })
+    .nullable(),
+  /** A teammate or system message after the member's read marker. */
+  unread: z.boolean(),
+  /** A linked task is planning, running, synthesizing or publishing, or a reply is pending. */
+  working: z.boolean(),
+  /** An open decision (question, plan review, approval, failure, uncertain effect) on a linked task. */
+  needsAttention: z.boolean(),
+  /** A result card after the read marker. */
+  unreadResult: z.boolean(),
+});
+export type TeammateRow = z.infer<typeof teammateRowSchema>;
+
+export const conversationQuerySchema = z
+  .object({
+    after: blankAsAbsent(cursorSchema.optional()),
+    before: blankAsAbsent(cursorSchema.optional()),
+    limit: blankAsAbsent(z.coerce.number().int().min(1).max(100).default(50)),
+  })
+  .refine((query) => query.after === undefined || query.before === undefined, {
+    message: 'after and before are exclusive',
+  });
+export type ConversationQuery = z.infer<typeof conversationQuerySchema>;
+
+export const REPLY_STATES = ['none', 'queued', 'generating'] as const;
+export type ReplyState = (typeof REPLY_STATES)[number];
+
+export const linkedTaskSchema = z.strictObject({
+  id,
+  version: z.number().int().positive(),
+  status: teamworkStatusSchema,
+  title: text,
+});
+export type LinkedTask = z.infer<typeof linkedTaskSchema>;
+
+/**
+ * One page of a conversation. `nextCursor` is the newest message held (pass as `after` to poll);
+ * `prevCursor` is set when older messages exist before the page (pass as `before`).
+ */
+export const conversationPageSchema = z.strictObject({
+  id,
+  teammateId: id,
+  messages: z.array(messageViewSchema),
+  nextCursor: cursorSchema.nullable(),
+  prevCursor: cursorSchema.nullable(),
+  reply: z.enum(REPLY_STATES),
+  tasks: z.array(linkedTaskSchema),
+});
+export type ConversationPage = z.infer<typeof conversationPageSchema>;
+
+export const conversationReadSchema = z.strictObject({ upToMessageId: id });
+
+export const readMarkerSchema = z.strictObject({
+  lastReadMessageId: id,
+  /** `created_at` of that message, so "after the marker" is a position, not a wall-clock time. */
+  lastReadAt: at,
+});
+export type ReadMarker = z.infer<typeof readMarkerSchema>;

@@ -96,6 +96,11 @@
       "development": "./src/teamwork-inbox.ts",
       "import": "./dist/teamwork-inbox.js"
     },
+    "./teamwork-timeline": {
+      "types": "./src/teamwork-timeline.ts",
+      "development": "./src/teamwork-timeline.ts",
+      "import": "./dist/teamwork-timeline.js"
+    },
     "./env-file": {
       "types": "./src/env-file.ts",
       "development": "./src/env-file.ts",

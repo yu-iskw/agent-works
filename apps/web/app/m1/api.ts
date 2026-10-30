@@ -22,6 +22,8 @@ import type { PortableFinding } from '@agent-works/domain/teamwork-portable';
 
 export type { ApiResult } from '../workbench/api.js';
 
+const TEAMMATES = '/teammates';
+
 export type Connection = {
   readonly provider: 'google' | 'github';
   readonly status: 'active' | 'revoked' | 'error' | 'not_connected';
@@ -148,7 +150,17 @@ export function createSegmentClient(
     customizeSkill: (s: Session, seg: string, body: unknown) =>
       call<{ skill: SkillView }>(s, seg, 'POST', '/skills/customize', body),
     teammates: (s: Session, seg: string) =>
-      call<{ teammates: TeammateView[] }>(s, seg, 'GET', '/teammates'),
+      call<{ teammates: TeammateView[] }>(s, seg, 'GET', TEAMMATES),
+    /** The listing as the segment sends it; the workspace loader parses it loosely. */
+    teammateRows: (s: Session, seg: string) => call<unknown>(s, seg, 'GET', TEAMMATES),
+    /** One conversation page with an after-cursor; 404 until the segment serves paging. */
+    conversationPage: (s: Session, seg: string, id: string, after: string | null) =>
+      call<unknown>(
+        s,
+        seg,
+        'GET',
+        `/conversations/${id}${after === null ? '' : `?after=${encodeURIComponent(after)}`}`,
+      ),
     teammate: (s: Session, seg: string, id: string) =>
       call<{ teammate: TeammateView; conversation: Conversation }>(
         s,
@@ -157,7 +169,7 @@ export function createSegmentClient(
         `/teammates/${id}`,
       ),
     createTeammate: (s: Session, seg: string, body: unknown) =>
-      call<{ teammate: TeammateView }>(s, seg, 'POST', '/teammates', body),
+      call<{ teammate: TeammateView }>(s, seg, 'POST', TEAMMATES, body),
     starterTeam: (s: Session, seg: string) =>
       call<{ teammates: TeammateView[] }>(s, seg, 'POST', '/teammates/starter'),
     updateTeammate: (s: Session, seg: string, id: string, body: unknown) =>

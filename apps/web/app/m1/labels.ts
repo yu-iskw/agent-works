@@ -131,6 +131,7 @@ const SOURCE: Record<SourceKind, string> = {
   bigquery_metrics: 'BigQuery metrics (read-only)',
   github_issue: 'GitHub issue',
   github_code: 'GitHub code at pinned commit',
+  member_file: 'Files you attached',
 };
 
 export const CAPABILITY: Record<Capability, string> = {
@@ -138,6 +139,7 @@ export const CAPABILITY: Record<Capability, string> = {
   'docs.publish': 'Create Google Docs (with approval)',
   'bigquery.query': 'Query BigQuery (read-only)',
   'github.read': 'Read GitHub',
+  'files.read': 'Read files you attached',
 };
 
 export const STATEMENT: Record<StatementKind, string> = {
