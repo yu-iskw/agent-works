@@ -70,6 +70,41 @@
       "types": "./src/workbench.ts",
       "development": "./src/workbench.ts",
       "import": "./dist/workbench.js"
+    },
+    "./teamwork": {
+      "types": "./src/teamwork.ts",
+      "development": "./src/teamwork.ts",
+      "import": "./dist/teamwork.js"
+    },
+    "./teamwork-policy": {
+      "types": "./src/teamwork-policy.ts",
+      "development": "./src/teamwork-policy.ts",
+      "import": "./dist/teamwork-policy.js"
+    },
+    "./teamwork-evidence": {
+      "types": "./src/teamwork-evidence.ts",
+      "development": "./src/teamwork-evidence.ts",
+      "import": "./dist/teamwork-evidence.js"
+    },
+    "./teamwork-portable": {
+      "types": "./src/teamwork-portable.ts",
+      "development": "./src/teamwork-portable.ts",
+      "import": "./dist/teamwork-portable.js"
+    },
+    "./teamwork-inbox": {
+      "types": "./src/teamwork-inbox.ts",
+      "development": "./src/teamwork-inbox.ts",
+      "import": "./dist/teamwork-inbox.js"
+    },
+    "./env-file": {
+      "types": "./src/env-file.ts",
+      "development": "./src/env-file.ts",
+      "import": "./dist/env-file.js"
+    },
+    "./sealer": {
+      "types": "./src/sealer.ts",
+      "development": "./src/sealer.ts",
+      "import": "./dist/sealer.js"
     }
   },
   "scripts": {

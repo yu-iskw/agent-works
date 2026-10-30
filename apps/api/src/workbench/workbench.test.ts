@@ -38,7 +38,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await sql`truncate wb_actions, wb_approvals, wb_artifacts, wb_evidence, wb_events, wb_model_calls, wb_fixture_docs, wb_tasks`;
+  await sql`truncate wb_actions, wb_approvals, wb_artifacts, wb_evidence, wb_events, wb_model_calls, wb_fixture_docs, wb_tasks cascade`;
 });
 
 function harness(model: ModelPort = createStubModel(true), maxModelCalls = 10) {

@@ -1,0 +1,22 @@
+{
+  "repository": "yu-iskw/agent-works",
+  "pinnedRevision": "f96cac7243fdbdd6a1f419214aabf17e61e65b8f",
+  "segments": {
+    "alpha": {
+      "issueTitle": "[aw-m1-test alpha] Let members download a task report as CSV",
+      "expectedFiles": [
+        "apps/web/app/workbench/handler.ts",
+        "apps/web/app/workbench/task-views.tsx"
+      ],
+      "revisionRequest": "Narrow the scope to the evidence table only and list the tests that must change.",
+      "revisionExpect": ["evidence", "test"]
+    },
+    "beta": {
+      "issueTitle": "[aw-m1-test beta] Return rate-limit headers from the workbench API",
+      "expectedFiles": ["apps/api/src/workbench/routes.ts", "apps/api/src/http.ts"],
+      "revisionRequest": "Drop the per-member limit and keep only a per-segment limit; explain the trade-off.",
+      "revisionExpect": ["segment", "trade-off"]
+    }
+  },
+  "deniedRepository": "yu-iskw/aw-m1-not-allowlisted"
+}

@@ -122,7 +122,10 @@ function body(config: VertexConfig, request: GenerateRequest) {
     systemInstruction: { parts: [{ text: request.system }] },
     contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
     generationConfig: {
-      maxOutputTokens: config.maxOutputTokens,
+      maxOutputTokens: Math.min(
+        request.maxOutputTokens ?? config.maxOutputTokens,
+        config.maxOutputTokens,
+      ),
       temperature: 0.2,
       ...(request.jsonSchema === undefined
         ? {}

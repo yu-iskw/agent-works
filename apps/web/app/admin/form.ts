@@ -1,5 +1,7 @@
 import { capabilityVersionCommandSchema, suspensionCommandSchema } from '@agent-works/domain';
 
+import { readBody } from '../body.js';
+
 import type { CapabilityVersionCommand, SuspensionCommand } from '@agent-works/domain';
 import type { IncomingMessage } from 'node:http';
 
@@ -9,14 +11,8 @@ export type AdminFormCommand =
 export async function readAdminForm(
   request: IncomingMessage,
 ): Promise<URLSearchParams | undefined> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-    size += bytes.length;
-    if (size <= 16_384) chunks.push(bytes);
-  }
-  return size > 16_384 ? undefined : new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+  const body = await readBody(request, 16_384);
+  return body === undefined ? undefined : new URLSearchParams(body.toString('utf8'));
 }
 export function parseAdminForm(form: URLSearchParams): AdminFormCommand | undefined {
   const common = {

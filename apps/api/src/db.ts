@@ -17,7 +17,8 @@ const reservationMigrationPath = resolve(
 );
 
 export async function openDatabase(url: string): Promise<postgres.Sql> {
-  const sql = postgres(url);
+  // `create table if not exists` notices on every start are noise, not signal.
+  const sql = postgres(url, { onnotice: () => undefined });
   const auditMigration = readFileSync(auditMigrationPath, 'utf8');
   const reservationMigration = readFileSync(reservationMigrationPath, 'utf8');
   await sql.begin(async (tx) => {

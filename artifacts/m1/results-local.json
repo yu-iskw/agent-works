@@ -1,0 +1,1069 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/workspace/node_modules/@playwright/test/cli.js",
+      "test",
+      "-c",
+      "e2e/m1",
+      "--project=local"
+    ],
+    "configFile": "/workspace/e2e/m1/playwright.config.ts",
+    "rootDir": "/workspace/e2e/m1",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/artifacts/m1/videos/local",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "local",
+        "name": "local",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/local\\/.*\\.spec\\.ts$/"],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/videos/ux-round-0",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "ux",
+        "name": "ux",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/ux\\/.*\\.spec\\.ts$/"],
+        "timeout": 600000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/local",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-before",
+        "name": "restart-before",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/restart\\/before\\.spec\\.ts$/"],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/local",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "restart-after",
+        "name": "restart-after",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/restart\\/after\\.spec\\.ts$/"],
+        "timeout": 360000
+      },
+      {
+        "outputDir": "/workspace/artifacts/m1/test-results/local",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "live",
+        "name": "live",
+        "testDir": "/workspace/e2e/m1",
+        "testIgnore": [],
+        "testMatch": ["/live\\/.*\\.spec\\.ts$/"],
+        "timeout": 900000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      ["list", null],
+      [
+        "json",
+        {
+          "outputFile": "../../artifacts/m1/results-local.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "../../artifacts/m1/report-local",
+          "open": "never"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "local/a11y.spec.ts",
+      "file": "local/a11y.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "key pages have no critical or serious axe violations and no horizontal overflow at 375, 768 and 1440",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 20815,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:29.509Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-2.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-1.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-6.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-7.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-8.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-9.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-4.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-3.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-5.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-11.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-10.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-12.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-14.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-15.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-13.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-16.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-17.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-18.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-19.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-20.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-key-pages-have--55406-verflow-at-375-768-and-1440-local/video-21.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bee03e1b333d1430f474-836cb3418a8e1aa1498f",
+          "file": "local/a11y.spec.ts",
+          "line": 22,
+          "column": 5
+        },
+        {
+          "title": "the segment and member stay identifiable on a narrow screen, and navigation works by keyboard",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 854,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:50.702Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-the-segment-and-29b4f-avigation-works-by-keyboard-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bee03e1b333d1430f474-8c56e91590433e126e86",
+          "file": "local/a11y.spec.ts",
+          "line": 50,
+          "column": 5
+        },
+        {
+          "title": "reduced motion turns animations off",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 803,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:51.563Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-a11y-reduced-motion-turns-animations-off-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bee03e1b333d1430f474-7b5a64342f5ea83939f4",
+          "file": "local/a11y.spec.ts",
+          "line": 76,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/catalog.spec.ts",
+      "file": "local/catalog.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a curated skill becomes a private copy attached to two teammates; the original never changes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2292,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:52.393Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-catalog-a-curated-sk-a1318--the-original-never-changes-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2e0ffe713aaa787b1c5a-36f801e0729b5a723502",
+          "file": "local/catalog.spec.ts",
+          "line": 7,
+          "column": 5
+        },
+        {
+          "title": "export contains only the definition, and import belongs to the recipient",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1309,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:54.699Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2e0ffe713aaa787b1c5a-f466e77bb298c2dc14b8",
+          "file": "local/catalog.spec.ts",
+          "line": 46,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/conversation.spec.ts",
+      "file": "local/conversation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a teammate conversation persists, replies with the real model, and links the tasks started from it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 300000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11915,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:29:56.047Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-conversation-a-teamm-eba0a-s-the-tasks-started-from-it-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "dd8f9239bce7b22cc111-794989c568eda863c2c9",
+          "file": "local/conversation.spec.ts",
+          "line": 9,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/coordinated.spec.ts",
+      "file": "local/coordinated.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "coordinator plan is reviewed, edited and approved before any work, then revised and published once",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 600000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 58472,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:30:08.008Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-coordinated-coordina-1d71b--revised-and-published-once-local/video-1.webm"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-coordinated-coordina-1d71b--revised-and-published-once-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "0f6628c67c1278e9fd75-d97cd2ecc3a4f29b59b4",
+          "file": "local/coordinated.spec.ts",
+          "line": 8,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/failures.spec.ts",
+      "file": "local/failures.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a denied source stops one contribution, keeps the input, and lets the member choose",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3359,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:31:06.505Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-failures-a-denied-so-85510--and-lets-the-member-choose-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "44a370fa453ec69ec8be-c97a688f8a1154e411ca",
+          "file": "local/failures.spec.ts",
+          "line": 12,
+          "column": 5
+        },
+        {
+          "title": "an invalid form keeps every field the member typed",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1187,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:31:09.894Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-failures-an-invalid--f00ce-very-field-the-member-typed-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "44a370fa453ec69ec8be-42cf8472e8e358932436",
+          "file": "local/failures.spec.ts",
+          "line": 40,
+          "column": 5
+        },
+        {
+          "title": "cancelling a planned task dispatches nothing and says so",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1431,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:31:11.115Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-failures-cancelling--4e5c2-patches-nothing-and-says-so-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "44a370fa453ec69ec8be-d4ade428424581a36519",
+          "file": "local/failures.spec.ts",
+          "line": 53,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/isolation.spec.ts",
+      "file": "local/isolation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "segment and member isolation",
+          "file": "local/isolation.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "another member and another segment cannot see a task",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "local",
+                  "projectName": "local",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1072,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-29T23:31:12.580Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e48f12c818ce77f45b85-0bdeb3a1a95eda1b0186",
+              "file": "local/isolation.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "segment APIs reject missing and forged assertions and are not reachable by id injection",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "local",
+                  "projectName": "local",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 680,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-29T23:31:13.680Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/workspace/artifacts/m1/videos/local/local-isolation-segment-an-abe4a-t-reachable-by-id-injection-local/video.webm"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e48f12c818ce77f45b85-35c2c2d07a902b9d52c4",
+              "file": "local/isolation.spec.ts",
+              "line": 30,
+              "column": 7
+            },
+            {
+              "title": "state changes need the session CSRF token and a trusted origin",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "local",
+                  "projectName": "local",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 597,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-29T23:31:14.389Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/workspace/artifacts/m1/videos/local/local-isolation-segment-an-54805--token-and-a-trusted-origin-local/video.webm"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e48f12c818ce77f45b85-3eb36e52f30075e97c4b",
+              "file": "local/isolation.spec.ts",
+              "line": 56,
+              "column": 7
+            },
+            {
+              "title": "member-entered text is escaped everywhere it is shown",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "local",
+                  "projectName": "local",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1425,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-29T23:31:15.014Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/workspace/artifacts/m1/videos/local/local-isolation-segment-an-9648b-aped-everywhere-it-is-shown-local/video.webm"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e48f12c818ce77f45b85-72856bf05b358600cbc4",
+              "file": "local/isolation.spec.ts",
+              "line": 73,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "local/manual-research.spec.ts",
+      "file": "local/manual-research.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "manual research task runs two specialists in parallel and produces a cited brief",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 32896,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:31:16.480Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-manual-research-manu-ce93b--and-produces-a-cited-brief-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "d3b434659f660c73653e-89e36d59572211c2ca17",
+          "file": "local/manual-research.spec.ts",
+          "line": 13,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "local/workflows.spec.ts",
+      "file": "local/workflows.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "metrics: exact calculations, a regrouped comparison as a new revision",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 600000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 88169,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:31:49.420Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-workflows-metrics-ex-f26ff-omparison-as-a-new-revision-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "77f7251aaeb29d03c4b0-5ab850558ec677be36d5",
+          "file": "local/workflows.spec.ts",
+          "line": 17,
+          "column": 5
+        },
+        {
+          "title": "metrics in beta: exact calculations from the beta fixture data",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 600000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 47835,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:33:17.623Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-workflows-metrics-in-42c50--from-the-beta-fixture-data-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "77f7251aaeb29d03c4b0-67835368516d55fb5311",
+          "file": "local/workflows.spec.ts",
+          "line": 60,
+          "column": 5
+        },
+        {
+          "title": "engineering: reviewed plan, pinned code evidence, a revision, and a refused repository",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 600000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 76524,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:34:05.492Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-workflows-engineerin-0708f-on-and-a-refused-repository-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "77f7251aaeb29d03c4b0-17bc6562997e77ac15e9",
+          "file": "local/workflows.spec.ts",
+          "line": 86,
+          "column": 5
+        },
+        {
+          "title": "the setup check reads every source of the segment with the member connection",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "local",
+              "projectName": "local",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1129,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-29T23:35:22.051Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/workspace/artifacts/m1/videos/local/local-workflows-the-setup--8c7a2--with-the-member-connection-local/video.webm"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "77f7251aaeb29d03c4b0-8f98c8035d9c745cbbbb",
+          "file": "local/workflows.spec.ts",
+          "line": 157,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-29T23:29:28.785Z",
+    "duration": 358537.128,
+    "expected": 19,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

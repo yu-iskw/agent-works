@@ -120,7 +120,7 @@ export async function lockTask(
   id: string,
 ): Promise<TaskRow | undefined> {
   const rows = await tx<TaskRow[]>`
-    select * from wb_tasks where id = ${id}
+    select * from wb_tasks where id = ${id} and kind = 'flagship'
     ${ownerSub === undefined ? tx`` : tx`and owner_sub = ${ownerSub}`}
     for update
   `;
@@ -213,6 +213,7 @@ async function create(
     const existing = await tx<TaskRow[]>`
       select * from wb_tasks
       where owner_sub = ${owner.sub} and client_request_id = ${input.clientRequestId}
+        and kind = 'flagship'
     `;
     const prior = existing.at(0);
     if (prior === undefined || prior.objective !== input.objective)
@@ -223,7 +224,8 @@ async function create(
 
 async function list(sql: postgres.Sql, ownerSub: string): Promise<readonly WorkbenchTaskSummary[]> {
   const rows = await sql<TaskRow[]>`
-    select * from wb_tasks where owner_sub = ${ownerSub} order by created_at desc limit 100
+    select * from wb_tasks where owner_sub = ${ownerSub} and kind = 'flagship'
+    order by created_at desc limit 100
   `;
   return rows.map(summary);
 }
@@ -234,7 +236,7 @@ async function taskRow(
   id: string,
 ): Promise<TaskRow | undefined> {
   const rows = await sql<TaskRow[]>`
-    select * from wb_tasks where id = ${id} and owner_sub = ${ownerSub}
+    select * from wb_tasks where id = ${id} and owner_sub = ${ownerSub} and kind = 'flagship'
   `;
   return rows.at(0);
 }
@@ -417,7 +419,7 @@ async function decide(
 async function reconcile(deps: WorkbenchDeps, ownerSub: string, id: string): Promise<boolean> {
   const rows = await deps.sql<ActionRow[]>`
     select a.* from wb_actions a join wb_tasks t on t.id = a.task_id
-    where a.task_id = ${id} and t.owner_sub = ${ownerSub}
+    where a.task_id = ${id} and t.owner_sub = ${ownerSub} and t.kind = 'flagship'
   `;
   const action = rows.at(0);
   if (action === undefined) return false;
@@ -462,7 +464,7 @@ async function reconcile(deps: WorkbenchDeps, ownerSub: string, id: string): Pro
 /** Every Vertex request that left the process counts against the local budget, whatever it returned. */
 async function vertexCallsUsed(sql: postgres.Sql): Promise<number> {
   const rows = await sql<{ n: number }[]>`
-    select count(*)::int as n from wb_model_calls where mode = 'vertex' and sent
+    select count(*)::int as n from wb_model_calls where mode = 'vertex' and sent and segment is null
   `;
   return rows.at(0)?.n ?? 0;
 }
@@ -472,7 +474,8 @@ async function lastModelCall(
   info: ModelInfo,
 ): Promise<ModelCallRow | undefined> {
   const rows = await sql<ModelCallRow[]>`
-    select * from wb_model_calls where mode = ${info.mode} and model_id = ${info.modelId}
+    select * from wb_model_calls
+    where mode = ${info.mode} and model_id = ${info.modelId} and segment is null
     order by id desc limit 1
   `;
   return rows.at(0);
@@ -537,7 +540,7 @@ async function readiness(
     lastModelCall(deps.sql, info),
     deps.sql<{ n: number }[]>`
       select count(*)::int as n from wb_tasks
-      where owner_sub = ${owner.sub} and status = 'waiting_approval'
+      where owner_sub = ${owner.sub} and kind = 'flagship' and status = 'waiting_approval'
     `,
   ]);
   const { state, errorCode } = modelHealth(deps.model, credentials, last);

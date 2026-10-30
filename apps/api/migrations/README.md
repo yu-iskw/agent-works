@@ -28,3 +28,9 @@ and the append-only `schedule_audit`. Timer slots are unique per schedule and
 fire time; verified event receipts are unique per source and source event ID.
 The service uses the same lock for atomic claims and fenced run updates.
 Do not reuse migration number `0013`.
+
+`0017_workbench.sql`, `0018_teamwork.sql` and `0019_teamwork_dependencies.sql` are applied in that
+order by `workbench/migration.ts` under advisory transaction lock 7017. `0018` extends the P0
+workbench tables for M1 teamwork and adds the `tw_*` tables. `0019` adds
+`tw_assignments.depends_on`. A migration that any database has applied is never edited; a change
+goes into a new number, written idempotently when an earlier draft may already exist somewhere.

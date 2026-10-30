@@ -12,14 +12,17 @@
         "e2e/p0/playwright.config.ts",
         "tools/finops/*.mjs",
         "tools/slo/*.mjs",
-        "tools/restore-drill/*.mjs"
+        "tools/restore-drill/*.mjs",
+        "e2e/m1/playwright.config.ts",
+        "scripts/m1/*.mjs"
       ],
       "project": [
         "**/*.{js,cjs,mjs,ts,cts,mts}",
         "!packages/**",
         "!apps/**",
         "!.trunk/**",
-        "!node_modules/**"
+        "!node_modules/**",
+        "!artifacts/**"
       ]
     },
     "apps/api": {
@@ -43,12 +46,14 @@
         "src/audit/siem-export/memory-sink.ts",
         "src/audit/siem-export/reconcile.ts",
         "src/telemetry/events.ts",
-        "src/telemetry/slo.ts"
+        "src/telemetry/slo.ts",
+        "src/teamwork/server.ts",
+        "src/teamwork/smoke.ts"
       ],
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": ["src/server.ts"],
+      "entry": ["src/server.ts", "src/m1-server.ts", "client/m1.ts"],
       "project": ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"]
     },
     "packages/*": {

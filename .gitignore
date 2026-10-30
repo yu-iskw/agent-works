@@ -163,3 +163,20 @@ artifacts/p0/restart-state.json
 artifacts/p0/screenshots/
 artifacts/p0/videos/
 e2e/p0/__screenshots__/
+
+# M1 local evidence. Screenshots, videos, traces, reports, visual baselines and auth state stay local (Yu's media policy).
+artifacts/m1/screenshots/
+artifacts/m1/videos/
+artifacts/m1/test-results/
+artifacts/m1/report-*/
+artifacts/m1/ux-review/
+artifacts/m1/ux/
+artifacts/m1/**/*.png
+artifacts/m1/**/*.webm
+artifacts/m1/**/*.zip
+artifacts/m1/restart-state.json
+artifacts/m1/*.png
+artifacts/m1/*.webm
+artifacts/m1/*.zip
+e2e/m1/__screenshots__/
+.scratch/

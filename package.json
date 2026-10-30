@@ -36,7 +36,20 @@
     "typecheck": "pnpm --recursive exec tsc --noEmit",
     "p0:up": "docker compose -f compose.p0.yaml up --build -d --wait --wait-timeout 600 --force-recreate builder fake-directory api web fake-iap",
     "p0:down": "docker compose -f compose.p0.yaml down",
-    "p0:e2e": "node scripts/p0-e2e.mjs all"
+    "p0:e2e": "node scripts/p0-e2e.mjs all",
+    "m1:doctor": "node scripts/m1/run.mjs doctor",
+    "m1:up": "node scripts/m1/run.mjs up",
+    "m1:up:local": "node scripts/m1/run.mjs up",
+    "m1:down": "node scripts/m1/run.mjs down",
+    "m1:reset": "node scripts/m1/run.mjs reset",
+    "m1:test": "node scripts/m1/run.mjs test",
+    "m1:e2e": "node scripts/m1/run.mjs e2e local && node scripts/m1/run.mjs e2e live",
+    "m1:e2e:local": "node scripts/m1/run.mjs e2e local",
+    "m1:e2e:live": "node scripts/m1/run.mjs e2e live",
+    "m1:ux": "node scripts/m1/run.mjs ux",
+    "m1:restart": "node scripts/m1/run.mjs restart",
+    "m1:evidence": "node scripts/m1/run.mjs evidence",
+    "m1:verify": "node scripts/m1/run.mjs verify"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

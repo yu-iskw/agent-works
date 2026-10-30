@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["workbench.ts"]
+  "include": ["workbench.ts", "m1.ts"]
 }

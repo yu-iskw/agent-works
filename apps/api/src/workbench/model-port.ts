@@ -4,6 +4,8 @@ export type GenerateRequest = {
   readonly system: string;
   readonly prompt: string;
   readonly jsonSchema?: unknown;
+  /** Per-call output cap; the adapter's configured cap applies when unset. */
+  readonly maxOutputTokens?: number;
   /** The retrieved items the prompt describes; only the offline stub reads it. */
   readonly evidence?: readonly { readonly id: string; readonly title: string }[];
 };
