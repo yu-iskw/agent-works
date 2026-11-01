@@ -33,27 +33,42 @@ describe('draft store', () => {
     const store = createDraftStore(ALICE, 'alpha', () => storage);
     expect(store.purgeOthers()).toBe(1);
     expect(storage.getItem(draftKey(BOB, 'alpha', 'c1'))).toBeNull();
-    expect(store.readDraft('c1')).toEqual({ text: 'alice', clientRequestId: 'r1' });
+    expect(store.readDraft('c1')).toEqual({
+      text: 'alice',
+      clientRequestId: 'r1',
+      chips: [],
+      target: null,
+    });
     expect(storage.getItem('aw-m1:alpha:legacy')).toBe('x');
   });
 
   it('round-trips a draft, drops empty ones and ignores garbage', () => {
     const storage = fakeStorage({ [draftKey(ALICE, 'alpha', 'bad')]: '{nope' });
     const store = createDraftStore(ALICE, 'alpha', () => storage);
-    store.writeDraft('c2', { text: 'hi', clientRequestId: 'r2' });
-    expect(store.readDraft('c2')).toEqual({ text: 'hi', clientRequestId: 'r2' });
+    store.writeDraft('c2', { text: 'hi', clientRequestId: 'r2', chips: [], target: null });
+    expect(store.readDraft('c2')).toEqual({
+      text: 'hi',
+      clientRequestId: 'r2',
+      chips: [],
+      target: null,
+    });
     store.writeDraft('c2', null);
     expect(store.readDraft('c2')).toBeUndefined();
     expect(store.readDraft('bad')).toBeUndefined();
   });
 
-  it('clears only this member and segment on sign-out', () => {
+  it('clears this member in every segment on sign-out and refuses later writes', () => {
     const storage = fakeStorage({
       [draftKey(ALICE, 'alpha', 'c1')]: '{"text":"a","clientRequestId":null}',
       [draftKey(ALICE, 'beta', 'c1')]: '{"text":"b","clientRequestId":null}',
+      [draftKey(BOB, 'alpha', 'c1')]: '{"text":"bob","clientRequestId":null}',
     });
-    expect(createDraftStore(ALICE, 'alpha', () => storage).clearMine()).toBe(1);
-    expect(storage.getItem(draftKey(ALICE, 'beta', 'c1'))).not.toBeNull();
+    const store = createDraftStore(ALICE, 'alpha', () => storage);
+    expect(store.signOut()).toBe(2);
+    store.writeDraft('c1', { text: 'late', clientRequestId: null, chips: [], target: null });
+    expect(storage.getItem(draftKey(ALICE, 'alpha', 'c1'))).toBeNull();
+    expect(storage.getItem(draftKey(ALICE, 'beta', 'c1'))).toBeNull();
+    expect(storage.getItem(draftKey(BOB, 'alpha', 'c1'))).not.toBeNull();
   });
 
   it('survives a storage that throws', () => {
@@ -62,6 +77,8 @@ describe('draft store', () => {
     });
     expect(store.purgeOthers()).toBe(0);
     expect(store.readDraft('c1')).toBeUndefined();
-    expect(() => store.writeDraft('c1', { text: 'x', clientRequestId: null })).not.toThrow();
+    expect(() =>
+      store.writeDraft('c1', { text: 'x', clientRequestId: null, chips: [], target: null }),
+    ).not.toThrow();
   });
 });

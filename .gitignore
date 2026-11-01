@@ -197,4 +197,5 @@ docs/ui/reference/*.png
 artifacts/ui/*.json
 artifacts/ui/*.md
 artifacts/ui/usability/
+artifacts/ui/journeys/
 artifacts/ui/contact-sheet.html

@@ -1,10 +1,12 @@
 // Eight original marks, drawn as simple geometry so they read at 24 px and at 64 px. The accent
 // is the tile; the mark is the ink colour the tile declares.
 
-import { ACCENT_IDS } from '../../../shared/contract.js';
+import { resolveAppearance } from './identity/appearance.js';
 
-import type { AccentId, Appearance, AvatarId } from '../../../shared/contract.js';
+import type { Appearance, AvatarId } from '../../../shared/contract.js';
 import type { JSX } from 'preact';
+
+export { initialsOf } from './identity/appearance.js';
 
 const MARKS: Readonly<Record<AvatarId, JSX.Element>> = {
   leaf: (
@@ -58,21 +60,22 @@ const MARKS: Readonly<Record<AvatarId, JSX.Element>> = {
   ),
 };
 
-function hash(text: string): number {
-  let h = 0;
-  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-/** A stable accent for a teammate without one, so the same teammate always gets the same tint. */
-function accentFor(appearance: Appearance, id: string): AccentId {
-  return appearance.accent ?? ACCENT_IDS[hash(id) % ACCENT_IDS.length];
-}
-
-export function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-  const letters = words.map((w) => [...w][0] ?? '').join('');
-  return letters === '' ? '?' : letters.toUpperCase();
+/** The mark alone, for pickers and previews that draw their own tile. */
+export function AvatarMark(props: {
+  readonly avatar: AvatarId;
+  readonly size: number;
+}): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      width={props.size}
+      height={props.size}
+      aria-hidden="true"
+      focusable="false"
+    >
+      {MARKS[props.avatar]}
+    </svg>
+  );
 }
 
 export function Avatar(props: {
@@ -81,29 +84,18 @@ export function Avatar(props: {
   readonly name: string;
   readonly size?: number;
 }): JSX.Element {
-  const { appearance, id, name } = props;
   const size = props.size ?? 36;
-  const accent = accentFor(appearance, id);
-  const avatar = appearance.avatar;
+  const { avatar, accent } = resolveAppearance(props.appearance, props.id);
   return (
     <span
       class="avatar"
       data-accent={accent}
-      style={{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.38)}px` }}
+      data-avatar={avatar}
+      style={{ width: `${size}px`, height: `${size}px` }}
       role="img"
-      aria-label={name}
+      aria-label={props.name}
     >
-      {avatar === null ? (
-        <span aria-hidden="true">{initialsOf(name)}</span>
-      ) : (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" focusable="false">
-          {/* `avatar` is the closed AvatarId enum. */}
-          {
-            // eslint-disable-next-line security/detect-object-injection
-            MARKS[avatar]
-          }
-        </svg>
-      )}
+      <AvatarMark avatar={avatar} size={size} />
     </span>
   );
 }

@@ -127,6 +127,9 @@ function body(config: VertexConfig, request: GenerateRequest) {
         config.maxOutputTokens,
       ),
       temperature: 0.2,
+      ...(request.thinking === undefined
+        ? {}
+        : { thinkingConfig: { thinkingLevel: request.thinking } }),
       ...(request.jsonSchema === undefined
         ? {}
         : { responseMimeType: 'application/json', responseSchema: request.jsonSchema }),

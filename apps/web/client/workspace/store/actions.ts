@@ -1,9 +1,13 @@
+import type { ComposerAction } from './composer-reducer.js';
+import type { ListName, ListsState } from './lists.js';
 import type { Layout } from './state.js';
 import type {
   ConversationPage,
   MeView,
   Preferences,
   SidebarTab,
+  TaskDetailPage,
+  TaskFilter,
   TeammatesPage,
 } from '../../../shared/contract.js';
 import type { Route } from '../../../shared/route.js';
@@ -48,4 +52,29 @@ export type Action =
   | { readonly type: 'me/loaded'; readonly me: MeView }
   | { readonly type: 'net/failure' }
   | { readonly type: 'net/ok' }
-  | { readonly type: 'notice/dismiss' };
+  | { readonly type: 'notice/dismiss' }
+  | { readonly type: 'task/loading'; readonly taskId: string }
+  | { readonly type: 'task/loaded'; readonly epoch: number; readonly detail: TaskDetailPage }
+  | { readonly type: 'task/failed'; readonly taskId: string; readonly error: string }
+  | { readonly type: 'review/expand'; readonly expanded: boolean }
+  | { readonly type: 'review/position'; readonly key: string; readonly top: number }
+  /** The member read this conversation; its row drops Unread and New result at once. */
+  | { readonly type: 'sidebar/read'; readonly conversationId: string }
+  | { readonly type: 'work/filter'; readonly filter: TaskFilter }
+  | { readonly type: 'list/query'; readonly list: 'work' | 'results'; readonly q: string }
+  | { readonly type: 'list/reset'; readonly list: ListName }
+  | { readonly type: 'list/loading'; readonly list: ListName; readonly generation: number }
+  | {
+      readonly [K in ListName]: {
+        readonly type: 'list/loaded';
+        readonly list: K;
+        readonly generation: number;
+        readonly page: {
+          readonly items: ListsState[K]['items'];
+          readonly nextCursor: string | null;
+        };
+      };
+    }[ListName]
+  | { readonly type: 'list/failed'; readonly list: ListName; readonly generation: number }
+  | { readonly type: 'list/select'; readonly list: ListName; readonly key: string | null }
+  | ComposerAction;

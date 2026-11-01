@@ -97,7 +97,8 @@ export function gitSha() {
   return result.status === 0 ? result.stdout.trim() : 'unknown';
 }
 
-export function toolbox(command) {
+/** Runs a shell command in the toolbox; `heapMb` bounds Node's old space (the VM has 6 GB). */
+export function toolbox(command, heapMb = 4096) {
   return (
     docker([
       ...compose,
@@ -106,7 +107,7 @@ export function toolbox(command) {
       '--no-deps',
       '-T',
       '-e',
-      'NODE_OPTIONS=--max-old-space-size=4096',
+      `NODE_OPTIONS=--max-old-space-size=${heapMb}`,
       'toolbox',
       'sh',
       '-c',
@@ -116,7 +117,8 @@ export function toolbox(command) {
 }
 
 /** Playwright inside the `e2e` service against e2e/ui; `vars` become container env. */
-export function playwright(project, vars = {}) {
+/** Runs one Playwright project in the e2e service; `extra` goes to the CLI (`--grep`, say). */
+export function playwright(project, vars = {}, extra = []) {
   if (toolbox('pnpm install --frozen-lockfile >/dev/null') !== 0) return 1;
   return (
     docker([
@@ -134,6 +136,7 @@ export function playwright(project, vars = {}) {
       '-c',
       'e2e/ui',
       `--project=${project}`,
+      ...extra,
     ]).status ?? 1
   );
 }

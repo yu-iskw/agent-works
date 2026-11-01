@@ -28,6 +28,7 @@ export type Api = {
   readonly post: <T extends { readonly segment: string }>(
     path: string,
     body: unknown,
+    init?: { readonly signal?: AbortSignal },
   ) => Promise<T>;
 };
 
@@ -60,9 +61,10 @@ export function createApi(deps: ApiDeps): Api {
   }
   return {
     get: (path) => call(path, { method: 'GET', headers: { accept: 'application/json' } }),
-    post: (path, body) =>
+    post: (path, body, init) =>
       call(path, {
         method: 'POST',
+        signal: init?.signal,
         headers: {
           accept: 'application/json',
           'content-type': 'application/json',

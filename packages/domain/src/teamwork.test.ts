@@ -289,6 +289,22 @@ describe('revision diff', () => {
     expect(diff.sourcesAdded).toEqual(['Security review']);
   });
 
+  it('reports a revision that only changes limitations or the title', () => {
+    const before = content('A', ['Choose Togglr.']);
+    const after = {
+      ...before,
+      title: 'Brief v2',
+      limitations: ['Policy and closure effects overlap in October.'],
+    };
+    const diff = diffRevisions({ content: before, sources: [] }, { content: after, sources: [] });
+    expect(diff.changedSections).toEqual(['Title', 'Limitations']);
+    expect(diff.added).toEqual([
+      { heading: 'Title', text: 'Brief v2' },
+      { heading: 'Limitations', text: 'Policy and closure effects overlap in October.' },
+    ]);
+    expect(diff.removed).toEqual([{ heading: 'Title', text: 'Brief' }]);
+  });
+
   it('finds missing required sections', () => {
     expect(missingSections(content('A', []), ['Conclusion', 'Unresolved questions'])).toEqual([
       'Unresolved questions',

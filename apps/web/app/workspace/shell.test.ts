@@ -68,7 +68,7 @@ function bootstrap(theme: Bootstrap['prefs']['theme'], text: string): Bootstrap 
 }
 
 const jsonOf = (html: string): unknown => {
-  const m = /<script type="application\/json" id="aw-bootstrap">(.*?)<\/script>/.exec(html);
+  const m = /<script type="application\/json" id="aw-bootstrap">(.*?)<\/script>/i.exec(html);
   return m === null ? undefined : JSON.parse(m[1]);
 };
 
@@ -83,9 +83,9 @@ describe('shell document', () => {
   });
 
   it('keeps a hostile message inside the JSON tag and never emits an inline script', () => {
-    const text = '</script><script>alert(1)</script><!-- x';
+    const text = '</script><SCRIPT>alert(1)</SCRIPT><script>alert(2)</script><!-- x';
     const html = shellDocument({ bootstrap: bootstrap('light', text), title: 'Haru', summary: '' });
-    const scripts = html.match(/<script[^>]*>/g) ?? [];
+    const scripts = html.match(/<script\b[^>]*>/gi) ?? [];
     expect(scripts).toEqual([
       '<script src="/assets/workspace.js" defer>',
       `<script type="application/json" id="${BOOTSTRAP_ID}">`,
@@ -122,22 +122,38 @@ describe('startup resolution', () => {
   it('opens the remembered conversation when it is still accessible', () => {
     expect(
       resolveStartup({ ...prefs, lastContext: { teammateId: T2, tab: 'work' } }, team),
-    ).toEqual({ kind: 'teammate', id: T2, notice: null });
+    ).toEqual({ kind: 'teammate', id: T2, panel: { kind: 'none' }, notice: null });
   });
 
   it('falls back to the first teammate with an explanation when the remembered one is gone', () => {
     expect(
       resolveStartup({ ...prefs, lastContext: { teammateId: 'gone', tab: 'teammates' } }, team),
-    ).toEqual({ kind: 'teammate', id: T, notice: { code: 'remembered_teammate_gone' } });
-    expect(resolveStartup(prefs, team)).toEqual({ kind: 'teammate', id: T, notice: null });
+    ).toEqual({
+      kind: 'teammate',
+      id: T,
+      panel: { kind: 'none' },
+      notice: { code: 'remembered_teammate_gone' },
+    });
+    expect(resolveStartup(prefs, team)).toEqual({
+      kind: 'teammate',
+      id: T,
+      panel: { kind: 'none' },
+      notice: null,
+    });
   });
 
-  it('routes the inbox startup to the inbox and no teammates to the empty shell', () => {
-    expect(resolveStartup({ ...prefs, startup: 'inbox' }, team)).toEqual({ kind: 'inbox' });
+  it('opens the inbox or recap panel over the last conversation, and no teammates lands empty', () => {
+    expect(resolveStartup({ ...prefs, startup: 'inbox' }, team)).toEqual({
+      kind: 'teammate',
+      id: T,
+      panel: { kind: 'inbox' },
+      notice: null,
+    });
     expect(resolveStartup(prefs, [])).toEqual({ kind: 'empty' });
     expect(resolveStartup({ ...prefs, startup: 'recap' }, team)).toEqual({
       kind: 'teammate',
       id: T,
+      panel: { kind: 'recap' },
       notice: null,
     });
   });

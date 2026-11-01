@@ -200,13 +200,13 @@ describe('reducer', () => {
     let state = start();
     state = reduce(state, { type: 'draft/text', conversationId: CONV, text: 'h', mint: 'rid-1' });
     state = reduce(state, { type: 'draft/text', conversationId: CONV, text: 'he', mint: 'rid-2' });
-    expect(draft(state)).toEqual({ text: 'he', clientRequestId: 'rid-1' });
+    expect(draft(state)).toEqual({ text: 'he', clientRequestId: 'rid-1', chips: [], target: null });
     state = reduce(state, { type: 'composer/sending', clientRequestId: 'rid-1' });
     const second = reduce(state, { type: 'composer/sending', clientRequestId: 'rid-1' });
     expect(second).toBe(state);
     state = reduce(state, { type: 'composer/failed', reason: 'boom' });
-    expect(state.composer).toEqual({ sending: null, error: 'boom' });
-    expect(draft(state)).toEqual({ text: 'he', clientRequestId: 'rid-1' });
+    expect(state.composer).toMatchObject({ sending: null, error: 'boom' });
+    expect(draft(state)).toEqual({ text: 'he', clientRequestId: 'rid-1', chips: [], target: null });
     state = reduce(state, { type: 'composer/sent', conversationId: CONV });
     expect(draft(state)).toBeUndefined();
     const fresh = reduce(state, {
@@ -215,7 +215,7 @@ describe('reducer', () => {
       text: 'x',
       mint: 'rid-3',
     });
-    expect(draft(fresh)).toEqual({ text: 'x', clientRequestId: 'rid-3' });
+    expect(draft(fresh)).toEqual({ text: 'x', clientRequestId: 'rid-3', chips: [], target: null });
     const cleared = reduce(fresh, {
       type: 'draft/text',
       conversationId: CONV,

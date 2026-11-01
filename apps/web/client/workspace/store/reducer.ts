@@ -5,9 +5,22 @@
 import { DEFAULT_PREFERENCES, PANEL_WIDTH } from '../../../shared/contract.js';
 import { sameConversation } from '../../../shared/route.js';
 
-import { EMPTY_DRAFT, compareMessages, conversationFromPage } from './state.js';
+import { COMPOSER_HANDLERS } from './composer-reducer.js';
+import {
+  EMPTY_LISTS,
+  listFailed,
+  listLoaded,
+  listLoading,
+  listSelect,
+  resetList,
+  rowKey,
+} from './lists.js';
+import { INITIAL_REVIEW, reviewExpand, reviewPosition } from './review-state.js';
+import { EMPTY_COMPOSER, EMPTY_DRAFT, compareMessages, conversationFromPage } from './state.js';
+import { taskFailed, taskLoaded, taskLoading } from './task-state.js';
 
 import type { Action } from './actions.js';
+import type { ListName, ListsState } from './lists.js';
 import type { ConversationState, Draft, Layout, WorkspaceState } from './state.js';
 import type { Bootstrap, LinkedTask, SidebarTab } from '../../../shared/contract.js';
 import type { MessageView } from '@agent-works/domain/teamwork';
@@ -80,7 +93,13 @@ function withDraft(state: WorkspaceState, id: string, draft: Draft | null): Work
     };
   }
   const had = draftOf(state, id);
-  if (had.text === draft.text && had.clientRequestId === draft.clientRequestId) return state;
+  if (
+    had.text === draft.text &&
+    had.clientRequestId === draft.clientRequestId &&
+    had.chips === draft.chips &&
+    had.target === draft.target
+  )
+    return state;
   return { ...state, drafts: { ...state.drafts, [id]: draft } };
 }
 
@@ -91,10 +110,38 @@ const withSidebar = (
 
 const withComposer = (
   state: WorkspaceState,
-  composer: WorkspaceState['composer'],
-): WorkspaceState => ({ ...state, composer });
+  composer: Partial<WorkspaceState['composer']>,
+): WorkspaceState => ({ ...state, composer: { ...state.composer, ...composer } });
 
-type Handlers = {
+function withList<K extends ListName>(
+  state: WorkspaceState,
+  name: K,
+  next: ListsState[K],
+): WorkspaceState {
+  if (listOf(state, name) === next) return state;
+  return { ...state, lists: { ...state.lists, [name]: next } };
+}
+
+const listOf = <K extends ListName>(state: WorkspaceState, name: K): ListsState[K] =>
+  // `name` ranges over the closed ListName union.
+  // eslint-disable-next-line security/detect-object-injection
+  state.lists[name];
+
+function readRow(state: WorkspaceState, conversationId: string): WorkspaceState {
+  const rows = state.sidebar.teammates.items;
+  const row = rows.find((t) => t.conversationId === conversationId);
+  if (row === undefined || (!row.unread && !row.unreadResult)) return state;
+  const items = rows.map((t) => (t === row ? { ...t, unread: false, unreadResult: false } : t));
+  return withSidebar(state, { teammates: { ...state.sidebar.teammates, items } });
+}
+
+const withTasks = (state: WorkspaceState, tasks: WorkspaceState['tasks']): WorkspaceState =>
+  tasks === state.tasks ? state : { ...state, tasks };
+
+const withReview = (state: WorkspaceState, review: WorkspaceState['review']): WorkspaceState =>
+  review === state.review ? state : { ...state, review };
+
+export type Handlers = {
   readonly [K in Action['type']]: (
     state: WorkspaceState,
     action: Extract<Action, { type: K }>,
@@ -110,7 +157,7 @@ const HANDLERS: Handlers = {
       route,
       epoch: state.epoch + 1,
       conversation: null,
-      composer: { sending: null, error: null },
+      composer: { ...EMPTY_COMPOSER, context: state.composer.context },
     };
   },
   'layout/changed': (state, { layout }) => (state.layout === layout ? state : { ...state, layout }),
@@ -148,9 +195,14 @@ const HANDLERS: Handlers = {
       : withConversation(state, { ...conversation, follow: true, unseen: 0 });
   },
   'draft/text': (state, { conversationId, text, mint }) => {
-    if (text === '') return withDraft(state, conversationId, null);
     const had = draftOf(state, conversationId);
-    return withDraft(state, conversationId, { text, clientRequestId: had.clientRequestId ?? mint });
+    if (text === '' && had.chips.length === 0 && had.target === null)
+      return withDraft(state, conversationId, null);
+    return withDraft(state, conversationId, {
+      ...had,
+      text,
+      clientRequestId: had.clientRequestId ?? mint,
+    });
   },
   'composer/sending': (state, { clientRequestId }) =>
     state.composer.sending !== null
@@ -180,6 +232,32 @@ const HANDLERS: Handlers = {
       ? state
       : { ...state, net: { failures: 0, offline: false } },
   'notice/dismiss': (state) => (state.notice === null ? state : { ...state, notice: null }),
+  'task/loading': (state, { taskId }) => withTasks(state, taskLoading(state.tasks, taskId)),
+  'task/loaded': (state, { detail }) => withTasks(state, taskLoaded(state.tasks, detail)),
+  'task/failed': (state, { taskId, error }) =>
+    withTasks(state, taskFailed(state.tasks, taskId, error)),
+  'review/expand': (state, { expanded }) => withReview(state, reviewExpand(state.review, expanded)),
+  'review/position': (state, { key, top }) =>
+    withReview(state, reviewPosition(state.review, key, top)),
+  'sidebar/read': (state, { conversationId }) => readRow(state, conversationId),
+  'work/filter': (state, { filter }) =>
+    state.lists.work.filter === filter
+      ? state
+      : withList(state, 'work', { ...resetList(state.lists.work), filter }),
+  'list/query': (state, { list, q }) =>
+    listOf(state, list).q === q
+      ? state
+      : withList(state, list, { ...resetList(listOf(state, list)), q }),
+  'list/reset': (state, { list }) => withList(state, list, resetList(listOf(state, list))),
+  'list/loading': (state, { list, generation }) =>
+    withList(state, list, listLoading(listOf(state, list), generation)),
+  'list/loaded': (state, { list, generation, page }) =>
+    withList(state, list, listLoaded(listOf(state, list), generation, page, rowKey)),
+  'list/failed': (state, { list, generation }) =>
+    withList(state, list, listFailed(listOf(state, list), generation)),
+  'list/select': (state, { list, key }) =>
+    withList(state, list, listSelect(listOf(state, list), key)),
+  ...COMPOSER_HANDLERS,
 };
 
 type AnyHandler = (state: WorkspaceState, action: Action) => WorkspaceState;
@@ -206,12 +284,15 @@ export function initial(bootstrap: Bootstrap, layout: Layout, now: number): Work
       teammates: { segment: bootstrap.scope.segment, items: [], nextCursor: null },
       loadedAt: 0,
     },
+    lists: EMPTY_LISTS,
     conversation: null,
     drafts: {},
-    composer: { sending: null, error: null },
+    composer: EMPTY_COMPOSER,
     panel: { width: clampWidth(bootstrap.prefs.panelWidth) },
     net: { failures: 0, offline: false },
     notice: bootstrap.notice,
+    tasks: {},
+    review: INITIAL_REVIEW,
   };
   const withTeam = reduce(base, {
     type: 'sidebar/loaded',

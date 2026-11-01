@@ -7,10 +7,12 @@ import type { Segment, WebConfig } from './config.js';
 import type { AssertionSigner, Session } from './identity.js';
 import type { ApiResult } from '../workbench/api.js';
 import type {
+  AttachmentView,
   CapabilityState,
   InboxItem,
   MessageView,
   PortableDefinition,
+  ResultEntry,
   SkillView,
   SourceCheck,
   TaskDetail,
@@ -195,6 +197,22 @@ export function createSegmentClient(
         body,
       ),
     tasks: (s: Session, seg: string) => call<{ tasks: TaskSummary[] }>(s, seg, 'GET', '/tasks'),
+    /** Bounded, searchable task page; `search` is the already-encoded query string. */
+    taskPage: (s: Session, seg: string, search: string) =>
+      call<{ tasks: TaskSummary[]; nextCursor: string | null }>(s, seg, 'GET', `/tasks?${search}`),
+    resultPage: (s: Session, seg: string, search: string) =>
+      call<{ results: ResultEntry[]; nextCursor: string | null }>(
+        s,
+        seg,
+        'GET',
+        `/results?${search}`,
+      ),
+    inboxPage: (s: Session, seg: string, search: string) =>
+      call<{ items: InboxItem[]; nextCursor: string | null }>(s, seg, 'GET', `/inbox?${search}`),
+    markRead: (s: Session, seg: string, conversationId: string, upToMessageId: string) =>
+      call<{ read: unknown }>(s, seg, 'POST', `/conversations/${conversationId}/read`, {
+        upToMessageId,
+      }),
     createTask: (s: Session, seg: string, body: unknown) =>
       call<{ task: TaskSummary }>(s, seg, 'POST', '/tasks', body),
     /** One owner-scoped row; what pollers need, without the full task detail. */
@@ -228,6 +246,19 @@ export function createSegmentClient(
       call<{ checks: SourceCheck[] }>(s, seg, 'POST', '/sources/check'),
     disconnect: (s: Session, seg: string, provider: string) =>
       call<{ connections: Connection[] }>(s, seg, 'POST', `/connections/${provider}/disconnect`),
+    /** One member file's metadata and preview, as the segment sends it. */
+    attachment: (s: Session, seg: string, id: string) =>
+      call<unknown>(s, seg, 'GET', `/attachments/${id}`),
+    uploadAttachment: (s: Session, seg: string, conversationId: string, body: unknown) =>
+      call<{ attachment: AttachmentView }>(
+        s,
+        seg,
+        'POST',
+        `/conversations/${conversationId}/attachments`,
+        body,
+      ),
+    removeAttachment: (s: Session, seg: string, id: string) =>
+      call<{ removed: boolean }>(s, seg, 'POST', `/attachments/${id}/remove`),
     fixtureDoc: (s: Session, seg: string, id: string) =>
       call<{ title: string; markdown: string; createdAt: string }>(
         s,

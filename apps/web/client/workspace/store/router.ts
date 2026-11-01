@@ -26,22 +26,30 @@ export type Router = {
   readonly start: () => void;
 };
 
-const MARK = { aw: true } as const;
-
-const ours = (state: unknown): boolean =>
-  typeof state === 'object' && state !== null && (state as { aw?: unknown }).aw === true;
+/**
+ * Entries this island pushed carry how many in-app pushes precede them in this document, so
+ * Back only walks browser history it created itself. A deep link (or any entry the island only
+ * replaced) has depth 0 and goes back by replacing the URL, never by leaving the app.
+ */
+const depthOf = (state: unknown): number => {
+  if (typeof state !== 'object' || state === null) return 0;
+  const { aw, depth } = state as { aw?: unknown; depth?: unknown };
+  return aw === true && typeof depth === 'number' ? depth : 0;
+};
+const mark = (depth: number) => ({ aw: true, depth }) as const;
 
 export function createRouter(deps: RouterDeps): Router {
   const navigate = (route: Route, mode: 'push' | 'replace' = 'push'): void => {
     const url = formatRoute(route);
-    if (mode === 'push') deps.history.pushState(MARK, '', url);
-    else deps.history.replaceState(MARK, '', url);
+    const depth = depthOf(deps.history.state);
+    if (mode === 'push') deps.history.pushState(mark(depth + 1), '', url);
+    else deps.history.replaceState(mark(depth), '', url);
     deps.dispatch({ type: 'route/changed', route });
   };
   return {
     navigate,
     back: (current) => {
-      if (ours(deps.history.state)) {
+      if (depthOf(deps.history.state) > 0) {
         deps.history.back();
         return;
       }

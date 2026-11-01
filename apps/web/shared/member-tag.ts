@@ -44,8 +44,7 @@ export function purgeOtherMembers(store: KeyStore, keep: MemberTag): number {
   return removeWhere(store, (key) => key.startsWith(`${PREFIX}${keep}:`));
 }
 
-/** Removes this member's drafts in one segment (sign-out keeps preferences, which live server-side). */
-export function clearDrafts(store: KeyStore, tag: MemberTag, segment: string): number {
-  const prefix = storageKey(tag, segment, 'draft', '');
-  return removeWhere(store, (key) => !key.startsWith(prefix));
+/** Removes every workspace key of this member, in every segment. Sign-out ends all of them. */
+export function clearMember(store: KeyStore, tag: MemberTag): number {
+  return removeWhere(store, (key) => !key.startsWith(`${PREFIX}${tag}:`));
 }

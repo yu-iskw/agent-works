@@ -11,6 +11,7 @@ export type PanelRoute =
   | { readonly kind: 'none' }
   | { readonly kind: 'inbox' }
   | { readonly kind: 'preferences' }
+  | { readonly kind: 'recap' }
   | { readonly kind: 'teammate' }
   | { readonly kind: 'draft'; readonly draftId: string }
   | { readonly kind: 'task'; readonly taskId: string }
@@ -52,6 +53,7 @@ const PANEL_PATTERNS: readonly PanelPattern[] = [
   { pattern: /^\/details$/, panel: () => ({ kind: 'teammate' }) },
   { pattern: /^\/inbox$/, panel: () => ({ kind: 'inbox' }) },
   { pattern: /^\/preferences$/, panel: () => ({ kind: 'preferences' }) },
+  { pattern: /^\/recap$/, panel: () => ({ kind: 'recap' }) },
   { pattern: new RegExp(`^/drafts/(${UUID})$`), panel: (m) => ({ kind: 'draft', draftId: m[1] }) },
   { pattern: new RegExp(`^/tasks/(${UUID})$`), panel: (m) => ({ kind: 'task', taskId: m[1] }) },
   {
@@ -132,6 +134,7 @@ const PANEL_PATHS: {
   teammate: () => plain('/details'),
   inbox: () => plain('/inbox'),
   preferences: () => plain('/preferences'),
+  recap: () => plain('/recap'),
   draft: (panel) => plain(`/drafts/${panel.draftId}`),
   task: (panel) => plain(`/tasks/${panel.taskId}`),
   plan: (panel) => plain(`/tasks/${panel.taskId}/plan/${panel.version}`),

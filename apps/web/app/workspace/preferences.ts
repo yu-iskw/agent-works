@@ -74,11 +74,13 @@ export function createPreferencesStore(db: Pick<WebDb, 'sql'>): PreferencesStore
     async write(sub, segment, patch) {
       for (const key of [...MEMBER_KEYS, 'lastContext'] as const) {
         if (!(key in patch)) continue;
+        // The driver serializes jsonb parameters itself; a pre-stringified value would be stored
+        // as a JSON string and fail its schema on read.
         // eslint-disable-next-line security/detect-object-injection
-        const value = JSON.stringify(patch[key] ?? null);
+        const value = db.sql.json(patch[key] ?? null);
         await db.sql`
           insert into m1_preferences (sub, scope, key, value, updated_at)
-          values (${sub}, ${scopeOf(key, segment)}, ${key}, ${value}::jsonb, now())
+          values (${sub}, ${scopeOf(key, segment)}, ${key}, ${value}, now())
           on conflict (sub, scope, key) do update set value = excluded.value, updated_at = excluded.updated_at
         `;
       }

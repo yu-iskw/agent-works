@@ -1,4 +1,4 @@
-import { conversationPageSchema } from '@agent-works/domain/teamwork';
+import { ATTACHMENT_MAX_PER_MESSAGE, conversationPageSchema } from '@agent-works/domain/teamwork';
 import { z } from 'zod';
 
 import { ACCENT_IDS, AVATAR_IDS } from '../../shared/contract.js';
@@ -196,4 +196,6 @@ export async function loadConversation(
 export const messagePostSchema = z.strictObject({
   clientRequestId: z.string().uuid(),
   text: z.string().trim().min(1).max(8000),
+  /** Member files of this conversation the reply may read; the segment checks ownership. */
+  attachmentIds: z.array(z.string().uuid()).max(ATTACHMENT_MAX_PER_MESSAGE).optional(),
 });

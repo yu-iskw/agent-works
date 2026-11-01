@@ -1,18 +1,23 @@
-import { useLayoutEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
-import { pages } from '../../../shared/contract.js';
 import { nearBottom } from '../store/anchoring.js';
-import { activeTeammate } from '../store/selectors.js';
-import { clockTime } from '../store/time.js';
-import { timelineItems } from '../store/timeline-items.js';
+import { activeTeammate, panelOpen, teammateById } from '../store/selectors.js';
+import { clockTime, dayLabel } from '../store/time.js';
+import { timelineOf } from '../store/timeline-select.js';
 
 import { Avatar, initialsOf } from './avatars.jsx';
+import { CardItem } from './cards/card.jsx';
+import { ContributionItem } from './cards/contribution.jsx';
+import { TaskDraftCard } from './cards/task-draft-card.jsx';
 import { useWorkspace } from './context.js';
+import { Markdown } from './markdown.js';
 
 import type { TeammateRow } from '../../../shared/contract.js';
-import type { ConversationState } from '../store/state.js';
-import type { MessageView } from '@agent-works/domain/teamwork';
+import type { ConversationState, WorkspaceState } from '../store/state.js';
+import type { TimelineItem } from '@agent-works/domain/teamwork-timeline';
 import type { JSX } from 'preact';
+
+type MessageItem = Extract<TimelineItem, { kind: 'message' }>;
 
 function Initials(props: { readonly name: string; readonly member: boolean }): JSX.Element {
   return (
@@ -27,63 +32,70 @@ function Initials(props: { readonly name: string; readonly member: boolean }): J
   );
 }
 
-function BubbleAvatar(props: {
+type Voice = {
   readonly mine: boolean;
-  readonly teammate: TeammateRow | undefined;
-  readonly memberName: string;
   readonly name: string;
-}): JSX.Element {
-  if (props.mine) return <Initials name={props.memberName} member />;
-  if (props.teammate === undefined) return <Initials name={props.name} member={false} />;
-  const { appearance, id, name } = props.teammate;
+  readonly teammate: TeammateRow | undefined;
+};
+
+function voiceOf(item: MessageItem, state: WorkspaceState): Voice {
+  if (item.author.kind === 'member') return { mine: true, name: 'You', teammate: undefined };
+  if (item.author.kind === 'system') return { mine: false, name: 'System', teammate: undefined };
+  const teammate = teammateById(state, item.author.id);
+  return { mine: false, name: teammate?.name ?? item.author.name, teammate };
+}
+
+function BubbleAvatar(props: { readonly voice: Voice; readonly memberName: string }) {
+  const { voice } = props;
+  if (voice.mine) return <Initials name={props.memberName} member />;
+  if (voice.teammate === undefined) return <Initials name={voice.name} member={false} />;
+  const { appearance, id, name } = voice.teammate;
   return <Avatar appearance={appearance} id={id} name={name} size={32} />;
 }
 
 function Bubble(props: {
-  readonly message: MessageView;
-  readonly grouped: boolean;
-  readonly teammate: TeammateRow | undefined;
-  readonly memberName: string;
-  readonly segment: string;
+  readonly item: MessageItem;
+  readonly state: WorkspaceState;
 }): JSX.Element {
-  const { message, grouped, teammate, segment } = props;
-  if (message.role === 'system')
-    return (
-      <li class="sys" id={`msg:${message.id}`}>
-        <span>{message.text}</span>
-        <time dateTime={message.at}>{clockTime(message.at)}</time>
-      </li>
-    );
-  const mine = message.role === 'member';
-  const name = mine ? 'You' : (teammate?.name ?? 'Teammate');
-  const stamp = <time dateTime={message.at}>{clockTime(message.at)}</time>;
+  const { item, state } = props;
+  const voice = voiceOf(item, state);
+  const { mine, name } = voice;
+  const stamp = <time dateTime={item.at}>{clockTime(item.at)}</time>;
   return (
     <li
-      class={`msg ${mine ? 'msg-member' : 'msg-teammate'}${grouped ? ' msg-grouped' : ''}`}
-      id={`msg:${message.id}`}
+      class={`msg ${mine ? 'msg-member' : 'msg-teammate'}${item.grouped ? ' msg-grouped' : ''}`}
+      id={item.id}
     >
       <span class="msg-avatar">
-        {grouped ? null : (
-          <BubbleAvatar mine={mine} teammate={teammate} memberName={props.memberName} name={name} />
-        )}
+        {item.grouped ? null : <BubbleAvatar voice={voice} memberName={state.me.member.name} />}
       </span>
       <div class="msg-body">
-        {grouped ? null : (
+        {item.grouped ? null : (
           <span class="msg-meta">
             <span class="msg-author">{name}</span>
             {stamp}
           </span>
         )}
         <div class="bubble">
-          <p class="msg-text">{message.text}</p>
-          {message.card === null ? null : (
-            <a class="card-link" href={pages.task(segment, message.card.taskId)}>
-              Open task: {message.card.title}
-            </a>
-          )}
-          {grouped ? <span class="msg-stamp">{stamp}</span> : null}
+          {mine ? <p class="msg-text">{item.text}</p> : <Markdown text={item.text} />}
+          {item.grouped ? <span class="msg-stamp">{stamp}</span> : null}
         </div>
       </div>
+    </li>
+  );
+}
+
+function SystemLine(props: {
+  readonly item: Extract<TimelineItem, { kind: 'system' }>;
+}): JSX.Element {
+  return (
+    <li class="sys" id={props.item.id}>
+      <span class="sys-mark" aria-hidden="true" />
+      <span>
+        <span class="visually-hidden">System activity: </span>
+        {props.item.text}
+      </span>
+      <time dateTime={props.item.at}>{clockTime(props.item.at)}</time>
     </li>
   );
 }
@@ -120,18 +132,48 @@ function Empty(props: { readonly text: string; readonly alert?: boolean }): JSX.
   );
 }
 
-export function Timeline(): JSX.Element {
-  const { store } = useWorkspace();
-  const state = store.state.value;
-  const conversation = state.conversation;
-  const teammate = activeTeammate(state);
-  const box = useRef<HTMLDivElement>(null);
-  const count = conversation?.messages.length ?? 0;
-  const follow = conversation?.follow ?? true;
+function Item(props: {
+  readonly item: TimelineItem;
+  readonly state: WorkspaceState;
+  readonly now: Date;
+}): JSX.Element {
+  const { item, state } = props;
+  switch (item.kind) {
+    case 'day':
+      return (
+        <li class="day">
+          <span>{dayLabel(item.date, props.now)}</span>
+        </li>
+      );
+    case 'message':
+      return <Bubble item={item} state={state} />;
+    case 'system':
+      return <SystemLine item={item} />;
+    case 'contribution':
+      return <ContributionItem item={item} />;
+    case 'card':
+      return <CardItem item={item} />;
+  }
+}
+
+/**
+ * Keeps the reading position while the list is hidden and shown again (tablet panel, expanded
+ * panel, phone sheet): the last scrollTop is restored on the first layout after re-showing.
+ */
+function useKeptScroll(box: { current: HTMLDivElement | null }, hidden: boolean, follow: boolean) {
+  const kept = useRef(0);
   useLayoutEffect(() => {
     const node = box.current;
-    if (node !== null && follow) node.scrollTop = node.scrollHeight;
-  }, [count, follow, conversation?.id, conversation?.reply]);
+    if (node === null || hidden) return;
+    if (!follow && kept.current > 0) node.scrollTop = kept.current;
+  }, [box, hidden, follow]);
+  return (top: number) => {
+    kept.current = top;
+  };
+}
+
+/** Nothing to list yet: no teammate chosen, or the deep-linked teammate is gone. */
+function emptyState(state: WorkspaceState): JSX.Element | null {
   if (state.route.teammate === null)
     return (
       <Empty
@@ -142,20 +184,81 @@ export function Timeline(): JSX.Element {
         }
       />
     );
-  if (state.route.panel.kind === 'missing')
+  if (state.route.panel.kind === 'missing' && state.route.panel.what === 'teammate')
     return (
       <Empty
         alert
         text="This teammate is not available to you anymore. Pick another one from the sidebar."
       />
     );
-  if (conversation === null) return <Empty text="Loading the conversation…" />;
-  const items = timelineItems(conversation.messages, new Date());
+  return null;
+}
+
+function Footer(props: {
+  readonly conversation: ConversationState;
+  readonly offline: boolean;
+  readonly onJump: () => void;
+}): JSX.Element {
+  const { conversation } = props;
+  return (
+    <>
+      {conversation.unseen > 0 && !conversation.follow ? (
+        <button type="button" class="btn btn-primary tl-new" onClick={props.onJump}>
+          New activity ({conversation.unseen})
+        </button>
+      ) : null}
+      {props.offline ? (
+        <p class="tl-net" role="status">
+          Connection trouble. Retrying…
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+export function Timeline(): JSX.Element {
+  const { store } = useWorkspace();
+  const state = store.state.value;
+  const conversation = state.conversation;
+  const teammate = activeTeammate(state);
+  const box = useRef<HTMLDivElement>(null);
+  const count = conversation?.messages.length ?? 0;
+  const tasksHeld = Object.keys(state.tasks).length;
+  const follow = conversation?.follow ?? true;
+  const hidden = panelOpen(state) && (state.review.expanded || state.layout !== 'desktop');
+  const keep = useKeptScroll(box, hidden, follow);
+  // When the timeline pins itself to the bottom, the scroll event that follows is not the member
+  // reading upwards; it must not switch following off.
+  const pinnedAt = useRef(0);
+  const pin = (node: HTMLDivElement) => {
+    node.scrollTop = node.scrollHeight;
+    pinnedAt.current = performance.now();
+  };
+  useLayoutEffect(() => {
+    const node = box.current;
+    if (node !== null && follow && !hidden) pin(node);
+  }, [count, tasksHeld, follow, hidden, conversation?.id, conversation?.reply]);
+  // Cards and Markdown settle after the first paint; while following, growth keeps the bottom.
+  useEffect(() => {
+    const node = box.current;
+    const list = node?.querySelector('.tl-list') ?? null;
+    if (node === null || list === null || !follow || hidden) return;
+    const observer = new ResizeObserver(() => pin(node));
+    observer.observe(list);
+    // The scroller itself shrinks when the composer grows (chips, target row, errors).
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [follow, hidden, conversation?.id]);
+  const empty = emptyState(state);
+  if (empty !== null || conversation === null)
+    return empty ?? <Empty text="Loading the conversation…" />;
+  const now = new Date();
+  const items = timelineOf(state, now);
   const name = teammate?.name ?? 'your teammate';
   const jumpToLatest = () => {
     store.dispatch({ type: 'conversation/seen' });
     const node = box.current;
-    if (node !== null) node.scrollTop = node.scrollHeight;
+    if (node !== null) pin(node);
   };
   return (
     <div class="tl-wrap">
@@ -163,44 +266,26 @@ export function Timeline(): JSX.Element {
         class="tl"
         ref={box}
         onScroll={(event) => {
+          keep(event.currentTarget.scrollTop);
           const near = nearBottom(event.currentTarget);
+          if (!near && performance.now() - pinnedAt.current < 200) return;
           if (near !== conversation.follow)
             store.dispatch({ type: 'conversation/follow', follow: near });
         }}
       >
+        <h2 class="visually-hidden">Conversation with {name}</h2>
         {items.length === 0 ? (
           <p class="tl-hint">No messages yet. Ask {name} how they would approach something.</p>
         ) : null}
         <ol class="tl-list" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-          {items.map((item) =>
-            item.kind === 'day' ? (
-              <li key={item.id} class="day" role="separator" aria-label={item.label}>
-                <span>{item.label}</span>
-              </li>
-            ) : (
-              <Bubble
-                key={item.id}
-                message={item.message}
-                grouped={item.grouped}
-                teammate={teammate}
-                memberName={state.me.member.name}
-                segment={state.scope.segment}
-              />
-            ),
-          )}
+          {items.map((item) => (
+            <Item key={item.id} item={item} state={state} now={now} />
+          ))}
+          <TaskDraftCard />
         </ol>
         <ReplyStatus conversation={conversation} name={name} />
       </div>
-      {conversation.unseen > 0 && !conversation.follow ? (
-        <button type="button" class="btn btn-primary tl-new" onClick={jumpToLatest}>
-          New activity ({conversation.unseen})
-        </button>
-      ) : null}
-      {state.net.offline ? (
-        <p class="tl-net" role="status">
-          Connection trouble. Retrying…
-        </p>
-      ) : null}
+      <Footer conversation={conversation} offline={state.net.offline} onJump={jumpToLatest} />
     </div>
   );
 }

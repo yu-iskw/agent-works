@@ -24,7 +24,12 @@ export type WebConfig = {
 const membersKey = (segmentId: string) =>
   `AW_M1_${segmentId.toUpperCase().replaceAll('-', '_')}_MEMBERS`;
 
-export const LOCAL_TEST_MEMBERS = ['alice@local.test', 'bob@local.test'] as const;
+/** carol is reserved for visual baselines; no other test signs in as her. */
+export const LOCAL_TEST_MEMBERS = [
+  'alice@local.test',
+  'bob@local.test',
+  'carol@local.test',
+] as const;
 const LOCAL_TEST: IdentityMode = 'local-test';
 
 /**

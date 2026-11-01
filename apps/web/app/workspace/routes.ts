@@ -5,8 +5,10 @@ import { CSRF_HEADER, pages } from '../../shared/contract.js';
 import { formatRoute, parseRoute } from '../../shared/route.js';
 import { readBody } from '../body.js';
 
+import { composeRoutes } from './compose-routes.js';
 import { csrfOk } from './csrf.js';
 import { securityHeaders } from './headers.js';
+import { listRoutes } from './list-routes.js';
 import {
   loadConversation,
   loadMe,
@@ -19,6 +21,7 @@ import { memberTag } from './member-tag.js';
 import { preferencesPatchSchema } from './preferences.js';
 import { shellDocument } from './shell.js';
 import { resolveStartup } from './startup.js';
+import { TASK_ROUTES } from './task-routes.js';
 
 import type { LoaderDeps } from './loaders.js';
 import type { PreferencesStore } from './preferences.js';
@@ -159,10 +162,10 @@ async function startup(req: SegReq, route: Route): Promise<void> {
       notice: { code: 'no_teammates' },
       title: segment.name,
     });
-  const location =
-    target.kind === 'inbox'
-      ? pages.inbox(segment.id)
-      : withNotice(formatRoute({ ...route, teammate: target.id }), target.notice);
+  const location = withNotice(
+    formatRoute({ ...route, teammate: target.id, panel: target.panel }),
+    target.notice,
+  );
   response.writeHead(303, { ...securityHeaders, location });
   response.end();
 }
@@ -229,11 +232,13 @@ export async function handleShell(req: SegReq): Promise<boolean> {
 
 // ---- JSON ----
 
-type JsonReq = SegReq & { readonly request: IncomingMessage; readonly m: RegExpExecArray };
-type JsonRoute = {
+export type JsonReq = SegReq & { readonly request: IncomingMessage; readonly m: RegExpExecArray };
+export type JsonRoute = {
   readonly method: 'GET' | 'POST';
   readonly pattern: RegExp;
   readonly handle: (req: JsonReq, body: unknown) => Promise<void>;
+  /** Body limit for this route when it must exceed the default (file uploads). */
+  readonly maxBody?: number;
 };
 
 function reply<T>(req: JsonReq, result: ApiResult<T>, status = 200): void {
@@ -242,6 +247,8 @@ function reply<T>(req: JsonReq, result: ApiResult<T>, status = 200): void {
 }
 
 const JSON_ROUTES: readonly JsonRoute[] = [
+  ...listRoutes,
+  ...composeRoutes,
   {
     method: 'GET',
     pattern: /^\/me$/,
@@ -308,14 +315,16 @@ const JSON_ROUTES: readonly JsonRoute[] = [
       });
     },
   },
+  ...TASK_ROUTES,
 ];
 
 async function readJson(
   request: IncomingMessage,
+  maxBody = MAX_JSON,
 ): Promise<
   { readonly ok: true; readonly body: unknown } | { readonly ok: false; readonly status: number }
 > {
-  const raw = await readBody(request, MAX_JSON);
+  const raw = await readBody(request, maxBody);
   if (raw === undefined) return { ok: false, status: 413 };
   try {
     return { ok: true, body: JSON.parse(raw.toString('utf8')) as unknown };
@@ -360,7 +369,7 @@ export async function handleApi(
     })
   )
     return json(response, 403, { segment: segment.id, error: 'csrf' });
-  const body = await readJson(request);
+  const body = await readJson(request, hit.route.maxBody);
   if (!body.ok)
     return json(response, body.status, {
       segment: segment.id,

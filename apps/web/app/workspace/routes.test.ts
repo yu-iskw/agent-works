@@ -89,9 +89,70 @@ const teammate: TeammateView = {
 
 type Posted = { readonly conversationId: string; readonly body: unknown };
 
+const listTask = {
+  id: GONE,
+  title: 'ui-seed task',
+  workflow: 'research_brief',
+  mode: 'manual',
+  status: 'running',
+  version: 2,
+  resultOwner: T,
+  conversationId: CONV,
+  latestRevision: 0,
+  errorCode: null,
+  errorMessage: null,
+  createdAt: '2026-10-30T00:00:00.000Z',
+  updatedAt: '2026-10-30T00:00:00.000Z',
+};
+
+const catalogSkill = (id: string, version: number, name: string) => ({
+  id,
+  version,
+  origin: 'curated',
+  derivedFrom: null,
+  ownerSub: null,
+  definition: { name, summary: `${name} summary` },
+  createdAt: '2026-10-30T00:00:00.000Z',
+  attachedTo: [],
+});
+
 function fakeApi(input: { readonly replyPending: boolean; readonly paged: boolean }) {
   const posted: Posted[] = [];
+  const searches: string[] = [];
+  const updates: unknown[] = [];
+  const reads: unknown[] = [];
   const api = {
+    taskPage: (_s: Session, _seg: string, search: string) => {
+      searches.push(`tasks?${search}`);
+      return Promise.resolve({ ok: true, value: { tasks: [listTask], nextCursor: 'bmV4dA' } });
+    },
+    resultPage: (_s: Session, _seg: string, search: string) => {
+      searches.push(`results?${search}`);
+      return Promise.resolve({ ok: true, value: { results: [], nextCursor: null } });
+    },
+    inboxPage: (_s: Session, _seg: string, search: string) => {
+      searches.push(`inbox?${search}`);
+      return Promise.resolve({ ok: true, value: { items: [], nextCursor: null } });
+    },
+    markRead: (_s: Session, _seg: string, conversationId: string, upToMessageId: string) => {
+      reads.push({ conversationId, upToMessageId });
+      return Promise.resolve({ ok: true, value: { read: {} } });
+    },
+    updateTeammate: (_s: Session, _seg: string, _id: string, body: Record<string, unknown>) => {
+      updates.push(body);
+      return Promise.resolve(
+        body.expectedVersion === teammate.version
+          ? { ok: true, value: { teammate: { ...teammate, name: body.name, version: 2 } } }
+          : { ok: false, status: 409, error: 'version_conflict' },
+      );
+    },
+    setSkill: (_s: Session, _seg: string, _id: string, body: Record<string, unknown>) => {
+      updates.push(body);
+      return Promise.resolve({
+        ok: true,
+        value: { teammate: { ...teammate, skills: [{ id: GONE, version: 2, name: 'brief' }] } },
+      });
+    },
     segmentFor: (s: Session, id: string) =>
       s.email === session.email ? config.segments.find((seg) => seg.id === id) : undefined,
     me: () => Promise.resolve({ ok: true, value: readiness }),
@@ -144,10 +205,21 @@ function fakeApi(input: { readonly replyPending: boolean; readonly paged: boolea
           : { ok: true, value: { accepted: true } },
       );
     },
-    catalog: () => Promise.resolve({ ok: true, value: { templates: [], skills: [] } }),
+    catalog: () =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          templates: [],
+          skills: [
+            catalogSkill(GONE, 1, 'brief'),
+            catalogSkill(GONE, 2, 'brief'),
+            catalogSkill(CONV, 1, 'metrics'),
+          ],
+        },
+      }),
     inbox: () => Promise.resolve({ ok: true, value: { items: [] } }),
   };
-  return { api: api as unknown as SegmentClient, posted };
+  return { api: api as unknown as SegmentClient, posted, searches, updates, reads };
 }
 
 function fakePrefs(): PreferencesStore & { readonly written: PreferencesPatch[] } {
@@ -174,7 +246,7 @@ afterEach(() => {
 });
 
 async function serve(options: { readonly replyPending?: boolean; readonly paged?: boolean } = {}) {
-  const { api, posted } = fakeApi({
+  const { api, posted, searches, updates, reads } = fakeApi({
     replyPending: options.replyPending ?? false,
     paged: options.paged ?? false,
   });
@@ -192,7 +264,7 @@ async function serve(options: { readonly replyPending?: boolean; readonly paged?
       body,
       redirect: 'manual',
     });
-  return { get, post, posted, prefs };
+  return { get, post, posted, prefs, searches, updates, reads };
 }
 
 const bootstrapOf = (html: string): Bootstrap => {
@@ -370,5 +442,120 @@ describe('workspace JSON routes', () => {
     });
     const shell = await get(`/s/alpha/teammates/${T}`);
     expect(await shell.text()).toMatch(/^<!doctype html><html lang="en" data-theme="dark">/);
+  });
+});
+
+describe('sidebar lists, read markers and identity (WEB-2c)', () => {
+  it('opens the startup view the member chose over the last conversation', async () => {
+    const { get, post } = await serve();
+    await post('/api/s/alpha/preferences', JSON.stringify({ startup: 'inbox' }), jsonPost);
+    expect((await get('/s/alpha')).headers.get('location')).toBe(`/s/alpha/teammates/${T}/inbox`);
+    await post('/api/s/alpha/preferences', JSON.stringify({ startup: 'recap' }), jsonPost);
+    expect((await get('/s/alpha')).headers.get('location')).toBe(`/s/alpha/teammates/${T}/recap`);
+    await post('/api/s/alpha/preferences', JSON.stringify({ startup: 'last' }), jsonPost);
+    expect((await get('/s/alpha')).headers.get('location')).toBe(`/s/alpha/teammates/${T}`);
+  });
+
+  it('passes validated list queries and cursors through and echoes the segment', async () => {
+    const { get, searches } = await serve();
+    const page = await get(
+      '/api/s/alpha/tasks?status=running&q=%20hello%20&cursor=abc_-1&limit=10',
+    );
+    expect(await page.json()).toEqual({
+      segment: 'alpha',
+      items: [listTask],
+      nextCursor: 'bmV4dA',
+    });
+    expect(searches).toEqual(['tasks?limit=10&status=running&q=hello&cursor=abc_-1']);
+    expect((await get('/api/s/alpha/tasks?status=nope')).status).toBe(400);
+    expect((await get('/api/s/alpha/tasks?cursor=has%20space')).status).toBe(400);
+    await get('/api/s/alpha/results?q=x');
+    await get('/api/s/alpha/inbox?limit=5');
+    expect(searches.slice(1)).toEqual(['results?limit=25&q=x', 'inbox?state=open&limit=5']);
+  });
+
+  it('posts the read marker and refuses a malformed one', async () => {
+    const { post, reads } = await serve();
+    const ok = await post(
+      `/api/s/alpha/conversations/${CONV}/read`,
+      JSON.stringify({ upToMessageId: GONE }),
+      jsonPost,
+    );
+    expect(await ok.json()).toEqual({ segment: 'alpha', read: true });
+    expect(reads).toEqual([{ conversationId: CONV, upToMessageId: GONE }]);
+    const bad = await post(
+      `/api/s/alpha/conversations/${CONV}/read`,
+      '{"upToMessageId":"x"}',
+      jsonPost,
+    );
+    expect(bad.status).toBe(400);
+    expect(reads).toHaveLength(1);
+  });
+
+  it('builds the recap from the open inbox, running work and results', async () => {
+    const { get, searches } = await serve();
+    const recap = await get('/api/s/alpha/recap');
+    expect(await recap.json()).toEqual({
+      segment: 'alpha',
+      decisions: [],
+      running: [listTask],
+      results: [],
+      counts: { decisions: 0, running: 1 },
+    });
+    expect(searches.sort()).toEqual([
+      'inbox?state=open&limit=50',
+      'results?limit=25',
+      'tasks?status=running&limit=50',
+    ]);
+  });
+
+  it('serves the identity editor the newest catalog version per skill, marked as attached', async () => {
+    const { get } = await serve();
+    const detail = (await (await get(`/api/s/alpha/teammates/${T}`)).json()) as {
+      skills: { id: string; version: number; attached: boolean }[];
+      capabilities: unknown[];
+      version: number;
+    };
+    expect(detail.version).toBe(teammate.version);
+    expect(detail.skills).toEqual([
+      expect.objectContaining({ id: GONE, version: 2, name: 'brief', attached: false }),
+      expect.objectContaining({ id: CONV, version: 1, name: 'metrics', attached: false }),
+    ]);
+    expect((await get(`/api/s/alpha/teammates/${GONE}`)).status).toBe(404);
+  });
+
+  it('saves identity with the instructions carried over and passes a version conflict through', async () => {
+    const { post, updates } = await serve();
+    const body = {
+      expectedVersion: teammate.version,
+      name: 'Haru 2',
+      role: 'Research',
+      avatar: 'moon',
+      accent: 'coral',
+    };
+    const saved = await post(`/api/s/alpha/teammates/${T}`, JSON.stringify(body), jsonPost);
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ segment: 'alpha', name: 'Haru 2', version: 2 });
+    expect(updates).toEqual([{ ...body, instructions: teammate.instructions }]);
+    const stale = await post(
+      `/api/s/alpha/teammates/${T}`,
+      JSON.stringify({ ...body, expectedVersion: 9 }),
+      jsonPost,
+    );
+    expect(stale.status).toBe(409);
+    const bad = await post(
+      `/api/s/alpha/teammates/${T}`,
+      JSON.stringify({ ...body, instructions: 'sneaky' }),
+      jsonPost,
+    );
+    expect(bad.status).toBe(400);
+    const skill = await post(
+      `/api/s/alpha/teammates/${T}/skills`,
+      JSON.stringify({ skillId: GONE, version: 2, attach: true }),
+      jsonPost,
+    );
+    expect(await skill.json()).toMatchObject({
+      skills: [expect.objectContaining({ id: GONE, attached: true }), expect.anything()],
+    });
   });
 });

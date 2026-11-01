@@ -343,6 +343,7 @@ export function synthesisRequest(input: {
       required: ['title', 'summary', 'sections', 'limitations'],
     },
     maxOutputTokens: 8192,
+    thinking: 'low',
   };
 }
 

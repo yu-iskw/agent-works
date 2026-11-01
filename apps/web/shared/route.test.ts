@@ -13,6 +13,7 @@ const PANELS: readonly PanelRoute[] = [
   { kind: 'teammate' },
   { kind: 'inbox' },
   { kind: 'preferences' },
+  { kind: 'recap' },
   { kind: 'draft', draftId: APPROVAL },
   { kind: 'task', taskId: TASK },
   { kind: 'plan', taskId: TASK, version: 3 },

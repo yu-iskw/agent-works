@@ -175,10 +175,22 @@ export function diffRevisions(
     added.push(...plus.map((line) => ({ heading, text: line })));
     removed.push(...minus.map((line) => ({ heading, text: line })));
   }
-  if (previous.content.summary !== next.content.summary) {
-    changedSections.unshift('Summary');
-    added.unshift({ heading: 'Summary', text: next.content.summary });
-    removed.unshift({ heading: 'Summary', text: previous.content.summary });
+  const oldLimits = new Set(previous.content.limitations);
+  const newLimits = new Set(next.content.limitations);
+  const limitsAdded = [...newLimits].filter((line) => !oldLimits.has(line));
+  const limitsRemoved = [...oldLimits].filter((line) => !newLimits.has(line));
+  if (limitsAdded.length > 0 || limitsRemoved.length > 0) changedSections.push('Limitations');
+  added.push(...limitsAdded.map((text) => ({ heading: 'Limitations', text })));
+  removed.push(...limitsRemoved.map((text) => ({ heading: 'Limitations', text })));
+  const fields = [
+    ['Summary', previous.content.summary, next.content.summary],
+    ['Title', previous.content.title, next.content.title],
+  ] as const;
+  for (const [heading, was, now] of fields) {
+    if (was === now) continue;
+    changedSections.unshift(heading);
+    added.unshift({ heading, text: now });
+    removed.unshift({ heading, text: was });
   }
   const oldSources = new Set(previous.sources);
   const newSources = new Set(next.sources);

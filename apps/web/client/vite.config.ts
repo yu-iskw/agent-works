@@ -15,11 +15,15 @@ export default defineConfig({
     emptyOutDir: false,
     target: 'es2022',
     sourcemap: false,
-    lib: {
-      entry: here('./workspace/main.tsx'),
-      formats: ['es'],
-      fileName: () => 'workspace.js',
-      cssFileName: 'workspace',
+    minify: true,
+    cssCodeSplit: false,
+    rollupOptions: {
+      input: here('./workspace/main.tsx'),
+      output: {
+        format: 'es',
+        entryFileNames: 'workspace.js',
+        assetFileNames: 'workspace[extname]',
+      },
     },
   },
 });

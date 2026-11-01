@@ -40,6 +40,8 @@ export default defineConfig({
     // Real-model journeys: specialists, synthesis and revisions wait on Vertex latency.
     { name: 'journeys', testMatch: /journeys\/.*\.spec\.ts$/, timeout: 600_000, use: { video } },
     { name: 'focused', testMatch: /focused\/.*\.spec\.ts$/, use: { video } },
+    // UX review rounds: screenshots and video of the running app, inspected by a person.
+    { name: 'ux', testMatch: /ux\/.*\.spec\.ts$/, timeout: 600_000, use: { video } },
     { name: 'visual', testMatch: /visual\/.*\.spec\.ts$/, timeout: 180_000 },
     { name: 'restart-before', testMatch: /restart\/before\.spec\.ts$/ },
     { name: 'restart-after', testMatch: /restart\/after\.spec\.ts$/, timeout: 360_000 },

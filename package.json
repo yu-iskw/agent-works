@@ -57,6 +57,7 @@
     "ui:test": "node scripts/ui/run.mjs test",
     "ui:e2e": "node scripts/ui/run.mjs e2e",
     "ui:visual": "node scripts/ui/run.mjs visual",
+    "ui:contact-sheet": "node scripts/ui/contact-sheet.mjs",
     "ui:evidence": "node scripts/ui/run.mjs evidence",
     "ui:verify": "node scripts/ui/run.mjs verify",
     "ui:seed-review": "node scripts/ui/run.mjs seed-review"

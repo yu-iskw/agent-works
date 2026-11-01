@@ -122,6 +122,27 @@ describe('vertex adapter', () => {
     });
   });
 
+  it('asks for the requested thinking level and leaves it unset otherwise', async () => {
+    const sent: unknown[] = [];
+    const ok = JSON.stringify({
+      modelVersion: 'gemini-3.8-flash',
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{}' }] } }],
+    });
+    const model = createVertexModel(config, {
+      authHeaders: () => Promise.resolve({}),
+      fetch: (_url, init) => {
+        sent.push(JSON.parse(init?.body as string));
+        return Promise.resolve(new Response(ok));
+      },
+    });
+    await model.generate({ system: 's', prompt: 'p', thinking: 'low' });
+    await model.generate({ system: 's', prompt: 'p' });
+    expect(sent[0]).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+    expect(sent[1]).not.toHaveProperty('generationConfig.thinkingConfig');
+  });
+
   it('returns text and non-secret call metadata', async () => {
     const model = createVertexModel(config, {
       authHeaders: () => Promise.resolve({}),

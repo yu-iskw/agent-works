@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clearDrafts, draftKey, isMemberTag, purgeOtherMembers, storageKey } from './member-tag.js';
+import { clearMember, draftKey, isMemberTag, purgeOtherMembers, storageKey } from './member-tag.js';
 
 import type { KeyStore, MemberTag } from './member-tag.js';
 
@@ -53,19 +53,14 @@ describe('member tag storage', () => {
     ]);
   });
 
-  it('clears only the drafts of one member in one segment', () => {
+  it('clears every key of one member in every segment and keeps other members', () => {
     const s = store([
       draftKey(ALICE, 'alpha', 'c1'),
-      draftKey(ALICE, 'alpha', 'c2'),
       draftKey(ALICE, 'beta', 'c3'),
       storageKey(ALICE, 'alpha', 'sidebar'),
       draftKey(BOB, 'alpha', 'c1'),
     ]);
-    expect(clearDrafts(s, ALICE, 'alpha')).toBe(2);
-    expect(s.keys()).toEqual([
-      draftKey(ALICE, 'beta', 'c3'),
-      storageKey(ALICE, 'alpha', 'sidebar'),
-      draftKey(BOB, 'alpha', 'c1'),
-    ]);
+    expect(clearMember(s, ALICE)).toBe(3);
+    expect(s.keys()).toEqual([draftKey(BOB, 'alpha', 'c1')]);
   });
 });

@@ -8,13 +8,15 @@
 //   node scripts/ui/run.mjs down                  stop, keep data
 //   node scripts/ui/run.mjs restart               restart the stack and verify recovery
 //   node scripts/ui/run.mjs test                  install, build, typecheck, ESLint, vitest (toolbox)
-//   node scripts/ui/run.mjs e2e focused|journeys  browser suites; refuses anything but the real model
+//   node scripts/ui/run.mjs e2e focused|journeys [--grep <title>]  browser suites; real model only
+//   node scripts/ui/run.mjs e2e ux <round>         UX review round: screenshots and video of the live UI
 //   node scripts/ui/run.mjs visual                captures, compared against approved baselines only
 //   node scripts/ui/run.mjs evidence [--run]      evidence index; --run executes the journeys first
 //   node scripts/ui/run.mjs verify [--with-smoke] every machine gate plus the human gates' status
 //   node scripts/ui/run.mjs seed-review --member=<alice|bob> [--with-approval]
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 
 import {
   REMEDIATION,
@@ -172,6 +174,167 @@ function smokeChecks() {
   });
 }
 
+/** Fields an ADC or OAuth credential file carries; their names are reported, never their values. */
+const CREDENTIAL_FIELDS = /refresh_token|private_key|client_secret/;
+/**
+ * A credential value as an ADC or key file stores it. The evidence tree may name the fields (this
+ * doctor's own report does), so only a field with a value, or a PEM key block, counts as a leak.
+ */
+const CREDENTIAL_VALUE =
+  /"(?:refresh_token|private_key|client_secret)"\s*:\s*"[^"]{8,}"|-----BEGIN [A-Z ]*PRIVATE KEY-----/;
+const TEXT_EVIDENCE = new Set(['.json', '.md', '.txt', '.html', '.log', '.csv', '.webvtt']);
+
+function* textFiles(dir) {
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !TEXT_EVIDENCE.has(extname(entry.name))) continue;
+    yield join(entry.parentPath ?? entry.path, entry.name);
+  }
+}
+
+/** The CSP the web container sends for a workspace response, read from the host side. */
+function cspHeader() {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `fetch('http://127.0.0.1:${UI.port}/sign-in', { redirect: 'manual' }).then((r) => process.stdout.write(r.headers.get('content-security-policy') ?? ''))`,
+    ],
+    { encoding: 'utf8', timeout: 10_000 },
+  );
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+/**
+ * U22: credentials stay in the two bind mounts. The image, its history, the running containers'
+ * logs, the evidence tree and the non-model services must carry no ADC file or credential field.
+ */
+function secretChecks(config) {
+  const checks = [];
+  const imageMissing =
+    docker(['image', 'inspect', 'aw-m1:local'], { capture: true, quiet: true }).status !== 0;
+  if (imageMissing) {
+    checks.push(skipped('image carries no ADC file', 'aw-m1:local not built yet (pnpm ui:up)'));
+  } else {
+    const find = docker(
+      [
+        'run',
+        '--rm',
+        '--entrypoint',
+        'sh',
+        'aw-m1:local',
+        '-c',
+        "find / -xdev -name application_default_credentials.json -o -xdev -path '*/.config/gcloud/*' 2>/dev/null",
+      ],
+      { capture: true, quiet: true },
+    );
+    const found = find.stdout.trim();
+    checks.push(
+      check(
+        'image carries no ADC file',
+        find.status === 0 && found === '',
+        found === '' ? 'no application_default_credentials.json in any layer' : found,
+        'rebuild the image; credentials must only arrive through the run-time bind mount',
+      ),
+    );
+    const history = docker(['history', '--no-trunc', '--format', '{{.CreatedBy}}', 'aw-m1:local'], {
+      capture: true,
+      quiet: true,
+    });
+    const leaky = history.stdout
+      .split('\n')
+      .filter((line) =>
+        /gcloud|application_default_credentials|GOOGLE_APPLICATION_CREDENTIALS/i.test(line),
+      );
+    checks.push(
+      check(
+        'image history names no credential path',
+        history.status === 0 && leaky.length === 0,
+        leaky.length === 0
+          ? `${history.stdout.trim().split('\n').length} layers`
+          : leaky.join(' | '),
+        'remove the credential reference from the Dockerfile',
+      ),
+    );
+  }
+  if (config !== undefined) {
+    const withAdc = Object.entries(config.services)
+      .filter(([, service]) =>
+        (service.volumes ?? []).some((v) =>
+          /gcloud|application_default_credentials/.test(`${v.source ?? ''}${v.target ?? ''}`),
+        ),
+      )
+      .map(([name]) => name)
+      .sort();
+    const others = withAdc.filter((name) => !SEGMENT_APIS.includes(name));
+    checks.push(
+      check(
+        'web, e2e, builder, toolbox and databases mount no ADC',
+        others.length === 0,
+        others.length === 0 ? `only ${withAdc.join(', ') || 'nobody'}` : others.join(', '),
+        'compose.m1.yaml must bind ADC on api-alpha and api-beta only',
+      ),
+    );
+  }
+  const running = ['api-alpha', 'api-beta', 'web'].filter((s) => containerId(s) !== undefined);
+  if (running.length === 0) {
+    checks.push(skipped('container logs carry no credential field', 'stack not running'));
+  } else {
+    const logs = docker([...compose, 'logs', '--no-color', '--no-log-prefix', ...running], {
+      capture: true,
+      quiet: true,
+    });
+    const hits = `${logs.stdout}${logs.stderr}`
+      .split('\n')
+      .filter((l) => CREDENTIAL_FIELDS.test(l));
+    checks.push(
+      check(
+        'container logs carry no credential field',
+        logs.status === 0 && hits.length === 0,
+        hits.length === 0
+          ? `${running.join(', ')}: no refresh_token, private_key or client_secret`
+          : `${hits.length} line(s) name a credential field`,
+        'find what logs the credential and remove it; rotate the credential',
+      ),
+    );
+    const webMounts = docker(
+      ['inspect', containerId('web'), '--format', '{{range .Mounts}}{{.Destination}} {{end}}'],
+      { capture: true, quiet: true },
+    );
+    checks.push(
+      check(
+        'running web container has no ADC mount',
+        webMounts.status === 0 && !/gcloud/.test(webMounts.stdout),
+        webMounts.stdout.trim() || 'no mounts',
+        'web must not receive the credential bind',
+      ),
+    );
+  }
+  const leaks = [...textFiles(artifacts)].filter((file) =>
+    CREDENTIAL_VALUE.test(readFileSync(file, 'utf8')),
+  );
+  checks.push(
+    check(
+      'evidence tree carries no credential value',
+      leaks.length === 0,
+      leaks.length === 0 ? `${artifacts} scanned` : leaks.join(', '),
+      'delete the offending evidence file and find what wrote it',
+    ),
+  );
+  const csp = running.includes('web') ? cspHeader() : undefined;
+  checks.push(
+    csp === undefined
+      ? skipped('workspace CSP', 'web not running')
+      : check(
+          'workspace CSP',
+          /(^|;\s*)script-src 'self'(;|$)/.test(csp) && !csp.includes('unsafe-inline'),
+          csp,
+          "the web security headers must keep script-src 'self' with no unsafe-inline",
+        ),
+  );
+  return checks;
+}
+
 function doctor(args) {
   const checks = [
     check(
@@ -218,6 +381,7 @@ function doctor(args) {
   );
   const { checks: usageChecks, usage } = ledgerChecks();
   checks.push(...usageChecks);
+  checks.push(...secretChecks(config));
   if (args.includes('--vertex')) checks.push(...smokeChecks());
   printChecks(checks);
   process.stdout.write('\nRemediation by model error code:\n');
@@ -262,20 +426,60 @@ function down() {
   return docker([...compose, 'down']).status ?? 1;
 }
 
+/**
+ * ESLint over the whole repository exhausts the toolbox heap, so it runs one top-level directory
+ * at a time with a 3 GB old space; a chunk that reports an error fails the gate. The last chunk
+ * is every tracked directory the named ones leave out, plus the root files.
+ */
+const ESLINT_CHUNKS = ['apps/web', 'apps/api', 'packages', 'e2e', 'scripts'];
+const ESLINT_HEAP_MB = 3072;
+
+function eslintRest() {
+  const named = new Set([
+    ...ESLINT_CHUNKS.map((c) => c.split('/')[0]),
+    'node_modules',
+    'artifacts',
+  ]);
+  const dirs = readdirSync('.', { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && !named.has(d.name))
+    .map((d) => d.name)
+    .sort();
+  const root = readdirSync('.', { withFileTypes: true })
+    .filter((d) => d.isFile() && /\.(m?[jt]s|tsx|cjs)$/.test(d.name))
+    .map((d) => d.name)
+    .sort();
+  return [...dirs, ...root];
+}
+
+function eslintGate() {
+  const chunks = [...ESLINT_CHUNKS.map((c) => [c]), eslintRest()];
+  const failed = [];
+  for (const chunk of chunks) {
+    const targets = chunk.map((t) => `'${t}'`).join(' ');
+    process.stdout.write(`eslint ${chunk.join(' ')}\n`);
+    const code = toolbox(
+      `pnpm exec eslint --no-error-on-unmatched-pattern ${targets}`,
+      ESLINT_HEAP_MB,
+    );
+    if (code !== 0) failed.push(chunk.join(' '));
+  }
+  return failed;
+}
+
 const GATES = {
-  install: 'pnpm install --frozen-lockfile',
-  build: 'pnpm build',
-  typecheck: 'pnpm typecheck',
-  eslint: 'pnpm lint:eslint',
-  unit: 'pnpm test',
+  install: () => toolbox('pnpm install --frozen-lockfile'),
+  build: () => toolbox('pnpm build'),
+  typecheck: () => toolbox('pnpm typecheck'),
+  eslint: () => (eslintGate().length === 0 ? 0 : 1),
+  unit: () => toolbox('pnpm test'),
 };
 
 function test() {
   const results = {};
-  for (const [name, command] of Object.entries(GATES)) {
-    results[name] = toolbox(command) === 0 ? 'PASS' : 'FAIL';
+  for (const [name, run] of Object.entries(GATES)) {
+    results[name] = run() === 0 ? 'PASS' : 'FAIL';
   }
-  report('test', { results, build: gitSha() });
+  report('test', { results, eslintChunks: [...ESLINT_CHUNKS, 'rest'], build: gitSha() });
   process.stdout.write(`${JSON.stringify(results)}\n`);
   return Object.values(results).every((value) => value === 'PASS') ? 0 : 1;
 }
@@ -292,13 +496,17 @@ function requireRealModel() {
   return live;
 }
 
-function e2e(suite) {
-  if (!['focused', 'journeys'].includes(suite)) {
-    process.stderr.write('usage: e2e focused|journeys\n');
+/** `rest` holds Playwright CLI options after the suite (and the round), such as `--grep`. */
+function e2e(suite, rest) {
+  const ux = suite === 'ux' && /^\d{1,3}$/.test(rest[0] ?? '');
+  if (!['focused', 'journeys'].includes(suite) && !ux) {
+    process.stderr.write(
+      'usage: e2e focused|journeys [--grep <title>], or e2e ux <round number>\n',
+    );
     return 2;
   }
   if (!requireRealModel().ok) return 1;
-  return playwright(suite);
+  return playwright(suite, ux ? { UX_ROUND: rest[0] } : {}, ux ? rest.slice(1) : rest);
 }
 
 /** Every test in a Playwright JSON report, flattened. */
@@ -401,7 +609,7 @@ function files(dir, pattern) {
 }
 
 function evidence(args) {
-  const ran = args.includes('--run') ? e2e('journeys') : null;
+  const ran = args.includes('--run') ? e2e('journeys', []) : null;
   const running = SEGMENT_APIS.every((service) => containerId(service) !== undefined);
   const live = running ? preflight() : undefined;
   const resultFiles = files(artifacts, /^results-[a-z-]+\.json$/);
@@ -596,7 +804,7 @@ const commands = {
   down,
   restart,
   test,
-  e2e: () => e2e(args[0] ?? ''),
+  e2e: () => e2e(args[0] ?? '', args.slice(1)),
   visual: () => visual().code,
   evidence: () => evidence(args),
   verify: () => verify(args),

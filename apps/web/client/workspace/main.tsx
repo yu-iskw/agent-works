@@ -1,6 +1,8 @@
 import { render } from 'preact';
 
-import { BOOTSTRAP_ID, MOUNT_ID, pages } from '../../shared/contract.js';
+import { BOOTSTRAP_ID, MOUNT_ID } from '../../shared/contract.js';
+import { localPath, segmentHome } from '../../shared/local-path.js';
+import { requestId } from '../../shared/request-id.js';
 
 import { createApi } from './api.js';
 import { browserStorage, createDraftStore } from './storage.js';
@@ -47,7 +49,7 @@ function boot(): void {
     p.className = 'boot';
     p.append('The workspace could not start. ');
     const a = document.createElement('a');
-    a.href = link ?? '/';
+    a.href = localPath(link);
     a.textContent = 'Open the page version';
     p.append(a);
     mount.append(p);
@@ -80,18 +82,22 @@ function boot(): void {
       setTimeout: (run, ms) => window.setTimeout(run, ms),
       clearTimeout: (handle) => window.clearTimeout(handle as number | undefined),
     },
-    mintId: () => crypto.randomUUID(),
+    mintId: () => requestId((bytes) => crypto.getRandomValues(bytes)),
     hidden: () => document.hidden,
-    onVisibility: (handler) => document.addEventListener('visibilitychange', handler),
+    onVisibility: (handler) => {
+      document.addEventListener('visibilitychange', handler);
+      window.addEventListener('pagehide', handler);
+    },
     applyTheme,
     watchLayout: (handler) => {
       const update = () => handler(layoutNow());
       PHONE.addEventListener('change', update);
       TABLET.addEventListener('change', update);
     },
-    assign: (url) => window.location.assign(url),
+    assign: (url) => window.location.assign(localPath(url)),
+    readText: (file) => file.text(),
   });
-  window.history.replaceState({ aw: true }, '', window.location.href);
+  window.history.replaceState({ aw: true, depth: 0 }, '', window.location.href);
   mount.replaceChildren();
   render(
     <WorkspaceContext.Provider value={{ store, effects }}>
@@ -101,7 +107,7 @@ function boot(): void {
   );
   effects.start();
   if (bootstrap.route.teammate === null && bootstrap.notice === null)
-    window.location.assign(pages.segment(bootstrap.scope.segment));
+    window.location.assign(segmentHome(bootstrap.scope.segment));
 }
 
 boot();
