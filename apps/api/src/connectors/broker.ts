@@ -6,14 +6,13 @@ import {
 } from '@agent-works/domain/workspace-tools';
 import { ZodError } from 'zod';
 
-import { registeredToolManifests } from '../broker/broker.js';
-
 import { ConnectorError } from './errors.js';
+import { createWorkspaceRegistry } from './ports.js';
 import { classifySources } from './source-data.js';
 
 import type { WorkspaceCredentials } from './credentials.js';
 import type { CallerCredential } from './google-http.js';
-import type { WorkspaceAdapters } from './ports.js';
+import type { WorkspaceAdapters, WorkspaceHandler, WorkspaceRegistry } from './ports.js';
 import type { ClassifiedSource } from './source-data.js';
 import type { ApprovalStore } from '../broker/approvals.js';
 import type { GovernanceClassification } from '@agent-works/domain/data-governance';
@@ -55,6 +54,7 @@ export type WorkspaceBrokerDeps = {
 export type WorkspaceResult = WorkspaceReceipt | readonly ClassifiedSource[];
 export function createWorkspaceBroker(deps: WorkspaceBrokerDeps) {
   const active = new Set<string>();
+  const registry = createWorkspaceRegistry(deps.adapters);
   return {
     async execute(input: WorkspaceCall): Promise<WorkspaceResult> {
       if (active.has(input.callId) || active.has(input.idempotencyKey))
@@ -62,7 +62,7 @@ export function createWorkspaceBroker(deps: WorkspaceBrokerDeps) {
       active.add(input.callId);
       active.add(input.idempotencyKey);
       try {
-        return await execute(deps, input);
+        return await execute(deps, registry, input);
       } catch (error) {
         const failure =
           error instanceof ZodError ? new ConnectorError('INVALID_REQUEST', 400) : error;
@@ -81,25 +81,34 @@ export function createWorkspaceBroker(deps: WorkspaceBrokerDeps) {
     },
   };
 }
-async function execute(deps: WorkspaceBrokerDeps, input: WorkspaceCall): Promise<WorkspaceResult> {
-  const manifest = registeredToolManifests.find((entry) => entry.metadata.name === input.tool);
-  if (!manifest || input.tool === 'gmail.send') throw new ConnectorError('POLICY_DENIED', 403);
+async function execute(
+  deps: WorkspaceBrokerDeps,
+  registry: WorkspaceRegistry,
+  input: WorkspaceCall,
+): Promise<WorkspaceResult> {
+  const entry = registry.get(input.tool);
+  if (!entry || input.tool === 'gmail.send') throw new ConnectorError('POLICY_DENIED', 403);
+  const read = entry.manifest.spec.sideEffect === 'READ';
+  if (read !== (entry.handler.kind === 'read')) throw new ConnectorError('POLICY_DENIED', 403);
   const payload = parseWorkspacePayload(input.tool, input.payload);
   const authorized = await deps.authorize({ ...input, payload });
   if (!authorized.allowed) throw new ConnectorError('POLICY_DENIED', 403);
   const credential = await deps.credentials.forTool(input.subject, input.tool);
   input.signal?.throwIfAborted();
-  if (manifest.spec.sideEffect === 'READ') {
-    const rows =
-      input.tool === 'calendar.listEvents'
-        ? await deps.adapters.calendar.listEvents(credential, payload, input.signal)
-        : await deps.adapters.gmail.searchThreads(credential, payload, input.signal);
+  if (entry.handler.kind === 'read') {
+    const rows = await entry.handler.run({
+      credential,
+      payload,
+      idempotencyKey: input.idempotencyKey,
+      signal: input.signal,
+    });
     return classifySources(rows, authorized.ceiling, input.tool === 'gmail.searchThreads');
   }
-  return write(deps, { ...input, payload }, credential, authorized.decisionId);
+  return write(deps, entry.handler, { ...input, payload }, credential, authorized.decisionId);
 }
 async function write(
   deps: WorkspaceBrokerDeps,
+  handler: Extract<WorkspaceHandler, { kind: 'write' }>,
   input: WorkspaceCall,
   credential: CallerCredential,
   decisionId: string,
@@ -137,7 +146,12 @@ async function write(
     payloadSha256: digest,
   });
   input.signal?.throwIfAborted();
-  const receipt = await invokeWrite(deps.adapters, input, credential);
+  const receipt = await handler.run({
+    credential,
+    payload: input.payload,
+    idempotencyKey: input.idempotencyKey,
+    signal: input.signal,
+  });
   await deps.approvals.complete(input.callId, receipt.id);
   await deps.audit({
     type: 'tool.completed',
@@ -148,38 +162,5 @@ async function write(
     receipt: receipt.id,
   });
   return receipt;
-}
-function invokeWrite(
-  adapters: WorkspaceAdapters,
-  input: WorkspaceCall,
-  credential: CallerCredential,
-): Promise<WorkspaceReceipt> {
-  switch (input.tool) {
-    case 'docs.createDraft':
-      return adapters.docs.createDraft(
-        credential,
-        input.payload,
-        input.idempotencyKey,
-        input.signal,
-      );
-    case 'calendar.createEvent':
-      return adapters.calendar.createEvent(
-        credential,
-        input.payload,
-        input.idempotencyKey,
-        input.signal,
-      );
-    case 'gmail.createDraft':
-      return adapters.gmail.createDraft(
-        credential,
-        input.payload,
-        input.idempotencyKey,
-        input.signal,
-      );
-    case 'calendar.listEvents':
-    case 'gmail.searchThreads':
-    case 'gmail.send':
-      throw new ConnectorError('POLICY_DENIED', 403);
-  }
 }
 export type WorkspaceBroker = ReturnType<typeof createWorkspaceBroker>;

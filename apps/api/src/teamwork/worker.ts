@@ -1,9 +1,5 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-import {
-  CAPABILITY_PROVIDER,
-  SOURCE_CAPABILITY,
-  publishProposalSchema,
-} from '@agent-works/domain/teamwork';
+import { CAPABILITY_PROVIDER, SOURCE_CAPABILITY } from '@agent-works/domain/teamwork';
 import { diffRevisions, missingSections } from '@agent-works/domain/teamwork-evidence';
 import {
   effectiveSet,
@@ -18,6 +14,8 @@ import { attachmentItems, attachmentsByIds } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
+import { GatewayDenied, publishThroughGateway, readThroughGateway } from './gateway.js';
+import { segmentCapabilities } from './installations.js';
 import {
   contributionRequest,
   parseArtifact,
@@ -46,7 +44,7 @@ import {
   touchTask,
   withTask,
 } from './store.js';
-import { checkPlan, planDigest, publishDigest, synthesisSkill } from './tasks.js';
+import { checkPlan, planDigest, synthesisSkill } from './tasks.js';
 
 import type { TeammateSkill } from './catalog.js';
 import type { Deps, Member, Tx } from './context.js';
@@ -275,6 +273,7 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     teammates.map((t) => t.id),
   );
   const connected = await connectedProviders(deps, member.sub);
+  const segment = await segmentCapabilities(deps);
   const files = await attachmentsByIds(deps.sql, task.owner_sub, task.scope.attachmentIds ?? []);
   const allowed = new Set(plannableSources(task.workflow, files.length > 0));
   const effectiveFor = new Map(
@@ -284,7 +283,10 @@ async function plan(deps: Deps, job: Job): Promise<void> {
           [
             t.id,
             effectiveSet(
-              await capabilitiesFor(deps, member, t.capability_requests, undefined, connected),
+              await capabilitiesFor(deps, member, t.capability_requests, undefined, {
+                connected,
+                segment,
+              }),
             ),
           ] as const,
       ),
@@ -577,7 +579,8 @@ type SourceOutcome =
       readonly items: readonly SourceItem[];
       readonly metrics: Metrics | undefined;
     }
-  | { readonly kind: SourceKind; readonly error: SourceError };
+  | { readonly kind: SourceKind; readonly error: SourceError }
+  | { readonly kind: SourceKind; readonly denied: GatewayDenied };
 
 /** The task's member files as passages; a task without any reads nothing, which is not a failure. */
 async function memberFiles(deps: Deps, task: TaskRow): Promise<SourceResult> {
@@ -587,8 +590,7 @@ async function memberFiles(deps: Deps, task: TaskRow): Promise<SourceResult> {
 
 async function readSource(
   deps: Deps,
-  task: TaskRow,
-  assignment: AssignmentRow,
+  { task, assignment, member }: { task: TaskRow; assignment: AssignmentRow; member: Member },
   token: TokenSource,
   kind: SourceKind,
 ): Promise<SourceOutcome> {
@@ -597,14 +599,20 @@ async function readSource(
     const result =
       kind === 'member_file'
         ? await memberFiles(deps, task)
-        : await deps.sources.read({
-            kind,
-            token,
-            query: `${task.scope.question} ${assignment.brief}`,
-            metrics: task.scope.metrics,
-            repository: task.scope.repository,
-            issueNumber: task.scope.issueNumber,
-          });
+        : (
+            await readThroughGateway(deps, member, {
+              taskId: task.id,
+              assignmentId: assignment.id,
+              token,
+              input: {
+                kind,
+                query: `${task.scope.question} ${assignment.brief}`,
+                metrics: task.scope.metrics,
+                repository: task.scope.repository,
+                issueNumber: task.scope.issueNumber,
+              },
+            })
+          ).result;
     await appendEventTx(deps, task.id, {
       type: 'retrieval.completed',
       summary: `${assignment.teammate_snapshot.name} read ${result.items.length + (result.metrics === null ? 0 : 2)} item${result.items.length === 1 ? '' : 's'} from ${kind.replaceAll('_', ' ')}`,
@@ -625,6 +633,7 @@ async function readSource(
           };
     return { kind, items: result.items, metrics };
   } catch (error) {
+    if (error instanceof GatewayDenied) return { kind, denied: error };
     if (!(error instanceof SourceError)) throw error;
     return { kind, error };
   }
@@ -639,11 +648,21 @@ async function gatherSources(
 ): Promise<Gathered | undefined> {
   const token = oncePerProvider(tokenSource(deps, member.sub));
   const outcomes = await Promise.all(
-    assignment.sources.map((kind) => readSource(deps, task, assignment, token, kind)),
+    assignment.sources.map((kind) => readSource(deps, { task, assignment, member }, token, kind)),
   );
   const items: SourceItem[] = [];
   let metrics: Metrics | undefined;
   for (const outcome of outcomes) {
+    if ('denied' in outcome) {
+      await failAssignment(
+        deps,
+        assignment,
+        'failed',
+        'source_denied',
+        `${outcome.kind}: ${outcome.denied.reason}`,
+      );
+      return undefined;
+    }
     if ('error' in outcome) {
       await audit(deps, deps.sql, {
         ownerSub: member.sub,
@@ -1071,51 +1090,15 @@ async function synthesize(deps: Deps, job: Job): Promise<void> {
 async function publish(deps: Deps, job: Job): Promise<void> {
   const task = await readTask(deps.sql, undefined, job.task_id ?? '');
   if (task?.status !== 'publishing') return;
-  const row = (
-    await deps.sql<
-      {
-        id: string;
-        state: string;
-        proposal: unknown;
-        payload_sha256: string;
-        subject_ref: number;
-        idempotency_key: string;
-        status: string;
-      }[]
-    >`
-    select ap.id, ap.state, ap.proposal, ap.payload_sha256, ap.subject_ref, ac.idempotency_key, ac.status
-    from wb_approvals ap join wb_actions ac on ac.approval_id = ap.id where ap.id = ${job.ref}
-  `
-  ).at(0);
-  const proposal = publishProposalSchema.safeParse(row?.proposal);
-  if (
-    row === undefined ||
-    row.state !== 'approved' ||
-    !proposal.success ||
-    publishDigest(proposal.data) !== row.payload_sha256 ||
-    row.subject_ref !== task.latest_revision
-  )
-    return failTask(deps, task.id, 'publishing', 'publish', {
-      code: 'approval_invalid',
-      message: 'The approval no longer matches the revision to publish. Nothing was written.',
-    });
-  await deps.sql`update wb_actions set attempts = attempts + 1, updated_at = ${deps.now()} where approval_id = ${row.id}`;
-  await appendEventTx(deps, task.id, {
-    type: 'action.started',
-    summary: `Creating "${proposal.data.documentTitle}" in ${proposal.data.account}`,
-    detail: { mode: deps.sources.mode },
-  });
   const started = Date.now();
   try {
-    const published = await deps.sources.publish({
-      token: tokenSource(deps, task.owner_sub),
-      idempotencyKey: row.idempotency_key,
-      title: proposal.data.documentTitle,
-      markdown: proposal.data.contentMarkdown,
+    const { published, proposal } = await publishThroughGateway(deps, memberOf(task), {
+      taskId: task.id,
+      approvalId: job.ref,
     });
     await withTask(deps, undefined, task.id, async (tx, locked) => {
       if (locked.status !== 'publishing') return;
-      await tx`update wb_actions set status = 'succeeded', external_id = ${published.documentId}, external_url = ${published.url}, confirmed_at = ${new Date(published.confirmedAt)}, updated_at = ${deps.now()} where approval_id = ${row.id}`;
+      await tx`update wb_actions set status = 'succeeded', external_id = ${published.documentId}, external_url = ${published.url}, confirmed_at = ${new Date(published.confirmedAt)}, updated_at = ${deps.now()} where approval_id = ${job.ref}`;
       await moveTask(deps, tx, locked, {
         to: 'completed',
         events: [
@@ -1133,13 +1116,13 @@ async function publish(deps: Deps, job: Job): Promise<void> {
           conversationId: locked.conversation_id,
           ownerSub: locked.owner_sub,
           role: 'system',
-          body: `Published "${proposal.data.documentTitle}"`,
+          body: `Published "${proposal.documentTitle}"`,
           taskId: task.id,
           card: {
             kind: 'result_ready',
             taskId: task.id,
-            title: proposal.data.documentTitle,
-            ref: `revision:${proposal.data.revision}`,
+            title: proposal.documentTitle,
+            ref: `revision:${proposal.revision}`,
           },
         });
       await audit(deps, tx, {
@@ -1151,30 +1134,45 @@ async function publish(deps: Deps, job: Job): Promise<void> {
       });
     });
   } catch (error) {
-    if (!(error instanceof SourceError)) throw error;
-    const uncertain = error.code === 'unavailable';
-    await deps.sql`update wb_actions set status = ${uncertain ? 'uncertain' : 'failed'}, updated_at = ${deps.now()} where approval_id = ${row.id}`;
-    await audit(deps, deps.sql, {
-      ownerSub: task.owner_sub,
-      taskId: task.id,
-      action: 'publish.docs',
-      outcome: uncertain ? 'uncertain' : 'failed',
-      detail: { code: error.code },
-    });
-    if (uncertain)
-      await markUncertain(deps, task.id, {
-        summary:
-          'Google Docs did not confirm the write. It may or may not exist. Check before retrying.',
-        message:
-          'Google Docs did not confirm the write. Use "Check for the document" first; it will not be created twice.',
-        durationMs: Date.now() - started,
-      });
-    else
-      await failTask(deps, task.id, 'publishing', 'publish', {
-        code: `publish_${error.code}`,
-        message: `Google Docs refused the write. Nothing was created. ${sourceRemediation[error.code]}`,
-      });
+    return failPublication(deps, task, job.ref, error, started);
   }
+}
+
+async function failPublication(
+  deps: Deps,
+  task: TaskRow,
+  approvalId: string,
+  error: unknown,
+  started: number,
+): Promise<void> {
+  if (error instanceof GatewayDenied)
+    return failTask(deps, task.id, 'publishing', 'publish', {
+      code: error.code === 'approval_invalid' ? 'approval_invalid' : `publish_${error.code}`,
+      message: `${error.reason} Nothing was written.`,
+    });
+  if (!(error instanceof SourceError)) throw error;
+  const uncertain = error.code === 'unavailable';
+  await deps.sql`update wb_actions set status = ${uncertain ? 'uncertain' : 'failed'}, updated_at = ${deps.now()} where approval_id = ${approvalId}`;
+  await audit(deps, deps.sql, {
+    ownerSub: task.owner_sub,
+    taskId: task.id,
+    action: 'publish.docs',
+    outcome: uncertain ? 'uncertain' : 'failed',
+    detail: { code: error.code },
+  });
+  if (uncertain)
+    await markUncertain(deps, task.id, {
+      summary:
+        'Google Docs did not confirm the write. It may or may not exist. Check before retrying.',
+      message:
+        'Google Docs did not confirm the write. Use "Check for the document" first; it will not be created twice.',
+      durationMs: Date.now() - started,
+    });
+  else
+    await failTask(deps, task.id, 'publishing', 'publish', {
+      code: `publish_${error.code}`,
+      message: `Google Docs refused the write. Nothing was created. ${sourceRemediation[error.code]}`,
+    });
 }
 
 /** A write that may or may not have happened: the member checks for the document before any retry. */

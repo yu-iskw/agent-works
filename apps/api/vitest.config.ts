@@ -71,6 +71,15 @@ export default defineProject({
       '@agent-works/domain/teamwork': fileURLToPath(
         new URL('../../packages/domain/src/teamwork.ts', import.meta.url),
       ),
+      '@agent-works/domain/connector-cdk': fileURLToPath(
+        new URL('../../packages/domain/src/connector-cdk.ts', import.meta.url),
+      ),
+      '@agent-works/domain/connector-catalog': fileURLToPath(
+        new URL('../../packages/domain/src/connector-catalog.ts', import.meta.url),
+      ),
+      '@agent-works/domain/marketplace': fileURLToPath(
+        new URL('../../packages/domain/src/marketplace.ts', import.meta.url),
+      ),
       '@agent-works/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),

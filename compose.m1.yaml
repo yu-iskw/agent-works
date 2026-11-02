@@ -46,6 +46,7 @@ x-segment-env: &segment-env
   LLM_MODE: ${AW_M1_LLM_MODE:-vertex}
   AW_IDENTITY: ${AW_M1_IDENTITY:-google}
   AW_LOCAL_TEST_MEMBERS: alice@local.test,bob@local.test,carol@local.test,review1@local.test,review2@local.test,review3@local.test
+  AW_LOCAL_TEST_ADMINS: alice@local.test
   AW_SOURCE_MODE: ${AW_M1_SOURCE_MODE:-live}
   AW_FIXTURE_FAULTS: ${AW_M1_FIXTURE_FAULTS:-0}
   AW_MAX_MODEL_CALLS: ${AW_M1_MAX_MODEL_CALLS_PER_SEGMENT:-200}

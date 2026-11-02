@@ -77,6 +77,7 @@ AW_M1_GOOGLE_CLIENT_SECRET=
 # Members: Google account emails, comma separated. Membership is enforced by each segment API.
 AW_M1_ALPHA_MEMBERS=member1@example.com,member2@example.com
 AW_M1_BETA_MEMBERS=member1@example.com,member2@example.com
+# Optional admins per segment (`AW_M1_<SEG>_ADMINS`), a subset of the members above
 # Shared secret for the end-to-end session runner (section 4). Any long random string:
 #   openssl rand -hex 32
 AW_M1_E2E_SESSION_SECRET=

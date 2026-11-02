@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 
 import { readVertexConfig } from '@agent-works/agent-runtime';
+import { findConnector } from '@agent-works/domain/connector-catalog';
 import { createSealer, loadKey } from '@agent-works/domain/sealer';
 
 import { applyWorkbenchMigration } from '../workbench/migration.js';
@@ -10,8 +11,16 @@ import { createVertexModel } from '../workbench/vertex.js';
 
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
+import {
+  bootstrapInstallations,
+  listInstallations,
+  segmentCapabilities,
+  updateInstallation,
+} from './installations.js';
 import { createModelGate } from './model.js';
+import { createReconciler } from './reconciler.js';
 import { createRoutes } from './routes.js';
+import { unavailableRuntimeManager } from './runtime-manager.js';
 import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
 import { createLiveSources } from './sources/live.js';
@@ -20,6 +29,7 @@ import { createWorker } from './worker.js';
 import type { SegmentConfig, SegmentSources } from './config.js';
 import type { Deps, Member, Reply, Request } from './context.js';
 import type { ModelGate } from './model.js';
+import type { RuntimeManager } from './runtime-manager.js';
 import type { VerifyAssertion } from '../auth/iap.js';
 import type { ModelErrorCode } from '../workbench/model-port.js';
 import type postgres from 'postgres';
@@ -130,6 +140,8 @@ export async function createTeamworkRuntime(input: {
   readonly env: Env;
   readonly verify: VerifyAssertion;
   readonly fetch?: typeof fetch;
+  /** Out-of-process connector runtime; only a fake exists, so the default refuses every call. */
+  readonly runtimeManager?: RuntimeManager;
 }): Promise<TeamworkRuntime> {
   const { sql, config, env } = input;
   await applyWorkbenchMigration(sql);
@@ -163,6 +175,7 @@ export async function createTeamworkRuntime(input: {
     fetch: input.fetch ?? fetch,
   };
   await seedCatalog(deps);
+  await bootstrapInstallations(deps);
   const adc = credentialsState(env.GOOGLE_APPLICATION_CREDENTIALS);
 
   async function readiness(member: Member) {
@@ -190,7 +203,7 @@ export async function createTeamworkRuntime(input: {
         concurrency: config.concurrency,
       }),
       connections: connected,
-      capabilities: [...config.capabilities],
+      capabilities: [...(await segmentCapabilities(deps))],
       readOnly: config.readOnlyMembers.has(member.email),
       inbox: Object.fromEntries(open.map((row) => [row.kind, row.n])),
       sources: sourcesReadiness(config.sources),
@@ -209,5 +222,34 @@ export async function createTeamworkRuntime(input: {
       }),
     ),
   );
-  return { route, start: () => worker.start(), stop: () => worker.stop(), deps };
+  const reconciler = createReconciler(
+    { list: () => listInstallations(deps), update: (change) => updateInstallation(deps, change) },
+    {
+      segment: config.segment,
+      runtime: input.runtimeManager ?? unavailableRuntimeManager,
+      manifest: findConnector,
+      now,
+      onError: (error) =>
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            component: 'teamwork-reconciler',
+            segment: config.segment,
+            error: error instanceof Error ? error.name : 'unknown',
+          }),
+        ),
+    },
+  );
+  return {
+    route,
+    start: () => {
+      worker.start();
+      reconciler.start();
+    },
+    stop: async () => {
+      await reconciler.stop();
+      await worker.stop();
+    },
+    deps,
+  };
 }
