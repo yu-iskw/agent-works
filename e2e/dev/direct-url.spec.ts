@@ -4,6 +4,8 @@ import { expect, test } from '@playwright/test';
 
 import { requireDevPlaywrightConfig, resolveDevApiUrl } from '../playwright.dev.config.js';
 
+import { attachDeployBinding } from './deploy-binding.js';
+
 const devConfig = requireDevPlaywrightConfig(process.env);
 
 const ALLOWED_IAP_BLOCK_STATUSES = [302, 303, 307, 308, 401, 403] as const;
@@ -30,6 +32,7 @@ test.describe.configure({ retries: 0 });
 test.describe('dev direct Cloud Run URL and internal API boundary', () => {
   test('sec.direct-run-url-blocked', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
+    await attachDeployBinding(testInfo, process.env);
     const baseURL = devConfig.use?.baseURL;
     expect(baseURL).toBeTruthy();
 

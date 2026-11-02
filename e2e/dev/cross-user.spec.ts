@@ -8,6 +8,8 @@ import {
   resolveCrossUserResourceConfig,
 } from '../playwright.dev.config.js';
 
+import { attachDeployBinding } from './deploy-binding.js';
+
 import type { TestInfo } from '@playwright/test';
 
 const devConfig = requireDevPlaywrightConfig(process.env);
@@ -41,8 +43,31 @@ async function attachEvidence(
 test.describe.configure({ retries: 0 });
 
 test.describe('dev cross-user isolation behind IAP', () => {
+  test('sec.owner-access', async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await attachDeployBinding(testInfo, process.env);
+    const baseURL = devConfig.use?.baseURL;
+    expect(baseURL).toBeTruthy();
+
+    const resourceConfig = resolveCrossUserResourceConfig(process.env);
+    if (resourceConfig.status === 'blocked') {
+      testInfo.annotations.push({ type: 'BLOCKED', description: resourceConfig.reason });
+      expect(resourceConfig.status, resourceConfig.reason).toBe('ready');
+      return;
+    }
+
+    const owner = await page.request.get(`${baseURL}${resourceConfig.resourcePath}`, {
+      headers: { Authorization: `Bearer ${process.env.AW_DEV_ID_TOKEN_A?.trim() ?? ''}` },
+      maxRedirects: 0,
+    });
+    expect(owner.status(), 'the owner must read their own record on the deployed digest').toBe(200);
+    expect(owner.headers()['content-type']).toContain('application/json');
+    expect(await owner.text()).toContain(resourceConfig.canary);
+  });
+
   test('sec.cross-user-leak', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
+    await attachDeployBinding(testInfo, process.env);
     const baseURL = devConfig.use?.baseURL;
     expect(baseURL).toBeTruthy();
 
