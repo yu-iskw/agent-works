@@ -26,6 +26,8 @@ This directory contains the Claude Code compatibility configuration for AI-assis
 │   ├── security-vulnerability-audit/
 │   ├── setup-dev-env/
 │   └── test-and-fix/
+├── rules/                 # Project-level Claude Code rules, loaded automatically
+│   └── pstack-models.md
 └── hooks/
     ├── block-dangerous.sh
     ├── format-ts.sh
