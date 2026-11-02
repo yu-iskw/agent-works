@@ -16,6 +16,8 @@ export type RunnerInput = {
 export type RunnerOutput = {
   readonly answer: string;
   readonly citedSourceIds: readonly string[];
+  /** Summed model usage; undefined when the model reported none (never 0). */
+  readonly usage?: { readonly promptTokens: number; readonly outputTokens: number };
 };
 
 export class RunnerError extends Error {

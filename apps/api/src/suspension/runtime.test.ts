@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createAdkRunner } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema } from '@agent-works/domain';
 import { expect, test, vi } from 'vitest';
 
@@ -117,8 +117,7 @@ test('ADK invokes the injected revocation hook before every turn', async () => {
   };
   await expect(
     createAdkRunner({
-      baseUrl: 'http://localhost',
-      fetch: load,
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
       limits,
       beforeModelCall: requestModelHook,
     }).run({
@@ -134,8 +133,7 @@ test('ADK runner created inside a skill still receives the request-scoped defaul
   const load = vi.fn<typeof fetch>();
   const app = await setup(async () => {
     await createAdkRunner({
-      baseUrl: 'http://localhost',
-      fetch: load,
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
       limits,
       beforeModelCall: requestModelHook,
     }).run({
@@ -157,8 +155,7 @@ test('revocation after the first model turn prevents the second turn and records
   const load = vi.fn<typeof fetch>();
   const app = await setup(async () => {
     await createAdkRunner({
-      baseUrl: 'http://localhost',
-      fetch: load,
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
       limits,
       beforeModelCall: requestModelHook,
     }).run({

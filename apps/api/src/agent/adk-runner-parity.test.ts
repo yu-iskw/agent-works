@@ -1,4 +1,4 @@
-import { createAdkRunner } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema } from '@agent-works/domain';
 import { createLlm, listen } from '@agent-works/fakes';
 import { describe, expect, it } from 'vitest';
@@ -56,7 +56,7 @@ describe('createAdkRunner parity with the scripted runner', () => {
       const input = { question: triageQuestion, sources: [triageSource] };
       const scripted = createScriptedRunner({ baseUrl: llm.url });
       const adk = createAdkRunner({
-        baseUrl: llm.url,
+        model: new FetchLlm({ baseUrl: llm.url }),
         limits: limits(),
         beforeModelCall,
       });
@@ -74,7 +74,11 @@ describe('createAdkRunner parity with the scripted runner', () => {
     try {
       const input = { question: triageQuestion, sources: [triageSource] };
       const scripted = createScriptedRunner({ baseUrl: llm.url });
-      const adk = createAdkRunner({ baseUrl: llm.url, limits: limits(), beforeModelCall });
+      const adk = createAdkRunner({
+        model: new FetchLlm({ baseUrl: llm.url }),
+        limits: limits(),
+        beforeModelCall,
+      });
       // Count model calls as deterministic work; few-ms wall-clock timings are CI noise.
       await scripted.run(input);
       const scriptedCalls = llm.posts();

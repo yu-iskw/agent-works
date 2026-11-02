@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createAdkRunner, RunnerError } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm, RunnerError } from '@agent-works/agent-runtime';
 import {
   askRequestSchema,
   auditEventSchema,
@@ -396,7 +396,11 @@ function resolveRunner(deps: AskDeps): {
   const baseUrl = process.env.LLM_URL;
   if (readRunnerKind(process.env) === 'adk' && baseUrl !== undefined && baseUrl.trim().length > 0) {
     return {
-      runner: createAdkRunner({ baseUrl, limits: askLimits, beforeModelCall }),
+      runner: createAdkRunner({
+        model: new FetchLlm({ baseUrl }),
+        limits: askLimits,
+        beforeModelCall,
+      }),
       agentPrincipal: 'agent:adk-runner',
     };
   }

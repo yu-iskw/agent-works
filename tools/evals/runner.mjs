@@ -1,4 +1,4 @@
-import { createAdkRunner } from '../../packages/agent-runtime/src/index.js';
+import { createAdkRunner, FetchLlm } from '../../packages/agent-runtime/src/index.js';
 import { canonicalPayloadSha256 } from '../../packages/domain/src/index.js';
 import {
   createAdversarialTransport,
@@ -91,8 +91,7 @@ async function retrieve(row) {
         modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
       });
       const runner = createAdkRunner({
-        baseUrl: 'https://llm.fake.test',
-        fetch: model.fetch,
+        model: new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: model.fetch }),
         limits,
         beforeModelCall,
       });
@@ -128,8 +127,7 @@ async function hostile(row) {
     modelCall: { name: 'email.send', args },
   });
   const runner = createAdkRunner({
-    baseUrl: 'https://llm.fake.test',
-    fetch: transport.fetch,
+    model: new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: transport.fetch }),
     limits,
     beforeModelCall,
   });
