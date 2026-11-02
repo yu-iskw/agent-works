@@ -90,7 +90,8 @@ jobs:
             Automated lockfile / manifest updates from `pnpm audit --fix` (npm advisory data).
 
             **Before merging**
-            - Wait for all checks to pass (`pnpm test`, `pnpm lint`, and `pnpm lint:security`).
+            - Wait for all checks to pass (`pnpm test` and `pnpm lint`).
+            - `pnpm lint:security` does not run on PRs (see `sbom.yml`); run it locally before merging.
             - `pnpm audit` and Trunk/OSV-scoped security are not identical; review any security findings.
 
             If checks did not run on this PR, configure optional repository secret `DEPENDENCY_AUTOMATION_PAT` (see workflow file header in `.github/workflows/dependency_audit_fix.yml`).
