@@ -7,7 +7,7 @@ Source prompt: `/Users/yu/orca-prompts/agent-works-m1/prompt.md`, including Yu's
 - Never commit or push. At each green checkpoint, stage everything except `.scratch/`, secrets, auth state and any media. Write `/Users/yu/orca-prompts/agent-works-m1/commit-msg.txt` (first checkpoint also writes `/Users/yu/orca-prompts/agent-works-m1/pr-body.md`, with the PR title on line 1), then print exactly `READY_TO_COMMIT`.
 - Before each checkpoint, run `/code-review` then `/simplify` on the changed code. Fix P0 and P1 findings, plus worthwhile P2s, and rerun the affected gates.
 - Asks go to Yu as one line starting `NEEDS_YU:`. Keep working on unblocked items.
-- Vertex: project `ubie-yu-sandbox`, location `global`, model `gemini-3.8-flash`. **600 real calls total** across both segments (300 per segment, enforced by each segment's durable ledger). Concurrency 2. Stop and print `NEEDS_YU:` near the cap.
+- Vertex: project `your-gcp-project-id`, location `global`, model `gemini-3.8-flash`. **600 real calls total** across both segments (300 per segment, enforced by each segment's durable ledger). Concurrency 2. Stop and print `NEEDS_YU:` near the cap.
 - No cloud resource, IAM, Drive file, dataset or GitHub writes by the agent. No `gcloud auth login`. No terraform apply.
 - Trunk cannot run in the sandbox, so run the underlying linters directly. Playwright runs in containers.
 

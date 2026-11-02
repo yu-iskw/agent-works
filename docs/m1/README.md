@@ -14,7 +14,7 @@ By Yu's decision (2026-10-30), M1 is **mock-only** apart from the model. Real si
 
 | Part                          | Status                                                                                                                                                                                                                                                                                                      |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                         | **Real.** Vertex AI `gemini-3.8-flash`, project `ubie-yu-sandbox`, location `global`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. The segment APIs have no stub, replay or fallback model.                                                                                     |
+| Model                         | **Real.** Vertex AI `gemini-3.8-flash`, project `your-gcp-project-id`, location `global`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. The segment APIs have no stub, replay or fallback model.                                                                                 |
 | Member identity               | **Mock.** `alice@local.test` and `bob@local.test`, labelled "Mock identity" on every page. The segment APIs accept assertions only from the issuer matching their mode, so a mock identity can never pass as a Google one. The Google OpenID Connect code is built and unit-tested but not exercised in M1. |
 | Drive, Docs, BigQuery, GitHub | **Fixture or mock.** Sources are the seed files in `fixtures/m1/`, and every item says `FIXTURE (local seed file, not a live service)`. Publishing goes to a fixture document store labelled "not Google Docs". The Connections page says Google and GitHub are mocked.                                     |
 
@@ -23,7 +23,7 @@ The model credential (ADC) proves nothing about the member and is never used to 
 ## Setup
 
 1. Docker with Compose v2 (Rancher Desktop works).
-2. `gcloud auth application-default login`, then `gcloud auth application-default set-quota-project ubie-yu-sandbox`. Plain `gcloud auth login` does not create ADC.
+2. `gcloud auth application-default login`, then `gcloud auth application-default set-quota-project your-gcp-project-id`. Plain `gcloud auth login` does not create ADC.
 3. `pnpm m1:doctor` checks prerequisites without printing secrets. `pnpm m1:doctor -- --vertex` also spends one Vertex call per segment (run `pnpm m1:up` first).
 
 No OAuth client, secrets file or cloud resource is needed for M1. `SETUP_OAUTH.md`, `SETUP_RESOURCES.md` and `m1.env.example` are kept for the later live milestone.

@@ -36,7 +36,7 @@ Inside `api` (`docker compose -f compose.p0.yaml exec -T api ...`):
 - `docker inspect aw-p0-api-1` mounts: volume `/app` ro, bind `/home/app/.config/gcloud` ro.
 - `web`, `fake-iap`, `fake-directory`, `postgres`: ADC path absent.
 - `node apps/api/dist/workbench/vertex-smoke.js` →
-  `{"ok":true,"at":"2026-10-29T07:31:35.747Z","project":"ubie-yu-sandbox","location":"global","configuredModel":"gemini-3.8-flash","modelVersion":"gemini-3.8-flash","responseId":"Vfbiauu1HKOLx9gPqtXC8Q4","latencyMs":2697,"finishReason":"STOP","reply":"ok"}`
+  `{"ok":true,"at":"2026-10-29T07:31:35.747Z","project":"your-gcp-project-id","location":"global","configuredModel":"gemini-3.8-flash","modelVersion":"gemini-3.8-flash","responseId":"Vfbiauu1HKOLx9gPqtXC8Q4","latencyMs":2697,"finishReason":"STOP","reply":"ok"}`
 - `docker compose -f compose.p0.yaml logs | grep -ciE 'ya29\.|refresh_token|private_key|client_secret|Bearer '` → 0.
 
 ## Real Vertex call budget

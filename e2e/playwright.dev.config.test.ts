@@ -162,10 +162,10 @@ describe('loadDevConfig', () => {
   it('rejects two JWT tokens that resolve to the same subject or email claim', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const payload1 = Buffer.from(
-      JSON.stringify({ sub: '111111', email: 'yu.ishikawa@dr-ubie.com', exp: 1900000000 }),
+      JSON.stringify({ sub: '111111', email: 'yu.ishikawa@example.com', exp: 1900000000 }),
     ).toString('base64url');
     const payload2 = Buffer.from(
-      JSON.stringify({ sub: '111111', email: 'yu.ishikawa@dr-ubie.com', exp: 1900000060 }),
+      JSON.stringify({ sub: '111111', email: 'yu.ishikawa@example.com', exp: 1900000060 }),
     ).toString('base64url');
     const token1 = `${header}.${payload1}.sig1`;
     const token2 = `${header}.${payload2}.sig2`;

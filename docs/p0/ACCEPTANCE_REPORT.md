@@ -3,7 +3,7 @@
 Date: 2026-10-29. Branch `yu-iskw/p0-workbench`, uncommitted working tree on top of `0e2d565`
 (the commit is made outside the agent sandbox, which cannot use GPG). Environment: macOS host,
 Rancher Desktop (Docker 29.5.3, Compose v5.3.1), Node 24.13.0 and pnpm 11.0.5 inside containers,
-Playwright 1.63.0 image, Vertex AI project `ubie-yu-sandbox`, location `global`.
+Playwright 1.63.0 image, Vertex AI project `your-gcp-project-id`, location `global`.
 
 | Gate                           | Result                         | Basis                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
