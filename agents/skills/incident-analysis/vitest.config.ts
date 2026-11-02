@@ -5,6 +5,9 @@ import { defineProject } from 'vitest/config';
 export default defineProject({
   resolve: {
     alias: {
+      '@agent-works/agent-runtime': fileURLToPath(
+        new URL('../../../packages/agent-runtime/src/index.ts', import.meta.url),
+      ),
       '@agent-works/policy': fileURLToPath(
         new URL('../../../packages/policy/src/index.ts', import.meta.url),
       ),

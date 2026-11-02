@@ -9,11 +9,11 @@ import { restoreUserMemory } from './restore.js';
 import { createMemoryRecallHook } from './runner.js';
 import { proposeMemory } from './write.js';
 
-import type { RunnerInput } from '../agent/runner-port.js';
 import type { GovernancePort } from '../ports/governance.js';
 import type { MemoryPolicy, MemoryState, MemoryStore } from '../ports/user-memory.js';
 import type { RouteDeps } from '../routes/index.js';
 import type { MemoryRouteDeps } from '../routes/memory-auth.js';
+import type { RunnerInput } from '@agent-works/agent-runtime';
 import type { MemoryScope, MemoryProposal } from '@agent-works/domain/user-memory';
 import type postgres from 'postgres';
 export type UserMemoryRuntimeOptions = {

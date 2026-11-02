@@ -83,12 +83,18 @@ importers:
 
   agents/skills/incident-analysis:
     dependencies:
+      '@agent-works/agent-runtime':
+        specifier: workspace:*
+        version: link:../../../packages/agent-runtime
       '@agent-works/domain':
         specifier: workspace:*
         version: link:../../../packages/domain
 
   apps/api:
     dependencies:
+      '@agent-works/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@agent-works/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -98,9 +104,6 @@ importers:
       '@agent-works/policy':
         specifier: workspace:*
         version: link:../../packages/policy
-      '@google/adk':
-        specifier: 2.2.0
-        version: 2.2.0(@grpc/grpc-js@1.14.5)
       google-auth-library:
         specifier: 10.9.1
         version: 10.9.1
@@ -151,6 +154,31 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1)
+      vitest:
+        specifier: 4.1.12
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/agent-runtime:
+    dependencies:
+      '@agent-works/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@google/adk':
+        specifier: 2.2.0
+        version: 2.2.0(@grpc/grpc-js@1.14.5)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-works/fakes':
+        specifier: workspace:*
+        version: link:../fakes
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
       vitest:
         specifier: 4.1.12
         version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
@@ -571,12 +599,14 @@ packages:
   '@opentelemetry/sdk-trace-base@2.11.0':
     resolution: {integrity: sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.11.0':
     resolution: {integrity: sha512-CuvCMJmZxswhNLlM2LfuLOW3h3fZujA4hsG4B+Sz4dX2zvaXO8Ng74cnDHWD64gLszTlhiG3c0iNUjj4g+0/sA==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 

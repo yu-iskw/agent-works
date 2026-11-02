@@ -11,7 +11,6 @@ import { createWorkspaceRuntime } from './runtime.js';
 import { classifySources } from './source-data.js';
 
 import type { WorkspaceCall } from './broker.js';
-import type { AgentRunner } from '../agent/runner-port.js';
 import type { AppRole } from '../auth/directory.js';
 import type { VerifyAssertion } from '../auth/iap.js';
 import type { OAuthFlow } from '../credentials/flow.js';
@@ -19,6 +18,7 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { createHttpDrive } from '../retrieval/http-drive.js';
 import type { SkillRegistry } from '../skills/registry.js';
 import type { SuspensionEnforcer } from '../suspension/enforcement.js';
+import type { AgentRunner } from '@agent-works/agent-runtime';
 import type postgres from 'postgres';
 
 type DevWorkspaceDeps = {

@@ -2,8 +2,8 @@ import { wrapSourceText } from '../governance/source-data.js';
 
 import { recallMemory } from './recall.js';
 
-import type { RunnerInput } from '../agent/runner-port.js';
 import type { MemoryPolicy, MemoryStore } from '../ports/user-memory.js';
+import type { RunnerInput } from '@agent-works/agent-runtime';
 import type { MemoryScope } from '@agent-works/domain/user-memory';
 export type MemoryRecallHook = (input: RunnerInput) => Promise<string>;
 /** Scope is resolved from a trusted task context. A question cannot set its subject. */

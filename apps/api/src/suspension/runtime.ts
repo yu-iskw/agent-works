@@ -9,12 +9,12 @@ import { RetrievalError } from '../retrieval/drive-port.js';
 import { InvocationStopped } from './enforcement.js';
 
 import type { SuspensionEnforcer } from './enforcement.js';
-import type { AgentRunner } from '../agent/runner-port.js';
 import type { VerifyAssertion } from '../auth/iap.js';
 import type { ExecuteInput } from '../broker/broker.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { SuspensionAudit } from '../ports/suspension-ledger.js';
 import type { RegisteredSkill } from '../skills/incident.js';
+import type { AgentRunner } from '@agent-works/agent-runtime';
 import type { CapabilityPin, CapabilityVersion } from '@agent-works/domain';
 import type { InvocationContext } from '@agent-works/policy';
 import type { RequestListener } from 'node:http';
