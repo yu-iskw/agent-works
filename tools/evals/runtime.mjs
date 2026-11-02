@@ -12,6 +12,7 @@ export function loadRuntime() {
     resolve(specifier, context, next) {
       const packages = {
         '@agent-works/incident-analysis': 'agents/skills/incident-analysis/deliver.ts',
+        '@agent-works/agent-runtime/port': 'packages/agent-runtime/src/runner-port.ts',
         '@agent-works/agent-runtime': 'packages/agent-runtime/src/index.ts',
         '@agent-works/domain': 'packages/domain/src/index.ts',
         '@agent-works/domain/budget': 'packages/domain/src/budget.ts',

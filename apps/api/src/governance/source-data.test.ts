@@ -12,7 +12,7 @@ import { wrapSourceText } from './source-data.js';
 
 import type { Caller } from '../auth/iap.js';
 import type { SearchHit } from '../ports/search-port.js';
-import type { AgentRunner } from '@agent-works/agent-runtime';
+import type { AgentRunner } from '@agent-works/agent-runtime/port';
 
 // Exercise the #136 fixture at both model-facing runner boundaries.
 

@@ -1,4 +1,3 @@
-import { createAdkRunner, FetchLlm } from '../../packages/agent-runtime/src/index.js';
 import { canonicalPayloadSha256 } from '../../packages/domain/src/index.js';
 import {
   createAdversarialTransport,
@@ -10,7 +9,6 @@ import { createBroker, TICKET_TOOL } from '../../apps/api/src/broker/broker.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
 import { createHttpDrive } from '../../apps/api/src/retrieval/http-drive.js';
 import { createSkillRegistry } from '../../apps/api/src/skills/registry.js';
-import { beforeModelCall } from '../../apps/api/src/suspension/runtime.js';
 import { validateCase } from './schema.mjs';
 
 const now = new Date('2026-10-14T00:00:00.000Z');
@@ -38,6 +36,18 @@ const limits = {
   maxParallelToolCalls: 1,
 };
 
+/** Loaded lazily so a caller-supplied runner never pulls in @google/adk. */
+export async function nativeRunner(model) {
+  const { createAdkRunner } = await import('../../packages/agent-runtime/src/adk-runner.js');
+  const { beforeModelCall } = await import('../../apps/api/src/suspension/runtime.js');
+  return createAdkRunner({ model, limits, beforeModelCall });
+}
+
+export async function fakeRunner(modelFetch) {
+  const { FetchLlm } = await import('../../packages/agent-runtime/src/fetch-llm.js');
+  return nativeRunner(new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: modelFetch }));
+}
+
 function empty(row) {
   return {
     schemaVersion: '1.0.0',
@@ -52,7 +62,7 @@ function empty(row) {
   };
 }
 
-async function retrieve(row) {
+async function retrieve(row, makeRunner) {
   const result = empty(row);
   const transport = createAdversarialTransport({
     documents: row.documents,
@@ -90,11 +100,7 @@ async function retrieve(row) {
         groups: [],
         modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
       });
-      const runner = createAdkRunner({
-        model: new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: model.fetch }),
-        limits,
-        beforeModelCall,
-      });
+      const runner = await makeRunner(model.fetch);
       const answer = await runner.run({ question: row.question, sources });
       result.answer = answer.answer;
       result.citations = [...answer.citedSourceIds];
@@ -114,7 +120,7 @@ async function retrieve(row) {
   return result;
 }
 
-async function hostile(row) {
+async function hostile(row, makeRunner) {
   const result = empty(row);
   const recipient = 'attacker@invalid.example';
   const body = row.untrustedContent;
@@ -126,12 +132,8 @@ async function hostile(row) {
     modelUnavailable: row.fault === 'model-unavailable',
     modelCall: { name: 'email.send', args },
   });
-  const runner = createAdkRunner({
-    model: new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: transport.fetch }),
-    limits,
-    beforeModelCall,
-  });
   try {
+    const runner = await makeRunner(transport.fetch);
     const answer = await runner.run({
       question: row.question,
       sources: row.documents.map((doc) => ({
@@ -293,17 +295,17 @@ async function write(row, brokerWorld) {
   return result;
 }
 
-export async function runCase(value, { brokerWorld } = {}) {
+export async function runCase(value, { brokerWorld, runner = fakeRunner } = {}) {
   const row = validateCase(value);
   switch (row.scenario) {
     case 'retrieval':
     case 'unsupported':
     case 'group-loss':
-      return retrieve(row);
+      return retrieve(row, runner);
     case 'hostile-drive':
     case 'tool-policy':
     case 'model-unavailable':
-      return hostile(row);
+      return hostile(row, runner);
     case 'memory-deletion':
       return {
         ...empty(row),
@@ -334,9 +336,9 @@ export async function runCase(value, { brokerWorld } = {}) {
   }
 }
 
-export async function runDataset(cases) {
+export async function runDataset(cases, { runner } = {}) {
   const observations = [];
-  for (const row of cases) observations.push(await runCase(row));
+  for (const row of cases) observations.push(await runCase(row, { runner }));
   return observations;
 }
 

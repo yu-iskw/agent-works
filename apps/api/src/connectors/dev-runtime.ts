@@ -18,7 +18,7 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { createHttpDrive } from '../retrieval/http-drive.js';
 import type { SkillRegistry } from '../skills/registry.js';
 import type { SuspensionEnforcer } from '../suspension/enforcement.js';
-import type { AgentRunner } from '@agent-works/agent-runtime';
+import type { AgentRunner } from '@agent-works/agent-runtime/port';
 import type postgres from 'postgres';
 
 type DevWorkspaceDeps = {

@@ -10,3 +10,7 @@ export {
   requireVertexConfig,
 } from './live-model.js';
 export type { VertexConfig } from './live-model.js';
+export { agents } from './agents.js';
+export type { AgentInfo } from './agents.js';
+export { listAgents, runAgent, runEval } from './eval.js';
+export type { EvalMode, Observation, RunAgentInput, RunEvalInput, RunRecord } from './eval.js';
