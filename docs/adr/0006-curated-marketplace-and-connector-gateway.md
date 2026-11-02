@@ -1,4 +1,4 @@
-# 5. Curated marketplace and connector gateway
+# 6. Curated marketplace and connector gateway
 
 Date: 2026-11-02
 
