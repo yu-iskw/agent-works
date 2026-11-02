@@ -1,6 +1,6 @@
 import { Gemini } from '@google/adk';
 
-import type { BaseLlm } from '@google/adk';
+import type { BaseLlm, LlmRequest, LlmResponse } from '@google/adk';
 
 export type VertexConfig = {
   readonly project: string;
@@ -49,17 +49,41 @@ export function requireVertexConfig(
   return config;
 }
 
-/** Vertex AI through Application Default Credentials only; there is no API-key path. */
-export function createLiveModel(config: VertexConfig): BaseLlm {
-  return new Gemini({
-    vertexai: true,
-    project: config.project,
-    location: config.location,
-    model: config.modelId,
-  });
+/** Applies the configured output cap and per-attempt timeout to every outgoing request. */
+class BoundedGemini extends Gemini {
+  private readonly bounds: Pick<VertexConfig, 'timeoutMs' | 'maxOutputTokens'>;
+
+  constructor(
+    params: ConstructorParameters<typeof Gemini>[0],
+    bounds: Pick<VertexConfig, 'timeoutMs' | 'maxOutputTokens'>,
+  ) {
+    super(params);
+    this.bounds = bounds;
+  }
+
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    stream?: boolean,
+    abortSignal?: AbortSignal,
+  ): AsyncGenerator<LlmResponse, void> {
+    llmRequest.config = {
+      ...llmRequest.config,
+      maxOutputTokens: this.bounds.maxOutputTokens,
+      httpOptions: { ...llmRequest.config?.httpOptions, timeout: this.bounds.timeoutMs },
+    };
+    yield* super.generateContentAsync(llmRequest, stream, abortSignal);
+  }
 }
 
-/** Per-call abort signal for the runner to pass to `generateContentAsync`. */
-export function liveCallSignal(config: VertexConfig): AbortSignal {
-  return AbortSignal.timeout(config.timeoutMs);
+/** Vertex AI through Application Default Credentials only; there is no API-key path. */
+export function createLiveModel(config: VertexConfig): BaseLlm {
+  return new BoundedGemini(
+    {
+      vertexai: true,
+      project: config.project,
+      location: config.location,
+      model: config.modelId,
+    },
+    config,
+  );
 }
