@@ -2,7 +2,7 @@ import { createScheduleWorker } from '../scheduling/worker.js';
 
 import { RuntimeError } from './runtime-manager.js';
 
-import type { Installation, InstallationChange } from './installations.js';
+import type { Installation, InstallationChange, InstallationUpdate } from './installations.js';
 import type { ManifestLookup, RuntimeManager } from './runtime-manager.js';
 
 const RECONCILER_ACTOR = 'system:reconciler';
@@ -11,13 +11,7 @@ const RECONCILER_ACTOR = 'system:reconciler';
 export type InstallationStore = {
   list(): Promise<readonly Installation[]>;
   /** Compare-and-swap on `generation`; `undefined` when the row moved or is gone. */
-  update(input: {
-    readonly id: string;
-    readonly expectedGeneration: number;
-    readonly actor: string;
-    readonly action: string;
-    readonly change: InstallationChange;
-  }): Promise<Installation | undefined>;
+  update(input: InstallationUpdate): Promise<Installation | undefined>;
 };
 
 type ReconcileOutcome = 'unchanged' | 'converged' | 'failed' | 'skipped';

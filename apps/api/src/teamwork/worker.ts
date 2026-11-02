@@ -19,6 +19,7 @@ import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import { GatewayDenied, publishThroughGateway, readThroughGateway } from './gateway.js';
+import { segmentCapabilities } from './installations.js';
 import {
   contributionRequest,
   parseArtifact,
@@ -276,6 +277,7 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     teammates.map((t) => t.id),
   );
   const connected = await connectedProviders(deps, member.sub);
+  const segment = await segmentCapabilities(deps);
   const files = await attachmentsByIds(deps.sql, task.owner_sub, task.scope.attachmentIds ?? []);
   const allowed = new Set(plannableSources(task.workflow, files.length > 0));
   const effectiveFor = new Map(
@@ -285,7 +287,10 @@ async function plan(deps: Deps, job: Job): Promise<void> {
           [
             t.id,
             effectiveSet(
-              await capabilitiesFor(deps, member, t.capability_requests, undefined, connected),
+              await capabilitiesFor(deps, member, t.capability_requests, undefined, {
+                connected,
+                segment,
+              }),
             ),
           ] as const,
       ),

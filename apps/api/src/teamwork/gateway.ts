@@ -259,15 +259,17 @@ async function assertEffective(
   call: GatewayCall,
   capability: Capability,
 ): Promise<void> {
-  if (!(await segmentCapabilities(deps)).has(capability))
+  const [segment, requests, connected] = await Promise.all([
+    segmentCapabilities(deps),
+    requestedCapabilities(deps, task, call.assignmentId),
+    connectedProviders(deps, member.sub),
+  ]);
+  if (!segment.has(capability))
     throw new GatewayDenied('capability_disabled', 'This segment has turned that capability off.');
-  const states = await capabilitiesFor(
-    deps,
-    member,
-    await requestedCapabilities(deps, task, call.assignmentId),
-    new Set([capability]),
-    await connectedProviders(deps, member.sub),
-  );
+  const states = await capabilitiesFor(deps, member, requests, new Set([capability]), {
+    connected,
+    segment,
+  });
   const state = states.find((candidate) => candidate.capability === capability);
   if (state?.effective !== true)
     throw new GatewayDenied(
