@@ -12,8 +12,11 @@ const guide = readFileSync(
   'utf8',
 );
 
-function fencedBlock(language: string): string {
-  const match = new RegExp(`\`\`\`${language}\\n([\\s\\S]*?)\\n\`\`\``).exec(guide);
+const jsonBlock = /```json\n([\s\S]*?)\n```/;
+const tsBlock = /```ts\n([\s\S]*?)\n```/;
+
+function fencedBlock(language: 'json' | 'ts'): string {
+  const match = (language === 'json' ? jsonBlock : tsBlock).exec(guide);
   if (match?.[1] === undefined) throw new Error(`no ${language} block in add-a-connector.md`);
   return match[1];
 }
