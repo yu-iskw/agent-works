@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MARKETPLACE_KINDS,
   connectorActionSchema,
+  marketplaceDetailSchema,
   marketplaceListingSchema,
 } from './marketplace.js';
 
@@ -59,5 +60,29 @@ describe('connectorActionSchema version moves', () => {
     { action: 'rollback', expectedGeneration: 0 },
   ])('rejects %j', (body) => {
     expect(connectorActionSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('marketplaceDetailSchema', () => {
+  const detail = { capabilities: [], installation: null } as const;
+
+  it('shares the connector detail with MCP servers and keeps a2a listing-only', () => {
+    const mcp = { ...listing, kind: 'mcp_server', id: 'notes' } as const;
+    expect(
+      marketplaceDetailSchema.safeParse({ kind: 'mcp_server', listing: mcp, ...detail }).success,
+    ).toBe(true);
+    const a2a = { ...listing, kind: 'a2a_agent', id: 'a2a-agents' } as const;
+    expect(marketplaceDetailSchema.safeParse({ kind: 'a2a_agent', listing: a2a }).success).toBe(
+      true,
+    );
+    expect(
+      marketplaceDetailSchema.safeParse({ kind: 'a2a_agent', listing: a2a, ...detail }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a detail whose listing names another kind', () => {
+    expect(
+      marketplaceDetailSchema.safeParse({ kind: 'mcp_server', listing, ...detail }).success,
+    ).toBe(false);
   });
 });

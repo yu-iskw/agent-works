@@ -960,7 +960,7 @@ const LISTING_STATUS: Record<
   coming_soon: { label: 'Coming soon', tone: BADGE.seg },
 };
 
-export type ConnectorDetail = Extract<MarketplaceDetail, { kind: 'connector' }>;
+export type ConnectorDetail = Extract<MarketplaceDetail, { capabilities: unknown }>;
 
 const scopeName = (scope: string) => scope.replace('https://www.googleapis.com/auth/', '');
 

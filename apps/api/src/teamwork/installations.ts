@@ -1,13 +1,18 @@
-import { findConnector } from '@agent-works/domain/connector-catalog';
+import { findConnector, findMcpServer } from '@agent-works/domain/connector-catalog';
 import { CAPABILITY_PROVIDER, capabilitySchema } from '@agent-works/domain/teamwork';
 import * as z from 'zod';
 
 import { audit } from './context.js';
 
 import type { Deps } from './context.js';
+import type { ManifestLookup } from './runtime-manager.js';
 import type { Capability } from '@agent-works/domain/teamwork';
 
 export const BOOTSTRAP_ACTOR = 'system:bootstrap';
+
+/** Everything an admin can install: native connectors and MCP servers share one installation table. */
+export const findInstallable: ManifestLookup = (id, version) =>
+  findConnector(id, version) ?? findMcpServer(id, version);
 
 const installationRowSchema = z.strictObject({
   item_kind: z.literal('connector'),
@@ -80,7 +85,7 @@ export async function bootstrapInstallations(deps: Deps): Promise<void> {
     }),
   );
   for (const provider of providers) {
-    const manifest = findConnector(provider);
+    const manifest = findInstallable(provider);
     if (manifest === undefined) continue;
     const capabilities = [...deps.config.capabilities].filter(
       // eslint-disable-next-line security/detect-object-injection

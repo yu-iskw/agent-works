@@ -1,4 +1,4 @@
-import { CONNECTOR_CATALOG } from '@agent-works/domain/connector-catalog';
+import { CONNECTOR_CATALOG, MCP_SERVER_CATALOG } from '@agent-works/domain/connector-catalog';
 import { defineConnector } from '@agent-works/domain/connector-cdk';
 import {
   SOURCE_CAPABILITY,
@@ -14,10 +14,12 @@ import { capabilitiesFor } from './catalog.js';
 import { connectedProviders, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import { segmentCapabilities } from './installations.js';
+import { McpAdapterError, connectMcp } from './mcp-adapter.js';
 import { appendEvent, readTask, withTask } from './store.js';
 import { publishDigest } from './tasks.js';
 
 import type { Deps, Member } from './context.js';
+import type { McpErrorCode, McpToolPin } from './mcp-adapter.js';
 import type { Published, SourceResult, TokenSource } from './sources/port.js';
 import type { TaskRow } from './store.js';
 import type { ConnectorRegistry } from '@agent-works/domain/connector-cdk';
@@ -36,7 +38,8 @@ type DenialCode =
   | 'not_permitted'
   | 'not_connected'
   | 'invalid_input'
-  | 'approval_invalid';
+  | 'approval_invalid'
+  | McpErrorCode;
 
 /** A call the gateway refused before any handler ran; `reason` is safe to show the member. */
 export class GatewayDenied extends Error {
@@ -133,6 +136,59 @@ const publishTool = toolHandler(approvalInputSchema, async ({ deps, task, token,
   return { value: { published, proposal }, untrusted: [] };
 });
 
+const notesSearchInput = z.strictObject({ query: z.string().max(200) });
+const notesAppendInput = z.strictObject({ text: z.string().max(2000) });
+
+const NOTES_MANIFEST = MCP_SERVER_CATALOG.find((manifest) => manifest.id === 'notes');
+
+/** Pins come from the manifest, so a server advertising anything else is refused on connect. */
+const NOTES_PINS: readonly McpToolPin[] = (NOTES_MANIFEST?.capabilities ?? []).flatMap(
+  (capability) =>
+    capability.tools.map((tool) => ({
+      name: tool.metadata.name,
+      sideEffect: tool.spec.sideEffect,
+    })),
+);
+
+/**
+ * One MCP call. The gateway has just proven this one tool's capability effective, so only that
+ * tool is enabled; every other pinned tool stays refused. A failure maps to a fixed, safe code and
+ * never carries upstream text.
+ */
+async function callNotes(
+  deps: Deps,
+  tool: string,
+  args: Record<string, unknown>,
+): Promise<readonly string[]> {
+  if (deps.mcp === undefined)
+    throw new GatewayDenied('mcp_unavailable', new McpAdapterError('mcp_unavailable').message);
+  try {
+    const session = await connectMcp(await deps.mcp(), {
+      tools: NOTES_PINS,
+      enabled: new Set([tool]),
+    });
+    try {
+      return (await session.callTool(tool, args)).texts;
+    } finally {
+      await session.close();
+    }
+  } catch (error) {
+    const failure =
+      error instanceof McpAdapterError ? error : new McpAdapterError('mcp_unavailable');
+    throw new GatewayDenied(failure.code, failure.message);
+  }
+}
+
+const notesSearchTool = toolHandler(notesSearchInput, async ({ deps }, input) => {
+  const texts = await callNotes(deps, 'notes.search', input);
+  return { value: { matches: texts.length }, untrusted: texts };
+});
+
+/** Fail closed: policy `mcp-write-v1` has no approval path yet, so no write handler ever runs. */
+const notesAppendTool = toolHandler(notesAppendInput, () =>
+  Promise.reject(new GatewayDenied('approval_invalid', 'This write needs an approval.')),
+);
+
 const HANDLERS: ReadonlyMap<string, Readonly<Record<string, ToolHandler>>> = new Map<
   string,
   Readonly<Record<string, ToolHandler>>
@@ -146,11 +202,12 @@ const HANDLERS: ReadonlyMap<string, Readonly<Record<string, ToolHandler>>> = new
     },
   ],
   ['github', { 'github.read': readTool(z.enum(['github_issue', 'github_code'])) }],
+  ['notes', { 'notes.search': notesSearchTool, 'notes.append': notesAppendTool }],
 ]);
 
 /** Built from the catalog manifests, so a tool without a handler (or a handler without a tool) fails at load. */
 const REGISTRY: ConnectorRegistry<ToolHandler> = new Map(
-  CONNECTOR_CATALOG.flatMap((manifest) => [
+  [...CONNECTOR_CATALOG, ...MCP_SERVER_CATALOG].flatMap((manifest) => [
     ...defineConnector(manifest, HANDLERS.get(manifest.id) ?? {}),
   ]),
 );
