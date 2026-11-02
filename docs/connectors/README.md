@@ -59,3 +59,10 @@ contract and client; fingerprints include connector route sources.
 
 See [Architecture](architecture.md), [API](api.md), [Approval binding](approvals.md),
 [Operator evidence](operator-evidence.md), and [Testing](testing.md).
+
+## Marketplace and connector gateway
+
+The teamwork segment marketplace, the per-call gateway and the connector manifests are
+separate from the flagship connectors above. See [Marketplace](marketplace.md),
+[Add a connector](add-a-connector.md) and the
+[connector operations runbook](../runbooks/connector-operations.md).
