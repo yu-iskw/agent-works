@@ -1,5 +1,7 @@
+import { readVertexConfig } from '@agent-works/agent-runtime';
+
 import { ModelError } from './model-port.js';
-import { createVertexModel, readVertexConfig } from './vertex.js';
+import { createVertexModel } from './vertex.js';
 
 // G1 real-model check, run inside the api container: one bounded call through the production
 // adapter. Fails closed on stub mode, missing config, or a model other than the configured one.

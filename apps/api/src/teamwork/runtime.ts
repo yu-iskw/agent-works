@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 
+import { readVertexConfig } from '@agent-works/agent-runtime';
 import { createSealer, loadKey } from '@agent-works/domain/sealer';
 
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 import { modelRemediation } from '../workbench/model-port.js';
-import { createVertexModel, readVertexConfig } from '../workbench/vertex.js';
+import { createVertexModel } from '../workbench/vertex.js';
 
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';

@@ -1,10 +1,12 @@
 // One bounded live Vertex call from inside a segment API container, through the same gate and
 // ledger the product uses. Prints sanitized metadata as one JSON line; exits non-zero unless the
 // configured model answered. `node apps/api/dist/teamwork/smoke.js`
+import { readVertexConfig } from '@agent-works/agent-runtime';
+
 import { openDatabase } from '../db.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 import { ModelError } from '../workbench/model-port.js';
-import { createVertexModel, readVertexConfig } from '../workbench/vertex.js';
+import { createVertexModel } from '../workbench/vertex.js';
 
 import { readSegmentConfig } from './config.js';
 import { createModelGate } from './model.js';
