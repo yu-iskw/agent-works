@@ -22,7 +22,9 @@ export function bindEvidence(input) {
   const transcript = {
     schemaId: 'agent-works.cloud-spike.transcript',
     schemaVersion: 1,
-    id: `c04.${evidence.arm === 'A' ? 'managed' : 'drive'}.offline`,
+    id: `c04.${evidence.arm === 'A' ? 'managed' : 'drive'}.${
+      evidence.provenance === 'observed' ? `observed-${digest.slice(0, 12)}` : 'offline'
+    }`,
     capturedAt: evidence.capturedAt.replace('.000Z', 'Z'),
     region: evidence.region,
     spike: 'C-04',

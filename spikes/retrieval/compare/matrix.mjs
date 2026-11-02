@@ -55,6 +55,13 @@ export const matrix = /** @type {const} */ ([
   { id: 'revoked-member', subject: 'reviewer', state: 'revoked', expected: ['public'] },
   { id: 'source-deletion', subject: 'alice', state: 'deleted', expected: [shared, 'public'] },
 ]);
+/** Per active case, the object the rightful subject must retrieve for the arm to count as functional. */
+export const positiveControls = /** @type {const} */ ({
+  alice: 'alice-private',
+  bob: 'bob-private',
+  'shared-group': shared,
+  outsider: 'public',
+});
 export const query = 'bundle-b-corpus';
 /**
  * @param {string} id
