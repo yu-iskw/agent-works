@@ -15,6 +15,7 @@ import CitationList from './citations/citation-list.js';
 import { h, Fragment, renderDocument } from './html.js';
 import Page from './page.js';
 import { createSchedulesHandler } from './schedules/handler.js';
+import { createOwnerReadHandler, isOwnerReadPath } from './tasks/handler.js';
 
 import type { Html } from './html.js';
 import type { PageView } from './page.js';
@@ -35,12 +36,14 @@ const maxBodyBytes = 16_384;
 export function createWebApp(options: WebAppOptions): RequestListener {
   const admin = createAdminHandler(options);
   const schedules = createSchedulesHandler(options);
+  const ownerRead = createOwnerReadHandler(options);
   const load = options.fetch ?? fetch;
   const newRequestId = options.newRequestId ?? randomUUID;
   return (request, response) => {
     const path = URL.parse(request.url ?? '/', 'http://localhost')?.pathname;
     if (path === '/schedules' || path?.startsWith('/schedules/') === true)
       schedules(request, response);
+    else if (isOwnerReadPath(path ?? '')) ownerRead(request, response);
     else if (path === '/admin' || path?.startsWith('/admin/') === true) admin(request, response);
     else void handle(options.apiUrl, load, newRequestId, request, response);
   };
