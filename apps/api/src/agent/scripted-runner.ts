@@ -1,11 +1,10 @@
+import { RunnerError } from '@agent-works/agent-runtime';
 import * as z from 'zod';
 
 import { wrapSourceText } from '../governance/source-data.js';
 import { beforeModelCall } from '../suspension/runtime.js';
 
-import { RunnerError } from './runner-port.js';
-
-import type { AgentRunner, RunnerInput, RunnerOutput } from './runner-port.js';
+import type { AgentRunner, RunnerInput, RunnerOutput } from '@agent-works/agent-runtime';
 
 type GenerateContentRequest = {
   readonly contents: readonly {

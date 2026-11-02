@@ -1,15 +1,16 @@
+import { createAdkRunner } from '../../packages/agent-runtime/src/index.js';
 import { canonicalPayloadSha256 } from '../../packages/domain/src/index.js';
 import {
   createAdversarialTransport,
   createSideEffectProbe,
 } from '../../packages/fakes/src/adversarial/index.js';
 import { decide, whenAllowed } from '../../packages/policy/src/index.js';
-import { createAdkRunner } from '../../apps/api/src/agent/adk-runner.js';
 import { createMemoryApprovalStore } from '../../apps/api/src/broker/approvals.js';
 import { createBroker, TICKET_TOOL } from '../../apps/api/src/broker/broker.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
 import { createHttpDrive } from '../../apps/api/src/retrieval/http-drive.js';
 import { createSkillRegistry } from '../../apps/api/src/skills/registry.js';
+import { beforeModelCall } from '../../apps/api/src/suspension/runtime.js';
 import { validateCase } from './schema.mjs';
 
 const now = new Date('2026-10-14T00:00:00.000Z');
@@ -93,6 +94,7 @@ async function retrieve(row) {
         baseUrl: 'https://llm.fake.test',
         fetch: model.fetch,
         limits,
+        beforeModelCall,
       });
       const answer = await runner.run({ question: row.question, sources });
       result.answer = answer.answer;
@@ -129,6 +131,7 @@ async function hostile(row) {
     baseUrl: 'https://llm.fake.test',
     fetch: transport.fetch,
     limits,
+    beforeModelCall,
   });
   try {
     const answer = await runner.run({

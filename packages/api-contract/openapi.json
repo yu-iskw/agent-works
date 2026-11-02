@@ -9065,7 +9065,7 @@
     "approvals-read.ts": "b3abc47c741c0ca221fe2bbfa5505ac3213bc83c9ca3551898681cae473a79ab",
     "approvals.ts": "9b831091cfabe681c92e951e296d8ac5ffd61c3112e97be7118254232790ab14",
     "artifacts-read.ts": "4f466e9ac4267f2db2117948a9de207f35632c465489a64ec5694a1064de0eac",
-    "ask.ts": "ca129741c8c9f044f146461558ecc9e946e0246055ba96c6b787211673718174",
+    "ask.ts": "5ac941addca149e2a1ebd89bdca9f97e5eeafd8e9fbb5a19b81dfcf0b4f7c10e",
     "events-ingest.ts": "871cf9159498cf5045d471baecf31209765e2eb8950b053d2b90ef0077a2442d",
     "governance-auth.ts": "f09ba4cb6246002429d54bcd40a987e14efe9caa3865c695a164e70bb86c30e2",
     "governance-deletions.ts": "48bfd3a4e645ec78028185602d7fe295246a370916cb3113be6e343215662e6f",

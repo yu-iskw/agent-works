@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import * as z from 'zod';
 
-import { RunnerError } from '../../apps/api/src/agent/runner-port.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
 import { startStack } from '../../apps/api/src/testing/stack.js';
 import { taskAuthorization } from '../../apps/api/src/testing/task-authorization.js';
+import { RunnerError } from '../../packages/agent-runtime/src/index.js';
 
 import type { Stack } from '../../apps/api/src/testing/stack.js';
 

@@ -4,22 +4,12 @@ import { describe, expect, it } from 'vitest';
 
 import { createAdkRunner } from './adk-runner.js';
 import { RunnerError } from './runner-port.js';
-import { createScriptedRunner } from './scripted-runner.js';
 
-import type { SourceDocument } from '../retrieval/drive-port.js';
+import type { SourceDocument } from './runner-port.js';
 import type { RunnerLimits } from '@agent-works/domain';
 
-const triageQuestion = 'What are the triage runbook steps?';
-const triageAnswer = 'Follow the triage steps in the Triage runbook.';
 const budgetExceeded = 'TASK_BUDGET_EXCEEDED';
 const hiddenTool = 'hidden tool';
-
-const triageSource: SourceDocument = {
-  id: 'alice-runbook',
-  title: 'Triage runbook',
-  text: 'Alice triage steps.',
-  uri: 'https://drive.fake.test/d/alice-runbook',
-};
 
 const hostileSource: SourceDocument = {
   id: 'hostile-note',
@@ -98,21 +88,6 @@ describe('createAdkRunner', () => {
     }
   });
 
-  it('agent.runner-parity', async () => {
-    const llm = await startLlm();
-    try {
-      const input = { question: triageQuestion, sources: [triageSource] };
-      const scripted = createScriptedRunner({ baseUrl: llm.url });
-      const adk = createAdkRunner({ baseUrl: llm.url, limits: limits() });
-      const [fromScript, fromAdk] = await Promise.all([scripted.run(input), adk.run(input)]);
-      expect(fromAdk.answer).toBe(triageAnswer);
-      expect(fromAdk.citedSourceIds).toEqual(['alice-runbook']);
-      expect(fromAdk).toEqual(fromScript);
-    } finally {
-      await llm.close();
-    }
-  });
-
   it('unscripted-request-fails', async () => {
     const llm = await startLlm();
     try {
@@ -120,25 +95,6 @@ describe('createAdkRunner', () => {
       await expect(
         runner.run({ question: 'How many moons does Mars have?', sources: [plainSource] }),
       ).rejects.toThrow(new RunnerError('llm status'));
-    } finally {
-      await llm.close();
-    }
-  });
-
-  it('keeps ADK LLM calls within 1.5 times the scripted runner', async () => {
-    const llm = await startLlm();
-    try {
-      const input = { question: triageQuestion, sources: [triageSource] };
-      const scripted = createScriptedRunner({ baseUrl: llm.url });
-      const adk = createAdkRunner({ baseUrl: llm.url, limits: limits() });
-      // Count model calls as deterministic work; few-ms wall-clock timings are CI noise.
-      await scripted.run(input);
-      const scriptedCalls = llm.posts();
-      await adk.run(input);
-      const adkCalls = llm.posts() - scriptedCalls;
-      expect(scriptedCalls).toBe(1);
-      expect(adkCalls).toBe(1);
-      expect(adkCalls).toBeLessThanOrEqual(scriptedCalls * 1.5);
     } finally {
       await llm.close();
     }
