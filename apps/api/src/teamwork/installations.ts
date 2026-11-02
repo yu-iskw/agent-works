@@ -32,7 +32,7 @@ const installationRowSchema = z.strictObject({
 
 export type Installation = z.infer<typeof installationRowSchema>;
 
-async function listInstallations(deps: Deps): Promise<readonly Installation[]> {
+export async function listInstallations(deps: Deps): Promise<readonly Installation[]> {
   const rows = await deps.sql`select * from tw_installations order by item_id`;
   return rows.map((row) => installationRowSchema.parse({ ...row }));
 }
