@@ -119,6 +119,11 @@ const provider = (value: string | undefined): 'google' | 'github' => {
 
 export type Readiness = (member: Member) => Promise<unknown>;
 
+/** Server-side admin check; the mutating routes that call it arrive with the marketplace API. */
+export function requireAdmin(member: Member): void {
+  if (!member.admin) throw new Conflict('forbidden', 403);
+}
+
 function catalogRoutes(readiness: Readiness): readonly Entry[] {
   return [
     {
@@ -477,7 +482,7 @@ export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Rea
         });
         return { status: 403, body: { error: 'not_member' } };
       }
-      return { sub: caller.sub, email };
+      return { sub: caller.sub, email, admin: deps.config.admins.has(email) };
     } catch (error) {
       if (error instanceof Unauthenticated)
         return { status: 401, body: { error: 'unauthenticated' } };

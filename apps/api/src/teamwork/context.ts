@@ -9,6 +9,8 @@ import type postgres from 'postgres';
 export type Member = {
   readonly sub: string;
   readonly email: string;
+  /** Absent for members built outside `routes.ts`, which then fail the admin check closed. */
+  readonly admin?: boolean;
 };
 
 export type Deps = {
