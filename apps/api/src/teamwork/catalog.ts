@@ -9,6 +9,7 @@ import { inspectPortable, parsePortable, toPortable } from '@agent-works/domain/
 import { CURATED_SKILLS, CURATED_TEMPLATES, STARTER_SKILLS, curatedFor } from './catalog-seed.js';
 import { connectedProviders } from './connections.js';
 import { Conflict, audit } from './context.js';
+import { segmentCapabilities } from './installations.js';
 
 import type { Provider } from './connections.js';
 import type { Deps, Member, Tx } from './context.js';
@@ -232,10 +233,13 @@ export async function teammateSkills(
   return out;
 }
 
-export function memberCapabilities(deps: Deps, member: Member): ReadonlySet<Capability> {
+export async function memberCapabilities(
+  deps: Deps,
+  member: Member,
+): Promise<ReadonlySet<Capability>> {
   const readOnly = deps.config.readOnlyMembers.has(member.email);
   return new Set(
-    [...deps.config.capabilities].filter(
+    [...(await segmentCapabilities(deps))].filter(
       (capability) => !(readOnly && capability === 'docs.publish'),
     ),
   );
@@ -250,8 +254,8 @@ export async function capabilitiesFor(
   connected?: ReadonlySet<Provider>,
 ): Promise<readonly CapabilityState[]> {
   return capabilityStates({
-    segment: deps.config.capabilities,
-    member: memberCapabilities(deps, member),
+    segment: await segmentCapabilities(deps),
+    member: await memberCapabilities(deps, member),
     teammate: new Set(requests),
     connected: connected ?? (await connectedProviders(deps, member.sub)),
     task,
@@ -278,7 +282,8 @@ async function views(
     rows.map((row) => row.id),
   );
   const connected = await connectedProviders(deps, member.sub);
-  const entitled = memberCapabilities(deps, member);
+  const segment = await segmentCapabilities(deps);
+  const entitled = await memberCapabilities(deps, member);
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -288,7 +293,7 @@ async function views(
     skills: (skills.get(row.id) ?? []).map(({ id, version, name }) => ({ id, version, name })),
     capabilities: [
       ...capabilityStates({
-        segment: deps.config.capabilities,
+        segment,
         member: entitled,
         teammate: new Set(row.capability_requests),
         connected,
