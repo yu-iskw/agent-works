@@ -12,7 +12,7 @@ import { CAPABILITY_PROVIDER } from './teamwork.js';
 
 import type { ConnectorManifest } from './connector-cdk.js';
 
-const byKey = (a: readonly string[], b: readonly string[]) =>
+const byKey = (a: readonly (string | null)[], b: readonly (string | null)[]) =>
   (a[0] ?? '').localeCompare(b[0] ?? '');
 const byName = (a: string, b: string) => a.localeCompare(b);
 const listCapabilities = (manifest: ConnectorManifest) =>
