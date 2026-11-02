@@ -60,6 +60,10 @@ model calls, so run it only when someone has authorized it.
   unavailable. `holdout.jsonl` requires `--include-holdout`, or the command exits 2.
 - Exit codes: 0 means success or a passed gate. 1 means the gate failed, which only
   `eval run` can return. 2 means bad usage, a configuration error or a harness error.
+  `agent run` also exits 2 when the observation has `status: "error"` (for example
+  the model call failed). The observation is still printed, and the reason goes to stderr.
+- With `--json`, stdout carries only the JSON document. ADK and `@google/genai` log
+  lines go to stderr.
 
 **Safety boundary.**
 
