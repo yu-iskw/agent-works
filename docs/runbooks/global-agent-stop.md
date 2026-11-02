@@ -1,11 +1,24 @@
-# Record an unmet global agent stop
+# Stop agent work, then record what the stop did not do
 
-No command in this repo carries out the global agent stop in [RFC-001: Internal Enterprise Agent Platform][rfc-001] section 19.1. Stop searching the repo for a combined switch. Write the incident note in a record other than `docs/runbooks/global-agent-stop.md`. Fill that note from the first section through the last. Skip a section only when that section says to skip it.
+The durable suspension ledger (`apps/api/src/suspension/`, migration `0010_suspensions.sql`) stops model, tool and admission checks for a global, team, user (member), agent (bot), skill, model or tool target. It does not carry out the whole global agent stop in [RFC-001: Internal Enterprise Agent Platform][rfc-001] section 19.1. Ingress, new workflows and audit export are still open. Write the incident note in a record other than `docs/runbooks/global-agent-stop.md`. Fill that note from the first section through the last. Skip a section only when that section says to skip it.
+
+## Suspend and resume with the admin API
+
+Only a caller whose directory role is `Admin` may change state. A client role header grants nothing. Use the verified IAP assertion.
+
+- Read state with `GET /v1/admin/suspensions` and the audit trail with `GET /v1/admin/history`.
+- Stop with `POST /v1/admin/suspensions` and a JSON body `{ commandId, action: "suspend", target: { scope, id, version }, reason, expiresAt, expectedRevision }`. `scope` is one of `global` (id `*`), `team`, `user`, `agent`, `skill`, `model`, `tool`. Use a new UUID for `commandId`. Retry a timed-out call with the same `commandId`.
+- Resume with the same route, `action: "resume"` and the current `expectedRevision`. A stale revision returns 409 and changes nothing. Resume is a new revision. Nothing is deleted.
+- A stop denies the next model call, tool call or admission after the change commits. A call already past its check finishes. The store being unreachable also denies.
+- A stop cannot undo a committed external write. Completed tasks stay `COMPLETED` with their receipt. Do not mark them undone.
+- A non-admin attempt returns 403 and leaves the stop in force. Where `auditAdminDenials` is wired, the attempt is recorded as an `invocation.denied` event with the actor and reason `ADMIN_ROLE_REQUIRED`. As of this change that wrapper and `listOutstandingOperations` exist but are not wired in `server.ts`. Until they are, a 403 is the only record of the attempt. Record that in the note.
+- `listOutstandingOperations` (`suspension/outstanding.ts`) lists non-terminal tasks as `outstanding`, `RUNNING` tasks as `uncertain`, and completed tasks with their receipt. Until it is exposed over HTTP, an operator with database access can read the `tasks`, `task_deliveries` and `task_transition_receipts` tables. Treat every `uncertain` task as possibly having written. Do not replay it blindly.
+- Revoking a grant or credential is a separate, irreversible step. Pausing does not revoke anything.
 
 These rules cover the whole note.
 
 - Leave `caller` as `[global-stop caller: unnamed]` until a command carries out the four intents. Do not write the production service owner, Yu, Alice, Bob, or the reviewer group in that field. [3. Pilot decisions][adr-0003] records that Yu owns the pilot through C-05, that named owners are required before C-06, and that no human user is bound in infrastructure until those owners exist. Alice, Bob, and the reviewer group are tenant data. RFC-001 section 5.5 is illustrative.
-- Mark all four intents unmet. The audit section may add one sentence on the fourth line. That sentence does not mark the line done.
+- Mark an intent met only when a command above did it and you have its response. Ingress and new-workflow intents stay unmet. The audit section may add one sentence on the fourth line. That sentence does not mark the line done.
 - Leave D-11 and D-12 open. Do not decide them on this page.
 - The operational incidents row in RFC-001 section 19.2 does not grant this stop. The handoff names the accountable role and the responsible roles. Those names do not fill `caller`.
 - The only call on this page is owner cancel of one task. There is no operator role on that route.
@@ -30,7 +43,7 @@ Write these four lines under `intents`:
 - Prevent new workflows.
 - Preserve audit records.
 
-Mark each line unmet. Do not mark a line done because a nearby command shares a verb with it.
+Mark the first line met only after a suspension response. Mark the rest unmet. Do not mark a line done because a nearby command shares a verb with it.
 
 ## Refuse lookalike controls
 
@@ -45,7 +58,7 @@ Write the name of any control you almost ran under `refused`. Write `none` when 
 - `runnerStop` and `POST /v1/ask` with `maxSteps` 4 bind one ask.
 - `google_billing_budget.spend` alerts at 0.5, 0.9, 1.0, and 1.5 of 100 USD. `infra/terraform/environments/dev/main.tf` sets those thresholds. `infra/terraform/modules/budget` turns that list into alert rules. The budget has no Pub/Sub topic and does not disable billing. [3. Pilot decisions][adr-0003] says a budget may alert. Do not disable billing. Do not set a hard stop. RFC-001 section 17.2 hard stops do not apply to the dev project.
 - `scripts/check-pending.mjs` checks owners in `docs/security/controls.yaml`. The script does not stop work.
-- RFC-001 section 15.3 requires a kill switch at global, team, user, agent, skill, model, and tool levels. That switch is not implemented. Do not pick a level and invent one.
+- RFC-001 section 15.3 requires a kill switch at global, team, user, agent, skill, model, and tool levels. The suspension ledger implements it. Use the admin API above. Do not invent another switch.
 - Do not run `terraform apply`, a rollback job, or a `gcloud` invocation to stop work. No rollback job exists in this repo; `.github/workflows/deploy-dev.yml` only deploys, and it is a manual operator action. RFC-001 section 14.4 names rollback as the last pipeline stage. Infra CI in `.github/workflows/infra.yml` runs fmt, `init -backend=false`, validate, tflint, checkov, `terraform test`, `node --test infra/terraform/evidence.test.mjs`, and `node infra/terraform/evidence.mjs`.
 
 If a gateway or policy decision fails, do not fall back to direct network access. S-05 in RFC-001 section 13.3 states that limit. Do not report that offboarding and revocation have blocked all new restricted operations. S-07 says those operations are blocked only eventually. The propagation service level objective is not set. Section 15.2 says to set that objective after the proof of concept.
