@@ -1,13 +1,13 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
-import { computePoolBudget } from './db-pool-budget.js';
+import {
+  clientDefaultPoolSize,
+  computePoolBudget,
+  readWorksheet,
+  withClientDefaults,
+} from './db-pool-budget.mjs';
 
-import type { PoolBudgetInput } from './db-pool-budget.js';
-
-const base: PoolBudgetInput = {
+const base = {
   maxConnections: 100,
   superuserReserved: 3,
   platformReserved: 5,
@@ -78,16 +78,17 @@ describe('db pool budget', () => {
     ).toThrow(/duplicate/);
   });
 
-  it('keeps the committed FND-03 worksheet within the Cloud SQL limit', () => {
-    const path = fileURLToPath(
-      new URL(
-        '../../../docs/plans/enterprise-production-v1/fnd-03/pool-budget.json',
-        import.meta.url,
-      ),
-    );
-    const worksheet = JSON.parse(readFileSync(path, 'utf8')) as PoolBudgetInput;
-    const result = computePoolBudget(worksheet);
-    expect(result.ok).toBe(true);
-    expect(result.perWorkload.get('api')).toBe(32);
+  it('keeps the committed FND-03 worksheet well formed', () => {
+    const worksheet = readWorksheet();
+    expect(worksheet.workloads.map((w) => w.name)).toEqual(['api', 'web-m1', 'worker-dispatcher']);
+  });
+
+  it('reports the committed worksheet at the real client default pool size', () => {
+    expect(clientDefaultPoolSize).toBe(10);
+    const result = computePoolBudget(withClientDefaults(readWorksheet()));
+    expect(result.applicationConnections).toBe((8 + 5 + 4) * 10);
+    expect(result.totalDemand).toBe(186);
+    expect(result.headroom).toBe(-86);
+    expect(result.ok).toBe(false);
   });
 });

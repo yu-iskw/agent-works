@@ -13,15 +13,33 @@ begin
     where schemaname = 'public' and tableowner in ('aw_app', 'aw_readonly');
   if bad is not null then raise exception 'application roles own tables: %', bad; end if;
 
-  -- 2. Every audit/history table is append-only for aw_app.
-  select string_agg(c.relname, ', ') into bad from pg_class c
+  -- 2. Every audit/history/immutable table is append-only for aw_app. Detection is by name
+  -- suffix, the explicit list, and any table carrying an *_immutable trigger, so a new table is
+  -- caught without editing this file.
+  select string_agg(distinct c.relname, ', ') into bad from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and (c.relname ~ '(_audit|_audits|_history)$' or c.relname in ('audit_events', 'budget_events', 'task_transition_receipts'))
+      and (c.relname ~ '(_audit|_audits|_history)$'
+        or c.relname in ('audit_events', 'budget_events', 'task_transition_receipts')
+        or exists (select 1 from pg_trigger t where t.tgrelid = c.oid and not t.tgisinternal
+                   and t.tgname ~ 'immutable'))
       and (has_table_privilege('aw_app', c.oid, 'UPDATE')
         or has_table_privilege('aw_app', c.oid, 'DELETE')
         or has_table_privilege('aw_app', c.oid, 'TRUNCATE'));
   if bad is not null then raise exception 'audit tables mutable by aw_app (add to grants.sql): %', bad; end if;
+
+  -- 2b. Event-like tables aw_app can still UPDATE or DELETE: reported for decision, not failed.
+  -- Each is either an explicit decision (README, "Mutable by design") or an open question.
+  select string_agg(c.relname || case when c.relname in ('outbox_events', 'tool_calls', 'approvals')
+      then ' (decided, see README)' else ' (UNDECIDED)' end, ', ' order by c.relname) into bad
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r'
+      and (c.relname ~ '(outbox|events|audit|history|ledger|receipts)'
+        or c.relname in ('tool_calls', 'approvals'))
+      and (has_table_privilege('aw_app', c.oid, 'UPDATE')
+        or has_table_privilege('aw_app', c.oid, 'DELETE'));
+  if bad is not null then raise notice 'mutable event-like tables for decision: %', bad; end if;
 
   -- 3. Positive control: app still reads and writes ordinary and audit tables.
   if not (has_table_privilege('aw_app', 'audit_events', 'INSERT')
