@@ -29,6 +29,12 @@ import type { Capability, TemplateView } from '@agent-works/domain/teamwork';
 
 type Installation = Awaited<ReturnType<typeof getInstallation>>;
 type Refuse = (reason: string, error: Conflict) => Promise<never>;
+type VersionMove = {
+  readonly row: NonNullable<Installation>;
+  readonly input: Extract<ConnectorAction, { action: 'upgrade' | 'rollback' }>;
+  readonly manifests: ManifestLookup;
+  readonly refuse: Refuse;
+};
 
 /** Segment-relative web path of the existing template flow; web prefixes the segment. */
 const TEMPLATE_FLOW_HREF = '/catalog';
@@ -232,6 +238,23 @@ export async function mutateConnector(
 }
 
 /**
+ * The version rules for a move: an upgrade must not go backwards, and the target must be a catalog
+ * version that still offers every enabled capability.
+ */
+async function resolveTarget(move: VersionMove, target: string): Promise<ConnectorManifest> {
+  const { row, input, manifests, refuse } = move;
+  if (input.action === 'upgrade' && compareSemver(target, row.version) < 0)
+    return refuse('not_an_upgrade', new Conflict('not_an_upgrade'));
+  const manifest = manifests(row.item_id, target);
+  if (manifest === undefined)
+    return refuse('unknown_version', new Conflict('unknown_version', 400));
+  const offered = new Set<Capability>(manifest.capabilities.map((capability) => capability.id));
+  if (row.capabilities.some((capability) => !offered.has(capability)))
+    return refuse('capability_not_in_version', new Conflict('capability_not_in_version'));
+  return manifest;
+}
+
+/**
  * Upgrade and rollback move `version` between catalog versions and leave the runtime to the
  * reconciler. `previous_version` always names the version a rollback returns to, so a failed
  * upgrade stays reversible, and repeating a move is harmless: a stale generation is a 409 and an
@@ -240,25 +263,15 @@ export async function mutateConnector(
 async function moveVersion(
   deps: Deps,
   member: Member,
-  move: {
-    readonly row: NonNullable<Installation>;
-    readonly input: Extract<ConnectorAction, { action: 'upgrade' | 'rollback' }>;
-    readonly manifests: ManifestLookup;
-    readonly refuse: Refuse;
-  },
+  move: VersionMove,
 ): Promise<InstallationView> {
   const { row, input, refuse } = move;
   const target = input.action === 'upgrade' ? input.version : row.previous_version;
-  if (target === null) return refuse('no_previous_version', new Conflict('no_previous_version'));
   if (input.action === 'upgrade' && target === row.version) return installationView(row);
-  if (input.action === 'upgrade' && compareSemver(target, row.version) < 0)
-    return refuse('not_an_upgrade', new Conflict('not_an_upgrade'));
-  const manifest = move.manifests(row.item_id, target);
-  if (manifest === undefined)
-    return refuse('unknown_version', new Conflict('unknown_version', 400));
-  const offered = new Set<Capability>(manifest.capabilities.map((capability) => capability.id));
-  if (row.capabilities.some((capability) => !offered.has(capability)))
-    return refuse('capability_not_in_version', new Conflict('capability_not_in_version'));
+  if (input.expectedGeneration !== row.generation)
+    return refuse('stale_generation', new Conflict('stale_generation'));
+  if (target === null) return refuse('no_previous_version', new Conflict('no_previous_version'));
+  const manifest = await resolveTarget(move, target);
 
   const next = await updateInstallation(deps, {
     id: row.item_id,
