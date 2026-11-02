@@ -58,6 +58,8 @@ const PROVIDER: Record<Capability, string> = {
   'bigquery.query': 'BigQuery',
   'github.read': 'GitHub',
   'files.read': 'file reading',
+  'notes.read': 'Team notes',
+  'notes.write': 'Team notes',
 };
 
 function unavailableReason(kind: SourceKind, me: Readiness): string | null {

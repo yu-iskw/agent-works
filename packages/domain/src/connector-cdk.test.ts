@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CONNECTOR_CATALOG } from './connector-catalog.js';
+import { CONNECTOR_CATALOG, findMcpServer } from './connector-catalog.js';
 import {
   compareSemver,
   connectorManifestSchema,
@@ -70,6 +70,37 @@ describe('connectorManifestSchema', () => {
 
   it('rejects a publisher other than agent-works', () => {
     expect(rejection({ ...clone(), publisher: 'someone-else' })).not.toBeNull();
+  });
+});
+
+describe('mcp transport', () => {
+  const notes = findMcpServer('notes');
+  const cloneNotes = (): ConnectorManifest => structuredClone(notes as ConnectorManifest);
+
+  it('accepts the notes manifest and rejects any other transport', () => {
+    expect(rejection(cloneNotes())).toBeNull();
+    expect(rejection({ ...cloneNotes(), transport: 'grpc' })).not.toBeNull();
+  });
+
+  it('requires an mcp:// executor naming the server and the tool', () => {
+    const manifest = cloneNotes();
+    manifest.capabilities[0].tools[0].spec.executor = 'connector://notes.search';
+    expect(rejection(manifest)).toContain('executor must be mcp://notes/notes.search');
+  });
+
+  it('keeps notes.write a write capability and notes.read a read one', () => {
+    const write = cloneNotes();
+    write.capabilities[1].tools[0].spec.sideEffect = 'READ';
+    expect(rejection(write)).toContain('read-only tool notes.append under write capability');
+    const read = cloneNotes();
+    read.capabilities[0].tools[0].spec.sideEffect = 'WRITE_LOW';
+    expect(rejection(read)).toContain('under read capability');
+  });
+
+  it('rejects the notes provider on a capability of another provider', () => {
+    const manifest = cloneNotes();
+    manifest.capabilities[0].id = 'drive.read';
+    expect(rejection(manifest)).toContain('does not belong to provider notes');
   });
 });
 

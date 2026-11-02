@@ -20,6 +20,8 @@ import { inspectPortable, parsePortable, toPortable } from './teamwork-portable.
 import {
   ASSIGNMENT_TRANSITIONS,
   CAPABILITIES,
+  CONNECTIONLESS_PROVIDERS,
+  DEFAULT_SEGMENT_CAPABILITIES,
   TEAMWORK_TRANSITIONS,
   canTeamworkTransition,
   decodeCursor,
@@ -124,6 +126,27 @@ describe('effective capabilities', () => {
         reason: 'Connect GitHub in this segment.',
       },
     ]);
+  });
+
+  it('treats the notes provider as connected without an OAuth connection', () => {
+    const states = capabilityStates({
+      segment: new Set(['notes.read', 'notes.write']),
+      member: new Set(['notes.read']),
+      teammate: new Set(['notes.read', 'notes.write']),
+      connected: new Set(),
+    });
+    const byCapability = Object.fromEntries(states.map((s) => [s.capability, s]));
+    expect(byCapability['notes.read']).toMatchObject({ connected: true, effective: true });
+    // Enabling read never grants write: the member entitlement still decides.
+    expect(byCapability['notes.write']).toMatchObject({ connected: true, effective: false });
+    expect(byCapability['drive.read']?.connected).toBe(false);
+  });
+
+  it('keeps MCP capabilities out of the default segment allowlist', () => {
+    expect(DEFAULT_SEGMENT_CAPABILITIES).toEqual(
+      CAPABILITIES.filter((capability) => !capability.startsWith('notes.')),
+    );
+    expect(CONNECTIONLESS_PROVIDERS.has('notes')).toBe(true);
   });
 
   it('matches repositories exactly against the allowlist', () => {

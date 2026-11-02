@@ -1,7 +1,7 @@
 import { csvList, readEnvFile } from '@agent-works/domain/env-file';
 import {
   ASSERTION_ISSUERS,
-  CAPABILITIES,
+  DEFAULT_SEGMENT_CAPABILITIES,
   capabilitySchema,
   segmentIdSchema,
 } from '@agent-works/domain/teamwork';
@@ -155,7 +155,7 @@ export function readSegmentConfig(env: Env): SegmentConfig {
   const github = pair('AW_M1_GITHUB_CLIENT_ID', 'AW_M1_GITHUB_CLIENT_SECRET');
   const sources = readSources(secret, upper, sourceMode);
   const capabilities = new Set(
-    csvList(env.AW_SEGMENT_CAPABILITIES ?? CAPABILITIES.join(',')).map((item) =>
+    csvList(env.AW_SEGMENT_CAPABILITIES ?? DEFAULT_SEGMENT_CAPABILITIES.join(',')).map((item) =>
       capabilitySchema.parse(item),
     ),
   );

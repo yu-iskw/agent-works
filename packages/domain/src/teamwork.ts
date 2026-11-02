@@ -42,10 +42,27 @@ export const CAPABILITY_PROVIDER = {
   'bigquery.query': 'google',
   'github.read': 'github',
   'files.read': null,
-} as const satisfies Record<string, 'google' | 'github' | null>;
+  'notes.read': 'notes',
+  'notes.write': 'notes',
+} as const satisfies Record<string, 'google' | 'github' | 'notes' | null>;
 export type Capability = keyof typeof CAPABILITY_PROVIDER;
 export const CAPABILITIES = Object.keys(CAPABILITY_PROVIDER) as readonly Capability[];
 export const capabilitySchema = z.enum(CAPABILITIES);
+
+/**
+ * Providers whose capabilities need no per-member OAuth connection: the first-party MCP server
+ * authenticates the platform, not the member, so such a provider counts as connected.
+ */
+export const CONNECTIONLESS_PROVIDERS: ReadonlySet<string> = new Set(['notes']);
+
+/**
+ * What a segment allows when `AW_SEGMENT_CAPABILITIES` is unset. MCP capabilities are opt-in, so
+ * a new connector never widens an existing segment.
+ */
+export const DEFAULT_SEGMENT_CAPABILITIES: readonly Capability[] = CAPABILITIES.filter(
+  // eslint-disable-next-line security/detect-object-injection
+  (capability) => CAPABILITY_PROVIDER[capability] !== 'notes',
+);
 
 export const WORKFLOWS = ['research_brief', 'metrics_explanation', 'engineering_proposal'] as const;
 export const workflowSchema = z.enum(WORKFLOWS);
