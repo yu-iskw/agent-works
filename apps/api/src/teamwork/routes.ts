@@ -1,5 +1,11 @@
 import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
 import {
+  MARKETPLACE_KINDS,
+  connectorActionSchema,
+  marketplaceKindSchema,
+  marketplaceListQuerySchema,
+} from '@agent-works/domain/marketplace';
+import {
   TEAMWORK_API_VERSION,
   UUID_PATTERN,
   actionDecisionSchema,
@@ -53,6 +59,12 @@ import {
 import { Conflict, audit } from './context.js';
 import { conversation, conversationPage, markRead, postToConversation } from './conversations.js';
 import { checkSources } from './diagnostics.js';
+import {
+  listConnectorInstallations,
+  listMarketplace,
+  marketplaceItem,
+  mutateConnector,
+} from './marketplace.js';
 import {
   cancelTask,
   createTask,
@@ -119,7 +131,7 @@ const provider = (value: string | undefined): 'google' | 'github' => {
 
 export type Readiness = (member: Member) => Promise<unknown>;
 
-/** Server-side admin check; the mutating routes that call it arrive with the marketplace API. */
+/** Server-side admin check; every marketplace mutation calls it before reading the body. */
 export function requireAdmin(member: Member): void {
   if (!member.admin) throw new Conflict('forbidden', 403);
 }
@@ -463,8 +475,45 @@ const workRoutes = (): readonly Entry[] => [
   },
 ];
 
+const itemId = '([a-z0-9][a-z0-9._-]{0,127})';
+
+const marketplaceRoutes = (): readonly Entry[] => [
+  {
+    method: 'GET',
+    path: p('/marketplace'),
+    handle: async ({ deps: d, member, request }) =>
+      reply(200, {
+        listings: await listMarketplace(d, member, query(marketplaceListQuerySchema, request).kind),
+      }),
+  },
+  {
+    method: 'GET',
+    path: p('/marketplace/installations'),
+    handle: async ({ deps: d }) =>
+      reply(200, { installations: await listConnectorInstallations(d) }),
+  },
+  {
+    method: 'GET',
+    path: p(`/marketplace/(${MARKETPLACE_KINDS.join('|')})/${itemId}`),
+    handle: async ({ deps: d, member }, [kind, id]) => {
+      const item = await marketplaceItem(d, member, marketplaceKindSchema.parse(kind), id);
+      return item === undefined ? notFound : reply(200, { item });
+    },
+  },
+  {
+    method: 'POST',
+    path: p(`/marketplace/connectors/${itemId}`),
+    handle: async ({ deps: d, member, request }, [id]) => {
+      requireAdmin(member);
+      return reply(200, {
+        installation: await mutateConnector(d, member, id, body(connectorActionSchema, request)),
+      });
+    },
+  },
+];
+
 export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Readiness) {
-  const table = [...catalogRoutes(readiness), ...workRoutes()];
+  const table = [...catalogRoutes(readiness), ...workRoutes(), ...marketplaceRoutes()];
 
   /**
    * Every request carries a short-lived member assertion minted by web for this segment's

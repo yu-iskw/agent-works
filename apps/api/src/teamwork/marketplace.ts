@@ -1,0 +1,224 @@
+import { CONNECTOR_CATALOG, findConnector } from '@agent-works/domain/connector-catalog';
+import { WRITE_CAPABILITIES } from '@agent-works/domain/connector-cdk';
+import {
+  installationViewSchema,
+  marketplaceDetailSchema,
+  marketplaceListingSchema,
+} from '@agent-works/domain/marketplace';
+
+import { listTemplates } from './catalog.js';
+import { Conflict, audit } from './context.js';
+import {
+  bootstrapInstallations,
+  getInstallation,
+  listInstallations,
+  updateInstallation,
+} from './installations.js';
+
+import type { Deps, Member } from './context.js';
+import type { ConnectorManifest } from '@agent-works/domain/connector-cdk';
+import type {
+  ConnectorAction,
+  InstallationView,
+  MarketplaceDetail,
+  MarketplaceKind,
+  MarketplaceListing,
+} from '@agent-works/domain/marketplace';
+import type { Capability, TemplateView } from '@agent-works/domain/teamwork';
+
+type Installation = Awaited<ReturnType<typeof getInstallation>>;
+
+/** Segment-relative web path of the existing template flow; web prefixes the segment. */
+const TEMPLATE_FLOW_HREF = '/catalog';
+
+const COMING_SOON = {
+  mcp_server: {
+    id: 'mcp-servers',
+    name: 'MCP servers',
+    summary: 'Connect Model Context Protocol servers. Not available yet; nothing can be enabled.',
+  },
+  a2a_agent: {
+    id: 'a2a-agents',
+    name: 'A2A agents',
+    summary: 'Delegate to agents over A2A. Not available yet; nothing can be enabled.',
+  },
+} as const;
+
+function installationView(row: NonNullable<Installation>): InstallationView {
+  return installationViewSchema.parse({
+    connector: row.item_id,
+    version: row.version,
+    previousVersion: row.previous_version,
+    capabilities: row.capabilities,
+    desiredState: row.desired_state,
+    observedState: row.observed_state,
+    observedDetail: row.observed_detail,
+    generation: row.generation,
+    updatedAt: row.updated_at.toISOString(),
+  });
+}
+
+function connectorListing(manifest: ConnectorManifest, row: Installation): MarketplaceListing {
+  return marketplaceListingSchema.parse({
+    kind: 'connector',
+    id: manifest.id,
+    version: manifest.version,
+    name: manifest.displayName,
+    summary: manifest.summary,
+    publisher: manifest.publisher,
+    status: row === undefined ? 'available' : row.desired_state,
+  });
+}
+
+/** Team bots are a projection: the template stays in the teamwork catalog and the listing links to it. */
+function teamBotListing(template: TemplateView): MarketplaceListing {
+  return marketplaceListingSchema.parse({
+    kind: 'team_bot',
+    id: template.id,
+    version: `${template.version}.0.0`,
+    name: template.definition.name,
+    summary: template.definition.role,
+    publisher: 'agent-works',
+    status: 'available',
+    href: TEMPLATE_FLOW_HREF,
+  });
+}
+
+function comingSoonListing(kind: keyof typeof COMING_SOON): MarketplaceListing {
+  // eslint-disable-next-line security/detect-object-injection
+  const entry = COMING_SOON[kind];
+  return marketplaceListingSchema.parse({
+    kind,
+    ...entry,
+    version: '0.0.0',
+    publisher: 'agent-works',
+    status: 'coming_soon',
+  });
+}
+
+export async function listMarketplace(
+  deps: Deps,
+  member: Member,
+  kind: MarketplaceKind | undefined,
+): Promise<readonly MarketplaceListing[]> {
+  const wants = (candidate: MarketplaceKind) => kind === undefined || kind === candidate;
+  const listings: MarketplaceListing[] = [];
+  if (wants('connector')) {
+    const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
+    listings.push(
+      ...CONNECTOR_CATALOG.map((manifest) => connectorListing(manifest, rows.get(manifest.id))),
+    );
+  }
+  if (wants('team_bot'))
+    listings.push(
+      ...(await listTemplates(deps, member)).map((template) => teamBotListing(template)),
+    );
+  if (wants('mcp_server')) listings.push(comingSoonListing('mcp_server'));
+  if (wants('a2a_agent')) listings.push(comingSoonListing('a2a_agent'));
+  return listings;
+}
+
+async function connectorDetail(deps: Deps, id: string): Promise<MarketplaceDetail | undefined> {
+  const manifest = findConnector(id);
+  if (manifest === undefined) return undefined;
+  const row = await getInstallation(deps, id);
+  const active = row?.desired_state === 'enabled';
+  return marketplaceDetailSchema.parse({
+    kind: 'connector',
+    listing: connectorListing(manifest, row),
+    capabilities: manifest.capabilities.map((capability) => ({
+      id: capability.id,
+      access: WRITE_CAPABILITIES.has(capability.id) ? 'write' : 'read',
+      tools: capability.tools.map((tool) => tool.metadata.name),
+      requiredScopes: capability.requiredScopes,
+      allowedByEnv: deps.config.capabilities.has(capability.id),
+      enabled: active && row.capabilities.includes(capability.id),
+    })),
+    installation: row === undefined ? null : installationView(row),
+  });
+}
+
+export async function marketplaceItem(
+  deps: Deps,
+  member: Member,
+  kind: MarketplaceKind,
+  id: string,
+): Promise<MarketplaceDetail | undefined> {
+  if (kind === 'connector') return connectorDetail(deps, id);
+  if (kind === 'team_bot') {
+    const template = (await listTemplates(deps, member)).find((candidate) => candidate.id === id);
+    if (template === undefined) return undefined;
+    return marketplaceDetailSchema.parse({
+      kind,
+      listing: teamBotListing(template),
+      role: template.definition.role,
+      capabilityRequests: template.definition.capabilityRequests,
+    });
+  }
+  // eslint-disable-next-line security/detect-object-injection
+  if (COMING_SOON[kind].id !== id) return undefined;
+  return marketplaceDetailSchema.parse({ kind, listing: comingSoonListing(kind) });
+}
+
+export async function listConnectorInstallations(deps: Deps): Promise<readonly InstallationView[]> {
+  return (await listInstallations(deps)).map((row) => installationView(row));
+}
+
+/**
+ * Admin mutation; the caller has already run `requireAdmin`. The enabled set must sit inside the
+ * manifest and the segment env allowlist, so enabling a read capability can never add a write one,
+ * and the write is a compare-and-swap on `generation`.
+ */
+export async function mutateConnector(
+  deps: Deps,
+  member: Member,
+  id: string,
+  input: ConnectorAction,
+): Promise<InstallationView> {
+  const manifest = findConnector(id);
+  if (manifest === undefined) throw new Conflict('not_found', 404);
+  const allowed = new Set<Capability>(
+    manifest.capabilities
+      .map((capability) => capability.id)
+      .filter((cap) => deps.config.capabilities.has(cap)),
+  );
+  const refuse = async (reason: string, error: Conflict): Promise<never> => {
+    await audit(deps, deps.sql, {
+      ownerSub: member.sub,
+      action: `installation.${input.action}`,
+      outcome: reason,
+      detail: { connector: id, actor: member.email },
+    });
+    throw error;
+  };
+  // A segment that never bootstrapped this connector gets its env-derived row first; it is idempotent.
+  let row = await getInstallation(deps, id);
+  if (row === undefined) {
+    await bootstrapInstallations(deps);
+    row = await getInstallation(deps, id);
+  }
+  if (row === undefined)
+    return refuse('not_available', new Conflict('connector_not_available', 409));
+
+  const requested = 'capabilities' in input ? input.capabilities : undefined;
+  const outside = requested?.filter((capability) => !allowed.has(capability)) ?? [];
+  if (outside.length > 0)
+    return refuse(
+      'capability_not_allowed',
+      new Conflict('capability_not_allowed', 400, outside.join(', ')),
+    );
+
+  const next = await updateInstallation(deps, {
+    id,
+    expectedGeneration: input.expectedGeneration,
+    actor: member.email,
+    action: `installation.${input.action}`,
+    change: {
+      ...(input.action === 'disable' ? { desiredState: 'disabled' as const } : {}),
+      ...(input.action === 'enable' ? { desiredState: 'enabled' as const } : {}),
+      ...(requested === undefined ? {} : { capabilities: requested }),
+    },
+  });
+  if (next === undefined) return refuse('stale_generation', new Conflict('stale_generation'));
+  return installationView(next);
+}
