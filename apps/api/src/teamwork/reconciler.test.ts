@@ -34,7 +34,6 @@ const advance = (ms: number) => {
 };
 
 const row = (patch: Partial<Installation> = {}): Installation => ({
-  item_kind: 'connector',
   item_id: 'google',
   version: '1.0.0',
   previous_version: null,

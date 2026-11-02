@@ -233,31 +233,35 @@ export async function teammateSkills(
   return out;
 }
 
-export async function memberCapabilities(
+/** The segment's capabilities as this member holds them: a read-only member loses `docs.publish`. */
+export function memberCapabilities(
   deps: Deps,
   member: Member,
-): Promise<ReadonlySet<Capability>> {
+  segment: ReadonlySet<Capability>,
+): ReadonlySet<Capability> {
   const readOnly = deps.config.readOnlyMembers.has(member.email);
-  return new Set(
-    [...(await segmentCapabilities(deps))].filter(
-      (capability) => !(readOnly && capability === 'docs.publish'),
-    ),
-  );
+  return new Set([...segment].filter((capability) => !(readOnly && capability === 'docs.publish')));
 }
 
-/** `connected` lets a caller that checks several teammates look the member's connections up once. */
+/** Reads a caller that checks several teammates looks up once and shares across the checks. */
+type SharedReads = {
+  readonly connected?: ReadonlySet<Provider>;
+  readonly segment?: ReadonlySet<Capability>;
+};
+
 export async function capabilitiesFor(
   deps: Deps,
   member: Member,
   requests: readonly Capability[],
   task?: ReadonlySet<Capability>,
-  connected?: ReadonlySet<Provider>,
+  shared: SharedReads = {},
 ): Promise<readonly CapabilityState[]> {
+  const active = shared.segment ?? (await segmentCapabilities(deps));
   return capabilityStates({
-    segment: await segmentCapabilities(deps),
-    member: await memberCapabilities(deps, member),
+    segment: active,
+    member: memberCapabilities(deps, member, active),
     teammate: new Set(requests),
-    connected: connected ?? (await connectedProviders(deps, member.sub)),
+    connected: shared.connected ?? (await connectedProviders(deps, member.sub)),
     task,
   });
 }
@@ -277,13 +281,15 @@ async function views(
   member: Member,
   rows: readonly TeammateRow[],
 ): Promise<TeammateView[]> {
-  const skills = await teammateSkills(
-    deps.sql,
-    rows.map((row) => row.id),
-  );
-  const connected = await connectedProviders(deps, member.sub);
-  const segment = await segmentCapabilities(deps);
-  const entitled = await memberCapabilities(deps, member);
+  const [skills, connected, segment] = await Promise.all([
+    teammateSkills(
+      deps.sql,
+      rows.map((row) => row.id),
+    ),
+    connectedProviders(deps, member.sub),
+    segmentCapabilities(deps),
+  ]);
+  const entitled = memberCapabilities(deps, member, segment);
   return rows.map((row) => ({
     id: row.id,
     name: row.name,

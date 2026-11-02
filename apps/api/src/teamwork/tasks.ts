@@ -20,6 +20,7 @@ import { resolveAttachments } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, connections } from './connections.js';
 import { Conflict, audit } from './context.js';
+import { segmentCapabilities } from './installations.js';
 import { WORKFLOW_SOURCES } from './prompts.js';
 import {
   appendEvent,
@@ -179,6 +180,7 @@ async function dispatch(
   );
   const skills = await teammateSkills(tx, [...teammates.keys()]);
   const connected = await connectedProviders(deps, member.sub);
+  const segment = await segmentCapabilities(deps);
   const at = deps.now();
   // Files the member attached are task inputs: every assignment reads them, whatever else it reads.
   const withFiles = (task.scope.attachmentIds ?? []).length > 0;
@@ -194,7 +196,7 @@ async function dispatch(
       member,
       teammate.capability_requests,
       capabilitiesForSources(sources),
-      connected,
+      { connected, segment },
     );
     const id = deps.newId();
     await tx`
@@ -261,16 +263,14 @@ async function checkSourcesUsable(
   owners: ReadonlyMap<string, TeammateLite>,
 ): Promise<void> {
   const connected = await connectedProviders(deps, member.sub);
+  const segment = await segmentCapabilities(deps);
   for (const assignment of input.assignments) {
     const teammate = owners.get(assignment.teammateId);
     if (teammate === undefined) throw new Conflict('teammate_not_found', 400);
-    const states = await capabilitiesFor(
-      deps,
-      member,
-      teammate.capability_requests,
-      undefined,
+    const states = await capabilitiesFor(deps, member, teammate.capability_requests, undefined, {
       connected,
-    );
+      segment,
+    });
     if (deniedSources(assignment.sources, states).length > 0)
       throw new Conflict('source_unavailable_for_teammate', 400);
   }
@@ -1220,7 +1220,7 @@ async function canPublish(
     member,
     owner?.capability_requests ?? [],
     new Set([DOCS_PUBLISH]),
-    connected,
+    { connected },
   );
   return effectiveSet(states).has(DOCS_PUBLISH);
 }
