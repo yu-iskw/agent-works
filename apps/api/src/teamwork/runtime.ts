@@ -9,6 +9,7 @@ import { createVertexModel, readVertexConfig } from '../workbench/vertex.js';
 
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
+import { bootstrapInstallations, segmentCapabilities } from './installations.js';
 import { createModelGate } from './model.js';
 import { createRoutes } from './routes.js';
 import { createScriptedModel } from './scripted-model.js';
@@ -162,6 +163,7 @@ export async function createTeamworkRuntime(input: {
     fetch: input.fetch ?? fetch,
   };
   await seedCatalog(deps);
+  await bootstrapInstallations(deps);
   const adc = credentialsState(env.GOOGLE_APPLICATION_CREDENTIALS);
 
   async function readiness(member: Member) {
@@ -189,7 +191,7 @@ export async function createTeamworkRuntime(input: {
         concurrency: config.concurrency,
       }),
       connections: connected,
-      capabilities: [...config.capabilities],
+      capabilities: [...(await segmentCapabilities(deps))],
       readOnly: config.readOnlyMembers.has(member.email),
       inbox: Object.fromEntries(open.map((row) => [row.kind, row.n])),
       sources: sourcesReadiness(config.sources),

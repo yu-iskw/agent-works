@@ -15,7 +15,7 @@ import type { SourceCheck, SourceKind } from '@agent-works/domain/teamwork';
  */
 export async function checkSources(deps: Deps, member: Member): Promise<readonly SourceCheck[]> {
   const token = oncePerProvider(tokenSource(deps, member.sub));
-  const allowed = memberCapabilities(deps, member);
+  const allowed = await memberCapabilities(deps, member);
   // Member files are not a provider: there is nothing to reach before a member attaches one.
   const checks = await Promise.all(
     SOURCE_KINDS.filter((source) => source !== 'member_file').map((source) =>
