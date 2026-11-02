@@ -42,7 +42,7 @@ export type WorkspaceAdapters = {
     ): Promise<WorkspaceReceipt>;
   };
 };
-export type WorkspaceInvocation = {
+type WorkspaceInvocation = {
   readonly credential: CallerCredential;
   readonly payload: unknown;
   readonly idempotencyKey: string;

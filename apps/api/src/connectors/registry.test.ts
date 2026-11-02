@@ -37,7 +37,7 @@ it('denies the send tool through its handler', async () => {
   await expect(send?.handler.run(call)).rejects.toMatchObject({ code: 'POLICY_DENIED' });
 });
 
-it('adds a second google adapter with only a manifest and a handler entry', async () => {
+it('adds a second google adapter with only a manifest and a handler entry', () => {
   const base = createWorkspaceRegistry(adapters);
   const handlers = Object.fromEntries([...base].map(([name, entry]) => [name, entry.handler]));
   const extra: WorkspaceHandler = { kind: 'read', run: () => Promise.resolve([]) };
