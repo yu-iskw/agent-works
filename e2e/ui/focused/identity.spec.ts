@@ -210,7 +210,8 @@ test.describe('preferences and startup', () => {
     if (await add.isVisible()) await add.click();
     await page.goto('/s/alpha');
     await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
-    await expect(page.getByText('bob@local.test')).toBeVisible();
+    await expect(page.locator('.who-mail')).toHaveText('bob@local.test');
+    await expect(page.locator('.who-mail')).toBeVisible();
     await page.getByRole('tab', { name: 'Teammates' }).click();
     await expect(page.getByRole('list', { name: 'Teammates' })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Teammates' })).not.toContainText(alice.name);

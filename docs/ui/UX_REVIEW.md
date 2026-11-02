@@ -7,8 +7,8 @@ Status: **PENDING**. Yu recruits three reviewers who have not seen the implement
 The facilitator prepares the build once per review day.
 
 1. Start the stack: `pnpm ui:up`. It builds, migrates and starts both segments, then waits for health. Real Gemini answers every conversation and task, so check the remaining allowance first with `pnpm ui:doctor`.
-2. Seed the reviewer's workspace: `pnpm ui:seed-review -- --member=bob --with-approval`. It creates the starter teammates in both segments, then prepares what tasks 4 and 5 need with real Gemini: in alpha, a finished research task with an open publication approval; in beta, finished work on no-shows. A rerun reuses both and spends nothing; the approval stays open for 24 hours. It prints the calls it spent per segment (8 the first time, 4 per segment, measured 2026-11-02).
-3. Open `http://127.0.0.1:8281` in a fresh browser profile. Sign in as the reviewer account shown on the sign-in page (the identity is simulated; no real Google account is used).
+2. Seed the session's account. Each session gets its own clean mock account, never used by a test or another session: session 1 is `review1@local.test`, session 2 `review2@local.test`, session 3 `review3@local.test`. Run `pnpm ui:seed-review -- --member=review1 --with-approval` (or `review2`, `review3`) before that session. It creates the starter teammates in both segments, then prepares what tasks 4 and 5 need with real Gemini: in alpha, a finished research task with an open publication approval; in beta, finished work on no-shows. A rerun reuses both and spends nothing; the approval stays open for 24 hours, so seed on the day of the session. It prints the calls it spent per segment (8 the first time, 4 per segment, measured 2026-11-02).
+3. Open `http://127.0.0.1:8281` in a fresh browser profile. Sign in with **Continue as `review<n>@local.test`** for this session's account, and no other (the identity is simulated; no real Google account is used).
 4. Start a screen recording if the reviewer agrees. Keep recordings local under `artifacts/ui/usability/` (gitignored). Never upload them.
 
 Tell the reviewer, word for word:
@@ -43,6 +43,7 @@ Copy this block once per reviewer into the results section below.
 
 ```text
 Reviewer: R<n> (role, familiarity with AI tools; no names)
+Account: review<n>@local.test
 Date / build: <date> / <git sha>
 Theme and width used:
 

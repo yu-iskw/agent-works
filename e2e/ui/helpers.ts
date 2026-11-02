@@ -11,7 +11,13 @@ const SCREENSHOTS = `${ARTIFACTS}/screenshots`;
 const APPROVED = `${ARTIFACTS}/baselines/approved`;
 
 /** carol exists only for the visual baselines, so no other test changes what she sees. */
-export type Member = 'alice@local.test' | 'bob@local.test' | 'carol@local.test';
+export type Member =
+  | 'alice@local.test'
+  | 'bob@local.test'
+  | 'carol@local.test'
+  | 'review1@local.test'
+  | 'review2@local.test'
+  | 'review3@local.test';
 
 /** Mock identity sign-in; the stack labels it as simulated on the page. */
 export async function signInLocal(page: Page, email: Member = 'alice@local.test'): Promise<void> {

@@ -71,7 +71,8 @@ test.describe('member boundary on one browser', () => {
     await expect(message(page)).toHaveValue('');
     await expect(chips(page)).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
-    await expect(page.getByText('bob@local.test')).toBeVisible();
+    await expect(page.locator('.who-mail')).toHaveText('bob@local.test');
+    await expect(page.locator('.who-mail')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(secret);
     await expect(page.locator('body')).not.toContainText('alice-private-notes.txt');
     await page.getByRole('tab', { name: 'Teammates' }).click();

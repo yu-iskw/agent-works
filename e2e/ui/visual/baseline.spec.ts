@@ -232,6 +232,10 @@ async function show(page: Page, url: string, ready: () => Promise<void>): Promis
     join tw_teammates t on t.conversation_id = m.conversation_id
     where t.owner_sub = ${CAROL} and t.name = 'Coordinator' and not t.archived
     order by m.created_at desc, m.id desc limit 1`;
+  // The sidebar tab is remembered server-side (lastContext, saved 500 ms after a tab switch), so
+  // the tab clicks that end one test can land after the page closes and leave the next test
+  // opening on Work or Results. Dropping the row makes every capture open on Teammates.
+  await db('web')`delete from m1_preferences where sub = ${CAROL} and key = 'lastContext'`;
   await page.goto(url);
   await ready();
   // Contributions and cards render once every linked task's detail has loaded. A panel that takes
