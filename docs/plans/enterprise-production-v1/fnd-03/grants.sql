@@ -2,8 +2,9 @@
 -- cloudsqlsuperuser. Idempotent. Pairs with roles.sql.
 --
 -- Audit-history tables are append-only for the application: INSERT and SELECT only.
--- A table whose name ends in _audit, _audits or _history, or is listed here, must appear in this
--- list; verify-roles.sql fails the release if one is missing.
+-- A table whose name ends in _audit, _audits or _history, that carries an *_immutable trigger, or
+-- is listed here, must appear in this list; verify-roles.sql fails the release if one is missing.
+-- Other event-like tables (outbox, events, receipts, ledger) are reported for decision, not failed.
 
 do $$
 declare
@@ -12,7 +13,12 @@ declare
     'audit_events', 'governance_audit', 'schedule_audit', 'tw_audit',
     'user_memory_audit', 'analytics_query_audit', 'delegation_audits',
     'model_routing_audits', 'suspension_history', 'user_memory_history',
-    'budget_events', 'task_transition_receipts'
+    'budget_events', 'task_transition_receipts',
+    -- Tables protected by an immutability trigger (migrations 0010, 0012, 0015). The trigger rejects
+    -- the write; revoking the privilege is the second layer.
+    'governance_retention_policies', 'governance_legal_holds', 'governance_tombstones',
+    'governance_revoked_sources', 'suspension_states', 'capability_version_states',
+    'analytics_report_versions'
   ];
 begin
   -- Cover tables created before the default privileges existed (restores, first rollout).
