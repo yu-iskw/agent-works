@@ -23,11 +23,24 @@ resource "google_sql_database_instance" "postgres" {
   deletion_protection = true
   settings {
     tier              = var.tier
-    availability_type = "REGIONAL"
+    availability_type = var.availability_type
     disk_autoresize   = true
     backup_configuration {
       enabled                        = true
+      start_time                     = var.backup_start_time
       point_in_time_recovery_enabled = true
+      transaction_log_retention_days = var.transaction_log_retention_days
+      backup_retention_settings {
+        retained_backups = var.retained_backups
+        retention_unit   = "COUNT"
+      }
+    }
+    dynamic "database_flags" {
+      for_each = var.max_connections == null ? [] : [var.max_connections]
+      content {
+        name  = "max_connections"
+        value = tostring(database_flags.value)
+      }
     }
     database_flags {
       name  = "cloudsql.iam_authentication"
