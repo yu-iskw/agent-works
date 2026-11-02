@@ -4,6 +4,7 @@ import { expect, test, vi } from 'vitest';
 
 import { createMemoryApprovalStore } from '../broker/approvals.js';
 import { createBroker, TICKET_TOOL } from '../broker/broker.js';
+import { trustedTestResolver } from '../broker/test-authority.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
 
@@ -61,6 +62,7 @@ async function world() {
     postTicket,
     beforeToolCall,
     approverAuthorized: () => true,
+    authorize: trustedTestResolver(),
     now: () => testAt,
   });
   return { control, broker, postTicket, beforeToolCall, ledger };
@@ -121,6 +123,7 @@ test('new call is denied when store becomes unreachable after a prior completed 
     postTicket: app.postTicket,
     beforeToolCall: app.beforeToolCall,
     approverAuthorized: () => true,
+    authorize: trustedTestResolver(),
     now: () => testAt,
   });
   await expect(

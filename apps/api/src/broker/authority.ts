@@ -50,17 +50,22 @@ export type AuthorityVerdict =
 const denied = { ok: false, code: 'AUTHORITY_DENIED' } as const;
 const unavailable = { ok: false, code: 'AUTHORITY_UNAVAILABLE' } as const;
 
-const { workloadCapability, userAuthority } = ticketCreateManifest.spec.permissions;
-// eslint-disable-next-line security/detect-object-injection
-const requiredKind = {
-  delegated: 'userDelegated',
-  approvedService: 'approvedServiceWorkflow',
-}[userAuthority];
+export type ToolPermissions = {
+  readonly workloadCapability: string;
+  readonly userAuthority: 'delegated' | 'approvedService';
+};
+
+const ticketPermissions: ToolPermissions = ticketCreateManifest.spec.permissions;
+
+function requiredKind(userAuthority: ToolPermissions['userAuthority']): Authority['kind'] {
+  return userAuthority === 'delegated' ? 'userDelegated' : 'approvedServiceWorkflow';
+}
 
 export async function resolveAuthority(
   resolver: AuthorityResolver,
   request: AuthorityRequest,
   now: Date,
+  permissions: ToolPermissions = ticketPermissions,
 ): Promise<AuthorityVerdict> {
   let resolution: AuthorityResolution;
   try {
@@ -69,13 +74,14 @@ export async function resolveAuthority(
     request.signal?.throwIfAborted();
     return unavailable;
   }
-  return judgeAuthority(resolution, request, now);
+  return judgeAuthority(resolution, request, now, permissions);
 }
 
 function judgeAuthority(
   resolution: AuthorityResolution,
   request: AuthorityRequest,
   now: Date,
+  permissions: ToolPermissions,
 ): AuthorityVerdict {
   if (resolution.kind !== 'granted') return denied;
   const parsed = authoritySchema.safeParse(resolution.authority);
@@ -83,10 +89,10 @@ function judgeAuthority(
   const authority = parsed.data;
   if (resolution.subject.length === 0 || resolution.subject !== request.claimedActor) return denied;
   if (Date.parse(authority.expiresAt) <= now.getTime()) return denied;
-  if (authority.kind !== requiredKind) return denied;
-  if (!authority.scopes.includes(workloadCapability)) return denied;
+  if (authority.kind !== requiredKind(permissions.userAuthority)) return denied;
+  if (!authority.scopes.includes(permissions.workloadCapability)) return denied;
   if (authority.resourceConstraint !== request.targetResource) return denied;
-  if (!delegationHolds(resolution, request, now)) return denied;
+  if (!delegationHolds(resolution, request, now, permissions.workloadCapability)) return denied;
   return { ok: true, subject: resolution.subject, facts: resolution.facts };
 }
 
@@ -94,6 +100,7 @@ function delegationHolds(
   resolution: Extract<AuthorityResolution, { kind: 'granted' }>,
   request: AuthorityRequest,
   now: Date,
+  workloadCapability: string,
 ): boolean {
   if (resolution.delegation === undefined) return true;
   const child = delegationAuthoritySchema.safeParse(resolution.delegation.child);

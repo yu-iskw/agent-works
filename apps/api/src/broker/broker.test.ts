@@ -112,7 +112,7 @@ it('resumes an intended call after the ticket post fails', async () => {
     await harness.save(harness.row());
     harness.failNextPost();
     await expect(harness.execute()).rejects.toThrow('ticket transport');
-    const resumed = await harness.execute({ traceId: 'trace-2', actorSub: 'carol' });
+    const resumed = await harness.execute({ traceId: 'trace-2' });
     expect(resumed).toEqual({ ok: true, receipt: 'FAKE-1', replay: false });
     expect(harness.posts()).toBe(1);
     expect(await harness.tickets()).toBe(1);

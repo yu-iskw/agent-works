@@ -7,12 +7,13 @@ import {
 
 import { beforeToolCall } from '../suspension/runtime.js';
 
+import { approvalStanding } from './approvals.js';
 import { resolveAuthority } from './authority.js';
 
 import type { ApprovalStore, BindResult, ClaimOutcome, DecisionCommand } from './approvals.js';
 import type { AuthorityRequest, AuthorityResolver, AuthorityVerdict } from './authority.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
-import type { PolicyDecision } from '@agent-works/domain';
+import type { Approval, PolicyDecision } from '@agent-works/domain';
 import type { PolicyFacts } from '@agent-works/policy';
 
 export const TICKET_TOOL = `${ticketCreateManifest.metadata.name}@${ticketCreateManifest.metadata.version}`;
@@ -26,10 +27,10 @@ export type ExecuteInput = {
   readonly targetResource: string;
   readonly payload: unknown;
   readonly approvalId: string;
-  /** A claim. With `BrokerDeps.authorize` it must equal the server-resolved subject, else the call is denied. */
+  /** A claim. It must equal the server-resolved subject, else the call is denied. */
   readonly actorSub: string;
   readonly traceId: string;
-  /** A claim. With `BrokerDeps.authorize` the server-resolved facts replace it. */
+  /** A claim. The server-resolved facts replace it. */
   readonly facts: PolicyFacts;
   readonly signal?: AbortSignal;
 };
@@ -43,9 +44,10 @@ type BrokerCode =
   | 'DUPLICATE_CALL'
   | 'NON_CANONICAL_PAYLOAD';
 
+type DeniedResult = { readonly ok: false; readonly status: number; readonly code: BrokerCode };
+
 type BrokerResult =
-  | { readonly ok: true; readonly receipt: string; readonly replay: boolean }
-  | { readonly ok: false; readonly status: number; readonly code: BrokerCode };
+  { readonly ok: true; readonly receipt: string; readonly replay: boolean } | DeniedResult;
 
 type TicketBody = {
   readonly summary: string;
@@ -66,20 +68,24 @@ export type BrokerDeps = {
   readonly store: ApprovalStore;
   readonly decide: (input: { readonly facts: PolicyFacts }) => PolicyDecision;
   readonly ledger: LedgerPort;
-  readonly postTicket: (payload: TicketBody, idempotencyKey: string) => Promise<string>;
+  readonly postTicket: (
+    payload: TicketBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ) => Promise<string>;
   readonly approverAuthorized: (sub: string) => boolean;
   /**
-   * Server-side authority resolution. When set, actor and policy facts come from it, authority is
-   * checked before the claim and again right before the provider call, and any failure to resolve
-   * denies. Production wiring must set it; without it the caller's `actorSub` and `facts` are trusted.
+   * Server-side authority resolution. Actor and policy facts come from it, authority is checked
+   * before the claim and again right before the provider call, and any failure to resolve denies.
    */
-  readonly authorize?: AuthorityResolver;
+  readonly authorize: AuthorityResolver;
   readonly now: () => Date;
 };
 
 export function createBroker(deps: BrokerDeps): Broker {
   const activeCalls = new Set<string>();
   const activeKeys = new Set<string>();
+  const gate = createGate(deps.authorize);
   return {
     bindApproval(id, command) {
       if (!deps.approverAuthorized(command.actorSub)) {
@@ -94,7 +100,7 @@ export function createBroker(deps: BrokerDeps): Broker {
       activeCalls.add(input.id);
       activeKeys.add(input.idempotencyKey);
       try {
-        return await execute(deps, input);
+        return await execute(deps, gate, input);
       } finally {
         activeCalls.delete(input.id);
         activeKeys.delete(input.idempotencyKey);
@@ -103,19 +109,42 @@ export function createBroker(deps: BrokerDeps): Broker {
   };
 }
 
-async function execute(deps: BrokerDeps, input: ExecuteInput): Promise<BrokerResult> {
+type Granted = Extract<AuthorityVerdict, { ok: true }>;
+
+/** Authority resolution and the bindings it imposes on approvals and resumes, built once per broker. */
+type AuthorityGate = {
+  resolve(input: ExecuteInput, at: Date): Promise<AuthorityVerdict>;
+  requesterMatches(approval: Approval, subject: string): boolean;
+  resumerMatches(claim: ClaimOutcome, subject: string): boolean;
+};
+
+function createGate(authorize: AuthorityResolver): AuthorityGate {
+  return {
+    resolve: (input, at) => resolveAuthority(authorize, authorityRequest(input), at),
+    requesterMatches: (approval, subject) => approval.requestedBySub === subject,
+    resumerMatches: (claim, subject) => claim.kind !== 'resume' || claim.actorSub === subject,
+  };
+}
+
+async function execute(
+  deps: BrokerDeps,
+  gate: AuthorityGate,
+  input: ExecuteInput,
+): Promise<BrokerResult> {
   const hashed = hashPayload(input.payload);
   if (hashed.ok === false) return hashed;
   const body = acceptedTicket(input);
   if (body === undefined) return denial('APPROVAL_REQUIRED');
-  const gate = await authorityGate(deps, input, deps.now());
-  if (!gate.ok) return authorityDenial(gate.code);
-  const decision = deps.decide({ facts: gate.facts });
+  const granted = await gate.resolve(input, deps.now());
+  if (!granted.ok) return authorityDenial(granted.code);
+  const decision = deps.decide({ facts: granted.facts });
   if (decision.effect !== 'allow') return denial('POLICY_DENIED');
   input.signal?.throwIfAborted();
   const at = deps.now();
-  if (await requesterMismatch(deps, input, gate.subject))
+  const approval = await deps.store.read(input.approvalId);
+  if (approval !== undefined && !gate.requesterMatches(approval, granted.subject)) {
     return authorityDenial('AUTHORITY_DENIED');
+  }
   const claim = await deps.store.claim({
     approvalId: input.approvalId,
     callId: input.id,
@@ -128,31 +157,31 @@ async function execute(deps: BrokerDeps, input: ExecuteInput): Promise<BrokerRes
     policyDecisionId: decision.decisionId,
     intendedAt: at,
     traceId: input.traceId,
-    actorSub: gate.subject,
+    actorSub: granted.subject,
     approverAuthorized: deps.approverAuthorized,
     now: at,
   });
   const settled = settle(claim);
   if (settled !== undefined) return settled;
   input.signal?.throwIfAborted();
-  if (resumedByOther(deps, claim, gate.subject)) return authorityDenial('AUTHORITY_DENIED');
-  const recorded = recordedCall({ ...input, actorSub: gate.subject }, claim);
+  const recorded = recordedCall({ ...input, actorSub: granted.subject }, claim);
   const intent = intentStamp(claim, decision.decisionId, at);
+  const denyAfterClaim = (outcome: DeniedResult) =>
+    recordDenial(deps, { ...recorded, actorSub: granted.subject }, hashed.digest, intent, outcome);
+  if (!gate.resumerMatches(claim, granted.subject)) {
+    return denyAfterClaim(authorityDenial('AUTHORITY_DENIED'));
+  }
   await deps.ledger.append(intendedEvent(recorded, hashed.digest, intent.decisionId, intent.at));
   input.signal?.throwIfAborted();
   await (deps.beforeToolCall ?? beforeToolCall)(input);
-  const stale = await revalidate(deps, input, gate);
-  if (stale !== undefined) return stale;
-  const receipt = await deps.postTicket(body, input.idempotencyKey);
+  const stale = await revalidate(deps, gate, input, granted);
+  if (stale !== undefined) return denyAfterClaim(stale);
+  // Authority resolution above is the last await before the provider call. A revocation that lands
+  // after it cannot be retracted from a call already accepted by the provider; the spec accepts that
+  // race (specs/03-authority-security.md) and relies on reconciling completion rather than cancelling.
+  const receipt = await deps.postTicket(body, input.idempotencyKey, input.signal);
   await deps.store.complete(input.id, receipt);
   return { ok: true, receipt, replay: false };
-}
-
-function authorityGate(deps: BrokerDeps, input: ExecuteInput, at: Date): Promise<AuthorityVerdict> {
-  if (deps.authorize === undefined) {
-    return Promise.resolve({ ok: true, subject: input.actorSub, facts: input.facts });
-  }
-  return resolveAuthority(deps.authorize, authorityRequest(input), at);
 }
 
 function authorityRequest(input: ExecuteInput): AuthorityRequest {
@@ -167,44 +196,57 @@ function authorityRequest(input: ExecuteInput): AuthorityRequest {
   };
 }
 
-/** The last check before the provider call: authority, policy and approval as they are now. */
+/**
+ * The last check before the provider call: authority, policy and approval as they are now. The
+ * approval is read first so that authority resolution is the final await before the call.
+ */
 async function revalidate(
   deps: BrokerDeps,
+  gate: AuthorityGate,
   input: ExecuteInput,
-  gate: Extract<AuthorityVerdict, { ok: true }>,
-): Promise<BrokerResult | undefined> {
-  const at = deps.now();
-  const fresh = await authorityGate(deps, input, at);
-  if (!fresh.ok) return authorityDenial(fresh.code);
-  if (fresh.subject !== gate.subject) return authorityDenial('AUTHORITY_DENIED');
-  if (deps.decide({ facts: fresh.facts }).effect !== 'allow') return denial('POLICY_DENIED');
+  granted: Granted,
+): Promise<DeniedResult | undefined> {
   const approval = await deps.store.read(input.approvalId);
-  if (approval?.state !== 'approved') return denial('APPROVAL_REQUIRED');
-  if (Date.parse(approval.expiresAt) <= at.getTime()) return denial('APPROVAL_EXPIRED');
-  if (approval.approverSub === null || !deps.approverAuthorized(approval.approverSub)) {
-    return denial('APPROVAL_REQUIRED');
-  }
-  if (deps.authorize !== undefined && approval.requestedBySub !== gate.subject) {
-    return authorityDenial('AUTHORITY_DENIED');
-  }
+  const at = deps.now();
+  const fresh = await gate.resolve(input, at);
+  if (!fresh.ok) return authorityDenial(fresh.code);
+  if (fresh.subject !== granted.subject) return authorityDenial('AUTHORITY_DENIED');
+  if (deps.decide({ facts: fresh.facts }).effect !== 'allow') return denial('POLICY_DENIED');
+  if (approval === undefined) return denial('APPROVAL_REQUIRED');
+  const standing = approvalStanding(approval, at, deps.approverAuthorized);
+  if (standing !== 'valid') return denial(standing);
+  if (!gate.requesterMatches(approval, granted.subject)) return authorityDenial('AUTHORITY_DENIED');
   return undefined;
 }
 
-async function requesterMismatch(
+/**
+ * Terminal event for a call whose claim is already recorded as INTENDED. Pre-claim denials write
+ * nothing: no tool_calls row exists, and the broker has never logged them. The id carries the code
+ * and time so a retried denial adds its own row while an identical one is an idempotent replay.
+ */
+async function recordDenial(
   deps: BrokerDeps,
-  input: ExecuteInput,
-  subject: string,
-): Promise<boolean> {
-  if (deps.authorize === undefined) return false;
-  const requester = (await deps.store.read(input.approvalId))?.requestedBySub;
-  return requester !== undefined && requester !== subject;
+  call: ExecuteInput,
+  digest: string,
+  intent: { readonly decisionId: string },
+  outcome: DeniedResult,
+): Promise<DeniedResult> {
+  const at = deps.now();
+  await deps.ledger.append(
+    outboxEventSchema.parse({
+      destination: 'audit',
+      event: {
+        ...intendedEvent(call, digest, intent.decisionId, at).event,
+        eventId: `denied:${call.id}:${outcome.code}:${at.toISOString()}`,
+        eventType: 'tool.denied',
+        outcome: `DENIED:${outcome.code}`,
+      },
+    }),
+  );
+  return outcome;
 }
 
-function resumedByOther(deps: BrokerDeps, claim: ClaimOutcome, subject: string): boolean {
-  return deps.authorize !== undefined && claim.kind === 'resume' && claim.actorSub !== subject;
-}
-
-function authorityDenial(code: 'AUTHORITY_DENIED' | 'AUTHORITY_UNAVAILABLE'): BrokerResult {
+function authorityDenial(code: 'AUTHORITY_DENIED' | 'AUTHORITY_UNAVAILABLE'): DeniedResult {
   return denial(code, code === 'AUTHORITY_DENIED' ? 403 : 503);
 }
 
@@ -297,6 +339,6 @@ function intendedEvent(
   });
 }
 
-function denial(code: BrokerCode, status = 422): BrokerResult {
+function denial(code: BrokerCode, status = 422): DeniedResult {
   return { ok: false, status, code };
 }
