@@ -23,9 +23,9 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /** Capabilities that may change external state; every other capability is read-only. */
-export const WRITE_CAPABILITIES: ReadonlySet<Capability> = new Set(['docs.publish']);
+export const WRITE_CAPABILITIES: ReadonlySet<Capability> = new Set(['docs.publish', 'notes.write']);
 
-export const connectorProviderSchema = z.enum(['google', 'github']);
+export const connectorProviderSchema = z.enum(['google', 'github', 'notes']);
 
 export const connectorCapabilitySchema = z.strictObject({
   id: capabilitySchema,
@@ -47,6 +47,8 @@ export const connectorManifestSchema = z
     publisher: z.literal('agent-works'),
     capabilities: z.array(connectorCapabilitySchema).min(1),
     runtime: connectorRuntimeSchema.optional(),
+    /** Absent means a native connector; `mcp` marks a tool server reached over the Model Context Protocol. */
+    transport: z.literal('mcp').optional(),
   })
   .superRefine((manifest, ctx) => {
     const capabilityIds = new Set<string>();
@@ -62,6 +64,8 @@ export const connectorManifestSchema = z
       capability.tools.forEach((tool, toolIndex) => {
         const name = tool.metadata.name;
         const toolIssue = (message: string) => issue(message, ['tools', toolIndex]);
+        if (manifest.transport === 'mcp' && tool.spec.executor !== `mcp://${manifest.id}/${name}`)
+          toolIssue(`tool ${name} executor must be mcp://${manifest.id}/${name}`);
         if (toolNames.has(name)) toolIssue(`duplicate tool name ${name}`);
         toolNames.add(name);
         if (!write && tool.spec.sideEffect !== 'READ')
