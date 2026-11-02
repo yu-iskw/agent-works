@@ -35,9 +35,16 @@ Measured 2026-10-30 with `select mode, purpose, count(*) from wb_model_calls whe
 | `aw-m1-local` | beta    |                                          57 | 100 |
 | `aw-m1-ux`    | alpha   | 0 (103 scripted `stub` rows, never counted) | n/a |
 
-Total real calls before this milestone: 141. The UI allowance is counted separately by campaign (see `BASELINE.md`), 300 per segment, so 600 in total. UI milestone calls used so far: 0.
+Total real calls before this milestone: 141. The UI allowance is counted separately by campaign (see `BASELINE.md`), 300 per segment, so 600 in total. UI milestone calls used so far (2026-11-02, after the final journeys and the usability seed): alpha 237, beta 148, 385 of 600.
 
 ## Checkpoints
+
+### 2026-11-02 C8: final journeys, usability seed, docs
+
+- C4 committed as `3aea62b`; CI 18 of 19 green, the red one being SBOM (`minimatch`, expected until 2026-11-04).
+- U14: the first all-six run passed 5 and failed journey 2, which could not find "Business context researcher". The focused identity test renames alice's first teammate (that one) and never put it back. It now restores the template identity after each test. The rerun passed 6 of 6, retries 0, 28 calls.
+- U20 kit: `pnpm ui:seed-review --with-approval` exited "not implemented", yet task 4 depended on it, and task 5 asked for conversion-rate work that no fixture can produce. The flag now runs `e2e/ui/seed/` as the reviewer with real Gemini: a research task to a result with an open publication approval in alpha, and the no-show metrics work in beta. Task 5 now asks for the no-show work. It skips what exists, so a rerun spends 0; the first run spent 8 (4 per segment). It reuses the journey steps (`runToResult`, shared with `runJourney`). The starter seed also skipped any member who had any teammate, which left bob without a Coordinator; it now always posts the idempotent starter request (14 teammates before and after a rerun).
+- Open for Yu: bob is also a test account. His alpha workspace holds seven "Data analyst" teammates from M1 tests and seeded focused-test tasks, and three reviewers on one account would see each other's work. A dedicated mock member per session would fix both, but the sign-in page lists every mock member, so three approved sign-in captures would change.
 
 ### 2026-11-02 C7: simplify pass and the U18 comparison
 

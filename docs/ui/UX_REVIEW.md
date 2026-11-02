@@ -7,7 +7,7 @@ Status: **PENDING**. Yu recruits three reviewers who have not seen the implement
 The facilitator prepares the build once per review day.
 
 1. Start the stack: `pnpm ui:up`. It builds, migrates and starts both segments, then waits for health. Real Gemini answers every conversation and task, so check the remaining allowance first with `pnpm ui:doctor`.
-2. Seed the reviewer's workspace: `pnpm ui:seed-review -- --member=bob`. It creates the starter teammates and leaves the conversations empty. It spends no model calls.
+2. Seed the reviewer's workspace: `pnpm ui:seed-review -- --member=bob --with-approval`. It creates the starter teammates in both segments, then prepares what tasks 4 and 5 need with real Gemini: in alpha, a finished research task with an open publication approval; in beta, finished work on no-shows. A rerun reuses both and spends nothing; the approval stays open for 24 hours. It prints the calls it spent per segment (8 the first time, 4 per segment, measured 2026-11-02).
 3. Open `http://127.0.0.1:8281` in a fresh browser profile. Sign in as the reviewer account shown on the sign-in page (the identity is simulated; no real Google account is used).
 4. Start a screen recording if the reviewer agrees. Keep recordings local under `artifacts/ui/usability/` (gitignored). Never upload them.
 
@@ -25,9 +25,9 @@ Read each task aloud and hand the reviewer a card with the same text. Start the 
 | 2   | Ask your teammates to compare the three internal analytics tools in the demo sources and recommend one. Have at least two teammates work on it at the same time. Start the work from the conversation. | A task with two or more specialist assignments is running or finished, created from the conversation. |
 | 3   | When the result is ready, open one of the sources it cites. Then ask for a substantive change to the result and compare the new version with the old one.                                              | A second revision exists and the reviewer has opened the Changes view.                                |
 | 4   | Open your inbox. Deal with the item that needs you, and tell me in your own words what will happen when you confirm it.                                                                                | The item is resolved, and the stated outcome matches the real one (account, destination, revision).   |
-| 5   | Switch to the other segment. Find the work about conversion rates and tell me which segment you are in and how you know.                                                                               | The correct task is open in the other segment and the reviewer names the active segment.              |
+| 5   | Switch to the other segment. Find the work about no-shows and tell me which segment you are in and how you know.                                                                                       | The correct task is open in the other segment and the reviewer names the active segment.              |
 
-Task 4 uses a publication approval that the facilitator prepares before the session with `pnpm ui:seed-review -- --member=bob --with-approval`. That command spends real model calls, about 6, and prints how many.
+Tasks 4 and 5 rely on the work seeded in step 2. The reviewer's own work from tasks 2 and 3 adds to it.
 
 ## After the tasks
 

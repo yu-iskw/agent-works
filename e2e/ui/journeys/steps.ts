@@ -812,20 +812,17 @@ export function manualOverlapSoFar(own: boolean, upTo: number): boolean {
   return false;
 }
 
-export async function runJourney(page: Page, journey: Journey): Promise<JourneyRecord> {
+/**
+ * Signs in as the journey's member, starts the work from the conversation, approves the plan when
+ * coordinated, and waits for revision 1. The usability seed stops here; a journey goes on.
+ */
+export async function runToResult(page: Page, journey: Journey) {
   const used = await calls(journey.segment);
   if (used + RESERVE > BUDGET)
     throw new Error(
       `budget: ${journey.segment} has ${used} of ${BUDGET} calls used; a journey needs ${RESERVE}`,
     );
   const t0 = Date.now();
-  const durationsMs: Record<string, number> = {};
-  const mark = (name: string, since: number) => {
-    // Duration names are literals in this function.
-    // eslint-disable-next-line security/detect-object-injection
-    durationsMs[name] = Date.now() - since;
-  };
-
   await signInLocal(page, memberOf(journey));
   const teammate = await teammateId(journey);
   await page.goto(`/s/${journey.segment}/teammates/${teammate}`);
@@ -843,6 +840,17 @@ export async function runJourney(page: Page, journey: Journey): Promise<JourneyR
   const planDecidedAt =
     journey.mode === 'coordinated' ? await approvePlan(page, journey, task.id) : null;
   await waitForTask(page, journey.segment, task.id, ['ready', 'completed'], 1);
+  return { t0, created, teammate, task, planDecidedAt };
+}
+
+export async function runJourney(page: Page, journey: Journey): Promise<JourneyRecord> {
+  const durationsMs: Record<string, number> = {};
+  const mark = (name: string, since: number) => {
+    // Duration names are literals in this function.
+    // eslint-disable-next-line security/detect-object-injection
+    durationsMs[name] = Date.now() - since;
+  };
+  const { t0, created, teammate, task, planDecidedAt } = await runToResult(page, journey);
   mark('createToRevision1', created);
 
   const { assignments, revision } = await assertExecution(journey, task.id, planDecidedAt);

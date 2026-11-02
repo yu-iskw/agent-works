@@ -48,5 +48,7 @@ export default defineConfig({
     { name: 'visual', testMatch: /visual\/.*\.spec\.ts$/, timeout: 180_000 },
     { name: 'restart-before', testMatch: /restart\/before\.spec\.ts$/ },
     { name: 'restart-after', testMatch: /restart\/after\.spec\.ts$/, timeout: 360_000 },
+    // Usability seed (pnpm ui:seed-review --with-approval); never part of a test suite.
+    { name: 'seed', testMatch: /seed\/.*\.spec\.ts$/ },
   ],
 });

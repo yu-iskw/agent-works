@@ -52,18 +52,19 @@ if (session === '' || (signedIn.headers.get('location') ?? '').includes('error='
   throw new Error(`sign-in as ${email} was refused: ${signedIn.headers.get('location')}`);
 }
 
+// Posted even when the member already has other teammates (tests leave some): the segment keys each
+// starter teammate by a stable request id, so a teammate already there is not added twice.
 const outcome = {};
 for (const segment of segments) {
   const page = await fetch(`${base}/s/${segment}/teammates`, { headers: { cookie: session } });
-  const html = await page.text();
-  if (!html.includes('Add the starter team')) {
-    outcome[segment] = 'already present';
-    continue;
-  }
-  const created = await post(`/s/${segment}/teammates/starter`, { csrf: csrfFrom(html) }, session);
+  const created = await post(
+    `/s/${segment}/teammates/starter`,
+    { csrf: csrfFrom(await page.text()) },
+    session,
+  );
   if (created.status !== 303 && created.status !== 302) {
     throw new Error(`starter team for ${segment} returned ${created.status}`);
   }
-  outcome[segment] = 'created';
+  outcome[segment] = 'ensured';
 }
 process.stdout.write(`${JSON.stringify({ member: email, starterTeam: outcome, modelCalls: 0 })}\n`);

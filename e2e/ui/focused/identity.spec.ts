@@ -47,6 +47,16 @@ test.describe('identity editor', () => {
     await ensureStarterTeam(page);
   });
 
+  // The journeys pick alice's specialists by name, so her teammate gets its template identity back.
+  test.afterEach(async () => {
+    const { id } = await firstTeammate();
+    await db('alpha')`
+      update tw_teammates t set name = v.definition->>'name', role = v.definition->>'role',
+        avatar = null, accent = null
+      from tw_template_versions v
+      where t.id = ${id} and v.template_id = t.template_id and v.version = t.template_version`;
+  });
+
   test('saves avatar, name, role label and accent privately, without touching behaviour', async ({
     page,
   }) => {

@@ -765,7 +765,11 @@ function verify(args) {
   return failedMandatory.length === 0 && gates.U2_vertexSmoke !== 'FAIL' ? 0 : 1;
 }
 
-/** Creates a reviewer's starter teammates through the web app, as that member. No model calls. */
+/**
+ * Creates a reviewer's starter teammates through the web app, as that member, with no model calls.
+ * `--with-approval` then runs e2e/ui/seed/ with real Gemini for usability tasks 4 and 5 and prints
+ * the calls it spent per segment.
+ */
 function seedReview(args) {
   const member = args.find((arg) => arg.startsWith('--member='))?.slice('--member='.length);
   if (!['alice', 'bob'].includes(member ?? '')) {
@@ -776,13 +780,7 @@ function seedReview(args) {
     process.stderr.write('The stack is not running. Start it with pnpm ui:up.\n');
     return 1;
   }
-  if (args.includes('--with-approval')) {
-    process.stderr.write(
-      'TODO: --with-approval is not implemented yet. It will run a real-model task to a result and request a publication approval for it (about 6 calls). Seed the teammates without it for now.\n',
-    );
-    return 3;
-  }
-  return (
+  const seeded =
     docker([
       ...compose,
       'run',
@@ -793,8 +791,16 @@ function seedReview(args) {
       'node',
       'scripts/ui/seed-review.mjs',
       `--member=${member}`,
-    ]).status ?? 1
+    ]).status ?? 1;
+  if (seeded !== 0 || !args.includes('--with-approval')) return seeded;
+  if (!requireRealModel().ok) return 1;
+  const before = SEGMENTS.map((segment) => ledger(segment).used ?? 0);
+  const code = playwright('seed', { SEED_MEMBER: `${member}@local.test` });
+  const spent = SEGMENTS.map((segment, i) => (ledger(segment).used ?? 0) - before[i]);
+  process.stdout.write(
+    `${JSON.stringify({ member: `${member}@local.test`, modelCalls: Object.fromEntries(SEGMENTS.map((s, i) => [s, spent[i]])) })}\n`,
   );
+  return code;
 }
 
 const [command, ...args] = process.argv.slice(2);
