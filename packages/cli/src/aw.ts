@@ -45,5 +45,17 @@ async function main(): Promise<number> {
       process.stdout,
     );
   }
+  if (process.argv[2] === 'agent') {
+    return (await import('./agent.js')).runAgent(process.argv.slice(3), {
+      stdout: process.stdout,
+      stderr: process.stderr,
+    });
+  }
+  if (process.argv[2] === 'eval') {
+    return (await import('./agent.js')).runEvalCommand(process.argv.slice(3), {
+      stdout: process.stdout,
+      stderr: process.stderr,
+    });
+  }
   return run(process.argv, process.stdout);
 }
