@@ -1,17 +1,18 @@
 import { readFileSync } from 'node:fs';
 
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { sourceDataSchema } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
-import { createAdkRunner } from '../agent/adk-runner.js';
 import { createScriptedRunner } from '../agent/scripted-runner.js';
 import { boundTo, contextFor } from '../retrieval/search.js';
+import { beforeModelCall } from '../suspension/runtime.js';
 
 import { wrapSourceText } from './source-data.js';
 
-import type { AgentRunner } from '../agent/runner-port.js';
 import type { Caller } from '../auth/iap.js';
 import type { SearchHit } from '../ports/search-port.js';
+import type { AgentRunner } from '@agent-works/agent-runtime/port';
 
 // Exercise the #136 fixture at both model-facing runner boundaries.
 
@@ -56,8 +57,9 @@ const runners: { name: string; create: (load: typeof fetch) => AgentRunner }[] =
     name: 'ADK',
     create: (load) =>
       createAdkRunner({
-        baseUrl: 'http://llm.test',
-        fetch: load,
+        model: new FetchLlm({ baseUrl: 'http://llm.test', fetch: load }),
+        beforeModelCall,
+
         limits: {
           maxSteps: 4,
           maxToolCalls: 4,

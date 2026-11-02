@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema, skillManifestSchema } from '@agent-works/domain';
-import { createIncidents, createTicket, listen } from '@agent-works/fakes';
+import { createIncidents, createTicket, handlerFetch } from '@agent-works/fakes';
 
-import { createAdkRunner } from '../../../apps/api/src/agent/adk-runner.js';
+import { beforeModelCall } from '../../../apps/api/src/suspension/runtime.js';
 
 import { deliverIncident } from './deliver.js';
 import { createSkillLlm } from './skill-llm.js';
@@ -43,10 +44,12 @@ type Ticket = {
 type Stack = {
   readonly skill: SkillPackage;
   readonly model: IncidentModel;
-  readonly incidentsUrl: string;
-  readonly ticketsUrl: string;
-  readonly close: () => Promise<void>;
+  readonly fetch: typeof fetch;
 };
+
+const incidentsUrl = 'http://incidents.fake.test';
+const ticketsUrl = 'http://tickets.fake.test';
+const llmUrl = 'http://llm.fake.test';
 
 export async function duplicateDelivery(): Promise<{
   first: Delivery;
@@ -57,7 +60,7 @@ export async function duplicateDelivery(): Promise<{
     const ledger = new Map<string, string>();
     const first = await deliverIncident(inputFor(stack, ledger, 1000));
     const second = await deliverIncident(inputFor(stack, ledger, 1000));
-    return { first, second, tickets: await listTickets(stack.ticketsUrl) };
+    return { first, second, tickets: await listTickets(stack.fetch) };
   });
 }
 
@@ -70,7 +73,7 @@ export async function timeoutAfterWrite(): Promise<{
     const ledger = new Map<string, string>();
     const first = await deliverIncident(inputFor(stack, ledger, 40));
     const second = await deliverIncident(inputFor(stack, ledger, 1000));
-    return { first, second, tickets: await listTickets(stack.ticketsUrl) };
+    return { first, second, tickets: await listTickets(stack.fetch) };
   });
 }
 
@@ -84,7 +87,7 @@ export async function revokedSkill(): Promise<{
       ...inputFor(stack, new Map(), 1000),
       skill: skillWith('REVOKED'),
     });
-    const ticketsAfterRevoke = await listTickets(stack.ticketsUrl);
+    const ticketsAfterRevoke = await listTickets(stack.fetch);
     const published = await deliverIncident(inputFor(stack, new Map(), 1000));
     return { revoked, ticketsAfterRevoke, published };
   });
@@ -163,33 +166,38 @@ function inputFor(stack: Stack, ledger: Map<string, string>, timeoutMs: number) 
     skill: stack.skill,
     deliveryId,
     incidentId,
-    incidentsUrl: stack.incidentsUrl,
-    ticketsUrl: stack.ticketsUrl,
+    incidentsUrl,
+    ticketsUrl,
     model: stack.model,
     timeoutMs,
     ledger,
+    fetch: stack.fetch,
   };
 }
 
-async function withStack<T>(delayMs: number, run: (stack: Stack) => Promise<T>): Promise<T> {
-  const stack = await startStack(delayMs);
-  try {
-    return await run(stack);
-  } finally {
-    await stack.close();
-  }
+function withStack<T>(delayMs: number, run: (stack: Stack) => Promise<T>): Promise<T> {
+  return run(startStack(delayMs));
 }
 
-async function startStack(delayMs = 0): Promise<Stack> {
-  const tickets = createTicket();
-  const [incidents, ticketServer, llm] = await Promise.all([
-    listen(createIncidents(), 0),
-    listen(delayAfterWrite(tickets, delayMs), 0),
-    listen(skillLlm, 0),
+function startStack(delayMs = 0): Stack {
+  const incidents = handlerFetch(createIncidents());
+  const tickets = handlerFetch(delayAfterWrite(createTicket(), delayMs));
+  const llm = handlerFetch(skillLlm);
+  const routes = new Map<string, typeof fetch>([
+    [new URL(incidentsUrl).host, incidents],
+    [new URL(ticketsUrl).host, tickets],
+    [new URL(llmUrl).host, llm],
   ]);
+  const route: typeof fetch = (input, init) => {
+    const host = new URL(input instanceof Request ? input.url : input).host;
+    const target = routes.get(host);
+    if (target === undefined) return Promise.reject(new Error('unrouted'));
+    return target(input, init);
+  };
   const runner = createAdkRunner({
-    baseUrl: llm.url,
+    model: new FetchLlm({ baseUrl: llmUrl, fetch: route }),
     limits: runnerLimits,
+    beforeModelCall,
   });
   return {
     skill: publishedSkill,
@@ -199,11 +207,7 @@ async function startStack(delayMs = 0): Promise<Stack> {
         return output.answer;
       },
     },
-    incidentsUrl: incidents.url,
-    ticketsUrl: ticketServer.url,
-    close: async () => {
-      await Promise.all([incidents.close(), ticketServer.close(), llm.close()]);
-    },
+    fetch: route,
   };
 }
 
@@ -245,8 +249,8 @@ function loadCases(): readonly string[] {
   return names;
 }
 
-async function listTickets(url: string): Promise<readonly Ticket[]> {
-  const response = await fetch(new URL('/tickets', url));
+async function listTickets(load: typeof fetch): Promise<readonly Ticket[]> {
+  const response = await load(new URL('/tickets', ticketsUrl));
   const body: unknown = await response.json();
   if (!isRecord(body) || !Array.isArray(body.tickets)) throw new Error('tickets');
   return body.tickets.filter((item): item is Ticket => isTicket(item));

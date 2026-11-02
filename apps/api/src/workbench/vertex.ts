@@ -3,14 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { ModelError } from './model-port.js';
 
 import type { GenerateRequest, GenerateResult, ModelPort } from './model-port.js';
-
-export type VertexConfig = {
-  readonly project: string;
-  readonly location: string;
-  readonly modelId: string;
-  readonly timeoutMs: number;
-  readonly maxOutputTokens: number;
-};
+import type { VertexConfig } from '@agent-works/agent-runtime';
 
 type Headers = Readonly<Record<string, string>>;
 
@@ -19,32 +12,6 @@ export type VertexDeps = {
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
 };
-
-export function readVertexConfig(
-  env: Readonly<Record<string, string | undefined>>,
-): VertexConfig | { readonly missing: readonly string[] } {
-  const project = env.GOOGLE_CLOUD_PROJECT?.trim() ?? '';
-  const location = env.GOOGLE_CLOUD_LOCATION?.trim() ?? '';
-  const modelId = env.VERTEX_MODEL_ID?.trim() ?? '';
-  const missing = [
-    ...(project ? [] : ['GOOGLE_CLOUD_PROJECT']),
-    ...(location ? [] : ['GOOGLE_CLOUD_LOCATION']),
-    ...(modelId ? [] : ['VERTEX_MODEL_ID']),
-  ];
-  if (missing.length > 0) return { missing };
-  return {
-    project,
-    location,
-    modelId,
-    timeoutMs: positive(env.VERTEX_TIMEOUT_MS, 60_000),
-    maxOutputTokens: positive(env.VERTEX_MAX_OUTPUT_TOKENS, 4096),
-  };
-}
-
-function positive(value: string | undefined, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 export function vertexEndpoint(config: VertexConfig): string {
   const host =

@@ -3,23 +3,15 @@ import { createLlm, listen } from '@agent-works/fakes';
 import { describe, expect, it } from 'vitest';
 
 import { createAdkRunner } from './adk-runner.js';
+import { FetchLlm } from './fetch-llm.js';
 import { RunnerError } from './runner-port.js';
-import { createScriptedRunner } from './scripted-runner.js';
 
-import type { SourceDocument } from '../retrieval/drive-port.js';
+import type { SourceDocument } from './runner-port.js';
 import type { RunnerLimits } from '@agent-works/domain';
 
-const triageQuestion = 'What are the triage runbook steps?';
-const triageAnswer = 'Follow the triage steps in the Triage runbook.';
 const budgetExceeded = 'TASK_BUDGET_EXCEEDED';
 const hiddenTool = 'hidden tool';
-
-const triageSource: SourceDocument = {
-  id: 'alice-runbook',
-  title: 'Triage runbook',
-  text: 'Alice triage steps.',
-  uri: 'https://drive.fake.test/d/alice-runbook',
-};
+const noHook = (): Promise<void> => Promise.resolve();
 
 const hostileSource: SourceDocument = {
   id: 'hostile-note',
@@ -75,7 +67,11 @@ describe('createAdkRunner', () => {
   it('agent.step-limit', async () => {
     const llm = await startLlm();
     try {
-      const runner = createAdkRunner({ baseUrl: llm.url, limits: limits({ maxSteps: 2 }) });
+      const runner = createAdkRunner({
+        model: new FetchLlm({ baseUrl: llm.url }),
+        limits: limits({ maxSteps: 2 }),
+        beforeModelCall: noHook,
+      });
       await expect(runner.run({ question: 'continue', sources: [loopSource] })).rejects.toThrow(
         budgetExceeded,
       );
@@ -88,7 +84,11 @@ describe('createAdkRunner', () => {
   it('sec.prompt-injection-read hidden-write-tool', async () => {
     const llm = await startLlm();
     try {
-      const runner = createAdkRunner({ baseUrl: llm.url, limits: limits() });
+      const runner = createAdkRunner({
+        model: new FetchLlm({ baseUrl: llm.url }),
+        limits: limits(),
+        beforeModelCall: noHook,
+      });
       await expect(
         runner.run({ question: 'Summarize the vendor email.', sources: [hostileSource] }),
       ).rejects.toThrow(hiddenTool);
@@ -98,25 +98,14 @@ describe('createAdkRunner', () => {
     }
   });
 
-  it('agent.runner-parity', async () => {
-    const llm = await startLlm();
-    try {
-      const input = { question: triageQuestion, sources: [triageSource] };
-      const scripted = createScriptedRunner({ baseUrl: llm.url });
-      const adk = createAdkRunner({ baseUrl: llm.url, limits: limits() });
-      const [fromScript, fromAdk] = await Promise.all([scripted.run(input), adk.run(input)]);
-      expect(fromAdk.answer).toBe(triageAnswer);
-      expect(fromAdk.citedSourceIds).toEqual(['alice-runbook']);
-      expect(fromAdk).toEqual(fromScript);
-    } finally {
-      await llm.close();
-    }
-  });
-
   it('unscripted-request-fails', async () => {
     const llm = await startLlm();
     try {
-      const runner = createAdkRunner({ baseUrl: llm.url, limits: limits() });
+      const runner = createAdkRunner({
+        model: new FetchLlm({ baseUrl: llm.url }),
+        limits: limits(),
+        beforeModelCall: noHook,
+      });
       await expect(
         runner.run({ question: 'How many moons does Mars have?', sources: [plainSource] }),
       ).rejects.toThrow(new RunnerError('llm status'));
@@ -125,22 +114,29 @@ describe('createAdkRunner', () => {
     }
   });
 
-  it('keeps ADK LLM calls within 1.5 times the scripted runner', async () => {
-    const llm = await startLlm();
-    try {
-      const input = { question: triageQuestion, sources: [triageSource] };
-      const scripted = createScriptedRunner({ baseUrl: llm.url });
-      const adk = createAdkRunner({ baseUrl: llm.url, limits: limits() });
-      // Count model calls as deterministic work; few-ms wall-clock timings are CI noise.
-      await scripted.run(input);
-      const scriptedCalls = llm.posts();
-      await adk.run(input);
-      const adkCalls = llm.posts() - scriptedCalls;
-      expect(scriptedCalls).toBe(1);
-      expect(adkCalls).toBe(1);
-      expect(adkCalls).toBeLessThanOrEqual(scriptedCalls * 1.5);
-    } finally {
-      await llm.close();
-    }
+  it('native-orchestration: ADK loop feeds the search functionResponse back to the model', async () => {
+    const bodies: unknown[] = [];
+    const replies = [
+      { candidates: [{ content: { parts: [{ functionCall: { name: 'search', args: {} } }] } }] },
+      { candidates: [{ content: { parts: [{ text: 'Note [plain-note]' }] } }] },
+    ];
+    const load: typeof fetch = (_url, init) => {
+      bodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}'));
+      const reply = replies[bodies.length - 1];
+      return Promise.resolve(Response.json(reply));
+    };
+    const runner = createAdkRunner({
+      model: new FetchLlm({ baseUrl: 'https://llm.test', fetch: load }),
+      limits: limits(),
+      beforeModelCall: noHook,
+    });
+    const output = await runner.run({ question: 'read it', sources: [plainSource] });
+    expect(output.citedSourceIds).toEqual(['plain-note']);
+    expect(output.usage).toBeUndefined();
+    expect(bodies).toHaveLength(2);
+    const turns = JSON.stringify((bodies[1] as { contents: unknown }).contents);
+    expect(turns).toContain('"functionResponse"');
+    expect(turns).toContain('"name":"search"');
+    expect(JSON.stringify(bodies[0])).not.toContain('functionResponse');
   });
 });

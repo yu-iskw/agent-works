@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import { RunnerError } from '@agent-works/agent-runtime/port';
 import { createDirectory, createDrive, listen } from '@agent-works/fakes';
 import * as policy from '@agent-works/policy';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RunnerError } from '../agent/runner-port.js';
 import { createGroupResolver } from '../auth/directory.js';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createHttpDrive } from '../retrieval/http-drive.js';

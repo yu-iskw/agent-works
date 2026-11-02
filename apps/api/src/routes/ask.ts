@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
+import { RunnerError } from '@agent-works/agent-runtime/port';
 import {
   askRequestSchema,
   auditEventSchema,
@@ -9,8 +11,6 @@ import {
 } from '@agent-works/domain';
 import { decide as decidePolicy } from '@agent-works/policy';
 
-import { createAdkRunner } from '../agent/adk-runner.js';
-import { RunnerError } from '../agent/runner-port.js';
 import { AuditWriteError } from '../audit/write.js';
 import { rolesAt } from '../auth/directory.js';
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
@@ -19,8 +19,8 @@ import { headerValue } from '../http.js';
 import { LedgerConflict } from '../ports/ledger-port.js';
 import { RetrievalError } from '../retrieval/drive-port.js';
 import { ContextMismatch, askPolicy, contextFor } from '../retrieval/search.js';
+import { beforeModelCall } from '../suspension/runtime.js';
 
-import type { AgentRunner } from '../agent/runner-port.js';
 import type { AuditLog } from '../audit/write.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
 import type { ApiReply, Route } from '../http.js';
@@ -28,6 +28,7 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { SearchPort } from '../ports/search-port.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
 import type { GroupSnapshot } from '../retrieval/search.js';
+import type { AgentRunner } from '@agent-works/agent-runtime/port';
 import type {
   AuditEvent,
   AskRequest,
@@ -396,7 +397,11 @@ function resolveRunner(deps: AskDeps): {
   const baseUrl = process.env.LLM_URL;
   if (readRunnerKind(process.env) === 'adk' && baseUrl !== undefined && baseUrl.trim().length > 0) {
     return {
-      runner: createAdkRunner({ baseUrl, limits: askLimits }),
+      runner: createAdkRunner({
+        model: new FetchLlm({ baseUrl }),
+        limits: askLimits,
+        beforeModelCall,
+      }),
       agentPrincipal: 'agent:adk-runner',
     };
   }
