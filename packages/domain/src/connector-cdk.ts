@@ -8,9 +8,19 @@ import type { ToolManifest } from './broker.js';
 import type { Capability } from './teamwork.js';
 
 const label = z.string().trim().min(1).max(256);
+const ARTIFACT_DIGEST = /^sha256:[0-9a-f]{64}$/;
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export const semverSchema = z.string().regex(SEMVER);
+
+const semverParts = (version: string) => semverSchema.parse(version).split('.').map(Number);
+
+/** Negative, zero or positive like `Array.prototype.sort`; both arguments must be `x.y.z`. */
+export function compareSemver(a: string, b: string): number {
+  const [aMajor = 0, aMinor = 0, aPatch = 0] = semverParts(a);
+  const [bMajor = 0, bMinor = 0, bPatch = 0] = semverParts(b);
+  return aMajor - bMajor || aMinor - bMinor || aPatch - bPatch;
+}
 
 /** Capabilities that may change external state; every other capability is read-only. */
 export const WRITE_CAPABILITIES: ReadonlySet<Capability> = new Set(['docs.publish']);
@@ -23,6 +33,11 @@ export const connectorCapabilitySchema = z.strictObject({
   requiredScopes: z.array(label),
 });
 
+/** Present only for a connector that runs out of process, pinned to the digest the runtime may deploy. */
+const connectorRuntimeSchema = z.strictObject({
+  artifactDigest: z.string().regex(ARTIFACT_DIGEST),
+});
+
 export const connectorManifestSchema = z
   .strictObject({
     id: connectorProviderSchema,
@@ -31,6 +46,7 @@ export const connectorManifestSchema = z
     summary: label,
     publisher: z.literal('agent-works'),
     capabilities: z.array(connectorCapabilitySchema).min(1),
+    runtime: connectorRuntimeSchema.optional(),
   })
   .superRefine((manifest, ctx) => {
     const capabilityIds = new Set<string>();
