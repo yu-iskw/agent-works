@@ -65,13 +65,14 @@ const DOCS_PUBLISH = 'docs.publish';
 const GITHUB_READ = 'github.read';
 const NOTES_READ = 'notes.read';
 const NOTES_WRITE = 'notes.write';
+const PUBLISHER = 'agent-works';
 
 const google: ConnectorManifest = {
   id: 'google',
   version: '1.0.0',
   displayName: 'Google Workspace',
   summary: 'Read Drive files and run BigQuery queries; publish approved briefs as Google Docs.',
-  publisher: 'agent-works',
+  publisher: PUBLISHER,
   capabilities: [
     {
       id: DRIVE_READ,
@@ -98,7 +99,7 @@ const github: ConnectorManifest = {
   version: '1.0.0',
   displayName: 'GitHub',
   summary: 'Read repository content the member can access.',
-  publisher: 'agent-works',
+  publisher: PUBLISHER,
   capabilities: [
     {
       id: GITHUB_READ,
@@ -113,7 +114,7 @@ const notes: ConnectorManifest = {
   version: '1.0.0',
   displayName: 'Team notes (MCP)',
   summary: 'Search team notes and, with approval, append to them over MCP.',
-  publisher: 'agent-works',
+  publisher: PUBLISHER,
   transport: 'mcp',
   capabilities: [
     {

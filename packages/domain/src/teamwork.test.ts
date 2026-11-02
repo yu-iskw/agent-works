@@ -139,7 +139,7 @@ describe('effective capabilities', () => {
     expect(byCapability['notes.read']).toMatchObject({ connected: true, effective: true });
     // Enabling read never grants write: the member entitlement still decides.
     expect(byCapability['notes.write']).toMatchObject({ connected: true, effective: false });
-    expect(byCapability['drive.read']?.connected).toBe(false);
+    expect(byCapability['drive.read'].connected).toBe(false);
   });
 
   it('keeps MCP capabilities out of the default segment allowlist', () => {
