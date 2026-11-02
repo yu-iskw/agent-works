@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@agent-works/agent-runtime": "workspace:*",
     "@agent-works/policy": "workspace:*",
     "@agent-works/api-contract": "workspace:*"
   },

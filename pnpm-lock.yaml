@@ -201,6 +201,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@agent-works/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@agent-works/api-contract':
         specifier: workspace:*
         version: link:../api-contract
