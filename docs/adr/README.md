@@ -4,3 +4,4 @@
 - [2. Monorepo layout](0002-monorepo-layout.md)
 - [3. Pilot decisions](0003-pilot-decisions.md)
 - [4. Application core and adapter boundaries](0004-application-core-and-adapter-boundaries.md)
+- [6. Curated marketplace and connector gateway](0006-curated-marketplace-and-connector-gateway.md)
