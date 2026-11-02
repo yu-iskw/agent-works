@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { CONNECTOR_CATALOG } from './connector-catalog.js';
-import { connectorManifestSchema, defineConnector, defineRegistry } from './connector-cdk.js';
+import {
+  compareSemver,
+  connectorManifestSchema,
+  defineConnector,
+  defineRegistry,
+} from './connector-cdk.js';
 import { workspaceManifests } from './workspace-tools-manifest.js';
 
 import type { ConnectorManifest } from './connector-cdk.js';
@@ -65,6 +70,43 @@ describe('connectorManifestSchema', () => {
 
   it('rejects a publisher other than agent-works', () => {
     expect(rejection({ ...clone(), publisher: 'someone-else' })).not.toBeNull();
+  });
+});
+
+describe('connector runtime', () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+
+  it('accepts a pinned artifact digest and leaves in-process manifests without one', () => {
+    expect(rejection({ ...clone(), runtime: { artifactDigest: digest } })).toBeNull();
+    expect(google.runtime).toBeUndefined();
+  });
+
+  it.each([
+    'latest',
+    `sha256:${'a'.repeat(63)}`,
+    `sha256:${'A'.repeat(64)}`,
+    `md5:${'a'.repeat(32)}`,
+  ])('rejects artifact digest %j', (artifactDigest) =>
+    expect(rejection({ ...clone(), runtime: { artifactDigest } })).not.toBeNull(),
+  );
+
+  it('rejects unknown runtime keys', () => {
+    expect(
+      rejection({ ...clone(), runtime: { artifactDigest: digest, image: 'x' } }),
+    ).not.toBeNull();
+  });
+});
+
+describe('compareSemver', () => {
+  it('orders numerically, not lexically', () => {
+    expect(compareSemver('1.0.0', '1.0.0')).toBe(0);
+    expect(compareSemver('1.10.0', '1.2.0')).toBeGreaterThan(0);
+    expect(compareSemver('2.0.0', '10.0.0')).toBeLessThan(0);
+    expect(compareSemver('1.0.1', '1.0.0')).toBeGreaterThan(0);
+  });
+
+  it('rejects a malformed version', () => {
+    expect(() => compareSemver('1.0', '1.0.0')).toThrow();
   });
 });
 

@@ -1,5 +1,5 @@
 import { CONNECTOR_CATALOG, findConnector } from '@agent-works/domain/connector-catalog';
-import { WRITE_CAPABILITIES } from '@agent-works/domain/connector-cdk';
+import { WRITE_CAPABILITIES, compareSemver } from '@agent-works/domain/connector-cdk';
 import {
   installationViewSchema,
   marketplaceDetailSchema,
@@ -16,6 +16,7 @@ import {
 } from './installations.js';
 
 import type { Deps, Member } from './context.js';
+import type { ManifestLookup } from './runtime-manager.js';
 import type { ConnectorManifest } from '@agent-works/domain/connector-cdk';
 import type {
   ConnectorAction,
@@ -27,6 +28,7 @@ import type {
 import type { Capability, TemplateView } from '@agent-works/domain/teamwork';
 
 type Installation = Awaited<ReturnType<typeof getInstallation>>;
+type Refuse = (reason: string, error: Conflict) => Promise<never>;
 
 /** Segment-relative web path of the existing template flow; web prefixes the segment. */
 const TEMPLATE_FLOW_HREF = '/catalog';
@@ -164,6 +166,14 @@ export async function listConnectorInstallations(deps: Deps): Promise<readonly I
   return (await listInstallations(deps)).map((row) => installationView(row));
 }
 
+/** A segment that never bootstrapped this connector gets its env-derived row first; it is idempotent. */
+async function installedRow(deps: Deps, id: string): Promise<Installation> {
+  const row = await getInstallation(deps, id);
+  if (row !== undefined) return row;
+  await bootstrapInstallations(deps);
+  return getInstallation(deps, id);
+}
+
 /**
  * Admin mutation; the caller has already run `requireAdmin`. The enabled set must sit inside the
  * manifest and the segment env allowlist, so enabling a read capability can never add a write one,
@@ -174,15 +184,16 @@ export async function mutateConnector(
   member: Member,
   id: string,
   input: ConnectorAction,
+  manifests: ManifestLookup = findConnector,
 ): Promise<InstallationView> {
-  const manifest = findConnector(id);
+  const manifest = manifests(id);
   if (manifest === undefined) throw new Conflict('not_found', 404);
   const allowed = new Set<Capability>(
     manifest.capabilities
       .map((capability) => capability.id)
       .filter((cap) => deps.config.capabilities.has(cap)),
   );
-  const refuse = async (reason: string, error: Conflict): Promise<never> => {
+  const refuse: Refuse = async (reason, error) => {
     await audit(deps, deps.sql, {
       ownerSub: member.sub,
       action: `installation.${input.action}`,
@@ -191,14 +202,11 @@ export async function mutateConnector(
     });
     throw error;
   };
-  // A segment that never bootstrapped this connector gets its env-derived row first; it is idempotent.
-  let row = await getInstallation(deps, id);
-  if (row === undefined) {
-    await bootstrapInstallations(deps);
-    row = await getInstallation(deps, id);
-  }
+  const row = await installedRow(deps, id);
   if (row === undefined)
     return refuse('not_available', new Conflict('connector_not_available', 409));
+  if (input.action === 'upgrade' || input.action === 'rollback')
+    return moveVersion(deps, member, { row, input, manifests, refuse });
 
   const requested = 'capabilities' in input ? input.capabilities : undefined;
   const outside = requested?.filter((capability) => !allowed.has(capability)) ?? [];
@@ -217,6 +225,52 @@ export async function mutateConnector(
       ...(input.action === 'disable' ? { desiredState: 'disabled' as const } : {}),
       ...(input.action === 'enable' ? { desiredState: 'enabled' as const } : {}),
       ...(requested === undefined ? {} : { capabilities: requested }),
+    },
+  });
+  if (next === undefined) return refuse('stale_generation', new Conflict('stale_generation'));
+  return installationView(next);
+}
+
+/**
+ * Upgrade and rollback move `version` between catalog versions and leave the runtime to the
+ * reconciler. `previous_version` always names the version a rollback returns to, so a failed
+ * upgrade stays reversible, and repeating a move is harmless: a stale generation is a 409 and an
+ * upgrade to the installed version changes nothing.
+ */
+async function moveVersion(
+  deps: Deps,
+  member: Member,
+  move: {
+    readonly row: NonNullable<Installation>;
+    readonly input: Extract<ConnectorAction, { action: 'upgrade' | 'rollback' }>;
+    readonly manifests: ManifestLookup;
+    readonly refuse: Refuse;
+  },
+): Promise<InstallationView> {
+  const { row, input, refuse } = move;
+  const target = input.action === 'upgrade' ? input.version : row.previous_version;
+  if (target === null) return refuse('no_previous_version', new Conflict('no_previous_version'));
+  if (input.action === 'upgrade' && target === row.version) return installationView(row);
+  if (input.action === 'upgrade' && compareSemver(target, row.version) < 0)
+    return refuse('not_an_upgrade', new Conflict('not_an_upgrade'));
+  const manifest = move.manifests(row.item_id, target);
+  if (manifest === undefined)
+    return refuse('unknown_version', new Conflict('unknown_version', 400));
+  const offered = new Set<Capability>(manifest.capabilities.map((capability) => capability.id));
+  if (row.capabilities.some((capability) => !offered.has(capability)))
+    return refuse('capability_not_in_version', new Conflict('capability_not_in_version'));
+
+  const next = await updateInstallation(deps, {
+    id: row.item_id,
+    expectedGeneration: input.expectedGeneration,
+    actor: member.email,
+    action: `installation.${input.action}`,
+    change: {
+      version: target,
+      previousVersion: input.action === 'upgrade' ? row.version : null,
+      // An in-process connector has nothing to deploy; only a runtime-backed one waits for the reconciler.
+      observedState: manifest.runtime === undefined ? 'not_required' : 'pending',
+      observedDetail: null,
     },
   });
   if (next === undefined) return refuse('stale_generation', new Conflict('stale_generation'));

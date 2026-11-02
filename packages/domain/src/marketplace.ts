@@ -52,6 +52,13 @@ export const connectorActionSchema = z.discriminatedUnion('action', [
     capabilities: capabilitySetSchema,
     expectedGeneration: generationSchema,
   }),
+  z.strictObject({
+    action: z.literal('upgrade'),
+    version: semverSchema,
+    expectedGeneration: generationSchema,
+  }),
+  /** Returns to `previous_version`; the target is stored, never supplied by the caller. */
+  z.strictObject({ action: z.literal('rollback'), expectedGeneration: generationSchema }),
 ]);
 export type ConnectorAction = z.infer<typeof connectorActionSchema>;
 
