@@ -13,6 +13,8 @@ import { createStarterTeam, seedCatalog } from './catalog.js';
 import { readSegmentConfig } from './config.js';
 import { invoke, publishThroughGateway, readThroughGateway } from './gateway.js';
 import { bootstrapInstallations, updateInstallation } from './installations.js';
+import { createModelGate } from './model.js';
+import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
 import { createTask, publishDigest } from './tasks.js';
 
@@ -84,12 +86,20 @@ function segment(options: { readonly live?: boolean; readonly members?: string }
       capabilities: new Set(all),
       ...(options.live === true ? { sourceMode: 'live' as const } : {}),
     },
+    gate: createModelGate({
+      sql,
+      segment: 'alpha',
+      model: createScriptedModel(),
+      limit: 200,
+      now: () => new Date(),
+      sleep: () => Promise.resolve(),
+    }),
     sources: countingSources(),
     sealer,
     now: () => new Date(),
     newId: () => crypto.randomUUID(),
     fetch,
-  } as unknown as Deps;
+  };
 }
 
 beforeAll(async () => {
