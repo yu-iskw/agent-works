@@ -20,6 +20,9 @@ export default defineProject({
       '@agent-works/domain/teamwork-portable': fileURLToPath(
         new URL('../../packages/domain/src/teamwork-portable.ts', import.meta.url),
       ),
+      '@agent-works/domain/teamwork-timeline': fileURLToPath(
+        new URL('../../packages/domain/src/teamwork-timeline.ts', import.meta.url),
+      ),
       '@agent-works/domain/teamwork-inbox': fileURLToPath(
         new URL('../../packages/domain/src/teamwork-inbox.ts', import.meta.url),
       ),
@@ -52,6 +55,6 @@ export default defineProject({
   },
   test: {
     name: '@agent-works/web',
-    include: ['app/**/*.test.{ts,tsx}'],
+    include: ['app/**/*.test.{ts,tsx}', 'shared/**/*.test.ts', 'client/**/*.test.{ts,tsx}'],
   },
 });

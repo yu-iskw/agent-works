@@ -18,7 +18,13 @@ import type {
 
 export type ApiResult<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly status: number; readonly error: string };
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly error: string;
+      /** A member-facing explanation the segment gave with the refusal, when it gave one. */
+      readonly detail?: string;
+    };
 
 /** Create and every command answer with the task summary. */
 const taskReplySchema = z.object({ task: workbenchTaskSummarySchema });

@@ -22,8 +22,9 @@ function hasSpec(directory: string): boolean {
 const projects = readdirSync(root, { withFileTypes: true })
   .filter(
     (entry) =>
-      // p0 targets compose.p0.yaml through its own config (e2e/p0/playwright.config.ts).
-      !['adversarial', 'p0'].includes(entry.name) &&
+      // p0, m1 and ui target their own Compose stacks through their own configs
+      // (e2e/<name>/playwright.config.ts); a path filter here must never pick their specs up.
+      !['adversarial', 'p0', 'm1', 'ui'].includes(entry.name) &&
       entry.isDirectory() &&
       hasSpec(join(root, entry.name)),
   )

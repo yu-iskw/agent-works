@@ -6,6 +6,11 @@ export type GenerateRequest = {
   readonly jsonSchema?: unknown;
   /** Per-call output cap; the adapter's configured cap applies when unset. */
   readonly maxOutputTokens?: number;
+  /**
+   * Gemini 3 counts thinking against the output cap and the timeout. Writing a whole artifact
+   * needs little deliberation, so those calls ask for low thinking.
+   */
+  readonly thinking?: 'low' | 'high';
   /** The retrieved items the prompt describes; only the offline stub reads it. */
   readonly evidence?: readonly { readonly id: string; readonly title: string }[];
 };

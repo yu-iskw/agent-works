@@ -34,11 +34,16 @@ export type Request = {
 
 export type Reply = { readonly status: number; readonly body: unknown };
 
-/** A command refused by the current state; the code is stable and member-facing text lives in web. */
+/**
+ * A command refused by the current state; the code is stable and member-facing text lives in web.
+ * `detail` carries what only the server knows about this refusal (which row, which limit) and is
+ * safe to show as-is.
+ */
 export class Conflict extends Error {
   constructor(
     readonly code: string,
     readonly status = 409,
+    readonly detail?: string,
   ) {
     super(code);
     this.name = 'Conflict';

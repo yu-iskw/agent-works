@@ -1,6 +1,7 @@
 import { Fragment, h } from '../html.js';
 import { Icon } from '../workbench/icons.js';
 
+import { LOCAL_TEST_MEMBERS } from './config.js';
 import {
   CAPABILITY,
   INBOX,
@@ -1510,12 +1511,11 @@ export function SignInPage(props: {
                   evidence.
                 </p>
               </Alert>
-              <button class="btn provider-btn" type="submit" name="email" value="alice@local.test">
-                Continue as alice@local.test
-              </button>
-              <button class="btn provider-btn" type="submit" name="email" value="bob@local.test">
-                Continue as bob@local.test
-              </button>
+              {LOCAL_TEST_MEMBERS.map((email) => (
+                <button class="btn provider-btn" type="submit" name="email" value={email}>
+                  Continue as {email}
+                </button>
+              ))}
             </form>
           )}
           {props.identity === 'google' ? (

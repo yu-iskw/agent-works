@@ -1,5 +1,9 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-import { SOURCE_CAPABILITY, publishProposalSchema } from '@agent-works/domain/teamwork';
+import {
+  CAPABILITY_PROVIDER,
+  SOURCE_CAPABILITY,
+  publishProposalSchema,
+} from '@agent-works/domain/teamwork';
 import { diffRevisions, missingSections } from '@agent-works/domain/teamwork-evidence';
 import {
   effectiveSet,
@@ -10,16 +14,17 @@ import {
 import { createScheduleWorker } from '../scheduling/worker.js';
 import { ModelError, modelRemediation } from '../workbench/model-port.js';
 
+import { attachmentItems, attachmentsByIds } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import {
-  WORKFLOW_SOURCES,
   contributionRequest,
   parseArtifact,
   parseContribution,
   parsePlan,
   planRequest,
+  plannableSources,
   replyRequest,
   synthesisRequest,
 } from './prompts.js';
@@ -47,7 +52,7 @@ import type { TeammateSkill } from './catalog.js';
 import type { Deps, Member, Tx } from './context.js';
 import type { CallContext, GatedResult } from './model.js';
 import type { ContributionInput } from './prompts.js';
-import type { SourceItem, TokenSource } from './sources/port.js';
+import type { SourceItem, SourceResult, TokenSource } from './sources/port.js';
 import type { AssignmentRow, TaskRow } from './store.js';
 import type {
   ArtifactContent,
@@ -270,7 +275,8 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     teammates.map((t) => t.id),
   );
   const connected = await connectedProviders(deps, member.sub);
-  const allowed = new Set(WORKFLOW_SOURCES[task.workflow]);
+  const files = await attachmentsByIds(deps.sql, task.owner_sub, task.scope.attachmentIds ?? []);
+  const allowed = new Set(plannableSources(task.workflow, files.length > 0));
   const effectiveFor = new Map(
     await Promise.all(
       teammates.map(
@@ -307,6 +313,7 @@ async function plan(deps: Deps, job: Job): Promise<void> {
         coordinator,
         roster,
         feedback: task.revision_request,
+        files: files.map((file) => file.name),
       }),
     );
   } catch (error) {
@@ -572,6 +579,12 @@ type SourceOutcome =
     }
   | { readonly kind: SourceKind; readonly error: SourceError };
 
+/** The task's member files as passages; a task without any reads nothing, which is not a failure. */
+async function memberFiles(deps: Deps, task: TaskRow): Promise<SourceResult> {
+  const rows = await attachmentsByIds(deps.sql, task.owner_sub, task.scope.attachmentIds ?? []);
+  return { items: attachmentItems(rows), metrics: null, repositoryRevision: null };
+}
+
 async function readSource(
   deps: Deps,
   task: TaskRow,
@@ -581,18 +594,25 @@ async function readSource(
 ): Promise<SourceOutcome> {
   const startedAt = Date.now();
   try {
-    const result = await deps.sources.read({
-      kind,
-      token,
-      query: `${task.scope.question} ${assignment.brief}`,
-      metrics: task.scope.metrics,
-      repository: task.scope.repository,
-      issueNumber: task.scope.issueNumber,
-    });
+    const result =
+      kind === 'member_file'
+        ? await memberFiles(deps, task)
+        : await deps.sources.read({
+            kind,
+            token,
+            query: `${task.scope.question} ${assignment.brief}`,
+            metrics: task.scope.metrics,
+            repository: task.scope.repository,
+            issueNumber: task.scope.issueNumber,
+          });
     await appendEventTx(deps, task.id, {
       type: 'retrieval.completed',
       summary: `${assignment.teammate_snapshot.name} read ${result.items.length + (result.metrics === null ? 0 : 2)} item${result.items.length === 1 ? '' : 's'} from ${kind.replaceAll('_', ' ')}`,
-      detail: { assignmentId: assignment.id, source: kind, mode: deps.sources.mode },
+      detail: {
+        assignmentId: assignment.id,
+        source: kind,
+        mode: kind === 'member_file' ? 'upload' : deps.sources.mode,
+      },
       durationMs: Date.now() - startedAt,
     });
     const metrics =
@@ -973,7 +993,12 @@ async function storeRevision(
         role: 'system',
         body: `Revision ${revision} is ready: ${content.title}`,
         taskId: task.id,
-        card: { kind: 'result_ready', taskId: task.id, title: content.title },
+        card: {
+          kind: 'result_ready',
+          taskId: task.id,
+          title: content.title,
+          ref: `revision:${revision}`,
+        },
       });
   });
 }
@@ -1110,7 +1135,12 @@ async function publish(deps: Deps, job: Job): Promise<void> {
           role: 'system',
           body: `Published "${proposal.data.documentTitle}"`,
           taskId: task.id,
-          card: { kind: 'result_ready', taskId: task.id, title: proposal.data.documentTitle },
+          card: {
+            kind: 'result_ready',
+            taskId: task.id,
+            title: proposal.data.documentTitle,
+            ref: `revision:${proposal.data.revision}`,
+          },
         });
       await audit(deps, tx, {
         ownerSub: task.owner_sub,
@@ -1172,9 +1202,10 @@ async function reply(deps: Deps, job: Job): Promise<void> {
         owner_sub: string;
         task_id: string | null;
         reply_state: string | null;
+        attachment_ids: string[];
       }[]
     >`
-    select id, conversation_id, owner_sub, task_id, reply_state from tw_messages where id = ${job.ref}
+    select id, conversation_id, owner_sub, task_id, reply_state, attachment_ids from tw_messages where id = ${job.ref}
   `
   ).at(0);
   if (message?.reply_state !== 'pending') return;
@@ -1205,7 +1236,12 @@ async function reply(deps: Deps, job: Job): Promise<void> {
       >`select sources from tw_assignments where task_id = ${task.id}`
     ).flatMap((r) => r.sources);
     // A summary derived from sources is shared only while the member can still read those sources.
-    const needs = new Set(sources.map((s) => (s.startsWith('github') ? 'github' : 'google')));
+    const needs = new Set(
+      sources.flatMap((s) => {
+        const provider = CAPABILITY_PROVIDER[SOURCE_CAPABILITY[s as SourceKind]];
+        return provider === null ? [] : [provider];
+      }),
+    );
     const readable = [...needs].every((provider) => connected.has(provider));
     const latest =
       readable && task.latest_revision > 0
@@ -1218,6 +1254,7 @@ async function reply(deps: Deps, job: Job): Promise<void> {
     tasks.push({ title: task.title, status: task.status, summary: latest });
   }
   const skills = (await teammateSkills(deps.sql, [teammate.id])).get(teammate.id) ?? [];
+  const files = await attachmentsByIds(deps.sql, message.owner_sub, message.attachment_ids);
   try {
     const result = await deps.gate.generate(
       { taskId: message.task_id, assignmentId: null, purpose: 'reply' },
@@ -1226,6 +1263,7 @@ async function reply(deps: Deps, job: Job): Promise<void> {
         skills: skills.map((s) => s.name),
         history: history.map((h) => ({ role: h.role, text: h.body })),
         tasks,
+        files: files.map((file) => ({ name: file.name, text: file.text })),
       }),
     );
     await deps.sql.begin(async (tx) => {

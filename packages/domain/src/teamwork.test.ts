@@ -9,6 +9,7 @@ import {
 } from './teamwork-evidence.js';
 import { desiredInbox } from './teamwork-inbox.js';
 import {
+  capabilitiesForSources,
   capabilityStates,
   deniedSources,
   effectiveSet,
@@ -21,6 +22,8 @@ import {
   CAPABILITIES,
   TEAMWORK_TRANSITIONS,
   canTeamworkTransition,
+  decodeCursor,
+  encodeCursor,
   portableDefinitionSchema,
 } from './teamwork.js';
 
@@ -28,6 +31,27 @@ import type { InboxSnapshot } from './teamwork-inbox.js';
 import type { ArtifactContent, Calculation, SkillDefinition } from './teamwork.js';
 
 const all = new Set(CAPABILITIES);
+
+describe('list cursors', () => {
+  const at = '2026-10-30T09:00:00.000Z';
+  const id = '6e107c92-9915-497f-b26c-67c3530bbcc3';
+
+  it('round-trips the two shapes the API issues', () => {
+    expect(decodeCursor(encodeCursor({ at, id }))).toEqual({ at, id });
+    const result = { at, id: `${id}:2` };
+    expect(decodeCursor(encodeCursor(result), 'revision')).toEqual(result);
+  });
+
+  it.each([
+    ['a non-uuid id', encodeCursor({ at, id: 'abc' }), 'id'],
+    ['a results id without its revision', encodeCursor({ at, id }), 'revision'],
+    ['a revision where a row id belongs', encodeCursor({ at, id: `${id}:2` }), 'id'],
+    ['a bad timestamp', encodeCursor({ at: 'yesterday', id }), 'id'],
+    ['an injection attempt', encodeCursor({ at, id: `${id}' or 1=1 --` }), 'id'],
+  ] as const)('refuses %s', (_, raw, shape) => {
+    expect(decodeCursor(raw, shape)).toBeUndefined();
+  });
+});
 
 describe('teamwork lifecycle tables', () => {
   it('only lets a plan dispatch work through approval', () => {
@@ -105,6 +129,34 @@ describe('effective capabilities', () => {
   it('matches repositories exactly against the allowlist', () => {
     expect(repositoryAllowed('Yu-Iskw/Agent-Works', ['yu-iskw/agent-works'])).toBe(true);
     expect(repositoryAllowed('yu-iskw/agent-works-fork', ['yu-iskw/agent-works'])).toBe(false);
+  });
+
+  it('grants member files to every teammate the segment allows, with no request or connection', () => {
+    const unconnected = capabilityStates({
+      segment: all,
+      member: new Set(['drive.read', 'files.read']),
+      teammate: new Set(['drive.read']),
+      connected: new Set(),
+    });
+    expect([...effectiveSet(unconnected)]).toEqual(['files.read']);
+    expect(deniedSources(['member_file'], unconnected)).toEqual([]);
+    expect(deniedSources(['drive_research'], unconnected)).toHaveLength(1);
+    expect(capabilitiesForSources(['member_file', 'drive_context'])).toEqual(
+      new Set(['files.read', 'drive.read']),
+    );
+    const segmentDenied = capabilityStates({
+      segment: new Set(['drive.read']),
+      member: all,
+      teammate: all,
+      connected: new Set(['google']),
+    });
+    expect(deniedSources(['member_file'], segmentDenied)).toEqual([
+      {
+        source: 'member_file',
+        capability: 'files.read',
+        reason: 'This segment does not allow it.',
+      },
+    ]);
   });
 });
 
@@ -258,6 +310,22 @@ describe('revision diff', () => {
     ]);
     expect(diff.removed).toEqual([{ heading: 'Conclusion', text: 'Togglr SLA is 99.9%.' }]);
     expect(diff.sourcesAdded).toEqual(['Security review']);
+  });
+
+  it('reports a revision that only changes limitations or the title', () => {
+    const before = content('A', ['Choose Togglr.']);
+    const after = {
+      ...before,
+      title: 'Brief v2',
+      limitations: ['Policy and closure effects overlap in October.'],
+    };
+    const diff = diffRevisions({ content: before, sources: [] }, { content: after, sources: [] });
+    expect(diff.changedSections).toEqual(['Title', 'Limitations']);
+    expect(diff.added).toEqual([
+      { heading: 'Title', text: 'Brief v2' },
+      { heading: 'Limitations', text: 'Policy and closure effects overlap in October.' },
+    ]);
+    expect(diff.removed).toEqual([{ heading: 'Title', text: 'Brief' }]);
   });
 
   it('finds missing required sections', () => {

@@ -26,6 +26,8 @@ export type ModelGate = {
   readonly mode: 'vertex' | 'stub';
   readonly configured: boolean;
   readonly limit: number;
+  /** The allowance the limit applies to; null counts the calls made before campaigns existed. */
+  readonly campaign: string | null;
   generate(context: CallContext, request: GenerateRequest): Promise<GatedResult>;
   used(): Promise<number>;
 };
@@ -40,6 +42,7 @@ type ModelGateOptions = {
   readonly segment: string;
   readonly model: ModelPort | undefined;
   readonly limit: number;
+  readonly campaign?: string | null;
   readonly now: () => Date;
   readonly sleep?: (ms: number) => Promise<void>;
 };
@@ -51,11 +54,13 @@ type ModelGateOptions = {
  */
 export function createModelGate(options: ModelGateOptions): ModelGate {
   const { sql, segment, model, limit } = options;
+  const campaign = options.campaign ?? null;
   const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 
   async function used(): Promise<number> {
     const rows = await sql<{ n: number }[]>`
-      select count(*)::int as n from wb_model_calls where mode = 'vertex' and sent and segment = ${segment}
+      select count(*)::int as n from wb_model_calls
+      where mode = 'vertex' and sent and segment = ${segment} and campaign is not distinct from ${campaign}
     `;
     return rows.at(0)?.n ?? 0;
   }
@@ -64,13 +69,14 @@ export function createModelGate(options: ModelGateOptions): ModelGate {
     return sql.begin(async (tx) => {
       await tx`select pg_advisory_xact_lock(${LOCK})`;
       const rows = await tx<{ n: number }[]>`
-        select count(*)::int as n from wb_model_calls where mode = 'vertex' and sent and segment = ${segment}
+        select count(*)::int as n from wb_model_calls
+      where mode = 'vertex' and sent and segment = ${segment} and campaign is not distinct from ${campaign}
       `;
       if ((rows.at(0)?.n ?? 0) >= limit) throw new ModelError('budget_exhausted', false);
       const inserted = await tx<{ id: number }[]>`
-        insert into wb_model_calls (task_id, mode, model_id, outcome, sent, at, segment, assignment_id, purpose)
+        insert into wb_model_calls (task_id, mode, model_id, outcome, sent, at, segment, assignment_id, purpose, campaign)
         values (${context.taskId}, ${port.mode}, ${port.modelId}, 'pending', true, ${options.now()}, ${segment},
-          ${context.assignmentId}, ${context.purpose})
+          ${context.assignmentId}, ${context.purpose}, ${campaign})
         returning id
       `;
       return Number(inserted[0].id);
@@ -119,6 +125,7 @@ export function createModelGate(options: ModelGateOptions): ModelGate {
     mode: model?.mode ?? 'vertex',
     configured: model !== undefined,
     limit,
+    campaign,
     used,
     async generate(context, request) {
       if (model === undefined) throw new ModelError('not_configured', false);

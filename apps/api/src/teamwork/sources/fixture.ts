@@ -240,6 +240,10 @@ export function createFixtureSources(options: FixtureOptions): SourcePort {
         case 'github_issue':
         case 'github_code':
           return Promise.resolve(github(request));
+        case 'member_file':
+          return Promise.reject(
+            new SourceError('invalid_scope', 'member files are read from the task'),
+          );
       }
     },
     findPublished,

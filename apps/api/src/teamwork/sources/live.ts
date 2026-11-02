@@ -443,6 +443,8 @@ export function createLiveSources(sources: SegmentSources, load: typeof fetch = 
         case 'github_issue':
         case 'github_code':
           return github(live, request);
+        case 'member_file':
+          throw new SourceError('invalid_scope', 'member files are read from the task');
       }
     },
     findPublished: (token, idempotencyKey) => findPublished(live, token, idempotencyKey),
