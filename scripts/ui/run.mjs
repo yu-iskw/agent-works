@@ -13,7 +13,7 @@
 //   node scripts/ui/run.mjs visual                captures, compared against approved baselines only
 //   node scripts/ui/run.mjs evidence [--run]      evidence index; --run executes the journeys first
 //   node scripts/ui/run.mjs verify [--with-smoke] every machine gate plus the human gates' status
-//   node scripts/ui/run.mjs seed-review --member=<alice|bob> [--with-approval]
+//   node scripts/ui/run.mjs seed-review --member=<review1|review2|review3> [--with-approval]
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
@@ -772,8 +772,11 @@ function verify(args) {
  */
 function seedReview(args) {
   const member = args.find((arg) => arg.startsWith('--member='))?.slice('--member='.length);
-  if (!['alice', 'bob'].includes(member ?? '')) {
-    process.stderr.write('usage: seed-review --member=<alice|bob> [--with-approval]\n');
+  // Only the usability accounts: tests own alice, bob and carol, and their data would mislead a reviewer.
+  if (!/^review[1-3]$/.test(member ?? '')) {
+    process.stderr.write(
+      'usage: seed-review --member=<review1|review2|review3> [--with-approval]\n',
+    );
     return 2;
   }
   if (containerId('web') === undefined) {

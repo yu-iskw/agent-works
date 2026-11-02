@@ -10,7 +10,16 @@ import type { Member } from '../helpers.js';
 // real Gemini: an open publication approval in alpha, and finished no-show work in beta. Each part
 // is skipped when the reviewer already has it, so a rerun spends nothing.
 
-const member = process.env.SEED_MEMBER as Member;
+function isReviewAccount(value: string | undefined): value is Member {
+  return value !== undefined && /^review[1-3]@local\.test$/.test(value);
+}
+
+const member = process.env.SEED_MEMBER;
+if (!isReviewAccount(member)) {
+  throw new Error(
+    `SEED_MEMBER must be review1@local.test, review2@local.test or review3@local.test; got ${member ?? 'unset'}`,
+  );
+}
 const sub = `local-test:${member.split('@')[0]}`;
 
 async function openApproval(): Promise<string | undefined> {

@@ -4,8 +4,8 @@
 // a no-op. Spends no model calls.
 const base = process.env.M1_BASE_URL ?? 'http://web:8080';
 const member = process.argv.find((arg) => arg.startsWith('--member='))?.slice('--member='.length);
-if (!['alice', 'bob'].includes(member ?? '')) {
-  process.stderr.write('usage: seed-review.mjs --member=<alice|bob>\n');
+if (!/^review[1-3]$/.test(member ?? '')) {
+  process.stderr.write('usage: seed-review.mjs --member=<review1|review2|review3>\n');
   process.exit(2);
 }
 const email = `${member}@local.test`;

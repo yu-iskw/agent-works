@@ -4,14 +4,15 @@ Durable record for resuming after interruption or compaction. Newest checkpoint 
 
 ## Resume here
 
-- Branch `yu-iskw/ui-milestone`, base `7c51edf` (M1, PR #178). The operator makes every commit; the agent stages explicit paths and prints `READY_TO_COMMIT`.
+- Branch `yu-iskw/u20-review-accounts`, base main `5732102` (PR #181, merged 2026-11-02 15:06 JST, on top of PR #179 `5600e00`). The operator makes every commit; the agent stages explicit paths and prints `READY_TO_COMMIT`.
 - Reference images: `artifacts/ui/reference/` (gitignored). Local evidence: `artifacts/ui/` (gitignored).
 - Stack under test: Compose project `aw-m1-local` (mock identity, fixture sources, real Vertex), web on `http://127.0.0.1:8281`. Its Postgres volumes hold the persistent model ledger, so the UI milestone reuses the project and never resets them.
 
 ## Standing orders
 
-- (2026-11-02 10:12 JST, Yu) Keep working until every CI job on PR #179 is green. After each push, treat any red check as the next task: read the failure, fix it, stage it, print `READY_TO_COMMIT`, keep going. The only accepted exception is "Generate and scan SBOM" (`minimatch` GHSA-g3hv-75wg-m249), which waits for the 11.0.1 pin after 2026-11-04 07:26 JST with no quarantine exclusions.
+- (2026-11-02 10:12 JST, Yu) Keep working until every CI job on PR #179 is green. After each push, treat any red check as the next task: read the failure, fix it, stage it, print `READY_TO_COMMIT`, keep going. The only accepted exception is "Generate and scan SBOM" (`minimatch` GHSA-g3hv-75wg-m249), which waits for the 11.0.1 pin after 2026-11-04 07:26 JST with no quarantine exclusions. Fulfilled: PR #179 was squash-merged as `5600e00` at 13:50 JST on 2026-11-02.
 - (2026-11-02 10:13 JST, Yu) U18 baselines approved: `artifacts/ui/baselines/candidate-2026-10-31/` is the approved set, copied to `artifacts/ui/baselines/approved/` (47 files, sha256 in `manifest.json`). If a change alters rendering, re-capture, flag every diff against these baselines, and bring it to Yu.
+- (2026-11-02 13:40 JST, Yu) "I re-approve candidate-2026-11-02-u20 (the 3 sign-in screenshots)".
 
 ## Operator decisions (2026-10-30)
 
@@ -35,9 +36,28 @@ Measured 2026-10-30 with `select mode, purpose, count(*) from wb_model_calls whe
 | `aw-m1-local` | beta    |                                          57 | 100 |
 | `aw-m1-ux`    | alpha   | 0 (103 scripted `stub` rows, never counted) | n/a |
 
-Total real calls before this milestone: 141. The UI allowance is counted separately by campaign (see `BASELINE.md`), 300 per segment, so 600 in total. UI milestone calls used so far (2026-11-02, after the final journeys and the usability seed): alpha 237, beta 148, 385 of 600.
+Total real calls before this milestone: 141. The UI allowance is counted separately by campaign (see `BASELINE.md`), 300 per segment, so 600 in total. UI milestone calls used so far (measured 2026-11-02 14:05 JST): alpha 243, beta 151, 394 of 600.
 
 ## Checkpoints
+
+### 2026-11-02: U20 reviewer accounts on main
+
+- PR #179 was squash-merged as `5600e00` at 13:50 JST on 2026-11-02. The pre-merge commits cited in older checkpoints (`e4e9290`, `3aea62b`, `147775b`) are not on main; they are on the pre-merge branch, squashed into `5600e00`.
+- (2026-11-02 13:07 JST, Yu) U20 option (b): one clean mock account per session, `review1@local.test` to `review3@local.test`; Yu re-approves the 3 sign-in baselines.
+- The accounts are in the web's mock member list and the segment APIs' `AW_LOCAL_TEST_MEMBERS`. `pnpm ui:seed-review` accepts only them, since tests own alice, bob and carol. Measured 2026-11-02 on the `aw-m1-local` stack: `--member=review1` (and review2, review3) each exit 0 with 0 model calls, and each account keeps 7 active teammates per segment before and after; `--member=bob` is refused with exit 2. Starter teams are seeded for all three in both segments (7 teammates each, unchanged by a rerun, 0 calls). The real-model part (`--with-approval`, 8 calls) runs on the day of each session, because the approval is open for 24 hours.
+- Ledger, campaign `ui-2026-10`, measured 2026-11-02 14:05 JST before this run's gates: alpha 243, beta 151, 394 of 600.
+- `pnpm ui:visual`: 44 of 47 match the approved baselines. The 3 sign-in captures differ only by the three new buttons and wait for Yu in `artifacts/ui/baselines/candidate-2026-11-02-u20/`. U18 is PENDING until then.
+- (2026-11-02 13:40 JST, Yu) "I re-approve candidate-2026-11-02-u20 (the 3 sign-in screenshots)". The three files replace the sign-in files in `approved/` (manifest sha256 updated, the other 44 unchanged). `pnpm ui:visual`: 47 of 47 match; U18 is PASS.
+- The first focused run after the accounts change failed 3 tests, all from my earlier `seed-review --member=bob`, run before Yu's decision. It gave bob a starter team and an approval card that names `bob@local.test`. Three tests found the signed-in member by bare text, now ambiguous; they read the identity element (`.who-mail`) instead. Two isolation checks rely on bob having no starter team; the 14 teammates that seed added (7 per segment, created 2026-11-02) are archived, which restores bob's test state. Reviewer seeding now refuses bob, so this cannot recur.
+- Targeted focused run on `889c880`: `node scripts/ui/run.mjs e2e focused --grep "identity|isolation|sidebar"` exit 0, 24 passed, retries 0, 5.7 min (2026-11-02).
+- Seed idempotency (2026-11-02): `pnpm ui:seed-review -- --member=review1`, `review2` and `review3` each exit 0 with 0 model calls and 7 active teammates per segment, unchanged by the rerun. `--member=bob` exits 2.
+- Seed guard proof (T2), in the e2e container with `playwright test --list --project=seed`: `SEED_MEMBER=bob@local.test` exits 1 (`SEED_MEMBER must be review1@local.test, review2@local.test or review3@local.test; got bob@local.test`). Unset exits 1 ("got unset"). `review1@local.test` exits 0 and lists 2 tests.
+- Visual flake on `889c880`: `pnpm ui:visual` run 1 failed only "targeted states, dark, 1440". Seven sidebar captures differed by 9,639 pixels each. Root cause: the sidebar tab is saved as carol's `lastContext` preference 500 ms after a switch. The light 1440 test can end before the last save, so the dark test opened on a stale tab. Fix in `223c58d` deletes carol's `lastContext` row before each capture. Run 2 on the same build passed 47 of 47.
+- Gate results on `ebd5801`: `pnpm ui:test` exit 0 (307 test files passed, 4 skipped). `pnpm ui:visual` run twice, exit 0, 12 tests passed, 47 of 47 match each time, retries 0. No baseline changed.
+- `/code-review` and `/simplify` (T4) on `git diff 5600e00...ebd5801`: no P0 or P1. Three P2 items were left as they are: the member list is hand-duplicated in compose, the web config and the e2e `Member` type; the `review[1-3]` check is repeated in `run.mjs`, `seed-review.mjs` and the seed spec; the seed spec throws at module level.
+- Host verify set on `ebd5801` (host, Conductor): `pnpm lint:eslint`, `pnpm knip` and `pnpm lint` PASS. `pnpm test`: 310 of 311 files, 3560 tests passed, 1 skipped, 1 failed. The failure was `packages/common` `create-adr-script.test.ts` ("passes the portable bash regression harness"), which timed out at 6517 ms under load. Rerun alone on the host: exit 0, 1 of 1 passed in 3.56 s. Host verify: GREEN, flake noted.
+- Earlier host `pnpm test` run on the same tree (T5 triage): 12 failures, all load-only. 11 were timeouts in a 959 s run. The one assertion in `apps/api` `teamwork.test.ts` was a knock-on of the timed-out "pages 120 tasks" test, whose seeding kept inserting after the next test truncated the table. The 3 files passed 73 of 73 alone. `apps/api` and `packages` are unchanged by this PR, so the failures are pre-existing on main.
+- 0 model calls this run. Ledger stays at alpha 243, beta 151 (394 of 600) before and after.
 
 ### 2026-11-02 C8: final journeys, usability seed, docs
 

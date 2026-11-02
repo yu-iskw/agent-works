@@ -24,11 +24,17 @@ export type WebConfig = {
 const membersKey = (segmentId: string) =>
   `AW_M1_${segmentId.toUpperCase().replaceAll('-', '_')}_MEMBERS`;
 
-/** carol is reserved for visual baselines; no other test signs in as her. */
+/**
+ * carol is reserved for visual baselines; no other test signs in as her. review1 to review3 are
+ * one clean account per usability session (docs/ui/UX_REVIEW.md); no test signs in as them.
+ */
 export const LOCAL_TEST_MEMBERS = [
   'alice@local.test',
   'bob@local.test',
   'carol@local.test',
+  'review1@local.test',
+  'review2@local.test',
+  'review3@local.test',
 ] as const;
 const LOCAL_TEST: IdentityMode = 'local-test';
 

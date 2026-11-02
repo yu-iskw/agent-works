@@ -214,7 +214,8 @@ test.describe('sidebar lists', () => {
     await expect(page.getByRole('tabpanel', { name: 'Work' })).not.toContainText(
       `${SEED_PREFIX} task`,
     );
-    await expect(page.getByText('bob@local.test')).toBeVisible();
+    await expect(page.locator('.who-mail')).toHaveText('bob@local.test');
+    await expect(page.locator('.who-mail')).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('');
   });
 });
