@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { format } from 'node:util';
 
 import type * as AgentRuntime from '@agent-works/agent-runtime';
 
@@ -15,8 +16,10 @@ Runs agents in-process; no server and no AW_API_BASE_URL.
   --input  one eval v1 case row (see evals/v1/examples/ask-retrieval.json)
   --mode   fake (default, offline) or live (Vertex via GOOGLE_CLOUD_PROJECT,
            GOOGLE_CLOUD_LOCATION, VERTEX_MODEL_ID and ADC)
-  --json   print JSON on stdout instead of a text summary
-exit: 0 ok, 2 usage/config/harness error
+  --json   print only the JSON document on stdout; library logs go to stderr
+exit: 0 ok, 2 usage/config/harness error, including a run whose observation
+      has status "error" (e.g. the model call failed); the observation is
+      still printed
 `;
 
 const evalHelp = `usage:
@@ -29,7 +32,7 @@ Scores an agent on eval v1 splits and applies the offline gate.
                      does not cover are unavailable (exit 1).
   --include-holdout  required to run holdout.jsonl
   --mode             fake (default, offline) or live (needs the Vertex variables)
-  --json             print JSON on stdout instead of a text summary
+  --json             print only the JSON document on stdout; library logs go to stderr
 exit: 0 gate passed, 1 gate failed, 2 usage/config/harness error
 `;
 
@@ -106,6 +109,28 @@ const wantsHelp = (args: readonly string[]) =>
 
 type Runtime = typeof AgentRuntime;
 
+/**
+ * ADK logs through its own logger and @google/genai through console.debug; both default to
+ * stdout. Scoped to the run so a command's stdout carries only its own output.
+ */
+async function withLogsOnStderr<T>(
+  runtime: Runtime,
+  stderr: Out,
+  work: () => Promise<T>,
+): Promise<T> {
+  runtime.routeAdkLogsTo(stderr);
+  const { debug, info, log } = console;
+  console.debug =
+    console.info =
+    console.log =
+      (...args: unknown[]) => void stderr.write(`${format(...args)}\n`);
+  try {
+    return await work();
+  } finally {
+    Object.assign(console, { debug, info, log });
+  }
+}
+
 function listCommand(runtime: Runtime, rest: readonly string[], stdout: Out): number {
   const parsed = parse(rest, [], ['--json']);
   if (parsed.positionals.length > 0) throw new UsageError('list takes no arguments');
@@ -118,19 +143,25 @@ function listCommand(runtime: Runtime, rest: readonly string[], stdout: Out): nu
   return 0;
 }
 
-async function runCommand(runtime: Runtime, rest: readonly string[], stdout: Out): Promise<number> {
+async function runCommand(runtime: Runtime, rest: readonly string[], io: Streams): Promise<number> {
   const parsed = parse(rest, ['--mode', '--input'], ['--json']);
   if (parsed.positionals.length !== 1) throw new UsageError('run needs exactly one agent id');
   const mode = modeOf(parsed);
   // eslint-disable-next-line security/detect-non-literal-fs-filename
   const caseRow: unknown = JSON.parse(readFileSync(required(parsed, '--input'), 'utf8'));
-  const result = await runtime.runAgent({ agentId: parsed.positionals[0], mode, caseRow });
-  stdout.write(
+  const result = await withLogsOnStderr(runtime, io.stderr, () =>
+    runtime.runAgent({ agentId: parsed.positionals[0], mode, caseRow }),
+  );
+  io.stdout.write(
     parsed.flags.has('--json')
       ? `${JSON.stringify(result, null, 2)}\n`
       : `case ${result.observation.caseId}: ${result.run.mode} run on ${result.run.model} in ${result.run.durationMs}ms\n`,
   );
-  return 0;
+  const { status, diagnostics } = result.observation as { status?: string; diagnostics?: string[] };
+  if (status !== 'error') return 0;
+  const [reason] = diagnostics ?? [];
+  io.stderr.write(`aw: run ended with status "error"${reason ? `: ${reason}` : ''}\n`);
+  return 2;
 }
 
 export async function runAgent(args: readonly string[], streams: Streams): Promise<number> {
@@ -142,7 +173,7 @@ export async function runAgent(args: readonly string[], streams: Streams): Promi
     const [action, ...rest] = args;
     const runtime = await import('@agent-works/agent-runtime');
     if (action === 'list') return listCommand(runtime, rest, streams.stdout);
-    if (action === 'run') return await runCommand(runtime, rest, streams.stdout);
+    if (action === 'run') return await runCommand(runtime, rest, streams);
     throw new UsageError(`unknown agent command ${action}`);
   } catch (error) {
     return finish(streams, error, agentHelp);
@@ -165,12 +196,14 @@ export async function runEvalCommand(args: readonly string[], streams: Streams):
     );
     if (parsed.positionals.length > 0) throw new UsageError('run takes no positional arguments');
     const runtime = await import('@agent-works/agent-runtime');
-    const report = await runtime.runEval({
-      agentId: required(parsed, '--agent'),
-      mode: modeOf(parsed),
-      datasetPath: parsed.repeated.get('--dataset') ?? defaultDatasets(),
-      includeHoldout: parsed.flags.has('--include-holdout'),
-    });
+    const report = await withLogsOnStderr(runtime, streams.stderr, () =>
+      runtime.runEval({
+        agentId: required(parsed, '--agent'),
+        mode: modeOf(parsed),
+        datasetPath: parsed.repeated.get('--dataset') ?? defaultDatasets(),
+        includeHoldout: parsed.flags.has('--include-holdout'),
+      }),
+    );
     const gate = report.gate as { passed?: boolean; failures?: string[] };
     const passed = gate.passed === true;
     const failures = gate.failures?.length ? ` [${gate.failures.join(', ')}]` : '';

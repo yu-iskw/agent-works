@@ -81,32 +81,9 @@ async function retrieve(row, makeRunner) {
     await drive.retrieve(caller, row.question);
     transport.revokeGroups();
   }
+  let sources;
   try {
-    const sources = await drive.retrieve(caller, row.question);
-    const denied = row.fault === 'revoked-group';
-    result.calls.push({
-      tool: 'drive.search',
-      arguments: { query: row.question },
-      authorized: !denied,
-      outcome: denied ? 'denied' : 'executed',
-    });
-    result.retrievedSourceIds = sources.map((source) => source.id);
-    if (sources.length === 0) result.status = 'abstained';
-    else {
-      // Deterministic extractive baseline. No answer key is consulted.
-      const model = createAdversarialTransport({
-        documents: [],
-        subject: caller.sub,
-        groups: [],
-        modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
-      });
-      const runner = await makeRunner(model.fetch);
-      const answer = await runner.run({ question: row.question, sources });
-      result.answer = answer.answer;
-      result.citations = [...answer.citedSourceIds];
-      result.status = 'answered';
-      result.workflow = 'complete';
-    }
+    sources = await drive.retrieve(caller, row.question);
   } catch (error) {
     result.status = 'error';
     result.calls.push({
@@ -115,6 +92,38 @@ async function retrieve(row, makeRunner) {
       authorized: false,
       outcome: 'error',
     });
+    result.diagnostics.push(error.message);
+    return result;
+  }
+  const denied = row.fault === 'revoked-group';
+  result.calls.push({
+    tool: 'drive.search',
+    arguments: { query: row.question },
+    authorized: !denied,
+    outcome: denied ? 'denied' : 'executed',
+  });
+  result.retrievedSourceIds = sources.map((source) => source.id);
+  if (sources.length === 0) {
+    result.status = 'abstained';
+    return result;
+  }
+  // Deterministic extractive baseline. No answer key is consulted.
+  const model = createAdversarialTransport({
+    documents: [],
+    subject: caller.sub,
+    groups: [],
+    modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
+  });
+  try {
+    const runner = await makeRunner(model.fetch);
+    const answer = await runner.run({ question: row.question, sources });
+    result.answer = answer.answer;
+    result.citations = [...answer.citedSourceIds];
+    result.status = 'answered';
+    result.workflow = 'complete';
+  } catch (error) {
+    // The retrieval above already succeeded, so a model failure adds no tool call.
+    result.status = 'error';
     result.diagnostics.push(error.message);
   }
   return result;

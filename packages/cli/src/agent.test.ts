@@ -8,6 +8,7 @@ import { runAgent, runEvalCommand } from './agent.js';
 
 const runtime = vi.hoisted(() => ({
   listAgents: vi.fn(),
+  routeAdkLogsTo: vi.fn(),
   runAgent: vi.fn(),
   runEval: vi.fn(),
 }));
@@ -66,6 +67,51 @@ describe('aw agent', () => {
       expect.objectContaining({ agentId: 'ask', mode: 'fake' }),
     );
     expect(json(io.out()).observation.caseId).toBe('c1');
+  });
+
+  it('exits 2 when the observation status is error, still printing the observation', async () => {
+    runtime.runAgent.mockResolvedValue({
+      observation: { caseId: 'c1', status: 'error', diagnostics: ['model not found'] },
+      run: { mode: 'live', model: 'm', durationMs: 3 },
+    });
+    const io = capture();
+    expect(
+      await runAgent(
+        ['run', 'ask', '--mode', 'live', '--input', examplePath, '--json'],
+        io.streams,
+      ),
+    ).toBe(2);
+    expect(json(io.out()).observation.caseId).toBe('c1');
+    expect(io.err()).toContain('model not found');
+  });
+
+  it('exits 0 for non-error statuses such as denied or abstained', async () => {
+    runtime.runAgent.mockResolvedValue({
+      observation: { caseId: 'c1', status: 'abstained', diagnostics: [] },
+      run: { mode: 'fake', model: 'fake', durationMs: 3 },
+    });
+    expect(
+      await runAgent(['run', 'ask', '--input', examplePath, '--json'], capture().streams),
+    ).toBe(0);
+  });
+
+  it('routes library logs to stderr during a run and restores console afterwards', async () => {
+    const before = [console.debug, console.info, console.log];
+    runtime.runAgent.mockImplementation(() => {
+      console.debug('The user provided project/location will take precedence');
+      console.log('plain log');
+      return Promise.resolve({
+        observation: { caseId: 'c1', status: 'answered' },
+        run: { mode: 'fake', model: 'fake', durationMs: 3 },
+      });
+    });
+    const io = capture();
+    expect(await runAgent(['run', 'ask', '--input', examplePath, '--json'], io.streams)).toBe(0);
+    expect(json(io.out()).observation.caseId).toBe('c1');
+    expect(io.err()).toContain('will take precedence');
+    expect(io.err()).toContain('plain log');
+    expect(runtime.routeAdkLogsTo).toHaveBeenCalledWith(io.streams.stderr);
+    expect([console.debug, console.info, console.log]).toEqual(before);
   });
 
   it.each([
@@ -213,6 +259,18 @@ describe.skipIf(!existsSync(awPath))('built dist/aw.js subprocess', () => {
     const parsed = json(result.stdout);
     expect(parsed.run).toMatchObject({ framework: 'adk', mode: 'fake' });
     expect(typeof parsed.observation.caseId).toBe('string');
+  });
+
+  it('prints only the JSON document on stdout for a fake --json run', () => {
+    const result = aw$('agent', 'run', 'ask', '--mode', 'fake', '--input', example, '--json');
+    expect(() => void JSON.parse(result.stdout)).not.toThrow();
+  });
+
+  it('keeps stdout empty or JSON-only when live mode fails on missing variables', () => {
+    const result = aw$('agent', 'run', 'ask', '--mode', 'live', '--input', example, '--json');
+    expect(result.status).toBe(2);
+    if (result.stdout !== '') expect(() => void JSON.parse(result.stdout)).not.toThrow();
+    expect(result.stdout).not.toMatch(/\[ADK\]|take precedence/);
   });
 
   it('passes the release gate by default in fake mode', () => {
