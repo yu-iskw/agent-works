@@ -36,6 +36,8 @@ export type SegmentConfig = {
     readonly audience: string;
   };
   readonly members: ReadonlySet<string>;
+  /** Admins that are also members; an admin listed without membership is never granted. */
+  readonly admins: ReadonlySet<string>;
   /** Members whose entitlement excludes external effects (no `docs.publish`). */
   readonly readOnlyMembers: ReadonlySet<string>;
   readonly capabilities: ReadonlySet<Capability>;
@@ -85,6 +87,7 @@ type MissingInput = {
   readonly identity: IdentityMode;
   readonly sourceMode: SourceMode;
   readonly members: ReadonlySet<string>;
+  readonly adminsNotMembers: boolean;
   readonly google: OAuthClient | undefined;
   readonly github: OAuthClient | undefined;
   readonly sources: SegmentSources;
@@ -96,13 +99,16 @@ function missingSettings({
   identity,
   sourceMode,
   members,
+  adminsNotMembers,
   google,
   github,
   sources,
 }: MissingInput): readonly string[] {
   const live = sourceMode === 'live';
+  const adminsKey = identity === 'google' ? `AW_M1_${upper}_ADMINS` : 'AW_LOCAL_TEST_ADMINS';
   const rows: readonly (readonly [boolean, readonly string[]])[] = [
     [members.size === 0, [`AW_M1_${upper}_MEMBERS`]],
+    [adminsNotMembers, [adminsKey]],
     [
       identity === 'google' && google === undefined,
       ['AW_M1_GOOGLE_CLIENT_ID', 'AW_M1_GOOGLE_CLIENT_SECRET'],
@@ -134,6 +140,10 @@ export function readSegmentConfig(env: Env): SegmentConfig {
   const membersRaw =
     identity === 'google' ? secret(`AW_M1_${upper}_MEMBERS`) : env.AW_LOCAL_TEST_MEMBERS;
   const members = new Set(csvList(membersRaw).map((email) => email.toLowerCase()));
+  const adminsRaw =
+    identity === 'google' ? secret(`AW_M1_${upper}_ADMINS`) : env.AW_LOCAL_TEST_ADMINS;
+  const listedAdmins = csvList(adminsRaw).map((email) => email.toLowerCase());
+  const admins = new Set(listedAdmins.filter((email) => members.has(email)));
   const pair = (id: string, key: string): OAuthClient | undefined => {
     const clientId = secret(id);
     const clientSecret = secret(key);
@@ -162,6 +172,7 @@ export function readSegmentConfig(env: Env): SegmentConfig {
       audience: `segment:${segment}`,
     },
     members,
+    admins,
     readOnlyMembers: new Set(
       csvList(secret(`AW_M1_${upper}_READONLY_MEMBERS`)).map((email) => email.toLowerCase()),
     ),
@@ -175,6 +186,15 @@ export function readSegmentConfig(env: Env): SegmentConfig {
     modelCampaign: env.AW_MODEL_CAMPAIGN?.trim() || null,
     concurrency: Math.max(1, Math.min(4, wholeNumber(env.AW_WORKER_CONCURRENCY, 2))),
     assignmentDeadlineMs: wholeNumber(env.AW_ASSIGNMENT_DEADLINE_MS, 5 * 60_000),
-    missing: missingSettings({ upper, identity, sourceMode, members, google, github, sources }),
+    missing: missingSettings({
+      upper,
+      identity,
+      sourceMode,
+      members,
+      adminsNotMembers: listedAdmins.some((email) => !members.has(email)),
+      google,
+      github,
+      sources,
+    }),
   };
 }
