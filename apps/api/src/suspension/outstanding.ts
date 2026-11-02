@@ -1,7 +1,7 @@
 import type postgres from 'postgres';
 
-export type OperationState = 'outstanding' | 'uncertain' | 'completed';
-export type OutstandingOperation = {
+type OperationState = 'outstanding' | 'uncertain' | 'completed';
+type OutstandingOperation = {
   readonly taskId: string;
   readonly ownerSub: string;
   readonly status: string;

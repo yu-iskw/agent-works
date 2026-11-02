@@ -18,6 +18,12 @@ export default defineProject({
       '@agent-works/domain/data-governance': fileURLToPath(
         new URL('../domain/src/data-governance.ts', import.meta.url),
       ),
+      '@agent-works/domain/delegation-authority': fileURLToPath(
+        new URL('../domain/src/delegation-authority.ts', import.meta.url),
+      ),
+      '@agent-works/domain/delegation': fileURLToPath(
+        new URL('../domain/src/delegation.ts', import.meta.url),
+      ),
       '@agent-works/domain/budget': fileURLToPath(
         new URL('../domain/src/budget.ts', import.meta.url),
       ),

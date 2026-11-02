@@ -1,8 +1,8 @@
 import { loadConfig } from '../config.js';
 
-export type StartupMode = 'production' | 'local';
+type StartupMode = 'production' | 'local';
 
-export type ProviderName =
+type ProviderName =
   | 'identity'
   | 'model'
   | 'source-storage'
@@ -11,7 +11,7 @@ export type ProviderName =
   | 'required-config'
   | 'incident-ticketing';
 
-export type ProviderStatus = 'real' | 'local-fake' | 'disabled-optional' | 'missing';
+type ProviderStatus = 'real' | 'local-fake' | 'disabled-optional' | 'missing';
 
 /** `detail` names env variables only, never their values. */
 export type ProviderReport = {
@@ -39,7 +39,7 @@ function envValue(env: Env, name: string): string | undefined {
   return Object.entries(env).find(([key]) => key === name)?.[1];
 }
 
-export function readStartupMode(env: Env): StartupMode {
+function readStartupMode(env: Env): StartupMode {
   const mode = env.AW_MODE;
   if (mode === undefined || mode === '' || mode === 'local') return 'local';
   if (mode === 'production') return 'production';
