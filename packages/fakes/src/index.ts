@@ -4,7 +4,7 @@ export { createIncidents } from './fake-incidents.js';
 export { createLlm } from './fake-llm.js';
 export { createOAuth } from './fake-oauth.js';
 export { createTicket } from './fake-ticket.js';
-export { listen } from './http.js';
+export { handlerFetch, listen } from './http.js';
 export { createIapProxy, fakeIap } from './iap-proxy.js';
 export { createGoogleDocs } from './google-docs.js';
 export { createGoogleCalendar } from './google-calendar.js';
