@@ -101,6 +101,21 @@
       "development": "./src/teamwork-timeline.ts",
       "import": "./dist/teamwork-timeline.js"
     },
+    "./connector-cdk": {
+      "types": "./src/connector-cdk.ts",
+      "development": "./src/connector-cdk.ts",
+      "import": "./dist/connector-cdk.js"
+    },
+    "./connector-catalog": {
+      "types": "./src/connector-catalog.ts",
+      "development": "./src/connector-catalog.ts",
+      "import": "./dist/connector-catalog.js"
+    },
+    "./marketplace": {
+      "types": "./src/marketplace.ts",
+      "development": "./src/marketplace.ts",
+      "import": "./dist/marketplace.js"
+    },
     "./env-file": {
       "types": "./src/env-file.ts",
       "development": "./src/env-file.ts",
