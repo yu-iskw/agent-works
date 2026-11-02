@@ -32,6 +32,9 @@ export default defineProject({
       '@agent-works/domain/error-class-retry': fileURLToPath(
         new URL('../../packages/domain/src/error-class-retry.ts', import.meta.url),
       ),
+      '@agent-works/agent-runtime/port': fileURLToPath(
+        new URL('../../packages/agent-runtime/src/runner-port.ts', import.meta.url),
+      ),
       '@agent-works/agent-runtime': fileURLToPath(
         new URL('../../packages/agent-runtime/src/index.ts', import.meta.url),
       ),

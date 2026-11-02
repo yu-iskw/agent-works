@@ -13,7 +13,7 @@ import type { GovernancePort } from '../ports/governance.js';
 import type { MemoryPolicy, MemoryState, MemoryStore } from '../ports/user-memory.js';
 import type { RouteDeps } from '../routes/index.js';
 import type { MemoryRouteDeps } from '../routes/memory-auth.js';
-import type { RunnerInput } from '@agent-works/agent-runtime';
+import type { RunnerInput } from '@agent-works/agent-runtime/port';
 import type { MemoryScope, MemoryProposal } from '@agent-works/domain/user-memory';
 import type postgres from 'postgres';
 export type UserMemoryRuntimeOptions = {

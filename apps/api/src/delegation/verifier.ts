@@ -1,6 +1,6 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 
-import type { RunnerOutput } from '@agent-works/agent-runtime';
+import type { RunnerOutput } from '@agent-works/agent-runtime/port';
 import type { DelegationContext } from '@agent-works/domain/delegation';
 type Verification = { readonly accepted: boolean; readonly verifierRef: string };
 export interface ChildVerifier {

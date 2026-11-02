@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { RunnerError } from '@agent-works/agent-runtime';
+import { RunnerError } from '@agent-works/agent-runtime/port';
 import { createDirectory, createDrive, listen } from '@agent-works/fakes';
 import * as policy from '@agent-works/policy';
 import { afterEach, describe, expect, it, vi } from 'vitest';

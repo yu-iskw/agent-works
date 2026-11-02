@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { createAdkRunner, FetchLlm, RunnerError } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
+import { RunnerError } from '@agent-works/agent-runtime/port';
 import {
   askRequestSchema,
   auditEventSchema,
@@ -27,7 +28,7 @@ import type { LedgerPort } from '../ports/ledger-port.js';
 import type { SearchPort } from '../ports/search-port.js';
 import type { Drive, SourceDocument } from '../retrieval/drive-port.js';
 import type { GroupSnapshot } from '../retrieval/search.js';
-import type { AgentRunner } from '@agent-works/agent-runtime';
+import type { AgentRunner } from '@agent-works/agent-runtime/port';
 import type {
   AuditEvent,
   AskRequest,
