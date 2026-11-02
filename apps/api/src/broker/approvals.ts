@@ -387,16 +387,26 @@ function sameCall(existing: CallRow, request: CompletedCall): boolean {
   );
 }
 
+/** Whether an approval may authorize an execution now. Claim and the pre-effect revalidation share it. */
+export function approvalStanding(
+  approval: Approval,
+  now: Date,
+  approverAuthorized: (sub: string) => boolean,
+): 'valid' | 'APPROVAL_REQUIRED' | 'APPROVAL_EXPIRED' {
+  if (approval.state !== 'approved') return 'APPROVAL_REQUIRED';
+  if (Date.parse(approval.expiresAt) <= now.getTime()) return 'APPROVAL_EXPIRED';
+  if (approval.approverSub === null || approval.approverSub === approval.requestedBySub) {
+    return 'APPROVAL_REQUIRED';
+  }
+  return approverAuthorized(approval.approverSub) ? 'valid' : 'APPROVAL_REQUIRED';
+}
+
 function classify(
   approval: Approval,
   request: ClaimRequest,
 ): 'bound' | 'APPROVAL_REQUIRED' | 'APPROVAL_EXPIRED' {
-  if (approval.state !== 'approved') return 'APPROVAL_REQUIRED';
-  if (Date.parse(approval.expiresAt) <= request.now.getTime()) return 'APPROVAL_EXPIRED';
-  if (approval.approverSub === null || approval.approverSub === approval.requestedBySub) {
-    return 'APPROVAL_REQUIRED';
-  }
-  if (!request.approverAuthorized(approval.approverSub)) return 'APPROVAL_REQUIRED';
+  const standing = approvalStanding(approval, request.now, request.approverAuthorized);
+  if (standing !== 'valid') return standing;
   if (approval.taskId !== request.taskId) return 'APPROVAL_REQUIRED';
   if (approval.stepId !== request.stepId) return 'APPROVAL_REQUIRED';
   if (approval.tool !== request.toolRef) return 'APPROVAL_REQUIRED';

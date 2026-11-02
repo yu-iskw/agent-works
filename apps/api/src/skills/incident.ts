@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { skillManifestSchema } from '@agent-works/domain';
+import { skillManifestSchema, ticketCreateManifest } from '@agent-works/domain';
 import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
 import { decide } from '@agent-works/policy';
 
@@ -158,12 +158,26 @@ export function createIncidentSkill(
         binding: Awaited<ReturnType<IncidentApprovalDeps['reauthorize']>> | undefined,
       ): Broker | undefined {
         if (approvalDeps === undefined || binding === undefined) return undefined;
+        const { now } = approvalDeps;
         return createBroker({
           store: approvalDeps.store,
           ledger: approvalDeps.ledger,
-          now: approvalDeps.now,
+          now,
           decide,
           approverAuthorized: binding.approverAuthorized,
+          authorize: () =>
+            Promise.resolve({
+              kind: 'granted',
+              subject: authorized.caller.sub,
+              authority: {
+                kind: 'userDelegated',
+                scopes: [ticketCreateManifest.spec.permissions.workloadCapability],
+                resourceConstraint: 'incidents',
+                expiresAt: new Date(now().getTime() + 60_000).toISOString(),
+                auditRef: `incident:${accepted.taskId}`,
+              },
+              facts: binding.facts,
+            }),
           postTicket: async (body, key) => {
             signal.throwIfAborted();
             issuedWrites.add(accepted.taskId);

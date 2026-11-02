@@ -8,6 +8,7 @@ import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 import { createMemoryApprovalStore } from './approvals.js';
 import { allowedFacts } from './broker-harness.js';
 import { TICKET_TOOL, createBroker } from './broker.js';
+import { trustedTestResolver } from './test-authority.js';
 
 export const BROKER_BUDGET_MS = 60;
 
@@ -25,6 +26,7 @@ export async function measureBroker(): Promise<number> {
     decide,
     ledger: createMemoryLedgerPort(() => now),
     approverAuthorized: () => true,
+    authorize: trustedTestResolver(),
     now: () => now,
     postTicket() {
       tickets += 1;

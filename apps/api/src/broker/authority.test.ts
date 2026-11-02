@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 
 import { createMemoryApprovalStore } from './approvals.js';
+import { resolveAuthority } from './authority.js';
 import { TICKET_TOOL, createBroker } from './broker.js';
 
-import type { AuthorityResolution } from './authority.js';
+import type { AuthorityResolution, AuthorityVerdict } from './authority.js';
 import type { ExecuteInput } from './broker.js';
 import type { Approval, Authority, OutboxEvent } from '@agent-works/domain';
 import type { DelegationAuthority } from '@agent-works/domain/delegation';
@@ -79,7 +80,6 @@ function rig(initial: Resolve = () => granted()) {
   const state = {
     now: start,
     resolve: initial,
-    resolves: 0,
     posts: 0,
     approverOk: true,
     beforeEffect: undefined as (() => Promise<void>) | undefined,
@@ -102,7 +102,6 @@ function rig(initial: Resolve = () => granted()) {
       await state.beforeEffect?.();
     },
     authorize: async () => {
-      state.resolves += 1;
       return state.resolve();
     },
     postTicket: () => {
@@ -135,6 +134,14 @@ async function seeded(initial?: Resolve, row: Partial<Approval> = {}) {
 }
 
 const denied = { ok: false, status: 403, code: 'AUTHORITY_DENIED' };
+
+function kinds(events: readonly OutboxEvent[]): string[] {
+  return events.map((item) => item.event.eventType);
+}
+
+function denialEvents(events: readonly OutboxEvent[]): OutboxEvent[] {
+  return events.filter((item) => item.event.eventType === 'tool.denied');
+}
 
 describe('owner positive controls', () => {
   it('executes once for the resolved owner and keeps workload identity separate', async () => {
@@ -216,20 +223,23 @@ describe('denials never reach the provider', () => {
   ];
 
   it.each(cases)('%s', async (_name, resolve, patch) => {
-    const { call, state, store } = await seeded(resolve);
+    const { call, state, store, events } = await seeded(resolve);
     expect(await call(patch)).toEqual(denied);
     expect(state.posts).toBe(0);
+    expect(events).toEqual([]);
     expect(await store.read('apr-1')).toMatchObject({ executionsUsed: 0 });
   });
 
   it('approval requested by someone other than the resolved actor', async () => {
-    const { call, state } = await seeded(undefined, { requestedBySub: 'carol' });
+    const { call, state, events, store } = await seeded(undefined, { requestedBySub: 'carol' });
     expect(await call()).toEqual(denied);
     expect(state.posts).toBe(0);
+    expect(events).toEqual([]);
+    expect(await store.read('apr-1')).toMatchObject({ executionsUsed: 0 });
   });
 
   it('spoofed policy facts: the server denies whatever the client claims', async () => {
-    const { call, state } = await seeded(() =>
+    const { call, state, events } = await seeded(() =>
       granted({ facts: { ...allow, user_or_service_has_resource_authority: false } }),
     );
     expect(await call({ facts: allow })).toEqual({
@@ -238,16 +248,18 @@ describe('denials never reach the provider', () => {
       code: 'POLICY_DENIED',
     });
     expect(state.posts).toBe(0);
+    expect(events).toEqual([]);
   });
 });
 
 describe('transient directory failure', () => {
   it('is retryable and fail-closed, then succeeds once, with no approval consumed', async () => {
-    const { call, state, store } = await seeded(() => {
+    const { call, state, store, events } = await seeded(() => {
       throw new Error('directory 503');
     });
     expect(await call()).toEqual({ ok: false, status: 503, code: 'AUTHORITY_UNAVAILABLE' });
     expect(state.posts).toBe(0);
+    expect(events).toEqual([]);
     expect(await store.read('apr-1')).toMatchObject({ executionsUsed: 0 });
     state.resolve = () => granted();
     expect(await call()).toEqual({ ok: true, receipt: 'FAKE-1', replay: false });
@@ -255,7 +267,7 @@ describe('transient directory failure', () => {
   });
 
   it('fails closed when the directory drops between claim and effect', async () => {
-    const { call, state } = await seeded();
+    const { call, state, events } = await seeded();
     state.beforeEffect = () => {
       state.resolve = () => {
         throw new Error('directory timeout');
@@ -264,12 +276,17 @@ describe('transient directory failure', () => {
     };
     expect(await call()).toEqual({ ok: false, status: 503, code: 'AUTHORITY_UNAVAILABLE' });
     expect(state.posts).toBe(0);
+    expect(kinds(events)).toEqual(['tool.intended', 'tool.denied']);
+    expect(denialEvents(events)[0]?.event).toMatchObject({
+      outcome: 'DENIED:AUTHORITY_UNAVAILABLE',
+      approvalId: 'apr-1',
+    });
   });
 });
 
 describe('revalidation immediately before the side effect', () => {
   it('denies when authority is revoked after the claim, and resumes once restored', async () => {
-    const { call, state, store } = await seeded();
+    const { call, state, store, events } = await seeded();
     state.beforeEffect = () => {
       state.resolve = () => ({ kind: 'denied', reason: 'revoked' });
       return Promise.resolve();
@@ -277,8 +294,15 @@ describe('revalidation immediately before the side effect', () => {
     expect(await call()).toEqual(denied);
     expect(state.posts).toBe(0);
     expect(await store.read('apr-1')).toMatchObject({ executionsUsed: 1 });
+    expect(kinds(events)).toEqual(['tool.intended', 'tool.denied']);
+    expect(denialEvents(events)[0]?.event).toMatchObject({
+      outcome: 'DENIED:AUTHORITY_DENIED',
+      initiatorSubject: 'alice',
+      agentPrincipal: 'agent:broker',
+    });
     expect(await call()).toEqual(denied);
     expect(state.posts).toBe(0);
+    expect(denialEvents(events)).toHaveLength(1);
     state.beforeEffect = undefined;
     state.resolve = () => granted();
     expect(await call({ traceId: 'trace-2' })).toEqual({
@@ -292,7 +316,7 @@ describe('revalidation immediately before the side effect', () => {
   });
 
   it('denies a retry after authority expiry', async () => {
-    const { call, state } = await seeded();
+    const { call, state, events } = await seeded();
     state.beforeEffect = () => {
       state.now = new Date('2026-10-11T13:00:01.000Z');
       return Promise.resolve();
@@ -301,6 +325,7 @@ describe('revalidation immediately before the side effect', () => {
     state.beforeEffect = undefined;
     expect(await call()).toEqual(denied);
     expect(state.posts).toBe(0);
+    expect(kinds(events)).toEqual(['tool.intended', 'tool.denied']);
   });
 
   it('denies when the approval lapses or is withdrawn before the effect', async () => {
@@ -313,6 +338,9 @@ describe('revalidation immediately before the side effect', () => {
     };
     expect(await lapsed.call()).toEqual({ ok: false, status: 422, code: 'APPROVAL_EXPIRED' });
     expect(lapsed.state.posts).toBe(0);
+    expect(denialEvents(lapsed.events)[0]?.event).toMatchObject({
+      outcome: 'DENIED:APPROVAL_EXPIRED',
+    });
 
     const withdrawn = await seeded();
     withdrawn.state.beforeEffect = () => {
@@ -321,23 +349,70 @@ describe('revalidation immediately before the side effect', () => {
     };
     expect(await withdrawn.call()).toEqual({ ok: false, status: 422, code: 'APPROVAL_REQUIRED' });
     expect(withdrawn.state.posts).toBe(0);
+    expect(denialEvents(withdrawn.events)[0]?.event).toMatchObject({
+      outcome: 'DENIED:APPROVAL_REQUIRED',
+    });
   });
 
-  it('denies a resume by a different actor than the one recorded at intent', async () => {
-    const { call, state } = await seeded();
+  it('denies when the approval is withdrawn between claim and effect', async () => {
+    const { call, state, store, events } = await seeded();
+    state.beforeEffect = async () => {
+      await store.save(approval({ state: 'rejected', executionsUsed: 1 }));
+    };
+    expect(await call()).toEqual({ ok: false, status: 422, code: 'APPROVAL_REQUIRED' });
+    expect(state.posts).toBe(0);
+    expect(kinds(events)).toEqual(['tool.intended', 'tool.denied']);
+  });
+
+  it('denies a resume by an actor other than the one recorded at intent', async () => {
+    // The approval is re-requested by the resumer, so the requester check passes and only the
+    // recorded-actor check stands between the resumer and the provider.
+    const first = granted({ subject: 'dave' });
+    const { call, state, store, events } = await seeded(() => first, { requestedBySub: 'dave' });
     state.beforeEffect = () => {
       state.beforeEffect = undefined;
       return Promise.reject(new Error('crash after intent'));
     };
-    await expect(call()).rejects.toThrow('crash after intent');
-    state.resolve = () => granted({ subject: 'mallory' });
-    expect(await call({ actorSub: 'mallory' })).toEqual(denied);
+    await expect(call({ actorSub: 'dave' })).rejects.toThrow('crash after intent');
+    await store.save(approval({ requestedBySub: 'carol', executionsUsed: 1 }));
+    state.resolve = () => granted({ subject: 'carol' });
+    expect(await call({ actorSub: 'carol' })).toEqual(denied);
     expect(state.posts).toBe(0);
+    expect(kinds(events)).toEqual(['tool.intended', 'tool.denied']);
+    expect(denialEvents(events)[0]?.event).toMatchObject({
+      initiatorSubject: 'carol',
+      outcome: 'DENIED:AUTHORITY_DENIED',
+    });
+    expect(events[0]?.event).toMatchObject({ initiatorSubject: 'dave' });
+  });
+});
+
+describe('required authority kind', () => {
+  const request = {
+    claimedActor: 'alice',
+    taskId: 'tsk-1',
+    stepId: 'step-1',
+    toolRef: TICKET_TOOL,
+    targetResource: 'PROJ',
+    approvalId: 'apr-1',
+  };
+  const workflow = { ...authority, kind: 'approvedServiceWorkflow' } as const;
+  const verdictFor = (
+    resolved: Authority,
+    userAuthority: 'delegated' | 'approvedService',
+  ): Promise<AuthorityVerdict> =>
+    resolveAuthority(() => Promise.resolve(granted({ authority: resolved })), request, start, {
+      workloadCapability: scope,
+      userAuthority,
+    });
+
+  it('accepts an approved service workflow only where the tool declares approvedService', async () => {
+    expect(await verdictFor(workflow, 'approvedService')).toMatchObject({ ok: true });
+    expect(await verdictFor(authority, 'approvedService')).toMatchObject({ ok: false });
   });
 
-  it('checks authority again for every attempt', async () => {
-    const { call, state } = await seeded();
-    await call();
-    expect(state.resolves).toBe(2);
+  it('refuses an approved service workflow for a user-delegated tool', async () => {
+    expect(await verdictFor(authority, 'delegated')).toMatchObject({ ok: true });
+    expect(await verdictFor(workflow, 'delegated')).toMatchObject({ ok: false });
   });
 });
