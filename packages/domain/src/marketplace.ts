@@ -62,20 +62,23 @@ export const connectorActionSchema = z.discriminatedUnion('action', [
 ]);
 export type ConnectorAction = z.infer<typeof connectorActionSchema>;
 
+export const DESIRED_STATES = ['enabled', 'disabled'] as const;
+export const OBSERVED_STATES = [
+  'pending',
+  'provisioning',
+  'healthy',
+  'failed',
+  'disabled',
+  'not_required',
+] as const;
+
 export const installationViewSchema = z.strictObject({
   connector: text,
   version: semverSchema,
   previousVersion: semverSchema.nullable(),
   capabilities: z.array(capabilitySchema),
-  desiredState: z.enum(['enabled', 'disabled']),
-  observedState: z.enum([
-    'pending',
-    'provisioning',
-    'healthy',
-    'failed',
-    'disabled',
-    'not_required',
-  ]),
+  desiredState: z.enum(DESIRED_STATES),
+  observedState: z.enum(OBSERVED_STATES),
   observedDetail: z.string().nullable(),
   generation: generationSchema,
   updatedAt: z.string(),

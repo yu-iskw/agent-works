@@ -1522,9 +1522,7 @@ function ConnectionCard(props: { readonly ctx: PageCtx; readonly connection: Con
           <dd>
             {connection.scopes.length === 0
               ? 'None (public read only)'
-              : connection.scopes
-                  .map((s) => s.replace('https://www.googleapis.com/auth/', ''))
-                  .join(', ')}
+              : connection.scopes.map((scope) => scopeName(scope)).join(', ')}
           </dd>
         </dl>
       )}

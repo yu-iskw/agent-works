@@ -3,6 +3,7 @@ import { SOURCE_CAPABILITY, SOURCE_KINDS } from '@agent-works/domain/teamwork';
 import { memberCapabilities } from './catalog.js';
 import { oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
+import { segmentCapabilities } from './installations.js';
 import { SourceError, sourceRemediation } from './sources/port.js';
 
 import type { Deps, Member } from './context.js';
@@ -15,7 +16,7 @@ import type { SourceCheck, SourceKind } from '@agent-works/domain/teamwork';
  */
 export async function checkSources(deps: Deps, member: Member): Promise<readonly SourceCheck[]> {
   const token = oncePerProvider(tokenSource(deps, member.sub));
-  const allowed = await memberCapabilities(deps, member);
+  const allowed = memberCapabilities(deps, member, await segmentCapabilities(deps));
   // Member files are not a provider: there is nothing to reach before a member attaches one.
   const checks = await Promise.all(
     SOURCE_KINDS.filter((source) => source !== 'member_file').map((source) =>

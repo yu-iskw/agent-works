@@ -16,6 +16,7 @@ import {
 } from './installations.js';
 
 import type { Deps, Member } from './context.js';
+import type { Installation } from './installations.js';
 import type { ManifestLookup } from './runtime-manager.js';
 import type { ConnectorManifest } from '@agent-works/domain/connector-cdk';
 import type {
@@ -27,10 +28,10 @@ import type {
 } from '@agent-works/domain/marketplace';
 import type { Capability, TemplateView } from '@agent-works/domain/teamwork';
 
-type Installation = Awaited<ReturnType<typeof getInstallation>>;
-type Refuse = (reason: string, error: Conflict) => Promise<never>;
+/** Audits the refusal under `outcome` (the error code unless a caller names another) and throws. */
+type Refuse = (error: Conflict, outcome?: string) => Promise<never>;
 type VersionMove = {
-  readonly row: NonNullable<Installation>;
+  readonly row: Installation;
   readonly input: Extract<ConnectorAction, { action: 'upgrade' | 'rollback' }>;
   readonly manifests: ManifestLookup;
   readonly refuse: Refuse;
@@ -52,7 +53,7 @@ const COMING_SOON = {
   },
 } as const;
 
-function installationView(row: NonNullable<Installation>): InstallationView {
+function installationView(row: Installation): InstallationView {
   return installationViewSchema.parse({
     connector: row.item_id,
     version: row.version,
@@ -66,7 +67,10 @@ function installationView(row: NonNullable<Installation>): InstallationView {
   });
 }
 
-function connectorListing(manifest: ConnectorManifest, row: Installation): MarketplaceListing {
+function connectorListing(
+  manifest: ConnectorManifest,
+  row: Installation | undefined,
+): MarketplaceListing {
   return marketplaceListingSchema.parse({
     kind: 'connector',
     id: manifest.id,
@@ -173,7 +177,7 @@ export async function listConnectorInstallations(deps: Deps): Promise<readonly I
 }
 
 /** A segment that never bootstrapped this connector gets its env-derived row first; it is idempotent. */
-async function installedRow(deps: Deps, id: string): Promise<Installation> {
+async function installedRow(deps: Deps, id: string): Promise<Installation | undefined> {
   const row = await getInstallation(deps, id);
   if (row !== undefined) return row;
   await bootstrapInstallations(deps);
@@ -199,41 +203,36 @@ export async function mutateConnector(
       .map((capability) => capability.id)
       .filter((cap) => deps.config.capabilities.has(cap)),
   );
-  const refuse: Refuse = async (reason, error) => {
+  const refuse: Refuse = async (error, outcome = error.code) => {
     await audit(deps, deps.sql, {
       ownerSub: member.sub,
       action: `installation.${input.action}`,
-      outcome: reason,
+      outcome,
       detail: { connector: id, actor: member.email },
     });
     throw error;
   };
   const row = await installedRow(deps, id);
   if (row === undefined)
-    return refuse('not_available', new Conflict('connector_not_available', 409));
+    return refuse(new Conflict('connector_not_available', 409), 'not_available');
   if (input.action === 'upgrade' || input.action === 'rollback')
     return moveVersion(deps, member, { row, input, manifests, refuse });
 
   const requested = 'capabilities' in input ? input.capabilities : undefined;
   const outside = requested?.filter((capability) => !allowed.has(capability)) ?? [];
   if (outside.length > 0)
-    return refuse(
-      'capability_not_allowed',
-      new Conflict('capability_not_allowed', 400, outside.join(', ')),
-    );
+    return refuse(new Conflict('capability_not_allowed', 400, outside.join(', ')));
 
+  const desiredState =
+    input.action === 'disable' ? 'disabled' : input.action === 'enable' ? 'enabled' : undefined;
   const next = await updateInstallation(deps, {
     id,
     expectedGeneration: input.expectedGeneration,
     actor: member.email,
     action: `installation.${input.action}`,
-    change: {
-      ...(input.action === 'disable' ? { desiredState: 'disabled' as const } : {}),
-      ...(input.action === 'enable' ? { desiredState: 'enabled' as const } : {}),
-      ...(requested === undefined ? {} : { capabilities: requested }),
-    },
+    change: { desiredState, capabilities: requested },
   });
-  if (next === undefined) return refuse('stale_generation', new Conflict('stale_generation'));
+  if (next === undefined) return refuse(new Conflict('stale_generation'));
   return installationView(next);
 }
 
@@ -244,13 +243,12 @@ export async function mutateConnector(
 async function resolveTarget(move: VersionMove, target: string): Promise<ConnectorManifest> {
   const { row, input, manifests, refuse } = move;
   if (input.action === 'upgrade' && compareSemver(target, row.version) < 0)
-    return refuse('not_an_upgrade', new Conflict('not_an_upgrade'));
+    return refuse(new Conflict('not_an_upgrade'));
   const manifest = manifests(row.item_id, target);
-  if (manifest === undefined)
-    return refuse('unknown_version', new Conflict('unknown_version', 400));
+  if (manifest === undefined) return refuse(new Conflict('unknown_version', 400));
   const offered = new Set<Capability>(manifest.capabilities.map((capability) => capability.id));
   if (row.capabilities.some((capability) => !offered.has(capability)))
-    return refuse('capability_not_in_version', new Conflict('capability_not_in_version'));
+    return refuse(new Conflict('capability_not_in_version'));
   return manifest;
 }
 
@@ -268,9 +266,8 @@ async function moveVersion(
   const { row, input, refuse } = move;
   const target = input.action === 'upgrade' ? input.version : row.previous_version;
   if (input.action === 'upgrade' && target === row.version) return installationView(row);
-  if (input.expectedGeneration !== row.generation)
-    return refuse('stale_generation', new Conflict('stale_generation'));
-  if (target === null) return refuse('no_previous_version', new Conflict('no_previous_version'));
+  if (input.expectedGeneration !== row.generation) return refuse(new Conflict('stale_generation'));
+  if (target === null) return refuse(new Conflict('no_previous_version'));
   const manifest = await resolveTarget(move, target);
 
   const next = await updateInstallation(deps, {
@@ -286,6 +283,6 @@ async function moveVersion(
       observedDetail: null,
     },
   });
-  if (next === undefined) return refuse('stale_generation', new Conflict('stale_generation'));
+  if (next === undefined) return refuse(new Conflict('stale_generation'));
   return installationView(next);
 }

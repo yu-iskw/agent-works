@@ -88,13 +88,13 @@ async function execute(
 ): Promise<WorkspaceResult> {
   const entry = registry.get(input.tool);
   if (!entry || input.tool === 'gmail.send') throw new ConnectorError('POLICY_DENIED', 403);
+  const read = entry.manifest.spec.sideEffect === 'READ';
+  if (read !== (entry.handler.kind === 'read')) throw new ConnectorError('POLICY_DENIED', 403);
   const payload = parseWorkspacePayload(input.tool, input.payload);
   const authorized = await deps.authorize({ ...input, payload });
   if (!authorized.allowed) throw new ConnectorError('POLICY_DENIED', 403);
   const credential = await deps.credentials.forTool(input.subject, input.tool);
   input.signal?.throwIfAborted();
-  const read = entry.manifest.spec.sideEffect === 'READ';
-  if (read !== (entry.handler.kind === 'read')) throw new ConnectorError('POLICY_DENIED', 403);
   if (entry.handler.kind === 'read') {
     const rows = await entry.handler.run({
       credential,

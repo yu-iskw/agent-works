@@ -1,4 +1,5 @@
 import { findConnector } from '@agent-works/domain/connector-catalog';
+import { DESIRED_STATES, OBSERVED_STATES } from '@agent-works/domain/marketplace';
 import { CAPABILITY_PROVIDER, capabilitySchema } from '@agent-works/domain/teamwork';
 import * as z from 'zod';
 
@@ -9,21 +10,16 @@ import type { Capability } from '@agent-works/domain/teamwork';
 
 export const BOOTSTRAP_ACTOR = 'system:bootstrap';
 
-const installationRowSchema = z.strictObject({
-  item_kind: z.literal('connector'),
+const capabilityListSchema = z.array(capabilitySchema);
+
+// Not strict: `select *` also returns `item_kind`, which the only kind in use makes redundant here.
+const installationRowSchema = z.object({
   item_id: z.string(),
   version: z.string(),
   previous_version: z.string().nullable(),
-  capabilities: z.array(capabilitySchema),
-  desired_state: z.enum(['enabled', 'disabled']),
-  observed_state: z.enum([
-    'pending',
-    'provisioning',
-    'healthy',
-    'failed',
-    'disabled',
-    'not_required',
-  ]),
+  capabilities: capabilityListSchema,
+  desired_state: z.enum(DESIRED_STATES),
+  observed_state: z.enum(OBSERVED_STATES),
   observed_detail: z.string().nullable(),
   generation: z.number().int(),
   updated_by: z.string(),
@@ -51,8 +47,18 @@ export async function getInstallation(deps: Deps, id: string): Promise<Installat
  * yet behaves as before); a row only ever removes. `files.read` has no provider and stays env-only.
  */
 export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capability>> {
-  const rows = await listInstallations(deps);
-  const byProvider = new Map(rows.map((row) => [row.item_id, row]));
+  const rows = await deps.sql<
+    { item_id: string; desired_state: Installation['desired_state']; capabilities: unknown }[]
+  >`select item_id, desired_state, capabilities from tw_installations`;
+  const byProvider = new Map(
+    rows.map((row) => [
+      row.item_id,
+      {
+        desired_state: row.desired_state,
+        capabilities: capabilityListSchema.parse(row.capabilities),
+      },
+    ]),
+  );
   return new Set(
     [...deps.config.capabilities].filter((capability) => {
       // eslint-disable-next-line security/detect-object-injection
@@ -72,20 +78,16 @@ export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capab
  * later disable persists because a row that exists is never rewritten here.
  */
 export async function bootstrapInstallations(deps: Deps): Promise<void> {
-  const providers = new Set(
-    [...deps.config.capabilities].flatMap((capability) => {
-      // eslint-disable-next-line security/detect-object-injection
-      const provider = CAPABILITY_PROVIDER[capability];
-      return provider === null ? [] : [provider];
-    }),
-  );
-  for (const provider of providers) {
+  const byProvider = new Map<string, Capability[]>();
+  for (const capability of deps.config.capabilities) {
+    // eslint-disable-next-line security/detect-object-injection
+    const provider = CAPABILITY_PROVIDER[capability];
+    if (provider !== null)
+      byProvider.set(provider, [...(byProvider.get(provider) ?? []), capability]);
+  }
+  for (const [provider, capabilities] of byProvider) {
     const manifest = findConnector(provider);
     if (manifest === undefined) continue;
-    const capabilities = [...deps.config.capabilities].filter(
-      // eslint-disable-next-line security/detect-object-injection
-      (capability) => CAPABILITY_PROVIDER[capability] === provider,
-    );
     await deps.sql.begin(async (tx) => {
       const inserted = await tx`
         insert into tw_installations (item_kind, item_id, version, capabilities, desired_state,
@@ -115,19 +117,21 @@ export type InstallationChange = {
   readonly observedDetail?: string | null;
 };
 
+export type InstallationUpdate = {
+  readonly id: string;
+  readonly expectedGeneration: number;
+  readonly actor: string;
+  readonly action: string;
+  readonly change: InstallationChange;
+};
+
 /**
  * Compare-and-swap on `generation`: returns the new row, or `undefined` when the row is missing or
  * the caller's generation is stale (the caller reports 409). The audit row commits with the write.
  */
 export async function updateInstallation(
   deps: Deps,
-  input: {
-    readonly id: string;
-    readonly expectedGeneration: number;
-    readonly actor: string;
-    readonly action: string;
-    readonly change: InstallationChange;
-  },
+  input: InstallationUpdate,
 ): Promise<Installation | undefined> {
   const { change } = input;
   return deps.sql.begin(async (tx) => {
