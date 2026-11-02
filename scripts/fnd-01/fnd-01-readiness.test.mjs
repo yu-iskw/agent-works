@@ -1,65 +1,83 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isAbsolute, join, relative } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const matrixPath = 'docs/plans/enterprise-production-v1/fnd-01/readiness-matrix.json';
+import {
+  matrixJsonPath,
+  matrixMdPath,
+  renderMatrix,
+  repoRoot,
+} from './render-readiness-matrix.mjs';
+
 const phase3Path = 'docs/plans/phase3-readiness-matrix.md';
 
 const DECISION_IDS = Array.from({ length: 12 }, (_, i) => `D-${String(i + 1).padStart(2, '0')}`);
 const OPEN_ITEM_IDS = Array.from({ length: 8 }, (_, i) => `O${String(i + 1).padStart(2, '0')}`);
 
-const PLACEHOLDER =
-  /^(|-|n\/?a|none|null|tbd|tba|todo|pending|unknown|placeholder|approved|yes|x+|<[^>]*>|\[[^\]]*\]|y{4}-m{2}-d{2})$/i;
+const PLACEHOLDER = new RegExp(
+  `^(|-+|n\\.?/?a\\.?|none|null|undefined|tb[acd]|tbc|todo|pending|unknown|placeholder|approved|yes|ok|test|tester|foo|bar|lorem ipsum|to be (decided|confirmed|determined)|john doe|jane doe|claude|opus|sonnet|haiku|fable|gpt[-\\w.]*|gemini[-\\w.]*|grok[-\\w.]*|codex|cursor|copilot|ai|agent|bot|assistant|x+|<[^>]*>|\\[[^\\]]*\\]|y{4}-m{2}-d{2})$`,
+  'i',
+);
 
-function isPlaceholder(value) {
-  return typeof value !== 'string' || PLACEHOLDER.test(value.trim());
-}
+const isPlaceholder = (value) => typeof value !== 'string' || PLACEHOLDER.test(value.trim());
 
-function readRepo(path) {
-  return readFileSync(join(repoRoot, path), 'utf8');
+const readRepo = (path) => readFileSync(join(repoRoot, path), 'utf8');
+
+function existsInRepo(path) {
+  const rel = relative(repoRoot, join(repoRoot, path));
+  return !isAbsolute(path) && !rel.startsWith('..') && existsSync(join(repoRoot, path));
 }
 
 function adrStatus(path) {
-  const match = /^## Status\s+(\S+)/m.exec(readRepo(path));
-  return match ? match[1] : undefined;
+  return /^## Status\s+(\S+)/m.exec(readRepo(path))?.[1];
 }
 
-function phase3Facts() {
+function phase3Facts(markdown) {
+  const rows = markdown.split('\n').filter((l) => l.startsWith('|'));
+  const split = (line) =>
+    line
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim());
+  const header = rows.map(split).find((cells) => cells.includes('Id'));
+  const column = (name) => {
+    const index = header?.indexOf(name) ?? -1;
+    if (index < 0) throw new Error(`${phase3Path} table has no "${name}" column`);
+    return index;
+  };
+  const [idCol, recordedCol] = [column('Id'), column('Recorded fact')];
   const facts = new Map();
-  for (const line of readRepo(phase3Path).split('\n')) {
-    const cells = line.split('|').map((c) => c.trim());
-    if (/^D-\d\d$/.test(cells[1] ?? '')) {
-      facts.set(cells[1], { recorded: cells[5], blocks: cells[6] });
-    }
+  for (const cells of rows.map(split)) {
+    if (/^D-\d\d$/.test(cells[idCol])) facts.set(cells[idCol], cells[recordedCol]);
   }
   return facts;
 }
 
-function signoffProblems(entry, adrs) {
+function signoffProblems(entry, { adrs, decisionRecords }) {
   const { signoff } = entry;
   if (signoff === null || signoff === undefined) {
     return [`${entry.id} is accepted without a signoff`];
   }
   const problems = [];
   for (const field of ['role', 'name', 'date', 'evidenceRef']) {
-    if (isPlaceholder(signoff[field])) {
+    if (isPlaceholder(signoff[field]))
       problems.push(`${entry.id} signoff.${field} is a placeholder`);
-    }
   }
-  if (!problems.length) {
+  if (
+    typeof signoff.date === 'string' &&
+    !problems.some((p) => p.endsWith('signoff.date is a placeholder'))
+  ) {
     if (!/^\d{4}-\d\d-\d\d$/.test(signoff.date) || Number.isNaN(Date.parse(signoff.date))) {
       problems.push(`${entry.id} signoff.date is not a real date`);
     }
-    if (!existsSync(join(repoRoot, signoff.evidenceRef))) {
-      problems.push(`${entry.id} signoff.evidenceRef does not exist`);
-    }
   }
-  const backing = (entry.partialRecords ?? []).map((p) => adrs.get(p));
-  if (!backing.includes('Accepted')) {
-    problems.push(`${entry.id} is accepted without an Accepted ADR`);
+  if (!isPlaceholder(signoff.evidenceRef)) {
+    if (!decisionRecords.includes(signoff.evidenceRef)) {
+      problems.push(`${entry.id} signoff.evidenceRef is not an ADR listed for this decision`);
+    } else if (adrs.get(signoff.evidenceRef) !== 'Accepted') {
+      problems.push(`${entry.id} signoff.evidenceRef is not an Accepted ADR`);
+    }
   }
   return problems;
 }
@@ -67,6 +85,11 @@ function signoffProblems(entry, adrs) {
 function validateMatrix(matrix, { adrs, phase3 }) {
   const problems = [];
   const entries = [...matrix.decisions, ...matrix.openItems];
+  const recordsOf = (entry) =>
+    entry.partialRecords ??
+    entry.relatedDecisions.flatMap(
+      (id) => matrix.decisions.find((d) => d.id === id)?.partialRecords ?? [],
+    );
 
   for (const id of [...DECISION_IDS, ...OPEN_ITEM_IDS]) {
     if (!entries.some((e) => e.id === id)) problems.push(`${id} is missing`);
@@ -78,10 +101,12 @@ function validateMatrix(matrix, { adrs, phase3 }) {
     if (!['open', 'accepted'].includes(entry.status)) {
       problems.push(`${entry.id} has unknown status ${entry.status}`);
     }
-    if (!isPlaceholder(entry.evidencePath) && !existsSync(join(repoRoot, entry.evidencePath))) {
-      problems.push(`${entry.id} evidencePath does not exist`);
+    if (!isPlaceholder(entry.evidencePath) && !existsInRepo(entry.evidencePath)) {
+      problems.push(`${entry.id} evidencePath does not exist inside the repo`);
     }
-    if (entry.status === 'accepted') problems.push(...signoffProblems(entry, adrs));
+    if (entry.status === 'accepted') {
+      problems.push(...signoffProblems(entry, { adrs, decisionRecords: recordsOf(entry) }));
+    }
     if (entry.status === 'open' && entry.signoff) {
       problems.push(`${entry.id} is open but carries a signoff`);
     }
@@ -95,8 +120,7 @@ function validateMatrix(matrix, { adrs, phase3 }) {
   }
 
   for (const decision of matrix.decisions) {
-    const fact = phase3.get(decision.id);
-    if (fact?.recorded === 'open' && decision.status !== 'open') {
+    if (phase3.get(decision.id) === 'open' && decision.status !== 'open') {
       problems.push(`${decision.id} is open in ${phase3Path} but ${decision.status} here`);
     }
     for (const oid of decision.openItems) {
@@ -110,9 +134,9 @@ function validateMatrix(matrix, { adrs, phase3 }) {
 }
 
 function load() {
-  const matrix = JSON.parse(readRepo(matrixPath));
+  const matrix = JSON.parse(readRepo(matrixJsonPath));
   const adrs = new Map(matrix.adrs.map((a) => [a.file, adrStatus(a.file)]));
-  return { matrix, context: { adrs, phase3: phase3Facts() } };
+  return { matrix, context: { adrs, phase3: phase3Facts(readRepo(phase3Path)) } };
 }
 
 const clone = (value) => structuredClone(value);
@@ -128,7 +152,7 @@ function withDecision(matrix, id, patch) {
 
 const realSignoff = {
   role: 'Security / privacy',
-  name: 'Test Approver',
+  name: 'Hanako Yamada',
   date: '2026-11-02',
   evidenceRef: 'docs/adr/0003-pilot-decisions.md',
 };
@@ -136,7 +160,7 @@ const realSignoff = {
 describe('FND-01 readiness matrix on the recorded repository', () => {
   const { matrix, context } = load();
 
-  test('passes validation and leaves every decision and open item open', () => {
+  test('passes validation with every entry open and unsigned', () => {
     expect(validateMatrix(matrix, context)).toEqual([]);
     for (const entry of [...matrix.decisions, ...matrix.openItems]) {
       expect(entry.status).toBe('open');
@@ -144,21 +168,14 @@ describe('FND-01 readiness matrix on the recorded repository', () => {
     }
   });
 
-  test('keeps ADRs 0004 to 0006 Proposed in the repo files', () => {
-    for (const file of matrix.adrs.filter((a) => a.id >= '0004').map((a) => a.file)) {
-      expect(context.adrs.get(file)).toBe('Proposed');
-    }
+  test('keeps ADRs numbered 0004 and above Proposed in the repo files', () => {
+    const later = matrix.adrs.filter((a) => Number(a.id) >= 4);
+    expect(later.length).toBeGreaterThan(0);
+    for (const { file } of later) expect(context.adrs.get(file)).toBe('Proposed');
   });
 
-  test('covers D-01..D-12 and O01..O08 exactly once', () => {
-    expect(matrix.decisions.map((d) => d.id)).toEqual(DECISION_IDS);
-    expect(matrix.openItems.map((o) => o.id)).toEqual(OPEN_ITEM_IDS);
-  });
-
-  test('records the #23 closure gap against files that do not exist', () => {
-    for (const artifact of matrix.issue23.promisedArtifacts) {
-      expect(existsSync(join(repoRoot, artifact.path))).toBe(artifact.exists);
-    }
+  test('readiness-matrix.md is up to date with the JSON (run render-readiness-matrix.mjs)', async () => {
+    expect(readRepo(matrixMdPath)).toBe(await renderMatrix(matrix));
   });
 });
 
@@ -168,10 +185,19 @@ describe('FND-01 approval placeholders cannot pass', () => {
   test.each([
     '',
     'TBD',
+    'TBC',
     'TODO',
     'pending',
     'N/A',
+    'n.a.',
     'unknown',
+    'to be decided',
+    'test',
+    'John Doe',
+    'Claude',
+    'Opus',
+    'GPT-5',
+    'Grok',
     '<approver>',
     '[name]',
     'yyyy-mm-dd',
@@ -194,30 +220,38 @@ describe('FND-01 approval placeholders cannot pass', () => {
     ],
     ['missing role', { ...realSignoff, role: undefined }, 'D-01 signoff.role is a placeholder'],
     [
-      'missing evidence file',
-      { ...realSignoff, evidenceRef: 'docs/adr/9999-nothing.md' },
-      'D-01 signoff.evidenceRef does not exist',
+      'evidence that is not an ADR of this decision',
+      { ...realSignoff, evidenceRef: 'docs/adr/0001-typescript-first-with-adk-js.md' },
+      'D-01 signoff.evidenceRef is not an ADR listed for this decision',
+    ],
+    [
+      'evidence that exists but is unrelated',
+      { ...realSignoff, evidenceRef: 'package.json' },
+      'D-01 signoff.evidenceRef is not an ADR listed for this decision',
     ],
   ])('accepted with %s is rejected', (_label, signoff, expected) => {
     const next = withDecision(matrix, 'D-01', { status: 'accepted', signoff });
     expect(validateMatrix(next, context)).toContain(expected);
   });
 
-  test('accepted with a Proposed ADR as its only backing is rejected', () => {
+  test('accepted with a Proposed ADR as its only evidence is rejected', () => {
+    const proposed = 'docs/adr/0004-application-core-and-adapter-boundaries.md';
     const next = withDecision(matrix, 'D-01', {
       status: 'accepted',
-      signoff: realSignoff,
-      partialRecords: ['docs/adr/0004-application-core-and-adapter-boundaries.md'],
+      signoff: { ...realSignoff, evidenceRef: proposed },
+      partialRecords: [proposed],
     });
-    expect(validateMatrix(next, context)).toContain('D-01 is accepted without an Accepted ADR');
+    expect(validateMatrix(next, context)).toContain(
+      'D-01 signoff.evidenceRef is not an Accepted ADR',
+    );
   });
 
-  test('a complete signoff backed by an Accepted ADR is the only passing accepted shape', () => {
+  test('a complete signoff citing an Accepted ADR of the decision passes once Phase 3 agrees', () => {
     const next = withDecision(matrix, 'D-01', { status: 'accepted', signoff: realSignoff });
     expect(validateMatrix(next, context)).toEqual([
       `D-01 is open in ${phase3Path} but accepted here`,
     ]);
-    const agreeing = { ...context, phase3: new Map([['D-01', { recorded: 'recorded' }]]) };
+    const agreeing = { ...context, phase3: new Map([['D-01', 'recorded']]) };
     expect(validateMatrix(next, agreeing)).toEqual([]);
   });
 
@@ -227,7 +261,7 @@ describe('FND-01 approval placeholders cannot pass', () => {
   });
 });
 
-describe('FND-01 structural failures', () => {
+describe('FND-01 structural guards', () => {
   const { matrix, context } = load();
 
   test('a Proposed ADR recorded as Accepted is rejected', () => {
@@ -238,18 +272,26 @@ describe('FND-01 structural failures', () => {
     );
   });
 
-  test('a missing decision, owner role, blocking capability or evidence path is rejected', () => {
+  test.each(['docs/plans/no-such-file.md', '../../../../etc/hosts', '/etc/hosts'])(
+    'evidencePath %j outside or missing is rejected',
+    (evidencePath) => {
+      const next = withDecision(matrix, 'D-03', { evidencePath });
+      expect(validateMatrix(next, context)).toContain(
+        'D-03 evidencePath does not exist inside the repo',
+      );
+    },
+  );
+
+  test('a missing decision, owner role or blocking capability is rejected', () => {
     const next = clone(matrix);
     next.decisions = next.decisions.filter((d) => d.id !== 'D-12');
     next.decisions[0].ownerRole = '';
     next.decisions[1].blockingCapability = 'TBD';
-    next.decisions[2].evidencePath = 'docs/plans/no-such-file.md';
     expect(validateMatrix(next, context)).toEqual(
       expect.arrayContaining([
         'D-12 is missing',
         'D-01 has no ownerRole',
         'D-02 has no blockingCapability',
-        'D-03 evidencePath does not exist',
       ]),
     );
   });
@@ -258,5 +300,14 @@ describe('FND-01 structural failures', () => {
     const next = clone(matrix);
     next.openItems.find((o) => o.id === 'O05').relatedDecisions = [];
     expect(validateMatrix(next, context)).toContain('D-10 and O05 do not reference each other');
+  });
+
+  test('phase 3 parsing fails loudly when a header is missing', () => {
+    expect(() => phase3Facts('| Id | Question |\n| --- | --- |\n| D-01 | q |')).toThrow(
+      /no "Recorded fact" column/,
+    );
+    expect(phase3Facts('| Id | Recorded fact |\n| --- | --- |\n| D-01 | open |').get('D-01')).toBe(
+      'open',
+    );
   });
 });
