@@ -5,18 +5,14 @@ import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
-import { createRoleResolver, createGroupResolver } from './auth/directory.js';
-import { createIapVerifier } from './auth/iap.js';
 import { createPostgresApprovalStore } from './broker/approvals.js';
 import { loadConfig } from './config.js';
 import { createDevWorkspaceRuntime } from './connectors/dev-runtime.js';
 import { createOAuthFlow } from './credentials/flow.js';
 import { createPostgresCredentialStore } from './credentials/postgres.js';
-import { createHttpOAuthProvider } from './credentials/provider.js';
 import { openDatabase } from './db.js';
 import { createPostgresDispatchPort } from './ledger/postgres-dispatch.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
-import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 import { createScheduleRuntime } from './scheduling/runtime.js';
@@ -26,6 +22,8 @@ import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
 import { taskSkillPolicy } from './skills/task-policy.js';
 import { createTicketReconciler } from './skills/ticket-receipts.js';
+import { buildProviderPorts } from './startup/ports.js';
+import { assertStartup } from './startup/providers.js';
 import { publishBundledCapabilities } from './suspension/bootstrap.js';
 import { createSuspensionEnforcer } from './suspension/enforcement.js';
 import { createPostgresSuspensionLedger } from './suspension/postgres.js';
@@ -44,30 +42,20 @@ import { createWorkbenchRuntime } from './workbench/runtime.js';
 import type { Caller } from './auth/iap.js';
 import type { SearchContext } from '@agent-works/domain';
 
+assertStartup(process.env);
 const config = loadConfig(process.env);
 const sql = await openDatabase(config.databaseUrl);
 const now = () => new Date();
-const drive = createHttpDrive({
-  baseUrl: config.driveUrl,
-  directoryUrl: config.directoryUrl,
-  workerToken: process.env.AW_DEV_STACK === '1' ? process.env.DRIVE_WORKER_TOKEN : undefined,
-  now,
-});
-const groups = createGroupResolver({ baseUrl: config.directoryUrl });
+const ports = buildProviderPorts(config, process.env, now);
+const { drive, groups, rolesFor, oauthUrl } = ports;
 const ledger = createPostgresLedgerPort(sql, now);
 const suspensionLedger = createPostgresSuspensionLedger(sql);
-const rolesFor = createRoleResolver({ baseUrl: config.directoryUrl });
-const oauthUrl = process.env.OAUTH_URL;
 const oauth =
-  oauthUrl === undefined
+  oauthUrl === undefined || ports.oauthProvider === undefined
     ? undefined
     : createOAuthFlow({
         ...createPostgresCredentialStore(sql),
-        provider: createHttpOAuthProvider(
-          oauthUrl,
-          config.oauthRedirectUri,
-          process.env.OAUTH_PUBLIC_URL,
-        ),
+        provider: ports.oauthProvider,
         ledger,
         now,
       });
@@ -89,7 +77,7 @@ const enforcement = createSuspensionEnforcer({
   ledger: suspensionLedger,
   emergencyAudit: emergencyAudit(ledger),
 });
-const verify = controlledVerify(createIapVerifier(config.iap), groups, enforcement);
+const verify = controlledVerify(ports.iap, groups, enforcement);
 const workspace = (() => {
   if (process.env.AW_DEV_STACK === '1' && oauth !== undefined && oauthUrl !== undefined) {
     return createDevWorkspaceRuntime({
