@@ -13,6 +13,9 @@ import { ConcurrentUpdate, LedgerConflict } from '../ports/ledger-port.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { askPolicy, contextFor } from '../retrieval/search.js';
 import { createSkillRegistry } from '../skills/registry.js';
+import { noopTelemetry } from '../telemetry/instrument.js';
+
+import { instrumentTaskRoutes } from './tasks-telemetry.js';
 
 import type { ApprovalsDeps } from './approvals.js';
 import type { Caller, VerifyAssertion } from '../auth/iap.js';
@@ -22,6 +25,7 @@ import type { DispatchPort } from '../ports/dispatch-port.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { AuthorizedCaller, RegisteredSkill } from '../skills/incident.js';
 import type { SkillRegistry } from '../skills/registry.js';
+import type { Telemetry } from '../telemetry/instrument.js';
 import type { Task, TaskApi, TaskSubmit } from '@agent-works/domain';
 
 const unauthenticated = {
@@ -51,6 +55,7 @@ export type TaskAuthorization = {
   readonly now: AskDeps['now'];
   readonly approvals?: Omit<ApprovalsDeps, 'verify'>;
   readonly wire?: Pick<NonNullable<AskDeps['wire']>, 'groups' | 'policyInput'>;
+  readonly telemetry?: Telemetry;
 };
 
 export type TaskRoutes = {
@@ -67,6 +72,7 @@ export function createTaskRoutes(
   authorization?: TaskAuthorization,
   dispatch?: DispatchPort,
 ): TaskRoutes {
+  const telemetry = authorization?.telemetry ?? noopTelemetry;
   if (authorization?.approvals !== undefined)
     registry.configureApprovals?.({
       store: authorization.approvals.store,
@@ -115,12 +121,16 @@ export function createTaskRoutes(
         };
       },
     });
-  return {
-    submit: (request) => submitTask(dispatch, verify, request, { registry, authorization }),
-    read: (request) => readTask(ledger, verify, request),
-    events: (request) => readEvents(ledger, verify, request),
-    cancel: (request) => cancelTask(ledger, verify, request),
-  };
+  return instrumentTaskRoutes(
+    {
+      submit: (request) =>
+        submitTask(dispatch, verify, request, { registry, authorization, telemetry }),
+      read: (request) => readTask(ledger, verify, request),
+      events: (request) => readEvents(ledger, verify, request),
+      cancel: (request) => cancelTask(ledger, verify, request),
+    },
+    telemetry,
+  );
 }
 
 const memory = createMemoryTaskPorts();
@@ -140,7 +150,11 @@ async function submitTask(
   dispatch: DispatchPort | undefined,
   verify: VerifyAssertion,
   request: ApiRequest,
-  options: { readonly registry: SkillRegistry; readonly authorization?: TaskAuthorization },
+  options: {
+    readonly registry: SkillRegistry;
+    readonly authorization?: TaskAuthorization;
+    readonly telemetry: Telemetry;
+  },
 ): Promise<ApiReply> {
   const caller = await authenticate(verify, request);
   if ('status' in caller) return caller;
@@ -156,7 +170,16 @@ async function submitTask(
   if (skill === undefined) return { status: 400, body: { error: 'unknown_skill' } };
   const submission = submitBody(parsed.data);
   if (!skill.validate(submission)) return invalidRequest;
-  const authorized = await authorize(caller, submission, skill, options.authorization);
+  const authorized = await options.telemetry.span(
+    'policy.decision',
+    { correlation: { task: undefined } },
+    async (span) => {
+      const result = await authorize(caller, submission, skill, options.authorization);
+      span.attribute('effect', result === undefined ? 'deny' : result.decision.effect);
+      if (result === undefined) span.status('denied');
+      return result;
+    },
+  );
   if (authorized === undefined) return { status: 403, body: { error: 'denied' } };
   if (dispatch === undefined) return unavailable;
   return accept(
