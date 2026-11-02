@@ -484,6 +484,7 @@ const marketplaceRoutes = (): readonly Entry[] => [
     handle: async ({ deps: d, member, request }) =>
       reply(200, {
         listings: await listMarketplace(d, member, query(marketplaceListQuerySchema, request).kind),
+        admin: member.admin === true,
       }),
   },
   {

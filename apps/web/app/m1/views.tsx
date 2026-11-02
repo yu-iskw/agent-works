@@ -20,6 +20,11 @@ import type { Session } from './identity.js';
 import type { Child, Html } from '../html.js';
 import type { IconName } from '../workbench/icons.js';
 import type {
+  MarketplaceDetail,
+  MarketplaceKind,
+  MarketplaceListing,
+} from '@agent-works/domain/marketplace';
+import type {
   CapabilityState,
   InboxItem,
   SkillView,
@@ -29,7 +34,8 @@ import type {
   TemplateView,
 } from '@agent-works/domain/teamwork';
 
-export type NavKey = 'inbox' | 'teammates' | 'tasks' | 'catalog' | 'connections' | 'none';
+export type NavKey =
+  'inbox' | 'teammates' | 'tasks' | 'catalog' | 'marketplace' | 'connections' | 'none';
 
 export type Notice = { readonly tone: 'ok' | 'danger' | 'info' | 'warn'; readonly text: string };
 
@@ -151,6 +157,7 @@ const NAV: readonly { key: NavKey; label: string; icon: IconName; path: string }
   { key: 'teammates', label: 'Teammates', icon: 'sparkle', path: TEAMMATES_PATH },
   { key: 'tasks', label: 'Tasks', icon: 'list', path: '/tasks' },
   { key: 'catalog', label: 'Catalog', icon: 'file', path: '/catalog' },
+  { key: 'marketplace', label: 'Marketplace', icon: 'shield', path: '/marketplace' },
   { key: 'connections', label: 'Connections', icon: 'plug', path: '/connections' },
 ];
 
@@ -923,6 +930,322 @@ export function CatalogPage(props: {
             </article>
           ))}
         </div>
+      </section>
+    </Shell>
+  );
+}
+
+const MARKETPLACE_TABS: readonly { readonly kind: MarketplaceKind; readonly label: string }[] = [
+  { kind: 'connector', label: 'Connectors' },
+  { kind: 'team_bot', label: 'Team bots' },
+  { kind: 'mcp_server', label: 'MCP servers' },
+  { kind: 'a2a_agent', label: 'A2A agents' },
+];
+
+const BADGE = {
+  ok: 'badge badge-ok',
+  neutral: 'badge badge-neutral',
+  warn: 'badge badge-test',
+  bad: 'badge badge-bad',
+  seg: 'badge badge-seg',
+} as const;
+
+const LISTING_STATUS: Record<
+  MarketplaceListing['status'],
+  { readonly label: string; readonly tone: string }
+> = {
+  enabled: { label: 'Enabled', tone: BADGE.ok },
+  disabled: { label: 'Disabled', tone: BADGE.warn },
+  available: { label: 'Available', tone: BADGE.neutral },
+  coming_soon: { label: 'Coming soon', tone: BADGE.seg },
+};
+
+export type ConnectorDetail = Extract<MarketplaceDetail, { kind: 'connector' }>;
+
+const scopeName = (scope: string) => scope.replace('https://www.googleapis.com/auth/', '');
+
+/**
+ * The member's own connection as it bears on this connector. Configured, connected and
+ * permission-needed are separate states because each one asks the member for something different.
+ */
+function connectionState(props: {
+  readonly connection: Connection | undefined;
+  readonly detail: ConnectorDetail | undefined;
+  readonly fixture: boolean;
+}): { readonly tone: string; readonly label: string } {
+  const { connection, detail } = props;
+  if (props.fixture) return { tone: BADGE.neutral, label: 'Not needed here (fixture sources)' };
+  if (connection === undefined) return { tone: BADGE.neutral, label: 'Connection unknown' };
+  if (!connection.configured) return { tone: BADGE.warn, label: 'Provider not configured' };
+  if (connection.status === 'not_connected')
+    return { tone: BADGE.neutral, label: 'Configured, not connected' };
+  const missing = [
+    ...new Set(
+      (detail?.capabilities ?? [])
+        .filter((capability) => capability.enabled)
+        .flatMap((capability) => capability.requiredScopes)
+        .filter((scope) => !connection.scopes.includes(scope)),
+    ),
+  ];
+  if (
+    connection.errorCode === 'scopes_missing' ||
+    (connection.status === 'active' && missing.length > 0)
+  )
+    return {
+      tone: BADGE.bad,
+      label:
+        missing.length === 0
+          ? 'Permission needed'
+          : `Permission needed: ${missing.map((scope) => scopeName(scope)).join(', ')}`,
+    };
+  if (connection.status !== 'active')
+    return {
+      tone: BADGE.bad,
+      label: `Needs attention (${connection.errorCode ?? connection.status})`,
+    };
+  return { tone: BADGE.ok, label: 'Connected' };
+}
+
+function ConnectorAdminControls(props: {
+  readonly ctx: PageCtx;
+  readonly listing: MarketplaceListing;
+  readonly detail: ConnectorDetail;
+}): Html | null {
+  const { ctx, listing, detail } = props;
+  const { installation } = detail;
+  // Without a row nothing is allowed for this segment, so there is nothing to switch.
+  if (installation === null) return null;
+  const action = (name: string) =>
+    segPath(ctx.segment, `/marketplace/connectors/${listing.id}/${name}`);
+  const generation = (
+    <input type="hidden" name="expectedGeneration" value={installation.generation} />
+  );
+  const enabled = installation.desiredState === 'enabled';
+  return (
+    <div class="stack-sm">
+      <div class="row">
+        <form method="post" action={action(enabled ? 'disable' : 'enable')}>
+          <Csrf session={ctx.session} />
+          {generation}
+          <SubmitButton
+            label={`${enabled ? 'Disable' : 'Enable'} ${listing.name}`}
+            kind={enabled ? 'btn-danger' : undefined}
+            small
+          />
+        </form>
+      </div>
+      {enabled ? (
+        <form method="post" action={action('set_capabilities')} class="stack-sm">
+          <Csrf session={ctx.session} />
+          {generation}
+          <fieldset class="field">
+            <legend>Capabilities for {listing.name}</legend>
+            <p class="hint">
+              Read and write are separate. Turning one on never turns the other on.
+            </p>
+            <div class="stack-sm">
+              {detail.capabilities.map((capability) => (
+                <label class="choice">
+                  <input
+                    type="checkbox"
+                    name="capability"
+                    value={capability.id}
+                    checked={capability.enabled}
+                    disabled={!capability.allowedByEnv}
+                  />
+                  <span>
+                    {capabilityLabel(capability.id)} ({capability.access})
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <SubmitButton label={`Save capabilities for ${listing.name}`} kind="btn" small />
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ConnectorCard(props: {
+  readonly ctx: PageCtx;
+  readonly listing: MarketplaceListing;
+  readonly detail: ConnectorDetail | undefined;
+  readonly connection: Connection | undefined;
+  readonly admin: boolean;
+}): Html {
+  const { ctx, listing, detail, admin } = props;
+  const status = LISTING_STATUS[listing.status];
+  const connection = connectionState({
+    connection: props.connection,
+    detail,
+    fixture: ctx.readiness?.sourceMode === 'fixture',
+  });
+  return (
+    <article class="card card-body stack-sm" aria-labelledby={`mp-${listing.kind}-${listing.id}`}>
+      <div class="row">
+        <h3 id={`mp-${listing.kind}-${listing.id}`}>{listing.name}</h3>
+        <span class={status.tone}>{status.label}</span>
+      </div>
+      <p class="muted">{listing.summary}</p>
+      <p class="subtle">
+        By {listing.publisher} · version {listing.version}
+      </p>
+      {detail === undefined ? (
+        <Alert tone="warn" live={false}>
+          <p>The details of this connector could not be loaded. Reload to try again.</p>
+        </Alert>
+      ) : (
+        <Fragment>
+          {listing.status === 'available' ? (
+            <p class="muted">
+              This segment's settings do not allow this connector, so it cannot be enabled here.
+            </p>
+          ) : null}
+          <ul class="check-list" aria-label={`Capabilities of ${listing.name}`}>
+            {detail.capabilities.map((capability) => (
+              <li>
+                <span class="chip">{capability.access === 'write' ? 'Write' : 'Read'}</span>
+                <span>
+                  <strong>{capabilityLabel(capability.id)}</strong>{' '}
+                  <span class={capability.enabled ? BADGE.ok : BADGE.neutral}>
+                    {capability.enabled ? 'On' : 'Off'}
+                  </span>{' '}
+                  {capability.allowedByEnv ? null : (
+                    <span class={BADGE.warn}>Not allowed in this segment</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div class="row">
+            <span class={connection.tone}>{connection.label}</span>
+            <a href={segPath(ctx.segment, '/connections')}>
+              Manage your connection<span class="sr-only"> for {listing.name}</span>
+            </a>
+          </div>
+          <p class="subtle">
+            Enabling a connector lets the segment use it. Each member still connects their own
+            account.
+          </p>
+          {admin ? <ConnectorAdminControls ctx={ctx} listing={listing} detail={detail} /> : null}
+        </Fragment>
+      )}
+    </article>
+  );
+}
+
+function TeamBotCard(props: { readonly ctx: PageCtx; readonly listing: MarketplaceListing }): Html {
+  const { ctx, listing } = props;
+  const status = LISTING_STATUS[listing.status];
+  return (
+    <article class="card card-body stack-sm" aria-labelledby={`mp-${listing.kind}-${listing.id}`}>
+      <div class="row">
+        <h3 id={`mp-${listing.kind}-${listing.id}`}>{listing.name}</h3>
+        <span class={status.tone}>{status.label}</span>
+      </div>
+      <p class="muted">{listing.summary}</p>
+      <p class="subtle">By {listing.publisher} · curated template</p>
+      {listing.href === undefined ? null : (
+        <div>
+          <a class="btn btn-sm" href={segPath(ctx.segment, listing.href)}>
+            Add from the catalog<span class="sr-only">: {listing.name}</span>
+          </a>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ComingSoonCard(props: { readonly listing: MarketplaceListing }): Html {
+  const { listing } = props;
+  const status = LISTING_STATUS[listing.status];
+  return (
+    <article class="card card-body stack-sm" aria-labelledby={`mp-${listing.kind}-${listing.id}`}>
+      <div class="row">
+        <h3 id={`mp-${listing.kind}-${listing.id}`}>{listing.name}</h3>
+        <span class={status.tone}>{status.label}</span>
+      </div>
+      <p class="muted">{listing.summary}</p>
+    </article>
+  );
+}
+
+export function MarketplacePage(props: {
+  readonly ctx: PageCtx;
+  readonly kind: MarketplaceKind;
+  readonly listings: readonly MarketplaceListing[];
+  readonly admin: boolean;
+  /** Connector details by id; a missing entry means that detail failed to load. */
+  readonly details: ReadonlyMap<string, ConnectorDetail>;
+  /** Undefined when the member's connections could not be read. */
+  readonly connections: readonly Connection[] | undefined;
+}): Html {
+  const { ctx, kind } = props;
+  const tab = MARKETPLACE_TABS.find((candidate) => candidate.kind === kind);
+  return (
+    <Shell ctx={ctx} title="Marketplace">
+      <PageHead
+        title="Marketplace"
+        lead={`Connectors, team bots, MCP servers and A2A agents for ${ctx.segment.name}. Everything listed is published by Agent Works and reviewed.`}
+      />
+      <p class="subtle" role="note">
+        {props.admin
+          ? 'You are an admin of this segment, so you can enable and disable connectors. The server checks this again on every change.'
+          : 'Only segment admins can enable or disable connectors.'}
+      </p>
+      <nav aria-label="Marketplace kinds">
+        <ul class="row">
+          {MARKETPLACE_TABS.map((item) => (
+            <li>
+              <a
+                class={item.kind === kind ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                href={segPath(ctx.segment, `/marketplace?kind=${item.kind}`)}
+                aria-current={item.kind === kind ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <section aria-labelledby="mp-h" class="footer-note">
+        <h2 class="section-title" id="mp-h">
+          {tab?.label ?? 'Listings'}
+        </h2>
+        {kind === 'connector' && props.connections === undefined ? (
+          <Alert tone="warn" live={false}>
+            <p>
+              Your connection status could not be read, so it is shown as unknown. Reload to try
+              again.
+            </p>
+          </Alert>
+        ) : null}
+        {props.listings.length === 0 ? (
+          <Empty icon="shield" title={`No ${(tab?.label ?? 'listings').toLowerCase()} yet`}>
+            <p class="muted">Nothing of this kind is listed for this segment.</p>
+          </Empty>
+        ) : (
+          <div class="cards">
+            {props.listings.map((listing) =>
+              listing.kind === 'connector' ? (
+                <ConnectorCard
+                  ctx={ctx}
+                  listing={listing}
+                  detail={props.details.get(listing.id)}
+                  connection={props.connections?.find(
+                    (connection) => connection.provider === listing.id,
+                  )}
+                  admin={props.admin}
+                />
+              ) : listing.kind === 'mcp_server' || listing.kind === 'a2a_agent' ? (
+                <ComingSoonCard listing={listing} />
+              ) : (
+                <TeamBotCard ctx={ctx} listing={listing} />
+              ),
+            )}
+          </div>
+        )}
       </section>
     </Shell>
   );

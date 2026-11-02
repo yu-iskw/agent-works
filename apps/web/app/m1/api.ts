@@ -1,4 +1,5 @@
 import { IAP_ASSERTION_HEADER } from '@agent-works/domain';
+import { marketplaceDetailSchema, marketplaceListingSchema } from '@agent-works/domain/marketplace';
 import { TEAMWORK_API_VERSION, taskDetailSchema } from '@agent-works/domain/teamwork';
 
 import { segmentsFor } from './config.js';
@@ -6,6 +7,12 @@ import { segmentsFor } from './config.js';
 import type { Segment, WebConfig } from './config.js';
 import type { AssertionSigner, Session } from './identity.js';
 import type { ApiResult } from '../workbench/api.js';
+import type {
+  InstallationView,
+  MarketplaceDetail,
+  MarketplaceKind,
+  MarketplaceListing,
+} from '@agent-works/domain/marketplace';
 import type {
   AttachmentView,
   CapabilityState,
@@ -240,6 +247,50 @@ export function createSegmentClient(
         ? { ok: true, value: parsed.data }
         : { ok: false, status: 502, error: 'bad_contract' };
     },
+    /** One kind's listings; `admin` says whether the member may change connectors, nothing more. */
+    async marketplace(
+      s: Session,
+      seg: string,
+      kind: MarketplaceKind,
+    ): Promise<ApiResult<{ listings: MarketplaceListing[]; admin: boolean }>> {
+      const result = await call<{ listings: unknown; admin?: unknown }>(
+        s,
+        seg,
+        'GET',
+        `/marketplace?kind=${kind}`,
+      );
+      if (!result.ok) return result;
+      const parsed = marketplaceListingSchema.array().safeParse(result.value.listings);
+      return parsed.success
+        ? { ok: true, value: { listings: parsed.data, admin: result.value.admin === true } }
+        : { ok: false, status: 502, error: 'bad_contract' };
+    },
+    async marketplaceItem(
+      s: Session,
+      seg: string,
+      kind: MarketplaceKind,
+      id: string,
+    ): Promise<ApiResult<MarketplaceDetail>> {
+      const result = await call<{ item: unknown }>(
+        s,
+        seg,
+        'GET',
+        `/marketplace/${kind}/${encodeURIComponent(id)}`,
+      );
+      if (!result.ok) return result;
+      const parsed = marketplaceDetailSchema.safeParse(result.value.item);
+      return parsed.success
+        ? { ok: true, value: parsed.data }
+        : { ok: false, status: 502, error: 'bad_contract' };
+    },
+    connectorAction: (s: Session, seg: string, id: string, body: unknown) =>
+      call<{ installation: InstallationView }>(
+        s,
+        seg,
+        'POST',
+        `/marketplace/connectors/${encodeURIComponent(id)}`,
+        body,
+      ),
     command: (s: Session, seg: string, id: string, command: string, body?: unknown) =>
       call<{ task: TaskSummary }>(s, seg, 'POST', `/tasks/${id}/${command}`, body),
     inbox: (s: Session, seg: string) => call<{ items: InboxItem[] }>(s, seg, 'GET', '/inbox'),
