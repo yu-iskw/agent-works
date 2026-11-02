@@ -1,4 +1,4 @@
-import { createAdkRunner } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema } from '@agent-works/domain';
 import { describe, expect, it } from 'vitest';
 
@@ -42,7 +42,7 @@ describe('runner scoped personalization', () => {
       );
     };
     const runner = createAdkRunner({
-      baseUrl: 'http://llm.local',
+      model: new FetchLlm({ baseUrl: 'http://llm.local', fetch: load }),
       beforeModelCall,
       limits: runnerLimitsSchema.parse({
         maxSteps: 3,
@@ -55,7 +55,6 @@ describe('runner scoped personalization', () => {
         maxSubagents: 0,
         maxParallelToolCalls: 1,
       }),
-      fetch: load,
       recallMemory: createMemoryRecallHook(f.store, f.policy, () => Promise.resolve(aliceScope)),
     });
     const output = await runner.run({ ...input, beforeModelCall: () => Promise.resolve() });
@@ -72,7 +71,7 @@ describe('runner scoped personalization', () => {
       );
     };
     const runner = createAdkRunner({
-      baseUrl: 'http://llm.local',
+      model: new FetchLlm({ baseUrl: 'http://llm.local', fetch: load }),
       beforeModelCall,
       limits: runnerLimitsSchema.parse({
         maxSteps: 3,
@@ -85,7 +84,6 @@ describe('runner scoped personalization', () => {
         maxSubagents: 0,
         maxParallelToolCalls: 1,
       }),
-      fetch: load,
     });
     expect((await runner.run({ ...input, beforeModelCall: () => Promise.resolve() })).answer).toBe(
       'answer',

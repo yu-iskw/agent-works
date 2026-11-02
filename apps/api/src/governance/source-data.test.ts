@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { createAdkRunner } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { sourceDataSchema } from '@agent-works/domain/data-governance';
 import { describe, expect, it } from 'vitest';
 
@@ -57,9 +57,9 @@ const runners: { name: string; create: (load: typeof fetch) => AgentRunner }[] =
     name: 'ADK',
     create: (load) =>
       createAdkRunner({
-        baseUrl: 'http://llm.test',
+        model: new FetchLlm({ baseUrl: 'http://llm.test', fetch: load }),
         beforeModelCall,
-        fetch: load,
+
         limits: {
           maxSteps: 4,
           maxToolCalls: 4,

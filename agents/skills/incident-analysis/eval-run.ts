@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createAdkRunner } from '@agent-works/agent-runtime';
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema, skillManifestSchema } from '@agent-works/domain';
 import { createIncidents, createTicket, listen } from '@agent-works/fakes';
 
@@ -189,7 +189,7 @@ async function startStack(delayMs = 0): Promise<Stack> {
     listen(skillLlm, 0),
   ]);
   const runner = createAdkRunner({
-    baseUrl: llm.url,
+    model: new FetchLlm({ baseUrl: llm.url }),
     limits: runnerLimits,
     beforeModelCall,
   });
