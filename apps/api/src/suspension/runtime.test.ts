@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema } from '@agent-works/domain';
 import { expect, test, vi } from 'vitest';
 
-import { createAdkRunner } from '../agent/adk-runner.js';
 import { createScriptedRunner } from '../agent/scripted-runner.js';
 import { createListener } from '../http.js';
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
@@ -16,6 +16,7 @@ import { createSuspensionEnforcer } from './enforcement.js';
 import { listenerFetch } from './http-test-harness.js';
 import {
   authorizeResource,
+  beforeModelCall as requestModelHook,
   beforeReadTool,
   beforeToolCall,
   bundledVersionBaseline,
@@ -115,7 +116,11 @@ test('ADK invokes the injected revocation hook before every turn', async () => {
       : Promise.resolve();
   };
   await expect(
-    createAdkRunner({ baseUrl: 'http://localhost', fetch: load, limits }).run({
+    createAdkRunner({
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
+      limits,
+      beforeModelCall: requestModelHook,
+    }).run({
       question: 'triage',
       sources: [],
       beforeModelCall,
@@ -127,7 +132,11 @@ test('ADK invokes the injected revocation hook before every turn', async () => {
 test('ADK runner created inside a skill still receives the request-scoped default hook', async () => {
   const load = vi.fn<typeof fetch>();
   const app = await setup(async () => {
-    await createAdkRunner({ baseUrl: 'http://localhost', fetch: load, limits }).run({
+    await createAdkRunner({
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
+      limits,
+      beforeModelCall: requestModelHook,
+    }).run({
       question: 'triage',
       sources: [],
     });
@@ -145,7 +154,11 @@ test('ADK runner created inside a skill still receives the request-scoped defaul
 test('revocation after the first model turn prevents the second turn and records controlled task stop', async () => {
   const load = vi.fn<typeof fetch>();
   const app = await setup(async () => {
-    await createAdkRunner({ baseUrl: 'http://localhost', fetch: load, limits }).run({
+    await createAdkRunner({
+      model: new FetchLlm({ baseUrl: 'http://localhost', fetch: load }),
+      limits,
+      beforeModelCall: requestModelHook,
+    }).run({
       question: 'triage',
       sources: [],
     });

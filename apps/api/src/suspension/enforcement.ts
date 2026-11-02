@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { RunnerError } from '@agent-works/agent-runtime/port';
 import { canonicalPayloadSha256, suspensionSnapshotSchema } from '@agent-works/domain';
 import { suspensionDecision, suspensionFacts } from '@agent-works/policy';
-
-import { RunnerError } from '../agent/runner-port.js';
 
 import type { SuspensionAudit, SuspensionLedger } from '../ports/suspension-ledger.js';
 import type { InvocationContext, SuspensionDenial } from '@agent-works/policy';

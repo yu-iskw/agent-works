@@ -11,9 +11,9 @@ import { resultDigest } from './verifier.js';
 
 import type { DelegationRequest } from './context.js';
 import type { ChildVerifier } from './verifier.js';
-import type { RunnerOutput } from '../agent/runner-port.js';
 import type { BudgetPolicy, BudgetPort } from '../finops/budget-port.js';
 import type { DelegationPort } from '../ports/delegation.js';
+import type { RunnerOutput } from '@agent-works/agent-runtime/port';
 import type { DelegationAudit, DelegationContext } from '@agent-works/domain/delegation';
 export type DelegationOptions = {
   readonly flag?: string;

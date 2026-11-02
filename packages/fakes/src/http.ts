@@ -54,6 +54,53 @@ export function listen(
   });
 }
 
+export function handlerFetch(handler: Handler): typeof fetch {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    if (request.method === 'GET' && url.pathname === '/healthz') {
+      return new Response('ok', { status: 200, headers: { 'content-type': textPlain } });
+    }
+    const { signal } = request;
+    signal.throwIfAborted();
+    let abort = () => {};
+    const aborted = new Promise<never>((_resolve, reject) => {
+      abort = () => reject(signal.reason as Error);
+      signal.addEventListener('abort', abort, { once: true });
+    });
+    try {
+      const reply = await Promise.race([
+        (async () =>
+          handler({
+            method: request.method,
+            url,
+            headers: Object.fromEntries(request.headers),
+            body: Buffer.from(await request.arrayBuffer()),
+          }))(),
+        aborted,
+      ]);
+      const encoded = encodeBody(reply);
+      const headers = new Headers({ 'content-type': encoded.type });
+      for (const [name, value] of Object.entries(reply.headers ?? {})) {
+        headers.delete(name);
+        for (const item of typeof value === 'string' ? [value] : value) headers.append(name, item);
+      }
+      return new Response(encoded.body, { status: reply.status, headers });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return new Response('error', { status: 500, headers: { 'content-type': textPlain } });
+    } finally {
+      signal.removeEventListener('abort', abort);
+    }
+  };
+}
+
+function encodeBody(reply: Reply): { body: string; type: string } {
+  return typeof reply.body === 'string'
+    ? { body: reply.body, type: textPlain }
+    : { body: JSON.stringify(reply.body), type: 'application/json; charset=utf-8' };
+}
+
 async function respond(
   handler: Handler,
   request: IncomingMessage,
@@ -71,8 +118,7 @@ async function respond(
       headers: request.headers,
       body: await readBody(request),
     });
-    const body = typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body);
-    const type = typeof reply.body === 'string' ? textPlain : 'application/json; charset=utf-8';
+    const { body, type } = encodeBody(reply);
     send(response, reply.status, body, type, reply.headers);
   } catch {
     if (!response.headersSent) send(response, 500, 'error', textPlain);

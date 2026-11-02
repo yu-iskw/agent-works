@@ -1,4 +1,9 @@
-import type { SourceDocument } from '../retrieval/drive-port.js';
+export type SourceDocument = {
+  readonly id: string;
+  readonly title: string;
+  readonly text: string;
+  readonly uri: string;
+};
 
 export type RunnerInput = {
   readonly beforeModelCall?: (model: string) => Promise<void>;
@@ -11,6 +16,8 @@ export type RunnerInput = {
 export type RunnerOutput = {
   readonly answer: string;
   readonly citedSourceIds: readonly string[];
+  /** Summed model usage; undefined when the model reported none (never 0). */
+  readonly usage?: { readonly promptTokens: number; readonly outputTokens: number };
 };
 
 export class RunnerError extends Error {

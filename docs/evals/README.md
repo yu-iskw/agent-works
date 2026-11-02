@@ -36,6 +36,68 @@ Docker. The hook is process-local. Browser workers and CLI invocations each get
 a fresh runtime. A real compiler check is still necessary; transpilation is not
 a typecheck.
 
+## Server-free agent runs
+
+`aw agent` and `aw eval` run the `ask` agent in-process. Fake mode needs no API
+server, `AW_API_BASE_URL`, Docker, PostgreSQL, network or credentials. Build the CLI
+first, then run from the repository root:
+
+```sh
+pnpm build
+node packages/cli/dist/aw.js agent list --json
+node packages/cli/dist/aw.js agent run ask --mode fake --input evals/v1/examples/ask-retrieval.json --json
+node packages/cli/dist/aw.js eval run --agent ask --mode fake --json
+env -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u VERTEX_MODEL_ID node packages/cli/dist/aw.js eval run --agent ask --mode live
+```
+
+The last command shows the live failure path. It exits 2 with the three variable
+names and makes no network call. A real live run needs Vertex AI access and paid
+model calls, so run it only when someone has authorized it.
+
+- `agent run` takes one eval v1 case row through `--input`. `eval run` defaults to
+  the gate's splits (`dev` and `adversarial`, 102 cases). `--dataset` is repeatable.
+  One split alone cannot pass the gate, because metrics it does not cover are
+  unavailable. `holdout.jsonl` requires `--include-holdout`, or the command exits 2.
+- Exit codes: 0 means success or a passed gate. 1 means the gate failed, which only
+  `eval run` can return. 2 means bad usage, a configuration error or a harness error.
+  `agent run` also exits 2 when the observation has `status: "error"` (for example
+  the model call failed). The observation is still printed, and the reason goes to stderr.
+- With `--json`, stdout carries only the JSON document. ADK and `@google/genai` log
+  lines go to stderr.
+
+**Safety boundary.**
+
+- Fake (default): the ADK `LlmAgent` runs with a fake model reached through an
+  injected `fetch`. Retrieval, the broker, approvals and the ledger are in-memory fakes.
+- Live: the model is Vertex AI through ADK `Gemini` (`vertexai: true`), authenticated
+  by Application Default Credentials only. It needs `GOOGLE_CLOUD_PROJECT`,
+  `GOOGLE_CLOUD_LOCATION` and `VERTEX_MODEL_ID`. Optional: `VERTEX_TIMEOUT_MS`
+  (default 60000) and `VERTEX_MAX_OUTPUT_TOKENS` (default 4096). There is no API-key path.
+- Only the model is live. Retrieval and tools stay fake in both modes, so live runs
+  never get write-capable tools.
+- There is no fallback in either direction. Fake never switches to live, and live
+  never falls back to fake.
+
+**The `run` record.** Each `agent run` and `eval run` result has a sibling `run` field
+next to the strict v1 observation: `{ framework, model, mode, durationMs, usage }`.
+The observation itself is unchanged, and there is no cost field. `usage` is
+`{ promptTokens, outputTokens }` when the model reported counts. It is `null` when
+the counts are unknown. For `eval run`, `usage` is `null` if any case did not report
+counts. `null` never means zero.
+
+**Evidence limits.** A fake-mode pass shows that the harness, policy and tool wiring
+behave as specified against deterministic fakes. It says nothing about a live
+model's answers, latency, cost or security in production. The offline gate's
+"not production evidence" limits above still apply.
+
+**Mastra seam.** A different framework plugs in one of two ways:
+
+- implement `AgentRunner` from `@agent-works/agent-runtime/port`, which does not load
+  `@google/adk`; or
+- emit v1 observations that validate against `evals/v1/observation.schema.json`.
+
+There is no registry or plugin interface. The agent list is a constant with one entry.
+
 ## Dataset versions and splits
 
 `evals/v1/case.schema.json` publishes the strict row contract.

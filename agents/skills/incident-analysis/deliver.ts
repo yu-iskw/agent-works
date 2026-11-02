@@ -27,6 +27,7 @@ export type DeliverInput = {
   readonly signal?: AbortSignal;
   readonly ledger: Map<string, string>;
   readonly issuedWrites?: Set<string>;
+  readonly fetch?: typeof fetch;
 };
 
 export type Delivery =
@@ -49,7 +50,7 @@ export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
   const execution = createExecution(input);
   try {
     const incident = await execution.run(() =>
-      readIncident(input.incidentsUrl, input.incidentId, execution.signal),
+      readIncident(input.incidentsUrl, input.incidentId, execution.signal, input.fetch),
     );
     const answer = await execution.run(() =>
       input.model.answer(questionFor(input.skill, incident), execution),
@@ -61,6 +62,7 @@ export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
         input.deliveryId,
         answer.trim(),
         execution.signal,
+        input.fetch,
       );
       input.ledger.set(input.deliveryId, receipt);
       return receipt;
@@ -76,12 +78,12 @@ export async function deliverIncident(input: DeliverInput): Promise<Delivery> {
 }
 
 export async function reconcileIncident(
-  input: Pick<DeliverInput, 'ticketsUrl' | 'deliveryId' | 'ledger'>,
+  input: Pick<DeliverInput, 'ticketsUrl' | 'deliveryId' | 'ledger' | 'fetch'>,
 ): Promise<Delivery> {
   const execution = createExecution({ timeoutMs: 1000 });
   try {
     return await execution.run(async () => {
-      const response = await fetch(new URL('/tickets', input.ticketsUrl), {
+      const response = await (input.fetch ?? fetch)(new URL('/tickets', input.ticketsUrl), {
         signal: execution.signal,
       });
       if (!response.ok) throw new Error('ticket');
@@ -151,8 +153,9 @@ async function readIncident(
   incidentsUrl: string,
   incidentId: string,
   signal: AbortSignal,
+  load: typeof fetch = fetch,
 ): Promise<Incident> {
-  const response = await fetch(new URL(`/incidents/${incidentId}`, incidentsUrl), { signal });
+  const response = await load(new URL(`/incidents/${incidentId}`, incidentsUrl), { signal });
   if (!response.ok) throw new Error('incident');
   const body: unknown = await response.json();
   if (!isIncident(body)) throw new Error('incident');
@@ -164,8 +167,9 @@ async function postTicket(
   deliveryId: string,
   summary: string,
   signal: AbortSignal,
+  load: typeof fetch = fetch,
 ): Promise<string> {
-  const response = await fetch(new URL('/tickets', ticketsUrl), {
+  const response = await load(new URL('/tickets', ticketsUrl), {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

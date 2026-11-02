@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import { readVertexConfig } from '@agent-works/agent-runtime';
+
 import { applyWorkbenchMigration } from './migration.js';
 import { createWorkbenchRoute } from './routes.js';
 import { createWorkbenchService } from './service.js';
 import { createStubModel } from './stub-model.js';
-import { createVertexModel, readVertexConfig } from './vertex.js';
+import { createVertexModel } from './vertex.js';
 import { createWorkbenchWorker } from './worker.js';
 import { createFixtureWorkspace } from './workspace.js';
 

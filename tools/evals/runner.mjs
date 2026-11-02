@@ -4,7 +4,6 @@ import {
   createSideEffectProbe,
 } from '../../packages/fakes/src/adversarial/index.js';
 import { decide, whenAllowed } from '../../packages/policy/src/index.js';
-import { createAdkRunner } from '../../apps/api/src/agent/adk-runner.js';
 import { createMemoryApprovalStore } from '../../apps/api/src/broker/approvals.js';
 import { createBroker, TICKET_TOOL } from '../../apps/api/src/broker/broker.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
@@ -37,6 +36,18 @@ const limits = {
   maxParallelToolCalls: 1,
 };
 
+/** Loaded lazily so a caller-supplied runner never pulls in @google/adk. */
+export async function nativeRunner(model) {
+  const { createAdkRunner } = await import('../../packages/agent-runtime/src/adk-runner.js');
+  const { beforeModelCall } = await import('../../apps/api/src/suspension/runtime.js');
+  return createAdkRunner({ model, limits, beforeModelCall });
+}
+
+export async function fakeRunner(modelFetch) {
+  const { FetchLlm } = await import('../../packages/agent-runtime/src/fetch-llm.js');
+  return nativeRunner(new FetchLlm({ baseUrl: 'https://llm.fake.test', fetch: modelFetch }));
+}
+
 function empty(row) {
   return {
     schemaVersion: '1.0.0',
@@ -51,7 +62,7 @@ function empty(row) {
   };
 }
 
-async function retrieve(row) {
+async function retrieve(row, makeRunner) {
   const result = empty(row);
   const transport = createAdversarialTransport({
     documents: row.documents,
@@ -70,36 +81,9 @@ async function retrieve(row) {
     await drive.retrieve(caller, row.question);
     transport.revokeGroups();
   }
+  let sources;
   try {
-    const sources = await drive.retrieve(caller, row.question);
-    const denied = row.fault === 'revoked-group';
-    result.calls.push({
-      tool: 'drive.search',
-      arguments: { query: row.question },
-      authorized: !denied,
-      outcome: denied ? 'denied' : 'executed',
-    });
-    result.retrievedSourceIds = sources.map((source) => source.id);
-    if (sources.length === 0) result.status = 'abstained';
-    else {
-      // Deterministic extractive baseline. No answer key is consulted.
-      const model = createAdversarialTransport({
-        documents: [],
-        subject: caller.sub,
-        groups: [],
-        modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
-      });
-      const runner = createAdkRunner({
-        baseUrl: 'https://llm.fake.test',
-        fetch: model.fetch,
-        limits,
-      });
-      const answer = await runner.run({ question: row.question, sources });
-      result.answer = answer.answer;
-      result.citations = [...answer.citedSourceIds];
-      result.status = 'answered';
-      result.workflow = 'complete';
-    }
+    sources = await drive.retrieve(caller, row.question);
   } catch (error) {
     result.status = 'error';
     result.calls.push({
@@ -109,11 +93,42 @@ async function retrieve(row) {
       outcome: 'error',
     });
     result.diagnostics.push(error.message);
+    return result;
+  }
+  const denied = row.fault === 'revoked-group';
+  result.calls.push({
+    tool: 'drive.search',
+    arguments: { query: row.question },
+    authorized: !denied,
+    outcome: denied ? 'denied' : 'executed',
+  });
+  result.retrievedSourceIds = sources.map((source) => source.id);
+  if (sources.length === 0) {
+    result.status = 'abstained';
+    return result;
+  }
+  // Deterministic extractive baseline. No answer key is consulted.
+  const model = createAdversarialTransport({
+    documents: [],
+    subject: caller.sub,
+    groups: [],
+    modelAnswer: sources.map((source) => `${source.text} [${source.id}]`).join('\n'),
+  });
+  try {
+    const runner = await makeRunner(model.fetch);
+    const answer = await runner.run({ question: row.question, sources });
+    result.answer = answer.answer;
+    result.citations = [...answer.citedSourceIds];
+    result.status = 'answered';
+    result.workflow = 'complete';
+  } catch (error) {
+    result.status = 'error';
+    result.diagnostics.push(error.message);
   }
   return result;
 }
 
-async function hostile(row) {
+async function hostile(row, makeRunner) {
   const result = empty(row);
   const recipient = 'attacker@invalid.example';
   const body = row.untrustedContent;
@@ -125,12 +140,8 @@ async function hostile(row) {
     modelUnavailable: row.fault === 'model-unavailable',
     modelCall: { name: 'email.send', args },
   });
-  const runner = createAdkRunner({
-    baseUrl: 'https://llm.fake.test',
-    fetch: transport.fetch,
-    limits,
-  });
   try {
+    const runner = await makeRunner(transport.fetch);
     const answer = await runner.run({
       question: row.question,
       sources: row.documents.map((doc) => ({
@@ -292,17 +303,17 @@ async function write(row, brokerWorld) {
   return result;
 }
 
-export async function runCase(value, { brokerWorld } = {}) {
+export async function runCase(value, { brokerWorld, runner = fakeRunner } = {}) {
   const row = validateCase(value);
   switch (row.scenario) {
     case 'retrieval':
     case 'unsupported':
     case 'group-loss':
-      return retrieve(row);
+      return retrieve(row, runner);
     case 'hostile-drive':
     case 'tool-policy':
     case 'model-unavailable':
-      return hostile(row);
+      return hostile(row, runner);
     case 'memory-deletion':
       return {
         ...empty(row),
@@ -333,9 +344,9 @@ export async function runCase(value, { brokerWorld } = {}) {
   }
 }
 
-export async function runDataset(cases) {
+export async function runDataset(cases, { runner } = {}) {
   const observations = [];
-  for (const row of cases) observations.push(await runCase(row));
+  for (const row of cases) observations.push(await runCase(row, { runner }));
   return observations;
 }
 

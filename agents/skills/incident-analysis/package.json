@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@agent-works/agent-runtime": "workspace:*",
     "@agent-works/domain": "workspace:*"
   }
 }

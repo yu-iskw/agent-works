@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDirectory } from './fake-directory.js';
 import { createDrive } from './fake-drive.js';
 import { createLlm } from './fake-llm.js';
-import { header, listen } from './http.js';
+import { handlerFetch, header, listen } from './http.js';
 import { createIapProxy } from './iap-proxy.js';
 
 import type { JsonWebKey } from 'node:crypto';
@@ -19,6 +19,49 @@ const sharedBenefits = {
   text: 'Health coverage for the agent users group.',
   webViewLink: 'https://drive.fake.test/d/shared-benefits',
 };
+
+describe('handlerFetch', () => {
+  it('maps requests and replies like listen', async () => {
+    const fetcher = handlerFetch((request) => ({
+      status: 201,
+      body: {
+        method: request.method,
+        path: request.url.pathname,
+        key: header(request.headers, 'idempotency-key'),
+        text: request.body.toString('utf8'),
+      },
+      headers: { 'x-extra': 'yes' },
+    }));
+    const response = await fetcher('http://fake.test/tickets?a=1', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'k1' },
+      body: 'hello',
+    });
+    expect(response.status).toBe(201);
+    expect(response.headers.get('x-extra')).toBe('yes');
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    await expect(response.json()).resolves.toEqual({
+      method: 'POST',
+      path: '/tickets',
+      key: 'k1',
+      text: 'hello',
+    });
+  });
+
+  it('answers /healthz, maps a thrown handler to 500, and honours abort', async () => {
+    const throwing = handlerFetch(() => {
+      throw new Error('boom');
+    });
+    expect((await throwing('http://fake.test/healthz')).status).toBe(200);
+    expect((await throwing('http://fake.test/x')).status).toBe(500);
+    const slow = handlerFetch(() => new Promise(() => {}));
+    const controller = new AbortController();
+    const pending = slow('http://fake.test/x', { signal: controller.signal });
+    controller.abort(new Error('stop'));
+    await expect(pending).rejects.toThrow('stop');
+    await expect(slow('http://fake.test/x', { signal: controller.signal })).rejects.toThrow('stop');
+  });
+});
 
 describe('fakes', () => {
   it('shows a caller their folder and the public folder', async () => {
