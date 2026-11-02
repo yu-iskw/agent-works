@@ -85,6 +85,7 @@ describe('segment admin allowlist', () => {
   it('reads the google admin list from the secrets file like members', () => {
     const dir = mkdtempSync(join(tmpdir(), 'aw-admin-'));
     const file = join(dir, 'm1.env');
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- isolated temporary test fixture
     writeFileSync(
       file,
       'AW_M1_ALPHA_MEMBERS=alice@example.com,bob@example.com\nAW_M1_ALPHA_ADMINS=Alice@example.com\n',
@@ -103,6 +104,7 @@ describe('segment admin allowlist', () => {
   it('names the google admin key when it lists a non-member', () => {
     const dir = mkdtempSync(join(tmpdir(), 'aw-admin-'));
     const file = join(dir, 'm1.env');
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- isolated temporary test fixture
     writeFileSync(
       file,
       'AW_M1_ALPHA_MEMBERS=alice@example.com\nAW_M1_ALPHA_ADMINS=eve@example.com\n',
