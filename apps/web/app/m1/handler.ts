@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
+import { marketplaceKindSchema } from '@agent-works/domain/marketplace';
 import { artifactMarkdown } from '@agent-works/domain/teamwork-evidence';
 
 import { readBody } from '../body.js';
@@ -22,6 +23,7 @@ import {
   ExportPage,
   ImportPage,
   InboxPage,
+  MarketplacePage,
   SignInPage,
   SkillPage,
   TeammatePage,
@@ -33,7 +35,7 @@ import type { ApiResult, ExportPreview, SegmentClient } from './api.js';
 import type { Segment, WebConfig } from './config.js';
 import type { Identity, Session } from './identity.js';
 import type { NewTaskValues } from './task-views.js';
-import type { NavKey, Notice, PageCtx } from './views.js';
+import type { ConnectorDetail, NavKey, Notice, PageCtx } from './views.js';
 import type { Html } from '../html.js';
 import type { PreferencesStore } from '../workspace/preferences.js';
 import type { SkillView, SourceCheck, TeammateView, Workflow } from '@agent-works/domain/teamwork';
@@ -92,6 +94,30 @@ const NOTICES: Record<string, Notice> = {
     text: 'Disconnected and revoked. Work in this segment can no longer use that account.',
   },
   dismissed: { tone: 'info', text: 'Dismissed.' },
+  connector_enabled: {
+    tone: 'ok',
+    text: 'Connector enabled for this segment. Each member still connects their own account.',
+  },
+  connector_disabled: {
+    tone: 'info',
+    text: 'Connector disabled. New work in this segment can no longer use it; a call already running finishes.',
+  },
+  connector_saved: {
+    tone: 'ok',
+    text: 'Capabilities saved. Read and write are set separately.',
+  },
+};
+
+/** Marketplace refusals the shared error table has no wording for. */
+const MARKETPLACE_ERRORS: Record<string, string> = {
+  forbidden: 'Only segment admins can change connectors. Ask an admin of this segment.',
+  stale_generation:
+    'Someone else changed this connector after you loaded the page. Review its current state below and decide again.',
+  capability_not_allowed:
+    "This segment's settings do not allow one of those capabilities, so nothing was changed.",
+  connector_not_available:
+    "This segment's settings do not allow this connector, so it cannot be enabled here.",
+  invalid_request: 'Choose at least one capability, or disable the connector instead.',
 };
 
 export type HandlerDeps = {
@@ -619,6 +645,63 @@ async function connectionsPage(req: SegReq, checks?: readonly SourceCheck[]): Pr
     : failPage(response, ctx, list);
 }
 
+/** Connector rows need their capabilities and generation, which only the detail route carries. */
+async function connectorDetails(
+  { app, session, segment }: Pick<SegReq, 'app' | 'session' | 'segment'>,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, ConnectorDetail>> {
+  const found = await Promise.all(
+    ids.map((id) => app.api.marketplaceItem(session, segment.id, 'connector', id)),
+  );
+  return new Map(
+    found.flatMap((result) =>
+      result.ok && result.value.kind === 'connector'
+        ? ([[result.value.listing.id, result.value]] as const)
+        : [],
+    ),
+  );
+}
+
+async function marketplacePage(req: SegReq): Promise<void> {
+  const { app, response, session, segment, url } = req;
+  const parsed = marketplaceKindSchema.safeParse(url.searchParams.get('kind') ?? 'connector');
+  const kind = parsed.success ? parsed.data : 'connector';
+  const [ctx, list] = await Promise.all([
+    ctxFor(req, 'marketplace'),
+    app.api.marketplace(session, segment.id, kind),
+  ]);
+  if (!list.ok) return failPage(response, ctx, list);
+  const error = url.searchParams.get('error');
+  const shown: PageCtx =
+    error !== null && Object.hasOwn(MARKETPLACE_ERRORS, error)
+      ? // eslint-disable-next-line security/detect-object-injection
+        { ...ctx, notice: { tone: 'danger', text: MARKETPLACE_ERRORS[error] ?? errorText(error) } }
+      : ctx;
+  const [details, connections] =
+    kind === 'connector'
+      ? await Promise.all([
+          connectorDetails(
+            req,
+            list.value.listings.map((listing) => listing.id),
+          ),
+          app.api.connections(session, segment.id),
+        ])
+      : [new Map<string, ConnectorDetail>(), undefined];
+  return render(
+    response,
+    200,
+    'Marketplace',
+    MarketplacePage({
+      ctx: shown,
+      kind,
+      listings: list.value.listings,
+      admin: list.value.admin,
+      details,
+      connections: connections?.ok ? connections.value.connections : undefined,
+    }),
+  );
+}
+
 async function fixtureDocPage(req: SegReq): Promise<void> {
   const { app, response, session, segment, m } = req;
   const [ctx, doc] = await Promise.all([
@@ -713,6 +796,7 @@ const GET_ROUTES: readonly Route<SegReq>[] = [
   { pattern: new RegExp(`^/tasks/(${uuid})/revisions/(\\d{1,4})\\.md$`), handle: revisionMarkdown },
   { pattern: /^\/catalog$/, handle: catalogPage },
   { pattern: new RegExp(`^/catalog/skills/(${uuid})$`), handle: skillPage },
+  { pattern: /^\/marketplace$/, handle: marketplacePage },
   { pattern: /^\/connections$/, handle: connectionsPage },
   { pattern: /^\/fixture-docs\/(fxdoc-[a-f0-9]{16})$/, handle: fixtureDocPage },
 ];
@@ -1057,6 +1141,30 @@ async function taskCommand(req: PostReq): Promise<void> {
   return back(req, target, result, built.notice);
 }
 
+const CONNECTOR_NOTICES: Record<string, string> = {
+  enable: 'connector_enabled',
+  disable: 'connector_disabled',
+  set_capabilities: 'connector_saved',
+};
+
+/** The server re-checks admin and the generation; this only forwards what the form carries. */
+async function connectorAction(req: PostReq): Promise<void> {
+  const { app, session, segment, form, m } = req;
+  const [, id, action] = m;
+  const expectedGeneration = Number(form.get('expectedGeneration'));
+  return back(
+    req,
+    '/marketplace?kind=connector',
+    await app.api.connectorAction(session, segment.id, id, {
+      action,
+      expectedGeneration,
+      ...(action === 'set_capabilities' ? { capabilities: form.getAll('capability') } : {}),
+    }),
+    // eslint-disable-next-line security/detect-object-injection
+    CONNECTOR_NOTICES[action] ?? '',
+  );
+}
+
 const POST_ROUTES: readonly Route<PostReq>[] = [
   { pattern: /^\/teammates$/, handle: createTeammate },
   {
@@ -1076,6 +1184,11 @@ const POST_ROUTES: readonly Route<PostReq>[] = [
   { pattern: /^\/tasks$/, handle: createTask },
   { pattern: new RegExp(`^/catalog/skills/(${uuid})/customize$`), handle: customizeSkill },
   { pattern: new RegExp(`^/catalog/skills/(${uuid})/attach$`), handle: attachSkill },
+  {
+    pattern:
+      /^\/marketplace\/connectors\/([a-z0-9][a-z0-9._-]{0,127})\/(enable|disable|set_capabilities)$/,
+    handle: connectorAction,
+  },
   { pattern: /^\/connections\/check$/, handle: checkSources },
   { pattern: /^\/connections\/(google|github)\/start$/, handle: connectStart },
   {
