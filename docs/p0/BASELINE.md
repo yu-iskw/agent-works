@@ -4,13 +4,13 @@ Captured 2026-10-29 on branch `yu-iskw/p0-workbench` at `0e2d565`, clean tree.
 
 ## Toolchain
 
-| Item           | Observed                                              | Expected                  |
-| -------------- | ----------------------------------------------------- | ------------------------- |
-| Node           | v26.12.1 (host)                                       | 24.13.0 (`.node-version`) |
-| pnpm           | 11.0.5                                                | 11.0.5 (`packageManager`) |
-| Docker         | `/Users/yu/.rd/docker` (Rancher Desktop)              | Compose v2                |
-| gcloud         | `/opt/homebrew/bin/gcloud`, project `ubie-yu-sandbox` | ADC present               |
-| Local Postgres | none on host (tests use Compose Postgres)             |                           |
+| Item           | Observed                                                  | Expected                  |
+| -------------- | --------------------------------------------------------- | ------------------------- |
+| Node           | v26.12.1 (host)                                           | 24.13.0 (`.node-version`) |
+| pnpm           | 11.0.5                                                    | 11.0.5 (`packageManager`) |
+| Docker         | `/Users/yu/.rd/docker` (Rancher Desktop)                  | Compose v2                |
+| gcloud         | `/opt/homebrew/bin/gcloud`, project `your-gcp-project-id` | ADC present               |
+| Local Postgres | none on host (tests use Compose Postgres)                 |                           |
 
 ## Existing system (reuse candidates)
 

@@ -4,7 +4,7 @@ Status: **complete as rescoped by Yu, pending the Mac-only checks.** Every M1 ga
 
 Scope: by Yu's decision (2026-10-30 07:33 JST), M1 is **mock-only** apart from the model. Identity is mock, sources are fixture files, and Google and GitHub are mocked. Vertex AI `gemini-3.8-flash` is real. M3, M10, M11, M12, M18 and M20 are rescoped to mock or fixture evidence, and none of them is claimed as live. M17 and M19 moved to the UI/UX milestone as its entry gates. Real identity and live integrations move to a later milestone (`docs/m1/NEXT_MILESTONE.md`).
 
-Date: 2026-10-30. Branch `yu-iskw/m1-teammates`, draft PR <https://github.com/yu-iskw/agent-works/pull/178>. Environment: macOS host, Rancher Desktop, Node 24.13.0 and pnpm 11 inside containers, Playwright 1.63 image, Vertex AI project `ubie-yu-sandbox`, location `global`.
+Date: 2026-10-30. Branch `yu-iskw/m1-teammates`, draft PR <https://github.com/yu-iskw/agent-works/pull/178>. Environment: macOS host, Rancher Desktop, Node 24.13.0 and pnpm 11 inside containers, Playwright 1.63 image, Vertex AI project `your-gcp-project-id`, location `global`.
 
 ## What is real, mock or fixture
 

@@ -3,7 +3,7 @@
 Verdict: **DEFER**. Live proof is not possible at this stage:
 no IAP-protected service is deployed because the #24 live deploy is on hold
 by Yu's decision. Furthermore, the sandbox IAP allowlist is currently restricted to
-`user:yu.ishikawa@dr-ubie.com`, so multi-identity evaluation (Alice, Bob, outsider)
+`user:yu.ishikawa@example.com`, so multi-identity evaluation (Alice, Bob, outsider)
 cannot be exercised in cloud infrastructure.
 
 ## Evidence summary

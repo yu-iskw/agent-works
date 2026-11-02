@@ -62,7 +62,7 @@ Only names are ever printed, never values.
 
 ## Real-model setup
 
-- Project and location come from `AW_M1_GOOGLE_CLOUD_PROJECT` (default `ubie-yu-sandbox`) and `AW_M1_GOOGLE_CLOUD_LOCATION` (default `global`). `gemini-3.8-flash` is served from `global`.
+- Project and location come from `AW_M1_GOOGLE_CLOUD_PROJECT` (default `your-gcp-project-id`) and `AW_M1_GOOGLE_CLOUD_LOCATION` (default `global`). `gemini-3.8-flash` is served from `global`.
 - The ADC identity needs `roles/aiplatform.user` on that project, and `aiplatform.googleapis.com` must be enabled.
 - The doctor checks the file exists and the mount expands; the smoke (`--vertex`) is the only check that proves the model answers, and it costs one call per segment. The runner records the served model version from the response and refuses another model family.
 - Browser suites read `LLM_MODE`, `VERTEX_MODEL_ID`, `AW_MODEL_CAMPAIGN` and the ADC presence from the running containers before starting and exit non-zero on any mismatch.

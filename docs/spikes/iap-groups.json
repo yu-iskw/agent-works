@@ -5,7 +5,7 @@
   "evidenceKind": "offline-static-and-contract",
   "validation": "UNVERIFIED",
   "verdict": "DEFER",
-  "reason": "Live proof not possible: no IAP-protected service is deployed because #24 live deploy is on hold by Yu's decision; sandbox IAP allowlist is only user:yu.ishikawa@dr-ubie.com, so Alice/Bob/outsider cannot be exercised.",
+  "reason": "Live proof not possible: no IAP-protected service is deployed because #24 live deploy is on hold by Yu's decision; sandbox IAP allowlist is only user:yu.ishikawa@example.com, so Alice/Bob/outsider cannot be exercised.",
   "observed": {
     "date": "2026-10-15",
     "operatorEnvironment": "operator fetch from the Mac",

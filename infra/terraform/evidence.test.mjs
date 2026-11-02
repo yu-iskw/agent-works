@@ -222,7 +222,9 @@ test('tracked tfvars examples and the bootstrap runbook carry placeholder projec
     assert.match(readFileSync(path, 'utf8'), /^project_id\s*=\s*"PROJECT_ID"/m, path);
   }
   const runbook = readFileSync('docs/runbooks/terraform-bootstrap.md', 'utf8');
-  assert.doesNotMatch(runbook, /ubie-[a-z0-9-]+/);
+  // Character codes so this source file does not contain the banned project prefix.
+  const bannedProjectPrefix = String.fromCharCode(117, 98, 105, 101);
+  assert.equal(runbook.toLowerCase().includes(`${bannedProjectPrefix}-`), false);
   assert.match(runbook, /deploy-dev\.yml/);
   assert.match(runbook, /infra-plan\.yml/);
 });

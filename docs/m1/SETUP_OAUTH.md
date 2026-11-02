@@ -14,9 +14,9 @@ This is the one-time setup for real member sign-in and delegated source access. 
 
 Ambient ADC is never used to read Drive, BigQuery or GitHub. A member who has not connected a source in a segment cannot use it there.
 
-## 1. Google OAuth client (project `ubie-yu-sandbox`)
+## 1. Google OAuth client (project `your-gcp-project-id`)
 
-Open Google Cloud console, then **APIs & Services**, with project `ubie-yu-sandbox` selected.
+Open Google Cloud console, then **APIs & Services**, with project `your-gcp-project-id` selected.
 
 1. **Enable APIs.** Enable Google Drive API (`drive.googleapis.com`), Google Docs API (`docs.googleapis.com`) and BigQuery API (`bigquery.googleapis.com`). Vertex AI is already enabled for P0.
 2. **OAuth consent screen** (Google Auth Platform, then Branding and Audience):

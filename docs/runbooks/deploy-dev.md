@@ -15,7 +15,7 @@ token acquisition are human-operator actions.**
    tests in [`e2e/dev/cross-user.spec.ts`](../../e2e/dev/cross-user.spec.ts)
    require **two distinct real Workspace test users** in the IAP allowlist
    (`iap_access`). The sandbox pilot currently allows only one identity
-   (`user:yu.ishikawa@dr-ubie.com`). Until a second distinct real test identity
+   (`user:yu.ishikawa@example.com`). Until a second distinct real test identity
    is provisioned and added to the IAP allowlist, `e2e/dev/cross-user.spec.ts`
    reports **`BLOCKED`, not `PASS`**.
 3. **Web readable resource route follow-up for `sec.cross-user-leak`:**

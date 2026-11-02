@@ -12,12 +12,12 @@ the page or restarting the stack keeps the task, its events, the decision and th
 
 What is real and what is simulated:
 
-| Part              | Status                                                                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| LLM               | **Real.** Vertex AI `gemini-3.8-flash` in `ubie-yu-sandbox`, location `global`, through your Application Default Credentials. |
-| Google Drive read | **Simulated.** A deterministic fixture corpus with per-document readers (`apps/api/src/workbench/fixture-corpus.ts`).         |
-| Google Docs write | **Simulated.** A fixture Docs store (`wb_fixture_docs`) with idempotency keys. No real document is created.                   |
-| Identity          | **Local only.** A fake IAP proxy signs IAP-shaped JWTs for `alice` and `bob`.                                                 |
+| Part              | Status                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| LLM               | **Real.** Vertex AI `gemini-3.8-flash` in `your-gcp-project-id`, location `global`, through your Application Default Credentials. |
+| Google Drive read | **Simulated.** A deterministic fixture corpus with per-document readers (`apps/api/src/workbench/fixture-corpus.ts`).             |
+| Google Docs write | **Simulated.** A fixture Docs store (`wb_fixture_docs`) with idempotency keys. No real document is created.                       |
+| Identity          | **Local only.** A fake IAP proxy signs IAP-shaped JWTs for `alice` and `bob`.                                                     |
 
 The UI labels every simulated surface ("Simulated Workspace", "Simulated write", "Fixture
 Drive"). Live Drive and Docs integration is pending and not claimed anywhere.
@@ -25,12 +25,12 @@ Drive"). Live Drive and Docs integration is pending and not claimed anywhere.
 ## Prerequisites
 
 - Docker with Compose v2 (Rancher Desktop, Docker Desktop or OrbStack).
-- The gcloud CLI and access to `ubie-yu-sandbox` with `roles/aiplatform.user`.
+- The gcloud CLI and access to `your-gcp-project-id` with `roles/aiplatform.user`.
 - Application Default Credentials. `gcloud auth login` alone does **not** create them:
 
   ```bash
   gcloud auth application-default login
-  gcloud auth application-default set-quota-project ubie-yu-sandbox
+  gcloud auth application-default set-quota-project your-gcp-project-id
   ```
 
   This writes `~/.config/gcloud/application_default_credentials.json`.
@@ -67,17 +67,17 @@ Only `fake-iap` publishes a port, bound to `127.0.0.1`.
 Compose reads `AW_P0_*` names so host variables such as `GOOGLE_CLOUD_LOCATION` cannot leak
 into the containers. Defaults are the authorised values.
 
-| Variable                      | Default            | Effect                                                                          |
-| ----------------------------- | ------------------ | ------------------------------------------------------------------------------- |
-| `AW_P0_GOOGLE_CLOUD_PROJECT`  | `ubie-yu-sandbox`  | Vertex project                                                                  |
-| `AW_P0_GOOGLE_CLOUD_LOCATION` | `global`           | Vertex location (`gemini-3.8-flash` returns 404 in `us-central1`)               |
-| `AW_P0_VERTEX_MODEL_ID`       | `gemini-3.8-flash` | Publisher model ID; set to empty to see the not-configured state                |
-| `AW_P0_LLM_MODE`              | `vertex`           | `stub` selects the offline stub model (CI and fixture tests only)               |
-| `AW_P0_MAX_MODEL_CALLS`       | `150`              | Hard cap on real Vertex requests sent; a non-integer value fails closed to 0    |
-| `AW_P0_FIXTURE_FAULTS`        | `0`                | `1` enables `[fixture:…]` and `[stub:…]` fault markers for tests                |
-| `GCLOUD_CONFIG_DIR`           | `~/.config/gcloud` | Host gcloud directory mounted read-only into `api`                              |
-| `AW_P0_PORT`                  | `8180`             | Host port                                                                       |
-| `HOST_UID` / `HOST_GID`       | `1000`             | Container UID; set to `id -u`/`id -g` on Linux so the 0600 ADC file is readable |
+| Variable                      | Default               | Effect                                                                          |
+| ----------------------------- | --------------------- | ------------------------------------------------------------------------------- |
+| `AW_P0_GOOGLE_CLOUD_PROJECT`  | `your-gcp-project-id` | Vertex project                                                                  |
+| `AW_P0_GOOGLE_CLOUD_LOCATION` | `global`              | Vertex location (`gemini-3.8-flash` returns 404 in `us-central1`)               |
+| `AW_P0_VERTEX_MODEL_ID`       | `gemini-3.8-flash`    | Publisher model ID; set to empty to see the not-configured state                |
+| `AW_P0_LLM_MODE`              | `vertex`              | `stub` selects the offline stub model (CI and fixture tests only)               |
+| `AW_P0_MAX_MODEL_CALLS`       | `150`                 | Hard cap on real Vertex requests sent; a non-integer value fails closed to 0    |
+| `AW_P0_FIXTURE_FAULTS`        | `0`                   | `1` enables `[fixture:…]` and `[stub:…]` fault markers for tests                |
+| `GCLOUD_CONFIG_DIR`           | `~/.config/gcloud`    | Host gcloud directory mounted read-only into `api`                              |
+| `AW_P0_PORT`                  | `8180`                | Host port                                                                       |
+| `HOST_UID` / `HOST_GID`       | `1000`                | Container UID; set to `id -u`/`id -g` on Linux so the 0600 ADC file is readable |
 
 ### ADC inside Compose
 

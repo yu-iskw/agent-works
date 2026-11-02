@@ -29,7 +29,7 @@ Steps:
 
 **Docs publish target.** Approved briefs are created as new Google Docs in the approving member's own **My Drive** root, titled `[aw-m1 <segment>] <brief title>`. Nothing needs to be created for this. The app uses only `drive.file` for the write, so it can never modify existing documents. It tags each file with a private `appProperties` marker so that reconcile can find an uncertain write without creating a duplicate. Cleanup deletes only files that carry this run's marker.
 
-## 2. BigQuery (metrics) in `ubie-yu-sandbox`
+## 2. BigQuery (metrics) in `your-gcp-project-id`
 
 Create one dataset per segment in location `US`:
 
@@ -44,12 +44,12 @@ Commands (run on the Mac in this checkout):
 
 ```bash
 for s in alpha beta; do
-  bq --project_id=ubie-yu-sandbox mk --dataset --location=US \
-    --description="Agent Works M1 synthetic test data ($s)" ubie-yu-sandbox:aw_m1_$s
-  bq --project_id=ubie-yu-sandbox load --source_format=CSV --skip_leading_rows=1 \
+  bq --project_id=your-gcp-project-id mk --dataset --location=US \
+    --description="Agent Works M1 synthetic test data ($s)" your-gcp-project-id:aw_m1_$s
+  bq --project_id=your-gcp-project-id load --source_format=CSV --skip_leading_rows=1 \
     aw_m1_$s.daily_kpis fixtures/m1/bigquery/$s/daily_kpis.csv \
     day:DATE,region:STRING,channel:STRING,metric:STRING,value:NUMERIC
-  bq --project_id=ubie-yu-sandbox load --source_format=CSV --skip_leading_rows=1 \
+  bq --project_id=your-gcp-project-id load --source_format=CSV --skip_leading_rows=1 \
     aw_m1_$s.metric_definitions fixtures/m1/bigquery/$s/metric_definitions.csv \
     metric:STRING,definition:STRING,unit:STRING,owner:STRING,updated_at:TIMESTAMP
 done
@@ -57,11 +57,11 @@ done
 
 **Grants.** Members query with their own OAuth token, so each member needs:
 
-| Principal          | Role                        | On                                            |
-| ------------------ | --------------------------- | --------------------------------------------- |
-| member 1, member 2 | `roles/bigquery.jobUser`    | project `ubie-yu-sandbox` (to run query jobs) |
-| member 1, member 2 | `roles/bigquery.dataViewer` | dataset `aw_m1_alpha`                         |
-| member 1, member 2 | `roles/bigquery.dataViewer` | dataset `aw_m1_beta`                          |
+| Principal          | Role                        | On                                                |
+| ------------------ | --------------------------- | ------------------------------------------------- |
+| member 1, member 2 | `roles/bigquery.jobUser`    | project `your-gcp-project-id` (to run query jobs) |
+| member 1, member 2 | `roles/bigquery.dataViewer` | dataset `aw_m1_alpha`                             |
+| member 1, member 2 | `roles/bigquery.dataViewer` | dataset `aw_m1_beta`                              |
 
 If member 1 is already a project owner, only member 2 needs the grants. Grant on datasets, not the project, so member 2 cannot see unrelated tables.
 
@@ -92,7 +92,7 @@ AW_M1_BETA_DRIVE_RESEARCH_FOLDER=
 AW_M1_BETA_DRIVE_CONTEXT_FOLDER=
 AW_M1_RESTRICTED_DRIVE_FOLDER=
 # BigQuery
-AW_M1_BIGQUERY_PROJECT=ubie-yu-sandbox
+AW_M1_BIGQUERY_PROJECT=your-gcp-project-id
 AW_M1_ALPHA_BIGQUERY_DATASET=aw_m1_alpha
 AW_M1_BETA_BIGQUERY_DATASET=aw_m1_beta
 # GitHub
