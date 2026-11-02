@@ -263,6 +263,12 @@ test.describe('responsive shell', () => {
     const url = page.url();
     await page.setViewportSize({ width: 375, height: 812 });
     await expect(page.locator('.ws')).toHaveAttribute('data-layout', 'phone');
+    // Read once, without retrying: a closed sheet must be hidden the moment the layout changes,
+    // not after sliding out across the conversation.
+    expect(
+      await page.locator('#sidebar').evaluate((node) => getComputedStyle(node).visibility),
+      'the sidebar is hidden at once when the window narrows to a phone',
+    ).toBe('hidden');
     await expect(page.locator('.ws')).toHaveAttribute('data-sheet', 'closed');
     for (let i = 0; i < 3; i += 1) {
       await page.goto(url);

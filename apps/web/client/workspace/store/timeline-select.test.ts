@@ -4,7 +4,7 @@ import { DEFAULT_PREFERENCES } from '../../../shared/contract.js';
 import { conversationRoute } from '../../../shared/route.js';
 
 import { initial, reduce } from './reducer.js';
-import { tasksToFetch, timelineOf } from './timeline-select.js';
+import { tasksToFetch, timelineOf, timelineSettled } from './timeline-select.js';
 
 import type { WorkspaceState } from './state.js';
 import type { Bootstrap, TaskDetailPage } from '../../../shared/contract.js';
@@ -138,6 +138,15 @@ function state(messages: readonly MessageView[], version = 3): WorkspaceState {
 }
 
 describe('timeline glue', () => {
+  it('is busy until every linked task detail has loaded or failed', () => {
+    const empty = state([]);
+    expect(timelineSettled(empty)).toBe(false);
+    const held = reduce(empty, { type: 'task/loaded', epoch: empty.epoch, detail: detail(3) });
+    expect(timelineSettled(held)).toBe(true);
+    const failed = reduce(empty, { type: 'task/failed', taskId: TASK, error: 'unavailable' });
+    expect(timelineSettled(failed)).toBe(true);
+  });
+
   it('asks for linked task details it does not hold or holds at an older version', () => {
     const empty = state([]);
     expect(tasksToFetch(empty)).toEqual([TASK]);

@@ -192,6 +192,7 @@ async function conversationShell(req: SegReq, route: Route, teammateId: string):
             conversationId: row.conversationId,
             teammateId,
             after: null,
+            before: null,
           });
   if (conversation.ok)
     return renderShell(req, {
@@ -266,13 +267,18 @@ const JSON_ROUTES: readonly JsonRoute[] = [
       const teammateId = req.url.searchParams.get('teammate') ?? '';
       if (!new RegExp(`^${UUID}$`).test(teammateId))
         return failed(req.response, req.segment, { status: 400, error: 'bad_request' });
-      const after = req.url.searchParams.get('after');
+      const cursor = (name: 'after' | 'before') => {
+        const value = req.url.searchParams.get(name);
+        return value === null || value === '' ? null : value;
+      };
+      const after = cursor('after');
       reply(
         req,
         await loadConversation(req.deps, req.session, req.segment, {
           conversationId: req.m[1],
           teammateId,
-          after: after === null || after === '' ? null : after,
+          after,
+          before: after === null ? cursor('before') : null,
         }),
       );
     },

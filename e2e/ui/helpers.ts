@@ -56,7 +56,10 @@ export async function captureForBaseline(page: Page, name: string): Promise<void
   await shot(page, name);
   // eslint-disable-next-line security/detect-non-literal-fs-filename
   if (existsSync(`${APPROVED}/${name}.png`)) {
-    await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true, mask: volatile(page) });
+    // Soft, so one run reports every capture that differs instead of stopping at the first.
+    await expect
+      .soft(page)
+      .toHaveScreenshot(`${name}.png`, { fullPage: true, mask: volatile(page) });
     return;
   }
   test.info().annotations.push({ type: 'pending-baseline', description: name });

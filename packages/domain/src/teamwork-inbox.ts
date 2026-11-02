@@ -116,7 +116,10 @@ export function desiredInbox(snapshot: InboxSnapshot): readonly DesiredItem[] {
   return ITEMS_BY_STATUS[snapshot.status](snapshot);
 }
 
-/** Inbox kinds that get a persisted card in the conversation; `completed` already has `result_ready`. */
+/**
+ * Inbox kinds that need a member decision. Each gets a persisted card in the conversation, and
+ * they alone count as "needs you" in every list; `completed` is information, not a decision.
+ */
 export const CARD_KINDS = ['question', 'plan_review', 'approval', 'failed', 'uncertain'] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
 

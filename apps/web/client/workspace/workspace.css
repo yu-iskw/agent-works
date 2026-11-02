@@ -988,10 +988,13 @@ textarea {
   flex-direction: column;
 }
 
+/* The timeline restores its own reading position when earlier messages load; the browser's
+   scroll anchoring would apply the same correction a second time. */
 .tl {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   padding: var(--sp-4) var(--sp-5);
 }
 
@@ -1006,6 +1009,11 @@ textarea {
   text-align: center;
   margin: var(--sp-6) auto;
   max-width: 48ch;
+}
+
+.tl-earlier {
+  display: block;
+  margin: 0 auto var(--sp-3);
 }
 
 /* A minmax(0, 1fr) column keeps a no-wrap line from widening the timeline and clipping it. */
@@ -1708,11 +1716,10 @@ textarea {
     transform: translateX(-100%);
     visibility: hidden;
     box-shadow: 0 0 32px rgb(0 0 0 / 30%);
-    transition:
-      transform 0.2s ease,
-      visibility 0s linear 0.2s;
   }
 
+  /* Only opening animates. A closed sheet applies at once, so crossing into the phone layout
+     never slides the desktop sidebar across the conversation. */
   .ws[data-sheet='open'] .ws-side {
     transform: none;
     visibility: visible;

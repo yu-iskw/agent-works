@@ -22,6 +22,8 @@ import {
   CAPABILITIES,
   TEAMWORK_TRANSITIONS,
   canTeamworkTransition,
+  decodeCursor,
+  encodeCursor,
   portableDefinitionSchema,
 } from './teamwork.js';
 
@@ -29,6 +31,27 @@ import type { InboxSnapshot } from './teamwork-inbox.js';
 import type { ArtifactContent, Calculation, SkillDefinition } from './teamwork.js';
 
 const all = new Set(CAPABILITIES);
+
+describe('list cursors', () => {
+  const at = '2026-10-30T09:00:00.000Z';
+  const id = '6e107c92-9915-497f-b26c-67c3530bbcc3';
+
+  it('round-trips the two shapes the API issues', () => {
+    expect(decodeCursor(encodeCursor({ at, id }))).toEqual({ at, id });
+    const result = { at, id: `${id}:2` };
+    expect(decodeCursor(encodeCursor(result), 'revision')).toEqual(result);
+  });
+
+  it.each([
+    ['a non-uuid id', encodeCursor({ at, id: 'abc' }), 'id'],
+    ['a results id without its revision', encodeCursor({ at, id }), 'revision'],
+    ['a revision where a row id belongs', encodeCursor({ at, id: `${id}:2` }), 'id'],
+    ['a bad timestamp', encodeCursor({ at: 'yesterday', id }), 'id'],
+    ['an injection attempt', encodeCursor({ at, id: `${id}' or 1=1 --` }), 'id'],
+  ] as const)('refuses %s', (_, raw, shape) => {
+    expect(decodeCursor(raw, shape)).toBeUndefined();
+  });
+});
 
 describe('teamwork lifecycle tables', () => {
   it('only lets a plan dispatch work through approval', () => {

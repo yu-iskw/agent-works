@@ -196,6 +196,13 @@ function fakeApi() {
       ),
     uploadAttachment: (_s: Session, _seg: string, _c: string, body: unknown) => {
       calls.push({ method: 'uploadAttachment', body });
+      if ((body as { name: string }).name === 'bad.csv')
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          error: 'attachment_invalid_csv',
+          detail: 'Row 3 has 4 columns; the header has 3.',
+        });
       return Promise.resolve({
         ok: true,
         value: {
@@ -381,12 +388,31 @@ describe('POST /conversations/:id/attachments', () => {
     ]);
   });
 
+  it('accepts a media type with parameters and passes the segment explanation back', async () => {
+    const { post, calls } = await serve();
+    const path = `/api/s/alpha/conversations/${CONV}/attachments`;
+    const csv = await post(path, {
+      name: 'data.csv',
+      mediaType: 'text/CSV; charset=utf-8',
+      text: 'a,b\n1,2',
+    });
+    expect(csv.status).toBe(201);
+    expect(calls.at(-1)).toMatchObject({ body: { mediaType: 'text/csv' } });
+    const bad = await post(path, { name: 'bad.csv', mediaType: 'text/csv', text: 'a,b\n1,2,3' });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({
+      segment: 'alpha',
+      error: 'attachment_invalid_csv',
+      detail: 'Row 3 has 4 columns; the header has 3.',
+    });
+  });
+
   it('refuses unsupported types, empty and oversize text with a named code, before the segment', async () => {
     const { post, calls } = await serve();
     const path = `/api/s/alpha/conversations/${CONV}/attachments`;
     const pdf = await post(path, { name: 'r.pdf', mediaType: 'application/pdf', text: 'x' });
     expect(pdf.status).toBe(400);
-    expect(await pdf.json()).toEqual({ segment: 'alpha', error: 'attachment_media_type' });
+    expect(await pdf.json()).toEqual({ segment: 'alpha', error: 'unsupported_media_type' });
     const empty = await post(path, { name: 'a.txt', mediaType: 'text/plain', text: '  \n' });
     expect(await empty.json()).toEqual({ segment: 'alpha', error: 'attachment_empty' });
     const big = await post(path, {

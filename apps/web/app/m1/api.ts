@@ -136,6 +136,7 @@ export function createSegmentClient(
         ok: false,
         status: response.status,
         error: typeof payload?.error === 'string' ? payload.error : 'unavailable',
+        ...(typeof payload?.detail === 'string' ? { detail: payload.detail.slice(0, 300) } : {}),
       };
     if (payload?.apiVersion !== TEAMWORK_API_VERSION)
       return { ok: false, status: 502, error: 'bad_contract' };
@@ -156,13 +157,21 @@ export function createSegmentClient(
     /** The listing as the segment sends it; the workspace loader parses it loosely. */
     teammateRows: (s: Session, seg: string) => call<unknown>(s, seg, 'GET', TEAMMATES),
     /** One conversation page with an after-cursor; 404 until the segment serves paging. */
-    conversationPage: (s: Session, seg: string, id: string, after: string | null) =>
-      call<unknown>(
-        s,
-        seg,
-        'GET',
-        `/conversations/${id}${after === null ? '' : `?after=${encodeURIComponent(after)}`}`,
-      ),
+    /** `after` polls for newer messages, `before` pages back; at most one of them is set. */
+    conversationPage: (
+      s: Session,
+      seg: string,
+      id: string,
+      cursor: { readonly after: string | null; readonly before: string | null },
+    ) => {
+      const query =
+        cursor.after !== null
+          ? `?after=${encodeURIComponent(cursor.after)}`
+          : cursor.before !== null
+            ? `?before=${encodeURIComponent(cursor.before)}`
+            : '';
+      return call<unknown>(s, seg, 'GET', `/conversations/${id}${query}`);
+    },
     teammate: (s: Session, seg: string, id: string) =>
       call<{ teammate: TeammateView; conversation: Conversation }>(
         s,

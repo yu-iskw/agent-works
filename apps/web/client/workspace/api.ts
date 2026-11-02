@@ -15,11 +15,14 @@ export class SegmentMismatch extends Error {
 export class ApiFailure extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string) {
+  /** The server's own member-facing explanation, when it sent one. */
+  readonly detail: string | null;
+  constructor(status: number, code: string, detail: string | null = null) {
     super(code);
     this.name = 'ApiFailure';
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -54,6 +57,7 @@ export function createApi(deps: ApiDeps): Api {
       throw new ApiFailure(
         response.status,
         typeof payload?.error === 'string' ? payload.error : 'unavailable',
+        typeof payload?.detail === 'string' ? payload.detail : null,
       );
     if (payload?.segment !== deps.scope.segment)
       throw new SegmentMismatch(deps.scope.segment, payload?.segment);

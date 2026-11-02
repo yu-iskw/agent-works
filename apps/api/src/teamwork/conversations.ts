@@ -116,9 +116,18 @@ function cursorOf(raw: string | undefined): Cursor | undefined {
 }
 
 /**
+ * A message's created_at is taken inside its transaction, so two jobs can commit out of
+ * timestamp order. A poll re-reads this window before its cursor and returns any rows it finds
+ * there; callers merge by id. The window is far longer than any transaction here.
+ */
+const LATE_COMMIT_WINDOW_MS = 10_000;
+const LATE_COMMIT_ROWS = 20;
+
+/**
  * One page of a member's conversation by (created_at, id). No cursor: the newest `limit`
- * messages. `after`: the oldest `limit` messages past the cursor, for polling. `before`: the
- * newest `limit` messages before it, for scrolling back. Messages come back oldest first.
+ * messages. `after`: the oldest `limit` messages past the cursor, for polling, plus the rows of
+ * the late-commit window at or before the cursor; only the rows past it move `nextCursor`.
+ * `before`: the newest `limit` messages before it, for scrolling back. Oldest first.
  */
 export async function conversationPage(
   deps: Deps,
@@ -137,7 +146,7 @@ export async function conversationPage(
   const after = cursorOf(query.after);
   const before = cursorOf(query.before);
   const forward = after !== undefined;
-  const [rows, jobs, tasks] = await Promise.all([
+  const [rows, late, jobs, tasks] = await Promise.all([
     sql<MessageRow[]>`
       select id, role, body, task_id, card, reply_state, created_at, attachment_ids from tw_messages
       where conversation_id = ${found.id}
@@ -146,6 +155,15 @@ export async function conversationPage(
       order by ${forward ? sql`created_at asc, id asc` : sql`created_at desc, id desc`}
       limit ${query.limit + 1}
     `,
+    after === undefined
+      ? Promise.resolve([] as MessageRow[])
+      : sql<MessageRow[]>`
+          select id, role, body, task_id, card, reply_state, created_at, attachment_ids from tw_messages
+          where conversation_id = ${found.id}
+            and created_at >= ${new Date(Date.parse(after.at) - LATE_COMMIT_WINDOW_MS)}
+            and (created_at, id) <= (${after.at}::timestamptz, ${after.id}::uuid)
+          order by created_at desc, id desc limit ${LATE_COMMIT_ROWS}
+        `,
     sql<{ state: 'queued' | 'running' }[]>`
       select j.state from tw_jobs j join tw_messages m on m.id::text = j.ref
       where j.kind = 'reply' and j.state in ('queued', 'running') and m.conversation_id = ${found.id}
@@ -154,18 +172,20 @@ export async function conversationPage(
     sql<{ id: string; version: number; status: LinkedTask['status']; title: string }[]>`
       select id, version, status, title from wb_tasks
       where kind = 'teamwork' and owner_sub = ${member.sub}
-        and (conversation_id = ${found.id} or (conversation_id is null and result_owner = ${found.teammate_id}))
+        and (conversation_id = ${found.id} or (conversation_id is null and result_owner = ${found.teammate_id})
+          or id in (select task_id from tw_assignments where teammate_id = ${found.teammate_id}))
       order by updated_at desc, id desc limit 50
     `,
   ]);
   const held = await messageViews(sql, rows.slice(0, query.limit));
-  const messages = forward ? held : held.reverse();
+  const page = forward ? held : held.reverse();
+  const recent = (await messageViews(sql, late)).reverse();
   const job = jobs.at(0);
   return {
     id: found.id,
     teammateId: found.teammate_id,
-    messages,
-    ...pageCursors(messages, { forward, more: rows.length > query.limit, after: query.after }),
+    messages: [...recent, ...page],
+    ...pageCursors(page, { forward, more: rows.length > query.limit, after: query.after }),
     reply: job === undefined ? 'none' : REPLY_STATE[job.state],
     tasks: tasks.map((t) => ({ id: t.id, version: t.version, status: t.status, title: t.title })),
   };

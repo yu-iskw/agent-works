@@ -34,6 +34,12 @@ export type Action =
       readonly epoch: number;
       readonly page: ConversationPage;
     }
+  | {
+      /** An older page from `before`; it moves only `prevCursor`, never the polling cursor. */
+      readonly type: 'conversation/earlier';
+      readonly epoch: number;
+      readonly page: ConversationPage;
+    }
   | { readonly type: 'conversation/follow'; readonly follow: boolean }
   | { readonly type: 'conversation/seen' }
   | {

@@ -9,7 +9,8 @@ const TEXT: Partial<Readonly<Record<string, string>>> = {
   not_configured: 'The model is not configured in this segment, so nothing can be sent yet.',
   model_unavailable: 'The model did not answer. Try again in a moment.',
   attachment_too_large: 'That file is over 200 KB. Trim it or split it.',
-  attachment_media_type: 'That file type is not supported; use .txt, .md, .csv or .json.',
+  unsupported_media_type: 'That file type is not supported; use .txt, .md, .csv or .json.',
+  attachment_name_invalid: 'That file name cannot be used. Rename the file and attach it again.',
   attachment_not_text: 'That file is not UTF-8 text.',
   attachment_empty: 'That file has no text.',
   attachment_invalid_json: 'That file is not valid JSON.',
@@ -52,10 +53,12 @@ const PREFIXES: readonly { readonly prefix: string; readonly text: string }[] = 
 
 export function errorText(error: unknown, kept: string): string {
   const code = error instanceof ApiFailure ? error.code : 'unavailable';
+  // The segment's own explanation is the most specific, for example which CSV row is wrong.
+  const detail = error instanceof ApiFailure ? error.detail : null;
   // Codes come from the BFF's closed error vocabulary, looked up in a fixed table.
   // eslint-disable-next-line security/detect-object-injection
   const known = TEXT[code] ?? PREFIXES.find((p) => code.startsWith(p.prefix))?.text;
-  const base = known ?? `Could not complete that (${code}).`;
+  const base = detail ?? known ?? `Could not complete that (${code}).`;
   return `${base} ${kept}`;
 }
 

@@ -9,11 +9,15 @@ export function activeTeammate(state: WorkspaceState): TeammateRow | undefined {
   return id === null ? undefined : state.sidebar.teammates.items.find((row) => row.id === id);
 }
 
-export function activeDraft(state: WorkspaceState): Draft {
-  const id = state.conversation?.id;
+/** The draft of one conversation, which need not be the one open now. */
+export const draftOf = (state: WorkspaceState, id: string): Draft =>
   // Draft keys are conversation uuids from the segment, read from a plain record.
   // eslint-disable-next-line security/detect-object-injection
-  return id === undefined ? EMPTY_DRAFT : (state.drafts[id] ?? EMPTY_DRAFT);
+  state.drafts[id] ?? EMPTY_DRAFT;
+
+export function activeDraft(state: WorkspaceState): Draft {
+  const id = state.conversation?.id;
+  return id === undefined ? EMPTY_DRAFT : draftOf(state, id);
 }
 
 export const panelOpen = (state: WorkspaceState): boolean => state.route.panel.kind !== 'none';

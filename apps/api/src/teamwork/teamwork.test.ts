@@ -7,6 +7,7 @@ import {
   ATTACHMENT_MAX_BYTES,
   attachmentUploadSchema,
   conversationPostSchema,
+  encodeCursor,
 } from '@agent-works/domain/teamwork';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -14,7 +15,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { startDisposablePostgres } from '../ledger/disposable-postgres.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 
-import { getAttachment, removeAttachment, uploadAttachment } from './attachments.js';
+import {
+  getAttachment,
+  removeAttachment,
+  resolveAttachments,
+  uploadAttachment,
+} from './attachments.js';
 import {
   createStarterTeam,
   customizeSkill,
@@ -765,6 +771,10 @@ describe('workspace listing, conversations and identity', () => {
     if (i % 7 === 0)
       await sql`insert into tw_inbox (id, owner_sub, task_id, kind, ref, summary, state, created_at)
         values (${crypto.randomUUID()}, ${owner.sub}, ${id}, 'failed', 'failed:1', 'stopped', 'open', ${at})`;
+    // An open `completed` item is information, not a decision: it must not count as attention.
+    else if (i % 11 === 0)
+      await sql`insert into tw_inbox (id, owner_sub, task_id, kind, ref, summary, state, created_at)
+        values (${crypto.randomUUID()}, ${owner.sub}, ${id}, 'completed', 'revision:1', 'done', 'open', ${at})`;
     if (i % 10 === 0) await seedRevisions(id, i, at);
   }
 
@@ -814,6 +824,13 @@ describe('workspace listing, conversations and identity', () => {
     await expect(
       listTasks(d, alice, { status: 'all', q: '', cursor: 'not-a-cursor', limit: 5 }),
     ).rejects.toThrow('invalid_cursor');
+    const forged = encodeCursor({ at: '2026-01-01T00:00:00.000Z', id: 'abc' });
+    await expect(
+      listTasks(d, alice, { status: 'all', q: '', cursor: forged, limit: 5 }),
+    ).rejects.toThrow('invalid_cursor');
+    await expect(listResults(d, alice, { q: '', cursor: forged, limit: 5 })).rejects.toThrow(
+      'invalid_cursor',
+    );
   });
 
   it('lists every revision as a result with its task, producer and the latest revision', async () => {
@@ -926,12 +943,26 @@ describe('workspace listing, conversations and identity', () => {
     const two = await page({ before: one!.prevCursor!, limit: 1 });
     expect([...texts(one), ...texts(two)]).toEqual(['m3', 'm2']);
     const polled = await page({ after: middle!.nextCursor!, limit: 10 });
-    expect(texts(polled)).toEqual(['m4', 'm5']);
-    expect(polled!.messages.map((m) => m.id)).toEqual(posted.slice(3));
+    expect(texts(polled).slice(-2)).toEqual(['m4', 'm5']);
+    expect(polled!.messages.map((m) => m.id)).toEqual(expect.arrayContaining(posted.slice(3)));
     const quiet = await page({ after: polled!.nextCursor! });
-    expect(quiet!.messages).toEqual([]);
+    expect(posted).toEqual(expect.arrayContaining(quiet!.messages.map((m) => m.id)));
     expect(quiet!.nextCursor).toBe(polled!.nextCursor);
     expect(quiet!.reply).toBe('none');
+    // A row stamped before the cursor but committed after the poll still reaches the next poll.
+    clock.at -= 1500;
+    const late = await d.sql.begin((tx) =>
+      postMessage(d, tx, {
+        conversationId: conversation,
+        ownerSub: alice.sub,
+        role: 'system',
+        body: 'late',
+      }),
+    );
+    clock.at += 1500;
+    const caught = await page({ after: polled!.nextCursor! });
+    expect(caught!.messages.map((m) => m.id)).toContain(late);
+    expect(caught!.nextCursor).toBe(polled!.nextCursor);
     clock.at += 1000;
     await postToConversation(d, alice, conversation, {
       clientRequestId: crypto.randomUUID(),
@@ -1055,6 +1086,34 @@ describe('workspace listing, conversations and identity', () => {
       ['plan_review', 'plan:1'],
     ]);
     expect(page?.tasks.map((t) => t.id)).toEqual([task.id]);
+  });
+
+  it("links a task to each assigned specialist's conversation, so their contribution shows there", async () => {
+    const d = deps();
+    const ids = await team(d, alice);
+    const worker = createWorker(d, () => undefined);
+    const { task } = await createTask(
+      d,
+      alice,
+      research(ids.coordinator, 'manual', [
+        { teammateId: ids.research, brief: 'Prices', sources: ['drive_research'] },
+      ]),
+    );
+    await worker.drain();
+    const teammates = await listTeammates(d, alice);
+    const page = async (teammateId: string) =>
+      (await conversationPage(
+        d,
+        alice,
+        teammates.find((t) => t.id === teammateId)!.conversationId,
+        {
+          after: undefined,
+          before: undefined,
+          limit: 50,
+        },
+      ))!.tasks.map((t) => t.id);
+    expect(await page(ids.research)).toEqual([task.id]);
+    expect(await page(ids.risk)).toEqual([]);
   });
 
   it('keeps appearance on the teammate only: never in snapshots, templates or the export', async () => {
@@ -1234,6 +1293,27 @@ describe('member files', () => {
     const long = await uploadAttachment(d, alice, conversation, upload('é'.repeat(1000)));
     expect(long).toMatchObject({ sizeBytes: 2000, lines: 1 });
     expect(long.preview).toHaveLength(600);
+  });
+
+  it('a remove racing a send waits for it and then refuses, so a referenced file stays', async () => {
+    const d = deps();
+    const ids = await team(d, alice);
+    const conversation = await conversationOf(d, alice, ids.research);
+    const file = await uploadAttachment(d, alice, conversation, upload('hello'));
+    let removal: Promise<unknown> = Promise.resolve();
+    await d.sql.begin(async (tx) => {
+      await resolveAttachments(tx, alice, conversation, [file.id]);
+      removal = refusal(removeAttachment(d, alice, file.id));
+      // Give the remove time to run to completion if nothing held it back.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await tx`
+        insert into tw_messages (id, conversation_id, owner_sub, client_request_id, role, body,
+          reply_state, attachment_ids, created_at)
+        values (${crypto.randomUUID()}, ${conversation}, ${alice.sub}, ${crypto.randomUUID()},
+          'member', 'with a file', 'done', ${tx.json([file.id])}, now())`;
+    });
+    expect(await removal).toMatchObject({ code: 'attachment_in_use', status: 409 });
+    expect((await getAttachment(d, alice, file.id))?.attachment.removedAt).toBeNull();
   });
 
   it('scopes files to the member and the conversation they were uploaded in', async () => {

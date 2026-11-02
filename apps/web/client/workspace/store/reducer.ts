@@ -16,7 +16,8 @@ import {
   rowKey,
 } from './lists.js';
 import { INITIAL_REVIEW, reviewExpand, reviewPosition } from './review-state.js';
-import { EMPTY_COMPOSER, EMPTY_DRAFT, compareMessages, conversationFromPage } from './state.js';
+import { draftOf } from './selectors.js';
+import { EMPTY_COMPOSER, compareMessages, conversationFromPage } from './state.js';
 import { taskFailed, taskLoaded, taskLoading } from './task-state.js';
 
 import type { Action } from './actions.js';
@@ -79,10 +80,6 @@ function appended(
 
 const withConversation = (state: WorkspaceState, next: ConversationState | null): WorkspaceState =>
   next === state.conversation ? state : { ...state, conversation: next };
-
-// Draft keys are conversation uuids from the segment, read from a plain record.
-// eslint-disable-next-line security/detect-object-injection
-const draftOf = (state: WorkspaceState, id: string): Draft => state.drafts[id] ?? EMPTY_DRAFT;
 
 function withDraft(state: WorkspaceState, id: string, draft: Draft | null): WorkspaceState {
   if (draft === null) {
@@ -173,6 +170,13 @@ const HANDLERS: Handlers = {
       : withSidebar(state, { scroll: { ...state.sidebar.scroll, [tab]: top } }),
   'sidebar/loaded': (state, { page, at }) => withSidebar(state, { teammates: page, loadedAt: at }),
   'conversation/loaded': (state, { page }) => withConversation(state, conversationFromPage(page)),
+  'conversation/earlier': (state, { page }) => {
+    const conversation = state.conversation;
+    if (conversation === null || conversation.id !== page.id) return state;
+    const { messages, added } = mergeMessages(conversation.messages, page.messages);
+    if (added.length === 0 && page.prevCursor === conversation.prevCursor) return state;
+    return withConversation(state, { ...conversation, messages, prevCursor: page.prevCursor });
+  },
   'conversation/appended': (state, action) => {
     const conversation = state.conversation;
     return conversation === null || conversation.id !== action.page.id

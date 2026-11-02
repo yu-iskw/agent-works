@@ -203,6 +203,7 @@ async function setUp(page: Page): Promise<Setup> {
 
   await seedRunning(coordinator, researcher, now);
   await seedFailed(coordinator, analyst, now);
+
   return {
     now,
     coordinator: coordinator.id,
@@ -221,8 +222,21 @@ const result = (s: Setup, rest = '') =>
   at(s, s.coordinator, `/tasks/${s.taskId}/results/${s.latest}${rest}`);
 
 async function show(page: Page, url: string, ready: () => Promise<void>): Promise<void> {
+  // Opening a conversation posts a read marker after a short delay, so whether a row still says
+  // Unread would depend on timing. Every capture starts from the same read state: carol has read
+  // her coordinator conversation, where she works, and nothing else.
+  await db(SEGMENT)`delete from tw_conversation_reads where owner_sub = ${CAROL}`;
+  await db(SEGMENT)`
+    insert into tw_conversation_reads (owner_sub, conversation_id, last_read_message_id, last_read_at)
+    select ${CAROL}, m.conversation_id, m.id, m.created_at from tw_messages m
+    join tw_teammates t on t.conversation_id = m.conversation_id
+    where t.owner_sub = ${CAROL} and t.name = 'Coordinator' and not t.archived
+    order by m.created_at desc, m.id desc limit 1`;
   await page.goto(url);
   await ready();
+  // Contributions and cards render once every linked task's detail has loaded. A panel that takes
+  // the whole surface hides the list from the accessibility tree, so wait on the element itself.
+  await expect(page.locator('.tl-list')).toHaveAttribute('aria-busy', 'false');
   // Fonts and the first poll settle before the capture.
   await page.evaluate(() => document.fonts.ready);
 }
@@ -240,6 +254,9 @@ test("set up carol's reviewed task, approval and seeded states", async ({ page }
 
 test.beforeEach(async ({ page }, info) => {
   if (info.title.startsWith('set up')) return;
+  // Read markers post on a timer after a conversation is seen; blocking them keeps every Unread
+  // label exactly as the per-capture reset leaves it, whatever the timing.
+  await page.route('**/api/s/*/conversations/*/read', (route) => route.abort());
   await page.clock.setFixedTime(s.now);
   await signInLocal(page, 'carol@local.test');
 });

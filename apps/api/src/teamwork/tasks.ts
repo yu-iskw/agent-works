@@ -7,6 +7,7 @@ import {
   publishProposalSchema,
 } from '@agent-works/domain/teamwork';
 import { artifactMarkdown } from '@agent-works/domain/teamwork-evidence';
+import { CARD_KINDS } from '@agent-works/domain/teamwork-inbox';
 import {
   capabilitiesForSources,
   deniedSources,
@@ -370,9 +371,9 @@ export async function createTask(
 export type Page<T> = { readonly items: readonly T[]; readonly nextCursor: string | null };
 
 /** The cursor a query carries, or undefined when it has none; a foreign cursor is a bad request. */
-function cursorOf(raw: string | undefined): Cursor | undefined {
+function cursorOf(raw: string | undefined, shape: 'id' | 'revision' = 'id'): Cursor | undefined {
   if (raw === undefined) return undefined;
-  const cursor = decodeCursor(raw);
+  const cursor = decodeCursor(raw, shape);
   if (cursor === undefined) throw new Conflict('invalid_cursor', 400);
   return cursor;
 }
@@ -415,7 +416,7 @@ export async function listTasks(
   const rows = await sql<TaskRow[]>`
     select t.* from wb_tasks t where t.kind = 'teamwork' and t.owner_sub = ${member.sub}
     ${statuses === undefined ? sql`` : sql`and t.status = any(${statuses}::text[])`}
-    ${query.status === 'attention' ? sql`and exists (select 1 from tw_inbox i where i.task_id = t.id and i.state = 'open')` : sql``}
+    ${query.status === 'attention' ? sql`and exists (select 1 from tw_inbox i where i.task_id = t.id and i.state = 'open' and i.kind = any(${[...CARD_KINDS]}::text[]))` : sql``}
     ${query.q === '' ? sql`` : sql`and (t.title ilike ${likePattern(query.q)} or t.objective ilike ${likePattern(query.q)})`}
     ${cursor === undefined ? sql`` : sql`and (t.updated_at, t.id) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`}
     order by t.updated_at desc, t.id desc limit ${query.limit + 1}
@@ -442,7 +443,7 @@ export async function listResults(
   query: ResultListQuery,
 ): Promise<Page<ResultEntry>> {
   const sql = deps.sql;
-  const raw = cursorOf(query.cursor);
+  const raw = cursorOf(query.cursor, 'revision');
   // The results cursor id is `<taskId>:<revision>`, the rest of the sort key after created_at.
   const cursor =
     raw === undefined

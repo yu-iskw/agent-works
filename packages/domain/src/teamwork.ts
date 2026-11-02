@@ -801,12 +801,21 @@ export function encodeCursor(cursor: Cursor): string {
   return Buffer.from(`${cursor.at}|${cursor.id}`, 'utf8').toString('base64url');
 }
 
-/** Undefined for anything that is not a cursor this server produced. */
-export function decodeCursor(raw: string): Cursor | undefined {
+// Literals rather than built from UUID_PATTERN, which the non-literal-regexp lint refuses.
+const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const REVISION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[1-9]\d{0,5}$/;
+
+/**
+ * Undefined for anything that is not a cursor this server produced. The id half is a row uuid, or
+ * `<taskId>:<revision>` for results; anything else is refused here, so a forged cursor is a bad
+ * request rather than a failed database cast.
+ */
+export function decodeCursor(raw: string, shape: 'id' | 'revision' = 'id'): Cursor | undefined {
   if (!CURSOR_PATTERN.test(raw)) return undefined;
   const [atPart, ...rest] = Buffer.from(raw, 'base64url').toString('utf8').split('|');
   const idPart = rest.join('|');
-  if (idPart.length === 0 || Number.isNaN(Date.parse(atPart))) return undefined;
+  if (Number.isNaN(Date.parse(atPart))) return undefined;
+  if (!(shape === 'id' ? UUID_ID : REVISION_ID).test(idPart)) return undefined;
   return { at: atPart, id: idPart };
 }
 

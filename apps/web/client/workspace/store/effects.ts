@@ -5,14 +5,13 @@ import { effect } from '@preact/signals';
 
 import { api as paths } from '../../../shared/contract.js';
 import { conversationRoute, formatRoute } from '../../../shared/route.js';
-import { ApiFailure, SegmentMismatch } from '../api.js';
+import { SegmentMismatch } from '../api.js';
 
 import { createComposerEffects } from './composer-effects.js';
 import { createListEffects } from './list-effects.js';
 import { createPanelEffects } from './panel-effects.js';
 import { readMarkerTarget } from './read-marker.js';
 import { nextDelay } from './scheduler.js';
-import { activeDraft } from './selectors.js';
 import { createTaskEffects } from './task-effects.js';
 
 import type { ComposerEffects } from './composer-effects.js';
@@ -57,7 +56,7 @@ export type EffectsDeps = {
 export type Effects = {
   readonly start: () => () => void;
   readonly pollNow: () => Promise<void>;
-  readonly send: () => Promise<void>;
+  readonly loadEarlier: () => Promise<void>;
   readonly setDraft: (text: string) => void;
   readonly setTab: (tab: SidebarTab) => void;
   readonly setTheme: (theme: Theme) => Promise<void>;
@@ -104,13 +103,6 @@ function debounce(clock: EffectsDeps['clock'], ms: number) {
   return later;
 }
 
-function failureText(error: unknown): string {
-  if (error instanceof ApiFailure && error.code === 'reply_pending')
-    return 'Wait for the reply before sending again.';
-  const code = error instanceof ApiFailure ? ` (${error.code})` : '';
-  return `Could not send${code}. Your message is kept; try again.`;
-}
-
 type PreferencesReply = Preferences & { readonly segment: string };
 
 const preferencesOf = (reply: PreferencesReply): Preferences => ({
@@ -132,6 +124,11 @@ export function createEffects(deps: EffectsDeps): Effects {
 
   const loadPrefs = (prefs: Preferences) => dispatch({ type: 'prefs/loaded', prefs });
 
+  /** A reply for another segment is dropped silently; anything else counts as connection trouble. */
+  const netFailure = (error: unknown): void => {
+    if (!(error instanceof SegmentMismatch)) dispatch({ type: 'net/failure' });
+  };
+
   async function pollNow(): Promise<void> {
     const state = peek();
     const conversation = state.conversation;
@@ -140,19 +137,34 @@ export function createEffects(deps: EffectsDeps): Effects {
     const { epoch } = state;
     try {
       const page = await api.get<ConversationPage>(
-        paths.conversation(
-          segment,
-          conversation.id,
-          conversation.teammateId,
-          conversation.nextCursor,
-        ),
+        paths.conversation(segment, conversation.id, conversation.teammateId, {
+          after: conversation.nextCursor,
+        }),
       );
       dispatch({ type: 'conversation/appended', epoch, page });
       dispatch({ type: 'net/ok' });
     } catch (error) {
-      if (!(error instanceof SegmentMismatch)) dispatch({ type: 'net/failure' });
+      netFailure(error);
     } finally {
       inFlight = false;
+    }
+  }
+
+  /** The page before the oldest message held, so a long conversation can be read from the start. */
+  async function loadEarlier(): Promise<void> {
+    const state = peek();
+    const conversation = state.conversation;
+    if (conversation === null || conversation.prevCursor === null) return;
+    const { epoch } = state;
+    try {
+      const page = await api.get<ConversationPage>(
+        paths.conversation(segment, conversation.id, conversation.teammateId, {
+          before: conversation.prevCursor,
+        }),
+      );
+      dispatch({ type: 'conversation/earlier', epoch, page });
+    } catch (error) {
+      netFailure(error);
     }
   }
 
@@ -194,7 +206,7 @@ export function createEffects(deps: EffectsDeps): Effects {
       dispatch({ type: 'net/ok' });
       restoreDraft(page.id);
     } catch (error) {
-      if (!(error instanceof SegmentMismatch)) dispatch({ type: 'net/failure' });
+      netFailure(error);
     }
   }
 
@@ -283,32 +295,6 @@ export function createEffects(deps: EffectsDeps): Effects {
     };
   }
 
-  async function send(): Promise<void> {
-    const state = peek();
-    const conversation = state.conversation;
-    const draft = activeDraft(state);
-    if (
-      conversation === null ||
-      state.composer.sending !== null ||
-      draft.clientRequestId === null ||
-      draft.text.trim() === ''
-    )
-      return;
-    const { clientRequestId } = draft;
-    dispatch({ type: 'composer/sending', clientRequestId });
-    try {
-      await api.post(paths.messages(segment, conversation.id), {
-        clientRequestId,
-        text: draft.text,
-      });
-      dispatch({ type: 'composer/sent', conversationId: conversation.id });
-      drafts.writeDraft(conversation.id, null);
-      await pollNow();
-    } catch (error) {
-      dispatch({ type: 'composer/failed', reason: failureText(error) });
-    }
-  }
-
   /** Applies at once, persists, and rolls back when the segment refuses. */
   async function setPrefs(patch: PreferencesPatch): Promise<void> {
     const had = peek().prefs;
@@ -329,7 +315,7 @@ export function createEffects(deps: EffectsDeps): Effects {
     ...composer,
     start,
     pollNow,
-    send,
+    loadEarlier,
     setDraft: (text) => {
       const conversation = peek().conversation;
       if (conversation !== null)

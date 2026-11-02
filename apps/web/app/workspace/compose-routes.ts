@@ -41,8 +41,14 @@ function send(req: JsonReq, status: number, body: object): void {
   req.response.end(JSON.stringify({ segment: req.segment.id, ...body }));
 }
 
-const refuse = (req: JsonReq, result: { status: number; error: string }): void =>
-  send(req, result.status >= 500 ? 502 : result.status, { error: result.error });
+const refuse = (req: JsonReq, result: { status: number; error: string; detail?: string }): void =>
+  send(req, result.status >= 500 ? 502 : result.status, {
+    error: result.error,
+    ...(result.detail === undefined ? {} : { detail: result.detail }),
+  });
+
+/** `text/csv; charset=utf-8` is CSV: the segment accepts parameters, so the BFF must too. */
+const baseMediaType = (value: string): string => value.split(';')[0].trim().toLowerCase();
 
 // ---- sources the segment and membership allow ----
 
@@ -173,9 +179,10 @@ export const composeRoutes: readonly JsonRoute[] = [
     handle: async (req, body) => {
       const parsed = uploadSchema.safeParse(body);
       if (!parsed.success) return refuse(req, { status: 400, error: 'bad_request' });
-      const { name, mediaType, text } = parsed.data;
+      const { name, text } = parsed.data;
+      const mediaType = baseMediaType(parsed.data.mediaType);
       if (!(ATTACHMENT_MEDIA_TYPES as readonly string[]).includes(mediaType))
-        return refuse(req, { status: 400, error: 'attachment_media_type' });
+        return refuse(req, { status: 400, error: 'unsupported_media_type' });
       if (text.trim() === '') return refuse(req, { status: 400, error: 'attachment_empty' });
       if (utf8Length(text) > ATTACHMENT_MAX_BYTES)
         return refuse(req, { status: 400, error: 'attachment_too_large' });

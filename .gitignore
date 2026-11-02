@@ -199,3 +199,6 @@ artifacts/ui/*.md
 artifacts/ui/usability/
 artifacts/ui/journeys/
 artifacts/ui/contact-sheet.html
+
+# Process core dumps at the repository root
+/core

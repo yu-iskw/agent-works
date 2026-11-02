@@ -3,7 +3,7 @@
 
 import { chipKey } from '../../../shared/composer.js';
 
-import { EMPTY_DRAFT } from './state.js';
+import { draftOf } from './selectors.js';
 
 import type { Handlers } from './reducer.js';
 import type { Draft, WorkspaceState } from './state.js';
@@ -54,10 +54,6 @@ export type ComposerAction =
   | { readonly type: 'task-draft/started'; readonly conversationId: string };
 
 type ComposerHandlers = Pick<Handlers, ComposerAction['type']>;
-
-// Draft keys are conversation uuids from the segment, read from a plain record.
-// eslint-disable-next-line security/detect-object-injection
-const draftOf = (state: WorkspaceState, id: string): Draft => state.drafts[id] ?? EMPTY_DRAFT;
 
 const putDraft = (state: WorkspaceState, id: string, draft: Draft): WorkspaceState => ({
   ...state,

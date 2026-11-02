@@ -5,7 +5,7 @@ import { FILE_MAX_BYTES, checkFile, utf8Length } from '../../../shared/composer.
 import { api as paths } from '../../../shared/contract.js';
 
 import { errorText } from './composer-errors.js';
-import { activeDraft } from './selectors.js';
+import { draftOf } from './selectors.js';
 
 import type { EffectsDeps } from './effects.js';
 import type { ContextChip, FileChip } from '../../../shared/composer.js';
@@ -51,8 +51,8 @@ export function createFileEffects(input: FileDeps): FileEffects {
 
   const conversationId = (): string | null => peek().conversation?.id ?? null;
 
-  const fileChips = (): readonly FileChip[] =>
-    activeDraft(peek()).chips.filter((c): c is FileChip => c.kind === 'file');
+  const fileChips = (id: string): readonly FileChip[] =>
+    draftOf(peek(), id).chips.filter((c): c is FileChip => c.kind === 'file');
 
   const patch = (id: string, localId: string, p: Partial<Omit<FileChip, 'kind' | 'localId'>>) =>
     dispatch({ type: 'draft/file', conversationId: id, localId, patch: p });
@@ -71,7 +71,7 @@ export function createFileEffects(input: FileDeps): FileEffects {
         { signal: controller.signal },
       );
       const a = reply.attachment;
-      const wanted = fileChips().some((c) => c.localId === chip.localId);
+      const wanted = fileChips(id).some((c) => c.localId === chip.localId);
       if (!wanted || controller.signal.aborted) {
         remove(a.id);
         return;
@@ -98,7 +98,7 @@ export function createFileEffects(input: FileDeps): FileEffects {
   }
 
   function attachOne(id: string, file: File): void {
-    const check = checkFile(file, fileChips().length);
+    const check = checkFile(file, fileChips(id).length);
     if (!check.ok) {
       fail(check.message);
       return;
@@ -124,8 +124,9 @@ export function createFileEffects(input: FileDeps): FileEffects {
     },
     retryFile: (localId) => {
       const id = conversationId();
-      const chip = fileChips().find((c) => c.localId === localId);
-      if (id === null || chip === undefined) return;
+      if (id === null) return;
+      const chip = fileChips(id).find((c) => c.localId === localId);
+      if (chip === undefined) return;
       const entry = pending.get(localId);
       if (entry === undefined) {
         patch(id, localId, {

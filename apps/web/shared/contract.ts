@@ -272,9 +272,16 @@ export const api = {
     segment: string,
     conversationId: string,
     teammateId: string,
-    after: string | null = null,
-  ) =>
-    `/api/s/${segment}/conversations/${conversationId}?teammate=${teammateId}${after === null ? '' : `&after=${encodeURIComponent(after)}`}`,
+    cursor: { readonly after?: string | null; readonly before?: string | null } = {},
+  ) => {
+    const page =
+      cursor.after != null
+        ? `&after=${encodeURIComponent(cursor.after)}`
+        : cursor.before != null
+          ? `&before=${encodeURIComponent(cursor.before)}`
+          : '';
+    return `/api/s/${segment}/conversations/${conversationId}?teammate=${teammateId}${page}`;
+  },
   messages: (segment: string, conversationId: string) =>
     `/api/s/${segment}/conversations/${conversationId}/messages`,
   preferences: (segment: string) => `/api/s/${segment}/preferences`,

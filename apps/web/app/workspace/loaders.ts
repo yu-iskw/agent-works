@@ -128,16 +128,24 @@ export async function loadTeammates(
   };
 }
 
-/** Segment replies carry `apiVersion`; the strict page schema does not. */
-const withoutVersion = (value: unknown): unknown =>
-  typeof value === 'object' && value !== null
-    ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'apiVersion'))
-    : value;
+/**
+ * The segment wraps every reply in `apiVersion` and echoes its own `segment`. Both are envelope,
+ * not page; a page another segment answered is never shown.
+ */
+function pageBody(value: unknown, segment: string): unknown {
+  if (typeof value !== 'object' || value === null) return value;
+  const echoed = (value as { segment?: unknown }).segment;
+  if (echoed !== undefined && echoed !== segment) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== 'apiVersion' && key !== 'segment'),
+  );
+}
 
 export type ConversationQuery = {
   readonly conversationId: string;
   readonly teammateId: string;
   readonly after: string | null;
+  readonly before: string | null;
 };
 
 export async function loadTeammateConversation(
@@ -180,16 +188,19 @@ export async function loadConversation(
   segment: Segment,
   query: ConversationQuery,
 ): Promise<ApiResult<ConversationPage>> {
-  const fresh = await deps.api.conversationPage(
-    session,
-    segment.id,
-    query.conversationId,
-    query.after,
-  );
+  const fresh = await deps.api.conversationPage(session, segment.id, query.conversationId, {
+    after: query.after,
+    before: query.before,
+  });
   if (fresh.ok) {
-    const parsed = conversationPageSchema.safeParse(withoutVersion(fresh.value));
-    if (parsed.success) return { ok: true, value: { segment: segment.id, ...parsed.data } };
-  } else if (fresh.status !== 404 && fresh.status !== 502) return fresh;
+    // A page that does not parse is a contract break to surface, never a reason to fall back.
+    const parsed = conversationPageSchema.safeParse(pageBody(fresh.value, segment.id));
+    return parsed.success
+      ? { ok: true, value: { segment: segment.id, ...parsed.data } }
+      : { ok: false, status: 502, error: 'bad_contract' };
+  }
+  // Only a segment that cannot page at all falls back to the teammate page.
+  if (fresh.status !== 404) return fresh;
   return loadTeammateConversation(deps, session, segment, query.teammateId);
 }
 

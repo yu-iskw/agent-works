@@ -116,7 +116,11 @@ const catalogSkill = (id: string, version: number, name: string) => ({
   attachedTo: [],
 });
 
-function fakeApi(input: { readonly replyPending: boolean; readonly paged: boolean }) {
+function fakeApi(input: {
+  readonly replyPending: boolean;
+  readonly paged: boolean;
+  readonly echo: string;
+}) {
   const posted: Posted[] = [];
   const searches: string[] = [];
   const updates: unknown[] = [];
@@ -186,6 +190,8 @@ function fakeApi(input: { readonly replyPending: boolean; readonly paged: boolea
               ok: true,
               value: {
                 apiVersion: 'teamwork.v1',
+                // The segment API echoes its own segment, like every BFF reply.
+                segment: input.echo,
                 id: CONV,
                 teammateId: T,
                 messages: [],
@@ -245,10 +251,17 @@ afterEach(() => {
   for (const server of servers.splice(0)) server.close();
 });
 
-async function serve(options: { readonly replyPending?: boolean; readonly paged?: boolean } = {}) {
+async function serve(
+  options: {
+    readonly replyPending?: boolean;
+    readonly paged?: boolean;
+    readonly echo?: string;
+  } = {},
+) {
   const { api, posted, searches, updates, reads } = fakeApi({
     replyPending: options.replyPending ?? false,
     paged: options.paged ?? false,
+    echo: options.echo ?? 'alpha',
   });
   const prefs = fakePrefs();
   const server = createServer(createM1Handler({ config, identity, api, prefs }));
@@ -372,6 +385,13 @@ describe('workspace JSON routes', () => {
     expect((await get(`/api/s/alpha/conversations/${CONV}?teammate=nope`)).status).toBe(400);
     expect((await get('/api/s/gamma/me')).status).toBe(404);
     expect((await get('/api/s/alpha/nothing')).status).toBe(404);
+  });
+
+  it('refuses a page another segment answered, instead of falling back quietly', async () => {
+    const { get } = await serve({ paged: true, echo: 'beta' });
+    const page = await get(`/api/s/alpha/conversations/${CONV}?teammate=${T}`);
+    expect(page.status).toBe(502);
+    expect(await page.json()).toMatchObject({ error: 'bad_contract' });
   });
 
   it('falls back to the teammate page while the segment cannot page', async () => {

@@ -339,9 +339,13 @@ export async function resolveAttachments(
       400,
       'Files can only go with a message or a task in the conversation they were uploaded to.',
     );
-  const rows = new Map(
-    (await attachmentsByIds(db, member.sub, unique)).map((row) => [row.id, row]),
-  );
+  // Share-locked inside the caller's transaction: a remove racing this send waits for it to
+  // commit, then sees the new reference and refuses, so a referenced file is never removed.
+  const locked = await db<AttachmentRow[]>`
+    select * from tw_attachments where owner_sub = ${member.sub} and id = any(${unique}::uuid[])
+    for share
+  `;
+  const rows = new Map(locked.map((row) => [row.id, row]));
   return unique.map((id) => {
     const row = rows.get(id);
     if (row === undefined) throw new Conflict('attachment_not_found', 404);

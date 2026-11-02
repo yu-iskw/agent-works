@@ -20,7 +20,10 @@ export default defineConfig({
   timeout: 120_000,
   expect: {
     timeout: 20_000,
-    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled' },
+    // An absolute allowance: two runs differ by up to about 20 pixels of scrollbar fade and
+    // anti-aliasing, while a missing label is about 80 and a missing card thousands. A 1% ratio
+    // let two missing cards through on a full page.
+    toHaveScreenshot: { maxDiffPixels: 64, animations: 'disabled' },
   },
   reporter: [
     ['list'],

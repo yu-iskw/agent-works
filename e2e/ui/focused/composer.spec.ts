@@ -316,9 +316,9 @@ test.describe('send keys', () => {
   test('@model rapid Enter plus a click yields one message row for the draft', async ({ page }) => {
     await openConversation(page);
     // A reply the previous test asked for may still be pending; the composer refuses sends until then.
-    await expect(page.getByRole('status').filter({ hasText: 'Waiting for' })).toHaveCount(0, {
-      timeout: 60_000,
-    });
+    await expect(
+      page.getByRole('status').filter({ hasText: /Waiting for|is replying/ }),
+    ).toHaveCount(0, { timeout: 60_000 });
     const text = `once ${uuid()}`;
     await message(page).fill(text);
     // Open questions and revisable results make Send ask where this goes; choose chat explicitly.

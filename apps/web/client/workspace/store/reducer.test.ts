@@ -174,6 +174,30 @@ describe('reducer', () => {
     expect(mergeMessages(current, current).messages).toBe(current);
   });
 
+  it('puts an earlier page above the held messages and moves only the back cursor', () => {
+    let state = reduce(start(), {
+      type: 'conversation/appended',
+      epoch: 1,
+      page: page([], { nextCursor: 'next-1', prevCursor: 'prev-1' }),
+    });
+    state = reduce(state, {
+      type: 'conversation/earlier',
+      epoch: 1,
+      page: page([msg('y', '2026-10-30T09:58:00.000Z'), msg('z', '2026-10-30T09:59:00.000Z')], {
+        nextCursor: 'ignored',
+        prevCursor: null,
+      }),
+    });
+    expect(state.conversation?.messages.map((m) => m.id)).toEqual(['y', 'z', 'a', 'b']);
+    expect(state.conversation).toMatchObject({ prevCursor: null, nextCursor: 'next-1', unseen: 0 });
+    const stale = reduce(state, {
+      type: 'conversation/earlier',
+      epoch: 0,
+      page: page([msg('x', '2026-10-30T09:57:00.000Z')]),
+    });
+    expect(stale).toBe(state);
+  });
+
   it('counts unseen arrivals only while not following', () => {
     let state = start();
     state = reduce(state, { type: 'conversation/follow', follow: false });

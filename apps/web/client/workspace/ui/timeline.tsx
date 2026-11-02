@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { nearBottom } from '../store/anchoring.js';
 import { activeTeammate, panelOpen, teammateById } from '../store/selectors.js';
 import { clockTime, dayLabel } from '../store/time.js';
-import { timelineOf } from '../store/timeline-select.js';
+import { timelineOf, timelineSettled } from '../store/timeline-select.js';
 
 import { Avatar, initialsOf } from './avatars.jsx';
 import { CardItem } from './cards/card.jsx';
@@ -172,6 +172,24 @@ function useKeptScroll(box: { current: HTMLDivElement | null }, hidden: boolean,
   };
 }
 
+type Anchor = { readonly id: string; readonly top: number };
+
+/** The first item the member can see in the scroller, with its on-screen position. */
+function topVisible(box: HTMLElement): Anchor | null {
+  const frame = box.getBoundingClientRect().top;
+  for (const item of box.querySelectorAll<HTMLElement>('li[id]')) {
+    const r = item.getBoundingClientRect();
+    if (r.height > 0 && r.bottom > frame) return { id: item.id, top: r.top };
+  }
+  return null;
+}
+
+/** Scrolls so the anchored item is back where it was, wherever new content was inserted. */
+function holdAnchor(box: HTMLElement, anchor: Anchor): void {
+  const item = document.getElementById(anchor.id);
+  if (item !== null) box.scrollTop += item.getBoundingClientRect().top - anchor.top;
+}
+
 /** Nothing to list yet: no teammate chosen, or the deep-linked teammate is gone. */
 function emptyState(state: WorkspaceState): JSX.Element | null {
   if (state.route.teammate === null)
@@ -217,22 +235,38 @@ function Footer(props: {
 }
 
 export function Timeline(): JSX.Element {
-  const { store } = useWorkspace();
+  const { store, effects } = useWorkspace();
   const state = store.state.value;
   const conversation = state.conversation;
   const teammate = activeTeammate(state);
   const box = useRef<HTMLDivElement>(null);
+  const [earlier, setEarlier] = useState(false);
   const count = conversation?.messages.length ?? 0;
   const tasksHeld = Object.keys(state.tasks).length;
   const follow = conversation?.follow ?? true;
   const hidden = panelOpen(state) && (state.review.expanded || state.layout !== 'desktop');
   const keep = useKeptScroll(box, hidden, follow);
-  // When the timeline pins itself to the bottom, the scroll event that follows is not the member
-  // reading upwards; it must not switch following off.
-  const pinnedAt = useRef(0);
+  // Where the timeline last pinned itself. Content that grows below a pin fires scroll events
+  // without the member moving; only a position above the pin is the member reading upwards.
+  const pinnedTop = useRef(0);
   const pin = (node: HTMLDivElement) => {
     node.scrollTop = node.scrollHeight;
-    pinnedAt.current = performance.now();
+    pinnedTop.current = node.scrollTop;
+  };
+  const showEarlier = async (node: HTMLDivElement) => {
+    // Older messages can land anywhere above the reading position (contributions of old tasks
+    // sort before them), so hold the item the member is looking at.
+    const anchor = topVisible(node);
+    // Paging back means reading history, so new activity must not pull the view down.
+    store.dispatch({ type: 'conversation/follow', follow: false });
+    setEarlier(true);
+    try {
+      await effects.loadEarlier();
+      await new Promise(requestAnimationFrame);
+      if (anchor !== null) holdAnchor(node, anchor);
+    } finally {
+      setEarlier(false);
+    }
   };
   useLayoutEffect(() => {
     const node = box.current;
@@ -268,16 +302,36 @@ export function Timeline(): JSX.Element {
         onScroll={(event) => {
           keep(event.currentTarget.scrollTop);
           const near = nearBottom(event.currentTarget);
-          if (!near && performance.now() - pinnedAt.current < 200) return;
+          const reading = event.currentTarget.scrollTop < pinnedTop.current - 4;
+          if (!near && !reading) return;
           if (near !== conversation.follow)
             store.dispatch({ type: 'conversation/follow', follow: near });
         }}
       >
         <h2 class="visually-hidden">Conversation with {name}</h2>
+        {conversation.prevCursor === null ? null : (
+          <button
+            type="button"
+            class="btn tl-earlier"
+            disabled={earlier}
+            aria-busy={earlier}
+            onClick={() => {
+              if (box.current !== null) void showEarlier(box.current);
+            }}
+          >
+            {earlier ? 'Loading earlier messages…' : 'Show earlier messages'}
+          </button>
+        )}
         {items.length === 0 ? (
           <p class="tl-hint">No messages yet. Ask {name} how they would approach something.</p>
         ) : null}
-        <ol class="tl-list" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+        <ol
+          class="tl-list"
+          aria-label="Conversation"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-busy={!timelineSettled(state)}
+        >
           {items.map((item) => (
             <Item key={item.id} item={item} state={state} now={now} />
           ))}

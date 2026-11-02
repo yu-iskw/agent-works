@@ -8,6 +8,11 @@ Durable record for resuming after interruption or compaction. Newest checkpoint 
 - Reference images: `artifacts/ui/reference/` (gitignored). Local evidence: `artifacts/ui/` (gitignored).
 - Stack under test: Compose project `aw-m1-local` (mock identity, fixture sources, real Vertex), web on `http://127.0.0.1:8281`. Its Postgres volumes hold the persistent model ledger, so the UI milestone reuses the project and never resets them.
 
+## Standing orders
+
+- (2026-11-02 10:12 JST, Yu) Keep working until every CI job on PR #179 is green. After each push, treat any red check as the next task: read the failure, fix it, stage it, print `READY_TO_COMMIT`, keep going. The only accepted exception is "Generate and scan SBOM" (`minimatch` GHSA-g3hv-75wg-m249), which waits for the 11.0.1 pin after 2026-11-04 07:26 JST with no quarantine exclusions.
+- (2026-11-02 10:13 JST, Yu) U18 baselines approved: `artifacts/ui/baselines/candidate-2026-10-31/` is the approved set, copied to `artifacts/ui/baselines/approved/` (47 files, sha256 in `manifest.json`). If a change alters rendering, re-capture, flag every diff against these baselines, and bring it to Yu.
+
 ## Operator decisions (2026-10-30)
 
 | Question           | Answer                                                                                                                                           |
@@ -33,6 +38,29 @@ Measured 2026-10-30 with `select mode, purpose, count(*) from wb_model_calls whe
 Total real calls before this milestone: 141. The UI allowance is counted separately by campaign (see `BASELINE.md`), 300 per segment, so 600 in total. UI milestone calls used so far: 0.
 
 ## Checkpoints
+
+### 2026-11-02 C7: simplify pass and the U18 comparison
+
+- `/simplify` on the uncommitted batch: the conversation route reads `after` once, a stale doc line in the BFF loader is gone, the cursor id regexes carry one merged doc comment, `retryFile` returns early instead of a double null check, and "Show earlier messages" is one `async` function instead of a promise chain. Kept as is: the two cursor regexes stay literal rather than built from `UUID_PATTERN`, because the security lint refuses non-literal regexes (the BFF route table makes the same choice).
+- First comparison against Yu's approved baselines: 4 of 47 differed, neither from the simplify edits. Three showed "Unread" and "New result" on the open coordinator conversation, because the per-capture reset cleared every read marker; it now reproduces the approved read state (coordinator read, everything else unread). Running work had lost the specialists' finished contributions: the paged conversation query linked tasks by conversation and result owner but not by assignment, unlike the old teammate page the client had silently used. The query now matches, with an API test that fails without it. Second run: 47 of 47 match. U18 is PASS on Yu's approval.
+- A focused-suite failure (`rapid Enter plus a click`) was the test's guard: it waited only for "Waiting for …'s reply", so it sent while the reply was running ("… is replying") and the API correctly refused with `reply_pending`. The guard now covers both states.
+
+### 2026-11-02 C6: code review fixes
+
+- C2 committed as `f564272`, CI fix as `579aa83` (root Playwright config skips the m1 and ui suites). SBOM stays red on `minimatch` GHSA-g3hv-75wg-m249 until 11.0.1 clears the 7-day quarantine on 2026-11-04 07:26 JST; Yu chose to pin it then with no exclusions.
+- `/code-review` (high) on the branch returned 10 candidates. Each was checked against the code; all 10 were real and are fixed, each with a test that fails on the committed code and passes on the fix:
+  1. A file upload that finished after the member switched conversations removed the stored file and left the chip uploading forever. The check now reads the draft of the conversation the upload started in. One `draftOf` replaces three copies.
+  2. Polling with `after` could skip a message that committed late with an earlier timestamp. A poll now also returns the rows of a 10 s window at or before its cursor, which never move the cursor; the client merges by id.
+  3. Older messages were unreachable. The real cause was larger: the BFF's strict page schema rejected the segment's `segment` echo, so every conversation silently used the 100-message fallback with no cursors. The BFF now strips both envelope keys, refuses a page another segment answered, and returns 502 `bad_contract` instead of falling back on a parse failure. "Show earlier messages" pages back with `before` and keeps the reading position.
+  4. The upload route refused `text/csv; charset=utf-8` and dropped the segment's explanation. Media types are normalized, the code matches the API, and the explanation (for example which CSV row is wrong) reaches the member.
+  5. Work "Needs you" counted informational `completed` inbox items; teammate rows did not. Both now use the domain's decision kinds.
+  6. A forged cursor reached Postgres casts and returned 500. Cursor ids are validated as a uuid or `<taskId>:<revision>`, so it is a 400.
+  7. A remove racing a send could remove a file the message referenced. Resolution share-locks the rows.
+  8. A stray empty `core` file was committed at the root. Deleted and ignored.
+  9. The dead `send()` effect is removed.
+  10. The avatar and accent lists in the contract are pinned to the domain by a test; the BFF list limit uses the API's maximum.
+- Making cursor paging real exposed two timeline defects, both fixed. A member scrolling up while cards were still settling was pulled back to the bottom, because a time-based guard ignored scrolls within 200 ms of each auto-pin and every settle re-pinned; the timeline now compares the scroll offset with where it last pinned. Paging back held the distance from the bottom, but older messages can land below the contributions of old tasks; it now holds the item the member is looking at and stops following. The timeline focused tests passed three runs in a row.
+- UX round 3 found the phone sidebar sliding across the conversation when the window narrows: the closed sheet carried a 0.2 s transition and a delayed hide. Only opening animates now; a regression check reads the computed visibility at once and fails on the old CSS.
 
 ### 2026-11-01 C5: visual baselines ready for review
 

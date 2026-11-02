@@ -65,6 +65,39 @@ test.describe('timeline', () => {
     await expect(jump).toHaveCount(0);
   });
 
+  test('Show earlier messages pages back and keeps the message being read in place', async ({
+    page,
+  }) => {
+    await openBusiest(page);
+    const items = list(page).locator('li[id]');
+    const before = await items.count();
+    await scroller(page).evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    // The anchor is the first item the member can see: a day separator re-forms at the new top
+    // once older messages of that day arrive, and an anchor row may render nothing.
+    const id = await scroller(page).evaluate((box) => {
+      const top = box.getBoundingClientRect().top;
+      const seen = [...box.querySelectorAll('li[id]')].find((item) => {
+        const r = item.getBoundingClientRect();
+        return r.height > 16 && r.top >= top && !item.id.startsWith('day:');
+      });
+      return seen?.id ?? null;
+    });
+    expect(id, 'an item is visible before paging back').not.toBeNull();
+    const top = async () => (await page.locator(`[id="${id}"]`).boundingBox())!.y;
+    const held = await top();
+    await page.getByRole('button', { name: 'Show earlier messages' }).click();
+    await expect.poll(() => items.count()).toBeGreaterThan(before);
+    expect(Math.abs((await top()) - held)).toBeLessThanOrEqual(2);
+    const inside = await scroller(page).evaluate((box, anchor) => {
+      const frame = box.getBoundingClientRect();
+      const r = document.getElementById(anchor)!.getBoundingClientRect();
+      return r.top >= frame.top - 1 && r.top < frame.bottom;
+    }, id!);
+    expect(inside, 'the message being read is still on screen').toBe(true);
+  });
+
   test('a reconnect after failed polls adds each new item once and keeps the order', async ({
     page,
   }) => {

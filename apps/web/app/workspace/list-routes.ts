@@ -2,6 +2,7 @@
 // teammate identity editor. Cursors pass through to the segment untouched; the segment scopes
 // every list to the member, and every reply echoes the segment.
 
+import { LIST_LIMIT_MAX } from '@agent-works/domain/teamwork';
 import { z } from 'zod';
 
 import { ACCENT_IDS, AVATAR_IDS, TASK_FILTERS } from '../../shared/contract.js';
@@ -21,7 +22,7 @@ const listQuerySchema = z.object({
   status: z.enum(TASK_FILTERS).default('all'),
   q: z.string().trim().max(200).default(''),
   cursor: z.string().regex(CURSOR).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(LIST_LIMIT_MAX).default(25),
 });
 
 const identitySchema = z.strictObject({

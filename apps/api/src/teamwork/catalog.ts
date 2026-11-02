@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { skillDefinitionSchema, templateDefinitionSchema } from '@agent-works/domain/teamwork';
+import { CARD_KINDS } from '@agent-works/domain/teamwork-inbox';
 import { capabilityStates } from '@agent-works/domain/teamwork-policy';
 import { inspectPortable, parsePortable, toPortable } from '@agent-works/domain/teamwork-portable';
 
@@ -343,7 +344,7 @@ export async function listTeammateRows(
         or exists (select 1 from tw_messages m where m.conversation_id = t.conversation_id and m.reply_state = 'pending')
       ) as working,
       exists (select 1 from tw_inbox i join wb_tasks k on k.id = i.task_id
-        where i.state = 'open' and i.kind in ('question', 'plan_review', 'approval', 'failed', 'uncertain')
+        where i.state = 'open' and i.kind = any(${[...CARD_KINDS]}::text[])
           and (k.conversation_id = t.conversation_id or (k.conversation_id is null and k.result_owner = t.id))) as needs_attention,
       exists (select 1 from tw_messages m where m.conversation_id = t.conversation_id and m.card->>'kind' = 'result_ready'
         and (r.owner_sub is null or (m.created_at, m.id) > (r.last_read_at, r.last_read_message_id))) as unread_result

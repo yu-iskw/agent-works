@@ -3,7 +3,7 @@
 
 import { timelineItems } from '@agent-works/domain/teamwork-timeline';
 
-import { taskDetail } from './task-state.js';
+import { taskDetail, taskEntry } from './task-state.js';
 import { dayOf } from './time.js';
 
 import type { WorkspaceState } from './state.js';
@@ -50,4 +50,12 @@ export function tasksToFetch(state: WorkspaceState): readonly string[] {
       return held === null || held.task.version < task.version;
     })
     .map((task) => task.id);
+}
+
+/**
+ * True once every linked task's detail is held at the reported version, or failed to load.
+ * Contributions and cards come from those details, so the timeline is busy until then.
+ */
+export function timelineSettled(state: WorkspaceState): boolean {
+  return tasksToFetch(state).every((id) => taskEntry(state.tasks, id).error !== null);
 }
