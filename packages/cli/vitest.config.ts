@@ -5,6 +5,12 @@ import { defineProject } from 'vitest/config';
 export default defineProject({
   resolve: {
     alias: {
+      '@agent-works/agent-runtime/port': fileURLToPath(
+        new URL('../agent-runtime/src/runner-port.ts', import.meta.url),
+      ),
+      '@agent-works/agent-runtime': fileURLToPath(
+        new URL('../agent-runtime/src/index.ts', import.meta.url),
+      ),
       '@agent-works/domain/workspace-tools': fileURLToPath(
         new URL('../domain/src/workspace-tools.ts', import.meta.url),
       ),

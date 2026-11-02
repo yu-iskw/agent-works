@@ -1,12 +1,22 @@
 import { Gemini } from '@google/adk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createLiveModel,
-  liveCallSignal,
-  readVertexConfig,
-  requireVertexConfig,
-} from './live-model.js';
+import { createLiveModel, readVertexConfig, requireVertexConfig } from './live-model.js';
+
+import type { LlmRequest, LlmResponse } from '@google/adk';
+
+async function* noResponses(): AsyncGenerator<LlmResponse, void> {
+  await Promise.resolve();
+}
+
+function captureRequests(): LlmRequest[] {
+  const sent: LlmRequest[] = [];
+  vi.spyOn(Gemini.prototype, 'generateContentAsync').mockImplementation((request) => {
+    sent.push(request);
+    return noResponses();
+  });
+  return sent;
+}
 
 const env = {
   GOOGLE_CLOUD_PROJECT: 'demo-project',
@@ -77,8 +87,36 @@ describe('createLiveModel', () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it('derives the per-call abort signal from the configured timeout', () => {
-    const signal = liveCallSignal(requireVertexConfig({ ...env, VERTEX_TIMEOUT_MS: '5' }));
-    expect(signal.aborted).toBe(false);
+  it('puts the configured timeout and output cap on the outgoing request', async () => {
+    const sent = captureRequests();
+    const model = createLiveModel(
+      requireVertexConfig({ ...env, VERTEX_TIMEOUT_MS: '1500', VERTEX_MAX_OUTPUT_TOKENS: '256' }),
+    );
+    const request = {
+      contents: [],
+      config: { temperature: 0, httpOptions: { headers: { 'x-trace': 'a' } } },
+    } as unknown as LlmRequest;
+
+    for await (const response of model.generateContentAsync(request)) void response;
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.config).toEqual({
+      temperature: 0,
+      maxOutputTokens: 256,
+      httpOptions: { headers: { 'x-trace': 'a' }, timeout: 1500 },
+    });
+  });
+
+  it('applies the documented defaults when the variables are unset', async () => {
+    const sent = captureRequests();
+    const model = createLiveModel(requireVertexConfig(env));
+
+    for await (const response of model.generateContentAsync({
+      contents: [],
+    } as unknown as LlmRequest)) {
+      void response;
+    }
+
+    expect(sent[0]?.config).toEqual({ maxOutputTokens: 4096, httpOptions: { timeout: 60_000 } });
   });
 });

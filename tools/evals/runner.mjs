@@ -122,7 +122,6 @@ async function retrieve(row, makeRunner) {
     result.status = 'answered';
     result.workflow = 'complete';
   } catch (error) {
-    // The retrieval above already succeeded, so a model failure adds no tool call.
     result.status = 'error';
     result.diagnostics.push(error.message);
   }

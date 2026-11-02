@@ -79,12 +79,13 @@ export function handlerFetch(handler: Handler): typeof fetch {
           }))(),
         aborted,
       ]);
-      const headers = new Headers({ 'content-type': encodeBody(reply).type });
+      const encoded = encodeBody(reply);
+      const headers = new Headers({ 'content-type': encoded.type });
       for (const [name, value] of Object.entries(reply.headers ?? {})) {
         headers.delete(name);
         for (const item of typeof value === 'string' ? [value] : value) headers.append(name, item);
       }
-      return new Response(encodeBody(reply).body, { status: reply.status, headers });
+      return new Response(encoded.body, { status: reply.status, headers });
     } catch (error) {
       if (signal.aborted) throw error;
       return new Response('error', { status: 500, headers: { 'content-type': textPlain } });
