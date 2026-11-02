@@ -1,4 +1,9 @@
-import { CONNECTOR_CATALOG, findConnector } from '@agent-works/domain/connector-catalog';
+import {
+  CONNECTOR_CATALOG,
+  MCP_SERVER_CATALOG,
+  findConnector,
+  findMcpServer,
+} from '@agent-works/domain/connector-catalog';
 import { WRITE_CAPABILITIES, compareSemver } from '@agent-works/domain/connector-cdk';
 import {
   installationViewSchema,
@@ -10,6 +15,7 @@ import { listTemplates } from './catalog.js';
 import { Conflict, audit } from './context.js';
 import {
   bootstrapInstallations,
+  findInstallable,
   getInstallation,
   listInstallations,
   updateInstallation,
@@ -67,12 +73,15 @@ function installationView(row: Installation): InstallationView {
   });
 }
 
+type InstallableKind = Extract<MarketplaceKind, 'connector' | 'mcp_server'>;
+
 function connectorListing(
   manifest: ConnectorManifest,
   row: Installation | undefined,
+  kind: InstallableKind = 'connector',
 ): MarketplaceListing {
   return marketplaceListingSchema.parse({
-    kind: 'connector',
+    kind,
     id: manifest.id,
     version: manifest.version,
     name: manifest.displayName,
@@ -125,19 +134,34 @@ export async function listMarketplace(
     listings.push(
       ...(await listTemplates(deps, member)).map((template) => teamBotListing(template)),
     );
-  if (wants('mcp_server')) listings.push(comingSoonListing('mcp_server'));
+  if (wants('mcp_server')) {
+    if (MCP_SERVER_CATALOG.length === 0) listings.push(comingSoonListing('mcp_server'));
+    else {
+      const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
+      listings.push(
+        ...MCP_SERVER_CATALOG.map((manifest) =>
+          connectorListing(manifest, rows.get(manifest.id), 'mcp_server'),
+        ),
+      );
+    }
+  }
   if (wants('a2a_agent')) listings.push(comingSoonListing('a2a_agent'));
   return listings;
 }
 
-async function connectorDetail(deps: Deps, id: string): Promise<MarketplaceDetail | undefined> {
-  const manifest = findConnector(id);
+/** An MCP server is shown with the connector-shaped detail: same capabilities and installation. */
+async function connectorDetail(
+  deps: Deps,
+  kind: InstallableKind,
+  id: string,
+): Promise<MarketplaceDetail | undefined> {
+  const manifest = kind === 'connector' ? findConnector(id) : findMcpServer(id);
   if (manifest === undefined) return undefined;
   const row = await getInstallation(deps, id);
   const active = row?.desired_state === 'enabled';
   return marketplaceDetailSchema.parse({
-    kind: 'connector',
-    listing: connectorListing(manifest, row),
+    kind,
+    listing: connectorListing(manifest, row, kind),
     capabilities: manifest.capabilities.map((capability) => ({
       id: capability.id,
       access: WRITE_CAPABILITIES.has(capability.id) ? 'write' : 'read',
@@ -156,7 +180,9 @@ export async function marketplaceItem(
   kind: MarketplaceKind,
   id: string,
 ): Promise<MarketplaceDetail | undefined> {
-  if (kind === 'connector') return connectorDetail(deps, id);
+  if (kind === 'connector') return connectorDetail(deps, kind, id);
+  if (kind === 'mcp_server' && MCP_SERVER_CATALOG.length > 0)
+    return connectorDetail(deps, kind, id);
   if (kind === 'team_bot') {
     const template = (await listTemplates(deps, member)).find((candidate) => candidate.id === id);
     if (template === undefined) return undefined;
@@ -169,7 +195,12 @@ export async function marketplaceItem(
   }
   // eslint-disable-next-line security/detect-object-injection
   if (COMING_SOON[kind].id !== id) return undefined;
-  return marketplaceDetailSchema.parse({ kind, listing: comingSoonListing(kind) });
+  const listing = comingSoonListing(kind);
+  return marketplaceDetailSchema.parse(
+    kind === 'a2a_agent'
+      ? { kind, listing }
+      : { kind, listing, capabilities: [], installation: null },
+  );
 }
 
 export async function listConnectorInstallations(deps: Deps): Promise<readonly InstallationView[]> {
@@ -194,7 +225,7 @@ export async function mutateConnector(
   member: Member,
   id: string,
   input: ConnectorAction,
-  manifests: ManifestLookup = findConnector,
+  manifests: ManifestLookup = findInstallable,
 ): Promise<InstallationView> {
   const manifest = manifests(id);
   if (manifest === undefined) throw new Conflict('not_found', 404);

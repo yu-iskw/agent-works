@@ -19,7 +19,7 @@ import {
   segmentCapabilities,
   updateInstallation,
 } from './installations.js';
-import { mutateConnector } from './marketplace.js';
+import { listMarketplace, marketplaceItem, mutateConnector } from './marketplace.js';
 import { createReconciler } from './reconciler.js';
 import { createRoutes } from './routes.js';
 import { createFakeRuntimeManager } from './runtime-manager.js';
@@ -139,14 +139,39 @@ describe('marketplace browse', () => {
     expect(await sql`select count(*)::int as n from tw_templates`).toEqual(before);
   });
 
-  it('lists MCP servers and A2A agents as coming soon', async () => {
-    for (const kind of ['mcp_server', 'a2a_agent']) {
-      const rows = listings(await call(MEMBER, 'GET', `${API}?kind=${kind}`));
-      expect(rows.map((row) => row.status)).toEqual(['coming_soon']);
-      const detail = await call(MEMBER, 'GET', `${API}/${kind}/${rows[0]?.id}`);
-      expect(detail.status).toBe(200);
-      expect((await call(MEMBER, 'POST', `${API}/connectors/${rows[0]?.id}`, {})).status).toBe(403);
-    }
+  it('lists A2A agents as coming soon and nothing can be enabled', async () => {
+    const rows = listings(await call(MEMBER, 'GET', `${API}?kind=a2a_agent`));
+    expect(rows.map((row) => row.status)).toEqual(['coming_soon']);
+    const detail = await call(MEMBER, 'GET', `${API}/a2a_agent/${rows[0]?.id}`);
+    expect(detail.status).toBe(200);
+    expect((await call(MEMBER, 'POST', `${API}/connectors/${rows[0]?.id}`, {})).status).toBe(403);
+  });
+
+  it('lists the notes MCP server as available while the segment has no row for it', async () => {
+    const rows = listings(await call(MEMBER, 'GET', `${API}?kind=mcp_server`));
+    expect(rows.map((row) => [row.kind, row.id, row.status])).toEqual([
+      ['mcp_server', 'notes', 'available'],
+    ]);
+    const reply = await call(MEMBER, 'GET', `${API}/mcp_server/notes`);
+    const item = (
+      reply.body as {
+        item: {
+          kind: string;
+          capabilities: { id: string; access: string; allowedByEnv: boolean; enabled: boolean }[];
+          installation: unknown;
+        };
+      }
+    ).item;
+    expect(item.kind).toBe('mcp_server');
+    expect(item.capabilities.map((c) => [c.id, c.access, c.allowedByEnv, c.enabled])).toEqual([
+      ['notes.read', 'read', false, false],
+      ['notes.write', 'write', false, false],
+    ]);
+    expect(item.installation).toBeNull();
+    expect((await call(MEMBER, 'GET', `${API}/mcp_server/google`)).status).toBe(404);
+    expect(
+      listings(await call(MEMBER, 'GET', `${API}?kind=connector`)).map((row) => row.id),
+    ).not.toContain('notes');
   });
 
   it('shows connector detail with read and write kept apart', async () => {
@@ -329,6 +354,63 @@ describe('marketplace admin mutation', () => {
         })
       ).status,
     ).toBe(404);
+  });
+});
+
+describe('MCP server installation', () => {
+  const NOTES_ENV: readonly Capability[] = [...ENV_CAPABILITIES, 'notes.read', 'notes.write'];
+  const member: Member = { sub: `local-test:${MEMBER}`, email: MEMBER };
+  const admin: Member = { sub: `local-test:${ADMIN}`, email: ADMIN, admin: true };
+  const withEnv = (capabilities: readonly Capability[]): Deps => ({
+    ...deps,
+    config: { ...deps.config, capabilities: new Set(capabilities) },
+  });
+  const notesStatus = async (d: Deps) =>
+    (await listMarketplace(d, member, 'mcp_server')).map((row) => row.status);
+
+  it('takes its status from the installation row like a connector', async () => {
+    const d = withEnv(NOTES_ENV);
+    expect(await notesStatus(d)).toEqual(['available']);
+    await bootstrapInstallations(d);
+    expect(await notesStatus(d)).toEqual(['enabled']);
+    const row = await getInstallation(d, 'notes');
+    const off = await mutateConnector(d, admin, 'notes', {
+      action: 'disable',
+      expectedGeneration: row?.generation ?? 0,
+    });
+    expect(off.desiredState).toBe('disabled');
+    expect(await notesStatus(d)).toEqual(['disabled']);
+    const detail = await marketplaceItem(d, member, 'mcp_server', 'notes');
+    expect(detail?.kind === 'mcp_server' && detail.capabilities.map((c) => c.enabled)).toEqual([
+      false,
+      false,
+    ]);
+    expect(sorted(await segmentCapabilities(d))).not.toContain('notes.read');
+  });
+
+  it('enabling read never enables write, and the env allowlist still bounds it', async () => {
+    const d = withEnv([...ENV_CAPABILITIES, 'notes.read']);
+    await bootstrapInstallations(d);
+    const row = await getInstallation(d, 'notes');
+    expect(row?.capabilities).toEqual(['notes.read']);
+    await expect(
+      mutateConnector(d, admin, 'notes', {
+        action: 'set_capabilities',
+        capabilities: ['notes.read', 'notes.write'],
+        expectedGeneration: row?.generation ?? 0,
+      }),
+    ).rejects.toMatchObject({ code: 'capability_not_allowed' });
+
+    const wide = withEnv(NOTES_ENV);
+    const narrowed = await mutateConnector(wide, admin, 'notes', {
+      action: 'set_capabilities',
+      capabilities: ['notes.read'],
+      expectedGeneration: row?.generation ?? 0,
+    });
+    expect(narrowed.capabilities).toEqual(['notes.read']);
+    const caps = await segmentCapabilities(wide);
+    expect(caps.has('notes.read')).toBe(true);
+    expect(caps.has('notes.write')).toBe(false);
   });
 });
 
