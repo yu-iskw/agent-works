@@ -32,7 +32,7 @@ const installationRowSchema = z.strictObject({
 
 export type Installation = z.infer<typeof installationRowSchema>;
 
-export async function listInstallations(deps: Deps): Promise<readonly Installation[]> {
+async function listInstallations(deps: Deps): Promise<readonly Installation[]> {
   const rows = await deps.sql`select * from tw_installations order by item_id`;
   return rows.map((row) => installationRowSchema.parse({ ...row }));
 }
@@ -150,12 +150,13 @@ export async function updateInstallation(
     `;
     const row = rows.at(0);
     if (row === undefined) return undefined;
+    const installation = installationRowSchema.parse({ ...row });
     await audit(deps, tx, {
       ownerSub: null,
       action: input.action,
       outcome: 'ok',
-      detail: { connector: input.id, actor: input.actor, generation: row.generation },
+      detail: { connector: input.id, actor: input.actor, generation: installation.generation },
     });
-    return installationRowSchema.parse({ ...row });
+    return installation;
   });
 }

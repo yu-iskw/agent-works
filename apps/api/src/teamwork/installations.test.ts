@@ -69,17 +69,19 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await alpha?.stop();
-  await beta?.stop();
+  await alpha.stop();
+  await beta.stop();
 });
 
-const sorted = (set: ReadonlySet<Capability>) => [...set].toSorted();
+const sorted = (set: ReadonlySet<Capability>) => [...set].sort((a, b) => a.localeCompare(b));
 
 describe('installations', () => {
   it('bootstraps one audited row per env-allowed provider and is idempotent', async () => {
     await bootstrapInstallations(alpha.deps);
     await bootstrapInstallations(alpha.deps);
-    const rows = await alpha.sql`select item_id, updated_by from tw_installations order by item_id`;
+    const rows = await alpha.sql<{ item_id: string; updated_by: string }[]>`
+      select item_id, updated_by from tw_installations order by item_id
+    `;
     expect(rows.map((row) => [row.item_id, row.updated_by])).toEqual([
       ['github', BOOTSTRAP_ACTOR],
       ['google', BOOTSTRAP_ACTOR],
