@@ -1,6 +1,6 @@
 import type { ConnectorRegistry } from '@agent-works/domain/connector-cdk';
 
-export type HarnessHandler = (input: unknown) => unknown | Promise<unknown>;
+export type HarnessHandler = (input: unknown) => unknown;
 
 export type ConnectorHarness = {
   readonly registry: ConnectorRegistry<HarnessHandler>;
@@ -32,10 +32,10 @@ export function createConnectorHarness(
   return {
     registry: recording,
     calls,
-    async invoke(tool, input) {
+    invoke(tool, input) {
       const entry = recording.get(tool);
-      if (!entry) throw new Error(`unknown tool ${tool}`);
-      return entry.handler(input);
+      if (!entry) return Promise.reject(new Error(`unknown tool ${tool}`));
+      return Promise.resolve(entry.handler(input));
     },
   };
 }

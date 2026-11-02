@@ -38,6 +38,11 @@ function tool(
   };
 }
 
+const DRIVE_READ = 'drive.read';
+const BIGQUERY_QUERY = 'bigquery.query';
+const DOCS_PUBLISH = 'docs.publish';
+const GITHUB_READ = 'github.read';
+
 const google: ConnectorManifest = {
   id: 'google',
   version: '1.0.0',
@@ -46,24 +51,19 @@ const google: ConnectorManifest = {
   publisher: 'agent-works',
   capabilities: [
     {
-      id: 'drive.read',
-      tools: [tool('drive.read', 'drive.read', 'READ', 'Read Drive files the member can open')],
+      id: DRIVE_READ,
+      tools: [tool(DRIVE_READ, DRIVE_READ, 'READ', 'Read Drive files the member can open')],
       requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
     },
     {
-      id: 'bigquery.query',
-      tools: [tool('bigquery.query', 'bigquery.query', 'READ', 'Run a read-only BigQuery query')],
+      id: BIGQUERY_QUERY,
+      tools: [tool(BIGQUERY_QUERY, BIGQUERY_QUERY, 'READ', 'Run a read-only BigQuery query')],
       requiredScopes: ['https://www.googleapis.com/auth/bigquery.readonly'],
     },
     {
-      id: 'docs.publish',
+      id: DOCS_PUBLISH,
       tools: [
-        tool(
-          'docs.publish',
-          'docs.publish',
-          'WRITE_LOW',
-          'Publish an approved brief as a Google Doc',
-        ),
+        tool(DOCS_PUBLISH, DOCS_PUBLISH, 'WRITE_LOW', 'Publish an approved brief as a Google Doc'),
       ],
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
     },
@@ -78,8 +78,8 @@ const github: ConnectorManifest = {
   publisher: 'agent-works',
   capabilities: [
     {
-      id: 'github.read',
-      tools: [tool('github.read', 'github.read', 'READ', 'Read GitHub repository content')],
+      id: GITHUB_READ,
+      tools: [tool(GITHUB_READ, GITHUB_READ, 'READ', 'Read GitHub repository content')],
       requiredScopes: [],
     },
   ],

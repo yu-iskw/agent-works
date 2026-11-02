@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { connectorManifestSchema, defineConnector, defineRegistry } from './connector-cdk.js';
 import { CONNECTOR_CATALOG } from './connector-catalog.js';
+import { connectorManifestSchema, defineConnector, defineRegistry } from './connector-cdk.js';
 import { workspaceManifests } from './workspace-tools-manifest.js';
 
 import type { ConnectorManifest } from './connector-cdk.js';
@@ -9,10 +9,10 @@ import type { ConnectorManifest } from './connector-cdk.js';
 const google = CONNECTOR_CATALOG.find((manifest) => manifest.id === 'google') as ConnectorManifest;
 const clone = (): ConnectorManifest => structuredClone(google);
 
-function expectRejected(manifest: unknown, message?: string) {
+/** Zod issues as text, or null when the manifest parses. */
+function rejection(manifest: unknown): string | null {
   const result = connectorManifestSchema.safeParse(manifest);
-  expect(result.success).toBe(false);
-  if (message) expect(JSON.stringify(result.error?.issues)).toContain(message);
+  return result.success ? null : JSON.stringify(result.error.issues);
 }
 
 describe('connectorManifestSchema', () => {
@@ -22,52 +22,49 @@ describe('connectorManifestSchema', () => {
   });
 
   it('rejects unknown keys at every level', () => {
-    expectRejected({ ...clone(), extra: 1 });
+    expect(rejection({ ...clone(), extra: 1 })).not.toBeNull();
     const nested = clone();
     Object.assign(nested.capabilities[0] as object, { extra: 1 });
-    expectRejected(nested);
+    expect(rejection(nested)).not.toBeNull();
     const tool = clone();
     Object.assign(tool.capabilities[0]?.tools[0]?.spec as object, { extra: 1 });
-    expectRejected(tool);
+    expect(rejection(tool)).not.toBeNull();
   });
 
   it.each(['1', '1.0', 'v1.0.0', '01.0.0', '1.0.0.0', ''])(
     'rejects malformed semver %j',
-    (version) => expectRejected({ ...clone(), version }),
+    (version) => expect(rejection({ ...clone(), version })).not.toBeNull(),
   );
 
   it('rejects a write tool under a read capability', () => {
     const manifest = clone();
-    const tool = manifest.capabilities[0]?.tools[0];
-    if (tool) tool.spec.sideEffect = 'WRITE_LOW';
-    expectRejected(manifest, 'under read capability');
+    manifest.capabilities[0].tools[0].spec.sideEffect = 'WRITE_LOW';
+    expect(rejection(manifest)).toContain('under read capability');
   });
 
   it('rejects a read tool under a write capability', () => {
     const manifest = clone();
-    const tool = manifest.capabilities[2]?.tools[0];
-    if (tool) tool.spec.sideEffect = 'READ';
-    expectRejected(manifest, 'under write capability');
+    manifest.capabilities[2].tools[0].spec.sideEffect = 'READ';
+    expect(rejection(manifest)).toContain('under write capability');
   });
 
   it('rejects duplicate tool names and duplicate capabilities', () => {
     const names = clone();
-    const second = names.capabilities[1];
-    if (second) second.tools[0] = structuredClone(names.capabilities[0]?.tools[0]) as never;
-    expectRejected(names, 'duplicate tool name');
+    names.capabilities[1].tools[0] = structuredClone(names.capabilities[0].tools[0]);
+    expect(rejection(names)).toContain('duplicate tool name');
     const capabilities = clone();
-    capabilities.capabilities.push(structuredClone(capabilities.capabilities[0]) as never);
-    expectRejected(capabilities, 'duplicate capability');
+    capabilities.capabilities.push(structuredClone(capabilities.capabilities[0]));
+    expect(rejection(capabilities)).toContain('duplicate capability');
   });
 
   it('rejects a capability that belongs to another provider', () => {
     const manifest = clone();
     manifest.id = 'github';
-    expectRejected(manifest, 'does not belong to provider');
+    expect(rejection(manifest)).toContain('does not belong to provider');
   });
 
   it('rejects a publisher other than agent-works', () => {
-    expectRejected({ ...clone(), publisher: 'someone-else' });
+    expect(rejection({ ...clone(), publisher: 'someone-else' })).not.toBeNull();
   });
 });
 
@@ -109,7 +106,9 @@ describe('defineRegistry', () => {
   });
 
   it('fails on a missing handler', () => {
-    const { 'calendar.listEvents': _omitted, ...rest } = handlers;
+    const rest = Object.fromEntries(
+      Object.entries(handlers).filter(([name]) => name !== 'calendar.listEvents'),
+    );
     expect(() => defineRegistry(workspaceManifests, rest)).toThrow(
       /missing \[calendar\.listEvents\]/,
     );
@@ -130,6 +129,6 @@ describe('defineRegistry', () => {
 
   it('rejects an invalid ToolManifest', () => {
     const invalid = { ...workspaceManifests[0], extra: 1 } as never;
-    expect(() => defineRegistry([invalid], { [names[0] as string]: 1 })).toThrow();
+    expect(() => defineRegistry([invalid], { [names[0]]: 1 })).toThrow();
   });
 });

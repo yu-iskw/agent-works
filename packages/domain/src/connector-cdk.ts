@@ -8,7 +8,7 @@ import type { ToolManifest } from './broker.js';
 import type { Capability } from './teamwork.js';
 
 const label = z.string().trim().min(1).max(256);
-const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export const semverSchema = z.string().regex(SEMVER);
 
@@ -95,7 +95,7 @@ export function defineRegistry<H>(
   return new Map(
     parsed.map((tool) => [
       tool.metadata.name,
-      { manifest: tool, handler: handlers[tool.metadata.name] as H },
+      { manifest: tool, handler: handlers[tool.metadata.name] },
     ]),
   );
 }
