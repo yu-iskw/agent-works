@@ -59,7 +59,9 @@ export async function getInstallation(deps: Deps, id: string): Promise<Installat
 /**
  * The env allowlist narrowed by activation, read on every call so an admin change applies without a
  * restart. A provider with no row keeps its env capabilities (a segment that has not bootstrapped
- * yet behaves as before); a row only ever removes. `files.read` has no provider and stays env-only.
+ * yet behaves as before); a row only ever removes. While `Deps.mcp` is unwired an MCP server offers
+ * nothing, env or row alike, so the marketplace's coming-soon listing matches the gateway.
+ * `files.read` has no provider and stays env-only.
  */
 export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capability>> {
   const rows = await deps.sql<
@@ -79,6 +81,7 @@ export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capab
       // eslint-disable-next-line security/detect-object-injection
       const provider = CAPABILITY_PROVIDER[capability];
       if (provider === null) return true;
+      if (unwiredMcpServer(deps, provider)) return false;
       const row = byProvider.get(provider);
       return (
         row === undefined ||

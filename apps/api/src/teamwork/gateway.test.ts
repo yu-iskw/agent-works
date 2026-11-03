@@ -509,7 +509,7 @@ describe('notes MCP through the gateway', () => {
   it('refuses without a transport, and hides upstream failure text', async () => {
     const bare = withNotes(segment());
     const ids = await notesTask(bare);
-    await expect(search(bare, ids)).rejects.toMatchObject({ code: 'mcp_unavailable' });
+    await expect(search(bare, ids)).rejects.toMatchObject({ code: 'capability_disabled' });
 
     const broken = withNotes(segment(), () =>
       Promise.reject(new Error('connect ECONNREFUSED internal-notes.example:9000')),
@@ -520,7 +520,7 @@ describe('notes MCP through the gateway', () => {
     expect((failure as { reason: string }).reason).not.toContain('internal-notes');
     expect(JSON.stringify(await denials())).not.toContain('internal-notes');
     expect((await denials()).map((row) => row.outcome)).toEqual([
-      'mcp_unavailable',
+      'capability_disabled',
       'mcp_unavailable',
     ]);
   });

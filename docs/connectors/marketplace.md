@@ -76,15 +76,16 @@ unwired, which is every segment today. A2A execution is not built.
 The `notes` server ("Team notes (MCP)") is the first-party MCP server. The gateway reaches
 it through `apps/api/src/teamwork/mcp-adapter.ts`, which uses the MCP SDK client.
 
-| Tool           | Capability    | Side effect | What happens today                                                                                                 |
-| -------------- | ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| `notes.search` | `notes.read`  | `READ`      | Runs through the gateway. Fails with `mcp_unavailable` until a transport is set (see [Future](#future-not-built)). |
-| `notes.append` | `notes.write` | `WRITE_LOW` | Always refused with `approval_invalid`.                                                                            |
+| Tool           | Capability    | Side effect | What happens today                                                                            |
+| -------------- | ------------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `notes.search` | `notes.read`  | `READ`      | Refused with `capability_disabled` until `Deps.mcp` is set (see [Future](#future-not-built)). |
+| `notes.append` | `notes.write` | `WRITE_LOW` | Always refused with `approval_invalid`.                                                       |
 
 - **Opt-in.** `notes.read` and `notes.write` are not in the default segment allowlist. To
   offer the server, list them in `AW_SEGMENT_CAPABILITIES`. An unset variable never enables
   it. Listing `notes.*` does not make the server installable while `Deps.mcp` is unwired.
-  The gateway still fails closed with `mcp_unavailable`.
+  The segment then offers no `notes.*` capability, so the gateway refuses with
+  `capability_disabled`.
 - **Not installable while unwired.** The listing is the `coming_soon` placeholder
   (`mcp-servers`), and `GET /v1/teamwork/marketplace/mcp_server/notes` is 404. Bootstrap
   creates no row, even when the env lists `notes.*`.
