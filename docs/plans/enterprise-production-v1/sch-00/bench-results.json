@@ -1,0 +1,1457 @@
+{
+  "startedAt": "2026-11-03T03:22:10.437Z",
+  "finishedAt": "2026-11-03T03:31:03.126Z",
+  "shape": {
+    "cpuModel": "Apple M4",
+    "logicalCpus": 10,
+    "memoryGiB": 32,
+    "platform": "darwin 25.6.0 arm64",
+    "node": "v24.13.0",
+    "postgres": "PostgreSQL 16.15 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "postgresMode": "docker postgres:16-alpine, data dir on tmpfs (512m)",
+    "dockerVm": "2 CPUs, 4107407360 bytes, Docker Desktop",
+    "settings": {
+      "fsync": "on",
+      "max_connections": "100",
+      "random_page_cost": "4",
+      "shared_buffers": "16384",
+      "synchronous_commit": "on",
+      "wal_level": "replica"
+    },
+    "loadAvgBefore": [3.06884765625, 2.3759765625, 2.20751953125]
+  },
+  "trials": [
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:22:14.097Z",
+      "finishedAt": "2026-11-03T03:22:24.269Z",
+      "elapsedMs": 10172.309625000002,
+      "throughputPerSec": 19.66121828502639,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 23.385292000000845,
+        "p95": 31.819166000001132,
+        "max": 152.50525000000016
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 324
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:22:24.338Z",
+      "finishedAt": "2026-11-03T03:22:24.353Z",
+      "elapsedMs": 15.474874999999884,
+      "throughputPerSec": 12924.17547799265,
+      "operations": 21,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 0.3764999999984866,
+        "p95": 0.5699160000003758,
+        "max": 7.726666999998997
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:22:26.898Z",
+      "finishedAt": "2026-11-03T03:22:43.097Z",
+      "elapsedMs": 16199.044375000001,
+      "throughputPerSec": 12.3464073170057,
+      "operations": 600,
+      "wastedOperations": 200,
+      "opLatencyMs": {
+        "p50": 48.5638340000005,
+        "p95": 89.08108399999765,
+        "max": 167.98837500000081
+      },
+      "lockWaiters": {
+        "mean": 0.8450704225352113,
+        "max": 1,
+        "samples": 497
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:22:43.168Z",
+      "finishedAt": "2026-11-03T03:22:43.185Z",
+      "elapsedMs": 17.379084000000148,
+      "throughputPerSec": 11508.086387061498,
+      "operations": 22,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 0.5616249999948195,
+        "p95": 10.892290999996476,
+        "max": 12.18629100000544
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:22:45.874Z",
+      "finishedAt": "2026-11-03T03:23:13.906Z",
+      "elapsedMs": 28032.055583,
+      "throughputPerSec": 7.134689049392785,
+      "operations": 1000,
+      "wastedOperations": 600,
+      "opLatencyMs": {
+        "p50": 93.9529579999944,
+        "p95": 210.11333300000115,
+        "max": 385.95645800000057
+      },
+      "lockWaiters": {
+        "mean": 2.727496917385943,
+        "max": 3,
+        "samples": 811
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:23:14.621Z",
+      "finishedAt": "2026-11-03T03:23:15.018Z",
+      "elapsedMs": 396.87458399999014,
+      "throughputPerSec": 503.93753609579835,
+      "operations": 24,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 25.06395799999882,
+        "p95": 309.4945000000007,
+        "max": 309.5108340000006
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 5
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:23:15.326Z",
+      "finishedAt": "2026-11-03T03:23:15.417Z",
+      "elapsedMs": 90.68054200000188,
+      "throughputPerSec": 2205.544823496929,
+      "operations": 21,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 1.7039159999985714,
+        "p95": 5.5847499999945285,
+        "max": 54.322583999994094
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 2
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:23:20.578Z",
+      "finishedAt": "2026-11-03T03:23:46.726Z",
+      "elapsedMs": 26147.870959000007,
+      "throughputPerSec": 7.648806295304158,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 57.30895799999416,
+        "p95": 121.04695899999933,
+        "max": 437.3379580000037
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 541
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:23:46.859Z",
+      "finishedAt": "2026-11-03T03:23:46.910Z",
+      "elapsedMs": 51.25004099999205,
+      "throughputPerSec": 3902.4359024421274,
+      "operations": 22,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 2.250625000000582,
+        "p95": 26.039707999996608,
+        "max": 26.12058299999626
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 2
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:23:51.037Z",
+      "finishedAt": "2026-11-03T03:24:06.563Z",
+      "elapsedMs": 15526.131917000006,
+      "throughputPerSec": 12.881508483192409,
+      "operations": 600,
+      "wastedOperations": 200,
+      "opLatencyMs": {
+        "p50": 45.222750000000815,
+        "p95": 90.72354099999939,
+        "max": 171.83637499999895
+      },
+      "lockWaiters": {
+        "mean": 0.8376623376623377,
+        "max": 1,
+        "samples": 462
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:24:06.677Z",
+      "finishedAt": "2026-11-03T03:24:06.717Z",
+      "elapsedMs": 39.3660830000008,
+      "throughputPerSec": 5080.515630676182,
+      "operations": 24,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 2.9528750000026776,
+        "p95": 28.051334000003408,
+        "max": 30.048500000004424
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:24:10.206Z",
+      "finishedAt": "2026-11-03T03:24:41.310Z",
+      "elapsedMs": 31104.36245799999,
+      "throughputPerSec": 6.429966223228611,
+      "operations": 1000,
+      "wastedOperations": 600,
+      "opLatencyMs": {
+        "p50": 106.14854200000991,
+        "p95": 229.07824999999139,
+        "max": 441.45100000000093
+      },
+      "lockWaiters": {
+        "mean": 2.6643990929705215,
+        "max": 3,
+        "samples": 882
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:24:44.182Z",
+      "finishedAt": "2026-11-03T03:24:53.579Z",
+      "elapsedMs": 9396.818625000014,
+      "throughputPerSec": 21.28379912196078,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 22.139666999981273,
+        "p95": 27.15670799999498,
+        "max": 107.15929199999664
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 287
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:24:53.653Z",
+      "finishedAt": "2026-11-03T03:24:53.686Z",
+      "elapsedMs": 32.6296250000014,
+      "throughputPerSec": 6129.399280561497,
+      "operations": 21,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 1.0009579999896232,
+        "p95": 1.2606249999953434,
+        "max": 12.912000000011176
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:24:56.375Z",
+      "finishedAt": "2026-11-03T03:25:12.355Z",
+      "elapsedMs": 15980.006334000005,
+      "throughputPerSec": 12.515639594864751,
+      "operations": 600,
+      "wastedOperations": 200,
+      "opLatencyMs": {
+        "p50": 47.474958000006154,
+        "p95": 88.72704100000556,
+        "max": 165.08079200002248
+      },
+      "lockWaiters": {
+        "mean": 0.8219461697722568,
+        "max": 1,
+        "samples": 483
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:25:12.431Z",
+      "finishedAt": "2026-11-03T03:25:12.448Z",
+      "elapsedMs": 16.174915999989025,
+      "throughputPerSec": 12364.824645774712,
+      "operations": 22,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 0.5608340000035241,
+        "p95": 8.457583000010345,
+        "max": 12.494292000017595
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:25:15.036Z",
+      "finishedAt": "2026-11-03T03:25:40.284Z",
+      "elapsedMs": 25248.294334000006,
+      "throughputPerSec": 7.921327173799414,
+      "operations": 1000,
+      "wastedOperations": 600,
+      "opLatencyMs": {
+        "p50": 90.36570900000515,
+        "p95": 169.065042000002,
+        "max": 227.8835839999956
+      },
+      "lockWaiters": {
+        "mean": 2.727395411605938,
+        "max": 3,
+        "samples": 741
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:25:40.381Z",
+      "finishedAt": "2026-11-03T03:25:40.401Z",
+      "elapsedMs": 19.80591700001969,
+      "throughputPerSec": 10097.992433261292,
+      "operations": 24,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 0.8125829999917187,
+        "p95": 17.161124999984168,
+        "max": 17.29170800000429
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:25:40.485Z",
+      "finishedAt": "2026-11-03T03:25:40.504Z",
+      "elapsedMs": 18.37070900000981,
+      "throughputPerSec": 10886.896090939832,
+      "operations": 21,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 0.43920900000375696,
+        "p95": 0.5951659999846015,
+        "max": 9.38404200001969
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:25:43.286Z",
+      "finishedAt": "2026-11-03T03:25:53.308Z",
+      "elapsedMs": 10021.930792,
+      "throughputPerSec": 19.956234397432667,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 22.816374999994878,
+        "p95": 34.1366669999843,
+        "max": 112.59237500000745
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 312
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:25:53.380Z",
+      "finishedAt": "2026-11-03T03:25:53.397Z",
+      "elapsedMs": 16.734250000008615,
+      "throughputPerSec": 11951.536519407626,
+      "operations": 22,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 0.5227089999825694,
+        "p95": 9.621791000012308,
+        "max": 12.499542000005022
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": null,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:25:55.983Z",
+      "finishedAt": "2026-11-03T03:26:09.758Z",
+      "elapsedMs": 13775.676792000013,
+      "throughputPerSec": 14.518342947487456,
+      "operations": 600,
+      "wastedOperations": 200,
+      "opLatencyMs": {
+        "p50": 42.94129200000316,
+        "p95": 52.72158299997682,
+        "max": 151.03012500001932
+      },
+      "lockWaiters": {
+        "mean": 0.8354430379746836,
+        "max": 1,
+        "samples": 395
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:26:09.834Z",
+      "finishedAt": "2026-11-03T03:26:09.853Z",
+      "elapsedMs": 19.691500000015367,
+      "throughputPerSec": 10156.666582019852,
+      "operations": 24,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 0.8112499999988358,
+        "p95": 14.834374999976717,
+        "max": 18.692624999996042
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": null,
+      "rep": 4,
+      "startedAt": "2026-11-03T03:26:12.528Z",
+      "finishedAt": "2026-11-03T03:26:35.515Z",
+      "elapsedMs": 22986.49412499997,
+      "throughputPerSec": 8.700761365017437,
+      "operations": 1000,
+      "wastedOperations": 600,
+      "opLatencyMs": {
+        "p50": 85.93704099999741,
+        "p95": 163.58783299999777,
+        "max": 202.32554099999834
+      },
+      "lockWaiters": {
+        "mean": 2.7503875968992246,
+        "max": 3,
+        "samples": 645
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:26:38.082Z",
+      "finishedAt": "2026-11-03T03:26:48.185Z",
+      "elapsedMs": 10102.927834000031,
+      "throughputPerSec": 19.79624157335136,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 22.6875,
+        "p95": 34.336499999975786,
+        "max": 110.63541699998314
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 308
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:26:48.286Z",
+      "finishedAt": "2026-11-03T03:26:48.305Z",
+      "elapsedMs": 18.92541700002039,
+      "throughputPerSec": 10567.798849546329,
+      "operations": 21,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 0.44095800002105534,
+        "p95": 0.7363329999498092,
+        "max": 9.6059580000001
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": null,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:26:51.297Z",
+      "finishedAt": "2026-11-03T03:27:05.302Z",
+      "elapsedMs": 14005.749833000009,
+      "throughputPerSec": 14.279849517857647,
+      "operations": 600,
+      "wastedOperations": 200,
+      "opLatencyMs": {
+        "p50": 43.95662499999162,
+        "p95": 51.71737500000745,
+        "max": 154.87141700001666
+      },
+      "lockWaiters": {
+        "mean": 0.8713592233009708,
+        "max": 1,
+        "samples": 412
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:27:05.396Z",
+      "finishedAt": "2026-11-03T03:27:05.413Z",
+      "elapsedMs": 16.622166999964975,
+      "throughputPerSec": 12032.12553456005,
+      "operations": 22,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 0.591167000005953,
+        "p95": 9.016500000027008,
+        "max": 12.411041999992449
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 1
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": null,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:27:08.003Z",
+      "finishedAt": "2026-11-03T03:27:39.515Z",
+      "elapsedMs": 31512.646666999965,
+      "throughputPerSec": 6.346658283369132,
+      "operations": 1000,
+      "wastedOperations": 600,
+      "opLatencyMs": {
+        "p50": 94.73620799998753,
+        "p95": 258.5214580000029,
+        "max": 454.19304199999897
+      },
+      "lockWaiters": {
+        "mean": 2.721461187214612,
+        "max": 3,
+        "samples": 876
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 200,
+      "batch": 10,
+      "rep": 5,
+      "startedAt": "2026-11-03T03:27:40.422Z",
+      "finishedAt": "2026-11-03T03:27:40.871Z",
+      "elapsedMs": 448.78108399995835,
+      "throughputPerSec": 445.65158187464635,
+      "operations": 24,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 23.60899999999674,
+        "p95": 349.42887500004144,
+        "max": 397.7165410000016
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 4
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": 200,
+      "duplicates": 0,
+      "missing": 0
+    }
+  ],
+  "large": [
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:27:41.601Z",
+      "finishedAt": "2026-11-03T03:27:43.529Z",
+      "elapsedMs": 1927.960000000021,
+      "throughputPerSec": 5186.82960227385,
+      "operations": 201,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 7.714916999975685,
+        "p95": 21.728291999956127,
+        "max": 68.8524590000161
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 65
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:27:44.231Z",
+      "finishedAt": "2026-11-03T03:27:45.383Z",
+      "elapsedMs": 1151.8030000000144,
+      "throughputPerSec": 8682.040244729242,
+      "operations": 202,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 9.68854200001806,
+        "p95": 21.648166999977548,
+        "max": 107.19120900001144
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 36
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:27:45.590Z",
+      "finishedAt": "2026-11-03T03:27:46.485Z",
+      "elapsedMs": 895.4284169999883,
+      "throughputPerSec": 11167.83855654665,
+      "operations": 204,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 14.48737499996787,
+        "p95": 47.4644580000313,
+        "max": 67.8070000000298
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 30
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:27:46.730Z",
+      "finishedAt": "2026-11-03T03:27:47.752Z",
+      "elapsedMs": 1022.8152499999851,
+      "throughputPerSec": 9776.936743952678,
+      "operations": 201,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 4.801832999975886,
+        "p95": 8.76333300000988,
+        "max": 31.472000000008848
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 37
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:27:48.096Z",
+      "finishedAt": "2026-11-03T03:27:49.177Z",
+      "elapsedMs": 1080.453709000023,
+      "throughputPerSec": 9255.371069303059,
+      "operations": 202,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 7.590166000009049,
+        "p95": 27.20616699999664,
+        "max": 78.3839169999701
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 35
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:27:49.450Z",
+      "finishedAt": "2026-11-03T03:27:50.094Z",
+      "elapsedMs": 644.2794170000125,
+      "throughputPerSec": 15521.21600681185,
+      "operations": 204,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 11.02320899994811,
+        "p95": 23.79429099999834,
+        "max": 112.42812499997672
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 22
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 1,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:27:50.283Z",
+      "finishedAt": "2026-11-03T03:27:51.451Z",
+      "elapsedMs": 1167.9659999999567,
+      "throughputPerSec": 8561.893068805402,
+      "operations": 201,
+      "wastedOperations": 1,
+      "opLatencyMs": {
+        "p50": 5.158832999994047,
+        "p95": 9.662917000008747,
+        "max": 19.92429200001061
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 41
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 2,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:27:51.671Z",
+      "finishedAt": "2026-11-03T03:27:52.185Z",
+      "elapsedMs": 513.2405000000144,
+      "throughputPerSec": 19484.043055837796,
+      "operations": 202,
+      "wastedOperations": 2,
+      "opLatencyMs": {
+        "p50": 4.850875000003725,
+        "p95": 6.700959000037983,
+        "max": 36.411707999999635
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 18
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "rowclaim",
+      "dispatchers": 4,
+      "schedules": 10000,
+      "batch": 50,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:27:52.340Z",
+      "finishedAt": "2026-11-03T03:27:52.775Z",
+      "elapsedMs": 434.67016700003296,
+      "throughputPerSec": 23005.94970438641,
+      "operations": 204,
+      "wastedOperations": 4,
+      "opLatencyMs": {
+        "p50": 8.389833000022918,
+        "p95": 14.70579199999338,
+        "max": 30.790667000052053
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 15
+      },
+      "occurrencesWon": 10000,
+      "uniqueRows": 10000,
+      "outboxRows": 10000,
+      "duplicates": 0,
+      "missing": 0
+    }
+  ],
+  "scaling": [
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 50,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:27:53.992Z",
+      "finishedAt": "2026-11-03T03:27:56.730Z",
+      "elapsedMs": 2738.2325830000336,
+      "throughputPerSec": 18.2599536322877,
+      "operations": 100,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 23.20487499999581,
+        "p95": 52.49145899998257,
+        "max": 144.31991600000765
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 87
+      },
+      "occurrencesWon": 50,
+      "uniqueRows": 50,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 100,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:27:58.148Z",
+      "finishedAt": "2026-11-03T03:28:00.912Z",
+      "elapsedMs": 2763.957791999972,
+      "throughputPerSec": 36.180002563512744,
+      "operations": 200,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 12.877833000035025,
+        "p95": 17.09625000000233,
+        "max": 99.04516599996714
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 100
+      },
+      "occurrencesWon": 100,
+      "uniqueRows": 100,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:28:03.643Z",
+      "finishedAt": "2026-11-03T03:28:13.327Z",
+      "elapsedMs": 9683.39529200003,
+      "throughputPerSec": 20.653912596672644,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 22.25916600000346,
+        "p95": 29.300625000032596,
+        "max": 137.14233299996704
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 291
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 400,
+      "batch": null,
+      "rep": 1,
+      "startedAt": "2026-11-03T03:28:22.757Z",
+      "finishedAt": "2026-11-03T03:28:59.903Z",
+      "elapsedMs": 37146.201,
+      "throughputPerSec": 10.76826133579582,
+      "operations": 800,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 42.880958000023384,
+        "p95": 54.2687089999672,
+        "max": 272.58579199999804
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 823
+      },
+      "occurrencesWon": 400,
+      "uniqueRows": 400,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 50,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:29:00.233Z",
+      "finishedAt": "2026-11-03T03:29:00.951Z",
+      "elapsedMs": 717.327500000014,
+      "throughputPerSec": 69.7031690545797,
+      "operations": 100,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 6.813207999977749,
+        "p95": 9.188000000023749,
+        "max": 19.229792000027373
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 27
+      },
+      "occurrencesWon": 50,
+      "uniqueRows": 50,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 100,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:29:01.811Z",
+      "finishedAt": "2026-11-03T03:29:04.338Z",
+      "elapsedMs": 2527.059083,
+      "throughputPerSec": 39.5716905365287,
+      "operations": 200,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 11.693374999973457,
+        "p95": 14.321624999982305,
+        "max": 89.22079200000735
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 90
+      },
+      "occurrencesWon": 100,
+      "uniqueRows": 100,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:29:06.883Z",
+      "finishedAt": "2026-11-03T03:29:16.195Z",
+      "elapsedMs": 9312.709040999995,
+      "throughputPerSec": 21.476027987074758,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 22.045334000024013,
+        "p95": 24.753708000003826,
+        "max": 116.27895800000988
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 282
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 400,
+      "batch": null,
+      "rep": 2,
+      "startedAt": "2026-11-03T03:29:25.417Z",
+      "finishedAt": "2026-11-03T03:30:01.503Z",
+      "elapsedMs": 36086.308582999976,
+      "throughputPerSec": 11.08453637146021,
+      "operations": 800,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 42.35370799998054,
+        "p95": 50.36008299997775,
+        "max": 144.8687079999945
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 822
+      },
+      "occurrencesWon": 400,
+      "uniqueRows": 400,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 50,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:30:01.843Z",
+      "finishedAt": "2026-11-03T03:30:02.561Z",
+      "elapsedMs": 717.1460829999996,
+      "throughputPerSec": 69.72080191923746,
+      "operations": 100,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 6.7620829999796115,
+        "p95": 9.256374999997206,
+        "max": 17.787584000034258
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 27
+      },
+      "occurrencesWon": 50,
+      "uniqueRows": 50,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 100,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:30:03.409Z",
+      "finishedAt": "2026-11-03T03:30:05.886Z",
+      "elapsedMs": 2477.6465000000317,
+      "throughputPerSec": 40.36088279744456,
+      "operations": 200,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 11.684249999991152,
+        "p95": 14.032957999967039,
+        "max": 94.82670799997868
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 89
+      },
+      "occurrencesWon": 100,
+      "uniqueRows": 100,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 200,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:30:08.456Z",
+      "finishedAt": "2026-11-03T03:30:17.652Z",
+      "elapsedMs": 9195.889207999979,
+      "throughputPerSec": 21.748848368683007,
+      "operations": 400,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 21.80079199996544,
+        "p95": 24.262209000007715,
+        "max": 113.40408300003037
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 274
+      },
+      "occurrencesWon": 200,
+      "uniqueRows": 200,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "side": "current",
+      "dispatchers": 1,
+      "schedules": 400,
+      "batch": null,
+      "rep": 3,
+      "startedAt": "2026-11-03T03:30:26.711Z",
+      "finishedAt": "2026-11-03T03:31:03.021Z",
+      "elapsedMs": 36310.51725000003,
+      "throughputPerSec": 11.016092038732928,
+      "operations": 800,
+      "wastedOperations": 0,
+      "opLatencyMs": {
+        "p50": 42.76791699999012,
+        "p95": 51.61954099999275,
+        "max": 153.55420800001593
+      },
+      "lockWaiters": {
+        "mean": 0,
+        "max": 0,
+        "samples": 821
+      },
+      "occurrencesWon": 400,
+      "uniqueRows": 400,
+      "outboxRows": -1,
+      "duplicates": 0,
+      "missing": 0
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+
+ RUN  v4.1.12 /Users/yu/local/src/github/agent-works/.claude/worktrees/agent-a7ff1a92d7173265c/apps/api
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 1 skipped (3)
+   Start at  12:22:05
+   Duration  537.65s (transform 155ms, setup 0ms, import 2.06s, tests 535.52s, environment 0ms)
+
+current S=200 N=1  n=5  throughput/s median=19.8 range=7.6..21.3  p95ms=34.1  lockWaiters.mean=0.00  dup=0 missing=0
+rowclaim S=200 N=1  n=5  throughput/s median=10567.8 range=2205.5..12924.2  p95ms=0.7  lockWaiters.mean=0.00  dup=0 missing=0
+current S=200 N=2  n=5  throughput/s median=12.9 range=12.3..14.5  p95ms=88.7  lockWaiters.mean=0.84  dup=0 missing=0
+rowclaim S=200 N=2  n=5  throughput/s median=11951.5 range=3902.4..12364.8  p95ms=9.6  lockWaiters.mean=0.00  dup=0 missing=0
+current S=200 N=4  n=5  throughput/s median=7.1 range=6.3..8.7  p95ms=210.1  lockWaiters.mean=2.73  dup=0 missing=0
+rowclaim S=200 N=4  n=5  throughput/s median=5080.5 range=445.7..10156.7  p95ms=28.1  lockWaiters.mean=0.00  dup=0 missing=0
+rowclaim S=10000 N=1  n=3  throughput/s median=8561.9 range=5186.8..9776.9  p95ms=9.7  lockWaiters.mean=0.00  dup=0 missing=0
+rowclaim S=10000 N=2  n=3  throughput/s median=9255.4 range=8682.0..19484.0  p95ms=21.6  lockWaiters.mean=0.00  dup=0 missing=0
+rowclaim S=10000 N=4  n=3  throughput/s median=15521.2 range=11167.8..23005.9  p95ms=23.8  lockWaiters.mean=0.00  dup=0 missing=0
+current S=50 N=1  n=3  op p50 ms median=6.8
+current S=100 N=1  n=3  op p50 ms median=11.7
+current S=200 N=1  n=3  op p50 ms median=22.0
+current S=400 N=1  n=3  op p50 ms median=42.8
