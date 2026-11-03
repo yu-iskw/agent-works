@@ -23,6 +23,7 @@ import {
   useOpen,
 } from '../cards/bits.jsx';
 import { useWorkspace } from '../context.js';
+import { GraphStatus } from '../graph/graph-status.jsx';
 
 import { Facts, TaskGate } from './task-gate.jsx';
 
@@ -181,6 +182,7 @@ export function TaskPanel(props: { readonly panel: TaskRoute }): JSX.Element {
                 ],
               ]}
             />
+            <GraphStatus taskId={task.id} />
             <h4>Assignments</h4>
             {live.length === 0 ? <p class="muted">No assignments yet.</p> : null}
             <ul class="asg-list">
