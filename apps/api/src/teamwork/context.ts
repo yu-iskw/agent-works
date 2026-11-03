@@ -13,7 +13,14 @@ export type Member = {
   readonly admin?: boolean;
 };
 
+/**
+ * Live membership source (a directory). Absent means the static `config.members` allowlist. A
+ * throw is a failed lookup, never an answer: the gateway reads it as retryable, not as removed.
+ */
+type MemberDirectory = { isMember(email: string): Promise<boolean> };
+
 export type Deps = {
+  readonly directory?: MemberDirectory;
   readonly sql: postgres.Sql;
   readonly config: SegmentConfig;
   readonly gate: ModelGate;

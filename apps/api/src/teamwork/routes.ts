@@ -59,6 +59,7 @@ import {
 import { Conflict, audit } from './context.js';
 import { conversation, conversationPage, markRead, postToConversation } from './conversations.js';
 import { checkSources } from './diagnostics.js';
+import { GatewayDenied } from './gateway.js';
 import {
   listConnectorInstallations,
   listMarketplace,
@@ -551,6 +552,11 @@ export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Rea
     try {
       return await entry.handle({ deps, member, request }, params);
     } catch (error) {
+      if (error instanceof GatewayDenied)
+        return {
+          status: error.retryable ? 503 : 403,
+          body: { error: error.code },
+        };
       if (error instanceof Conflict)
         return {
           status: error.status,

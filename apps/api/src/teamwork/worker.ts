@@ -658,7 +658,7 @@ async function gatherSources(
         deps,
         assignment,
         'failed',
-        'source_denied',
+        outcome.denied.retryable ? 'source_resolution_unavailable' : 'source_denied',
         `${outcome.kind}: ${outcome.denied.reason}`,
       );
       return undefined;

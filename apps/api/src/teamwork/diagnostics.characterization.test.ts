@@ -19,11 +19,8 @@ import type { Deps, Member } from './context.js';
 import type { SourcePort } from './sources/port.js';
 import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
 
-/**
- * AGT-00 characterization of the diagnostics path that bypasses the segment gateway
- * (`auth-01-teamwork-gateway-followup.md`). These assertions describe today's gap. When the
- * follow-up routes `checkSources` through `invoke`, update them in the same change.
- */
+/** AGT-04: the diagnostics path rechecks membership and audits per source, like the gateway. */
+const member: Member = { sub: 'local-test:alice', email: 'alice@local.test' };
 const outsider: Member = { sub: 'local-test:carol', email: 'carol@local.test' };
 const root = new URL('../../../../', import.meta.url).pathname;
 
@@ -84,15 +81,57 @@ beforeEach(async () => {
   await sql`truncate tw_audit, tw_connections, tw_installations cascade`;
 });
 
-describe('checkSources today', () => {
-  it('reads providers directly, without a membership recheck, and audits one aggregate row', async () => {
+describe('checkSources', () => {
+  it('denies a non-member before any provider read and audits the denial', async () => {
     const d = segment();
     expect(d.config.members.has(outsider.email), 'carol is not a segment member').toBe(false);
-    const checks = await checkSources(d, outsider);
+    await expect(checkSources(d, outsider)).rejects.toMatchObject({ code: 'not_entitled' });
+    expect(reads).toBe(0);
+    const rows = await sql<{ action: string; outcome: string }[]>`
+      select action, outcome from tw_audit order by id`;
+    expect(rows).toEqual([{ action: 'gateway.denied', outcome: 'not_entitled' }]);
+  });
+
+  it('fails closed and retryable when the directory cannot answer, with no provider read', async () => {
+    const d: Deps = {
+      ...segment(),
+      directory: { isMember: () => Promise.reject(new Error('503')) },
+    };
+    await expect(checkSources(d, member)).rejects.toMatchObject({
+      code: 'resolution_unavailable',
+      retryable: true,
+    });
+    expect(reads).toBe(0);
+  });
+
+  it('stops reading for a member removed in the directory', async () => {
+    const d: Deps = { ...segment(), directory: { isMember: () => Promise.resolve(false) } };
+    await expect(checkSources(d, member)).rejects.toMatchObject({ code: 'not_entitled' });
+    expect(reads).toBe(0);
+  });
+
+  it('reads each source for a member and audits every source under the member', async () => {
+    const checks = await checkSources(segment(), member);
     expect(checks).toHaveLength(5);
-    expect(reads, 'one provider read per non-file source, for a non-member').toBe(5);
-    const rows = await sql<{ action: string }[]>`select action from tw_audit order by id`;
-    expect(rows.map((row) => row.action)).toEqual(['sources.check']);
-    expect(rows.some((row) => row.action.startsWith('gateway.'))).toBe(false);
+    expect(reads, 'one provider read per non-file source').toBe(5);
+    const rows = await sql<{ action: string; owner_sub: string }[]>`
+      select action, owner_sub from tw_audit order by id`;
+    expect(rows.filter((row) => row.action === 'sources.check.source')).toHaveLength(5);
+    expect(rows.filter((row) => row.action === 'sources.check')).toHaveLength(1);
+    expect(new Set(rows.map((row) => row.owner_sub))).toEqual(new Set([member.sub]));
+  });
+
+  it('skips a source the segment disabled, audits it as not_allowed and makes no read for it', async () => {
+    const d = segment();
+    await sql`insert into tw_installations (item_kind, item_id, version, capabilities,
+      desired_state, observed_state, updated_by, updated_at)
+      values ('connector', 'github', '1.0.0', '[]'::jsonb, 'disabled', 'not_required', 'admin', now())`;
+    const checks = await checkSources(d, member);
+    const github = checks.filter((check) => check.source.startsWith('github'));
+    expect(github.map((check) => check.status)).toEqual(['not_allowed', 'not_allowed']);
+    expect(reads).toBe(3);
+    const rows = await sql<{ outcome: string }[]>`
+      select outcome from tw_audit where action = 'sources.check.source' and outcome = 'not_allowed'`;
+    expect(rows).toHaveLength(2);
   });
 });
