@@ -18,6 +18,7 @@ import {
   findInstallable,
   getInstallation,
   listInstallations,
+  unwiredMcpServer,
   updateInstallation,
 } from './installations.js';
 
@@ -135,7 +136,8 @@ export async function listMarketplace(
       ...(await listTemplates(deps, member)).map((template) => teamBotListing(template)),
     );
   if (wants('mcp_server')) {
-    if (MCP_SERVER_CATALOG.length === 0) listings.push(comingSoonListing('mcp_server'));
+    if (MCP_SERVER_CATALOG.length === 0 || deps.mcp === undefined)
+      listings.push(comingSoonListing('mcp_server'));
     else {
       const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
       listings.push(
@@ -181,7 +183,7 @@ export async function marketplaceItem(
   id: string,
 ): Promise<MarketplaceDetail | undefined> {
   if (kind === 'connector') return connectorDetail(deps, kind, id);
-  if (kind === 'mcp_server' && MCP_SERVER_CATALOG.length > 0)
+  if (kind === 'mcp_server' && MCP_SERVER_CATALOG.length > 0 && deps.mcp !== undefined)
     return connectorDetail(deps, kind, id);
   if (kind === 'team_bot') {
     const template = (await listTemplates(deps, member)).find((candidate) => candidate.id === id);
@@ -216,6 +218,20 @@ async function installedRow(deps: Deps, id: string): Promise<Installation | unde
 }
 
 /**
+ * A row left from before the gate may still be disabled. Nothing else changes an MCP server while
+ * `Deps.mcp` is unwired.
+ */
+async function refuseWhileUnwired(
+  deps: Deps,
+  id: string,
+  input: ConnectorAction,
+  refuse: Refuse,
+): Promise<void> {
+  if (unwiredMcpServer(deps, id) && input.action !== 'disable')
+    await refuse(new Conflict('connector_not_available', 409), 'not_available');
+}
+
+/**
  * Admin mutation; the caller has already run `requireAdmin`. The enabled set must sit inside the
  * manifest and the segment env allowlist, so enabling a read capability can never add a write one,
  * and the write is a compare-and-swap on `generation`.
@@ -243,6 +259,7 @@ export async function mutateConnector(
     });
     throw error;
   };
+  await refuseWhileUnwired(deps, id, input, refuse);
   const row = await installedRow(deps, id);
   if (row === undefined)
     return refuse(new Conflict('connector_not_available', 409), 'not_available');

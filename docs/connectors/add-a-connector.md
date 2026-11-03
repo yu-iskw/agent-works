@@ -185,6 +185,10 @@ server is the only one. It sits apart from `CONNECTOR_CATALOG`, so the native co
 catalog and its listing do not change when a server is added. The adapter's guarantees are in
 [Marketplace](marketplace.md#what-the-adapter-guarantees).
 
+Until `Deps.mcp` is set, the marketplace lists MCP servers as `coming_soon`, bootstrap creates
+no row, and install or enable is refused. Setting `Deps.mcp` is what makes the server
+installable.
+
 To add one:
 
 1. **Write the manifest.** Put it in `MCP_SERVER_CATALOG`. Build each tool with the
@@ -200,7 +204,8 @@ To add one:
 5. **Pin the hash.** Add one `PUBLISHED_CONNECTOR_HASHES` line, as for a connector.
 6. **Wire the gateway.** Pins come from the manifest. `callNotes` in
    `apps/api/src/teamwork/gateway.ts` shows the pattern. `Deps.mcp` is one transport factory,
-   so a second server needs its own factory first.
+   so a second server needs its own factory first. Wiring `Deps.mcp` also makes the server
+   installable.
 7. **Keep writes refused.** A write tool needs an approval policy the gateway accepts.
    Until one exists, the gateway denies the write before its handler runs.
 

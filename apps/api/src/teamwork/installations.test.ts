@@ -137,4 +137,27 @@ describe('installations', () => {
     expect(sorted(await segmentCapabilities(beta.deps))).toEqual(sorted(new Set(all)));
     expect(sorted(await segmentCapabilities(alpha.deps))).not.toEqual(sorted(new Set(all)));
   });
+
+  it('creates no row for an MCP server while Deps.mcp is unwired, even when the env allows notes.*', async () => {
+    const gamma = await segment('gamma', [...all, 'notes.read', 'notes.write']);
+    try {
+      const itemIds = async () =>
+        (
+          await gamma.sql<
+            { item_id: string }[]
+          >`select item_id from tw_installations order by item_id`
+        ).map((row) => row.item_id);
+      await bootstrapInstallations(gamma.deps);
+      expect(await itemIds()).toEqual(['github', 'google']);
+      expect(await getInstallation(gamma.deps, 'notes')).toBeUndefined();
+
+      await bootstrapInstallations({
+        ...gamma.deps,
+        mcp: () => Promise.reject(new Error('unused')),
+      });
+      expect(await itemIds()).toEqual(['github', 'google', 'notes']);
+    } finally {
+      await gamma.stop();
+    }
+  }, 120_000);
 });

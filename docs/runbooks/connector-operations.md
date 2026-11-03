@@ -14,8 +14,8 @@ how to run and test the platform locally. For the design see
 - The marketplace can only narrow the segment env allowlist `AW_SEGMENT_CAPABILITIES`. To
   offer a capability the env does not allow, change the env and restart the segment.
 - The env default, when the variable is unset, is the native capabilities only. The MCP
-  capabilities `notes.read` and `notes.write` are opt-in. List them to offer the `notes`
-  server.
+  capabilities `notes.read` and `notes.write` are opt-in. Listing them allows the capability
+  in the env, but the `notes` server stays uninstallable until `Deps.mcp` is wired.
 
 ## Enable, disable and change capabilities
 
@@ -35,9 +35,11 @@ request.
 
 - **No restart.** The effective set is read on every request.
 - **Enabling read does not enable write.** To allow `docs.publish`, select it explicitly.
-- **MCP server.** The `notes` server uses the same controls, listed under `kind=mcp_server`
-  and changed through `POST /v1/teamwork/marketplace/connectors/notes`. Its `notes.write`
-  stays refused, even when enabled. See [MCP servers](../connectors/marketplace.md#mcp-servers).
+- **MCP server.** While `Deps.mcp` is unwired (every segment today), the `notes` server is
+  `coming_soon`. `kind=mcp_server` shows the placeholder, and `enable` through
+  `POST /v1/teamwork/marketplace/connectors/notes` is refused with `409 connector_not_available`.
+  `disable` still works for a row left from an earlier version. `notes.write` stays refused,
+  even when enabled. See [MCP servers](../connectors/marketplace.md#mcp-servers).
 - **Audit.** Each write adds a `tw_audit` row (`installation.enable`, `installation.disable`
   and so on) with the connector and actor email, never provider text.
 
@@ -49,7 +51,7 @@ the new state, and decide again. Retrying with the old value never succeeds.
 
 Other refusals: `403 forbidden` (not an admin), `400 capability_not_allowed` (outside the
 manifest or env allowlist), `409 connector_not_available` (the env offers none of its
-capabilities).
+capabilities, or it is an MCP server while `Deps.mcp` is unwired).
 
 ## What a disable does to work in flight
 
@@ -106,10 +108,10 @@ with a 1 s to 60 s backoff, kept in memory.
   unless a caller passes a `runtimeManager`. It refuses every call. Only the in-memory
   `FakeRuntimeManager` in tests succeeds.
 - **Future:** a Cloud Run client ([plan](connector-runtime-staging.md)), an MCP transport
-  wired into a segment (until one is set, `notes.search` returns `mcp_unavailable`), MCP
-  write approval, A2A execution and workspace service identities. Do not promise these to
-  users. The gateway also does not check `observed_state` yet; that must land before any
-  out-of-process connector.
+  wired into a segment (until one is set, MCP servers are `coming_soon` and `notes.search`
+  returns `mcp_unavailable`), MCP write approval, A2A execution and workspace service
+  identities. Do not promise these to users. The gateway also does not check
+  `observed_state` yet; that must land before any out-of-process connector.
 
 ## Local development and test
 
