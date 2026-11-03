@@ -1,3 +1,4 @@
+import { WiringConfigError, readWiring } from '../composition/flags.js';
 import { loadConfig } from '../config.js';
 
 type StartupMode = 'production' | 'local';
@@ -9,7 +10,10 @@ type ProviderName =
   | 'authority-persistence'
   | 'oauth-credentials'
   | 'required-config'
-  | 'incident-ticketing';
+  | 'incident-ticketing'
+  | 'wiring-config'
+  | 'worker-delivery'
+  | 'dispatch-queue';
 
 type ProviderStatus = 'real' | 'local-fake' | 'disabled-optional' | 'missing';
 
@@ -144,6 +148,38 @@ function incident(env: Env, devStack: boolean): ProviderReport {
   };
 }
 
+const WIRING_FLAGS = [
+  'AW_TELEMETRY',
+  'AW_ADMISSION',
+  'AW_WORKER_DELIVERY',
+  'AW_OUTBOX_PUBLISHER',
+  'AW_EXECUTION_WORKER',
+  'AW_EXECUTION_SWEEPER',
+  'AW_OPS_DASHBOARD',
+  'AW_STRICT_PROPOSALS',
+  'AW_STANDING_GRANTS',
+];
+
+/** Reports only for capabilities that are switched on, so a default deployment sees no new entries. */
+function wiring(env: Env): readonly ProviderReport[] {
+  if (!WIRING_FLAGS.some((flag) => envValue(env, flag) === 'on')) return [];
+  const name = 'wiring-config';
+  try {
+    const parsed = readWiring(env);
+    const reports: ProviderReport[] = [{ name, status: 'real', detail: 'loaded' }];
+    if (parsed.delivery !== undefined)
+      reports.push(fromUrls('worker-delivery', ['AW_WORKER_URL'], env, false));
+    if (parsed.outbox !== undefined)
+      reports.push(fromUrls('dispatch-queue', ['AW_WORKER_URL'], env, false));
+    return reports;
+  } catch (error) {
+    if (!(error instanceof WiringConfigError)) throw error;
+    return [
+      { name, status: 'missing', detail: error.problems.join(', ').replace(/[^\w ,:/]/g, '') },
+    ];
+  }
+}
+
 /** Classifies every provider the composition root depends on. Reads names only, never echoes values. */
 export function classifyProviders(env: Env): readonly ProviderReport[] {
   const devStack = env.AW_DEV_STACK === '1';
@@ -155,6 +191,7 @@ export function classifyProviders(env: Env): readonly ProviderReport[] {
     oauth(env, devStack),
     requiredConfig(env),
     incident(env, devStack),
+    ...wiring(env),
   ];
 }
 
