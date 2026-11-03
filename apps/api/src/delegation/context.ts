@@ -1,5 +1,5 @@
 import { delegationContextSchema } from '@agent-works/domain/delegation';
-import { intersectAuthority } from '@agent-works/domain/delegation-authority';
+import { authoritySubset, intersectAuthority } from '@agent-works/domain/delegation-authority';
 
 import { DelegationDenied } from './errors.js';
 
@@ -11,7 +11,14 @@ export type DelegationRequest = {
   readonly grants: readonly RequestedGrant[];
   readonly budgetShare: BudgetLimits;
 };
-/** Input is a trusted execution context, not a parsed model message. Only requested grants may be proposed. */
+const shareFits = (share: BudgetLimits, parent: BudgetLimits): boolean =>
+  share.estimatedCostMicros <= parent.estimatedCostMicros &&
+  share.inferenceSteps <= parent.inferenceSteps &&
+  share.parallelism <= parent.parallelism;
+/**
+ * Input is a trusted execution context, not a parsed model message. A request for any grant the
+ * parent does not hold is denied (`grant_widening`), never trimmed to what the parent holds.
+ */
 export function childContext(
   parentInput: DelegationContext,
   request: DelegationRequest,
@@ -31,12 +38,9 @@ export function childContext(
   if (request.childTaskId === parent.taskId || request.childTaskId === parent.rootTaskId)
     throw new DelegationDenied('identity');
   const share = request.budgetShare;
-  if (
-    share.estimatedCostMicros > parent.budgetShare.estimatedCostMicros ||
-    share.inferenceSteps > parent.budgetShare.inferenceSteps ||
-    share.parallelism > parent.budgetShare.parallelism
-  )
-    throw new DelegationDenied('budget_share');
+  if (!shareFits(share, parent.budgetShare)) throw new DelegationDenied('budget_share');
+  const requested = { ...parent.authority, grants: [...request.grants] };
+  if (!authoritySubset(requested, parent.authority)) throw new DelegationDenied('grant_widening');
   return delegationContextSchema.parse({
     ...parent,
     taskId: request.childTaskId,
