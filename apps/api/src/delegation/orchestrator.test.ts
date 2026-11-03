@@ -11,6 +11,7 @@ import {
   fixtureLimits,
   fixtureNow,
   fixtureOutput,
+  fixtureWidenedChild,
 } from './fixtures.js';
 import { createDelegator } from './orchestrator.js';
 function world(flag: string | undefined = 'enabled') {
@@ -157,6 +158,16 @@ describe('delegation acceptance', () => {
     expect(w.execute).not.toHaveBeenCalled();
     expect(await w.budget.events()).toEqual([]);
     expect(await w.records.audits('parent')).toMatchObject([{ reason: 'depth' }]);
+  });
+  it('denies a widened grant request before any edge, charge or execution', async () => {
+    const w = world();
+    await expect(w.delegator.spawn(fixtureContext, fixtureWidenedChild)).rejects.toThrow(
+      'grant_widening',
+    );
+    expect(w.execute).not.toHaveBeenCalled();
+    expect(await w.budget.events()).toEqual([]);
+    expect(await w.records.read('child-1')).toBeUndefined();
+    expect(await w.records.audits('parent')).toMatchObject([{ reason: 'grant_widening' }]);
   });
   it('settles child execution failure without allowing consumption', async () => {
     const w = world();

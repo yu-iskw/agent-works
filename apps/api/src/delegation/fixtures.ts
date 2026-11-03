@@ -26,11 +26,12 @@ export const fixtureContext: DelegationContext = {
 };
 export const fixtureChild = {
   childTaskId: 'child-1',
-  grants: [
-    { capability: 'drive.read', resource: 'source-1' },
-    { capability: 'email.send', resource: 'attacker' },
-  ],
+  grants: [{ capability: 'drive.read', resource: 'source-1' }],
   budgetShare: { ...fixtureLimits, estimatedCostMicros: 60, inferenceSteps: 1, parallelism: 1 },
+};
+export const fixtureWidenedChild = {
+  ...fixtureChild,
+  grants: [...fixtureChild.grants, { capability: 'email.send', resource: 'attacker' }],
 };
 export const fixtureOutput = {
   answer: 'Grounded source text [source-1]',
