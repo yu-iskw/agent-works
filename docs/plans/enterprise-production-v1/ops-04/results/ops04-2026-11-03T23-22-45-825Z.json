@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 1,
+  "label": "local-synthetic",
+  "claim": "Local synthetic harness result. Not a live, cloud, or model-backed measurement.",
+  "modelCalls": 0,
+  "runId": "ops04-2026-11-03T23-22-45-825Z",
+  "startedAt": "2026-11-03T23:22:45.825Z",
+  "finishedAt": "2026-11-03T23:25:49.354Z",
+  "specName": "p01-local-scaled-480x",
+  "spec": {
+    "name": "p01-local-scaled-480x",
+    "description": "Same shape as workload-full.json, time-compressed 480x so 24 h of schedule time takes about 3 minutes of wall clock on one machine.",
+    "speed": 480,
+    "durationMs": 86400000,
+    "schedules": 1500,
+    "executionsPerDay": 2000,
+    "activeSteps": 50,
+    "stepsPerExecution": 3,
+    "dbPoolMax": 30,
+    "burst": {
+      "slots": 500,
+      "atMs": 21600000
+    },
+    "retry": {
+      "maxAttempts": 4,
+      "minBackoffSeconds": 10,
+      "maxBackoffSeconds": 80,
+      "maxDoublings": 3,
+      "maxRetryDurationSeconds": 3600
+    },
+    "timing": {
+      "stepMs": 24000,
+      "leaseMs": 400000,
+      "sweepEveryMs": 20000,
+      "dispatchTickRealMs": 50,
+      "workerPollRealMs": 50,
+      "queueDelayRealMs": 20,
+      "redriveAfterMs": 120000,
+      "maxRedrives": 3,
+      "reconcileEveryMs": 30000,
+      "controlPollMs": 10000,
+      "workerColdStartMs": 15000,
+      "drainMaxMs": 3600000
+    },
+    "faults": {
+      "workerDeaths": {
+        "count": 100,
+        "startMs": 7200000,
+        "endMs": 79200000
+      },
+      "queueWindows": [
+        {
+          "atMs": 28800000,
+          "durationMs": 600000,
+          "mode": "drop",
+          "dropRate": 0.5
+        },
+        {
+          "atMs": 36000000,
+          "durationMs": 300000,
+          "mode": "unavailable"
+        }
+      ],
+      "duplicateDeliveryRate": 0.02,
+      "dbRestarts": [
+        {
+          "atMs": 43200000,
+          "downRealMs": 5000
+        }
+      ],
+      "providerOutages": [
+        {
+          "atMs": 57600000,
+          "durationMs": 900000,
+          "mode": "unavailable"
+        },
+        {
+          "atMs": 64800000,
+          "durationMs": 300000,
+          "mode": "ack-lost"
+        }
+      ],
+      "revocations": {
+        "count": 60,
+        "startMs": 3600000,
+        "endMs": 82800000
+      }
+    }
+  },
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpuCount": 10,
+    "cpuModel": "Apple M4",
+    "totalMemMb": 32768,
+    "node": "v24.13.0",
+    "dockerServer": "29.9.2",
+    "postgres": "PostgreSQL 16.15 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "postgresMaxConnections": 100,
+    "loadavgAtStart": [2.52978515625, 2.06201171875, 1.95849609375],
+    "sourceSha": "71eb8d56303cf96e5946042711c7db0e1aaa09b6",
+    "sourceDirty": true
+  },
+  "config": {
+    "scheduleIntervalSeconds": 43200,
+    "workers": 50,
+    "dbPoolMax": 30,
+    "virtualBaseIso": "2026-11-03T23:22:00.000Z",
+    "virtualEndIso": "2026-11-04T23:24:01.412Z",
+    "drained": true
+  },
+  "sampleSizes": {
+    "schedules": 1500,
+    "executions": 2499,
+    "steps": 7497,
+    "workerDeaths": 100,
+    "revocations": 55
+  },
+  "executionStates": {
+    "succeeded": 2423,
+    "denied": 47,
+    "cancelled": 8,
+    "quarantined": 21
+  },
+  "slots": {
+    "expectedByFormula": 2499,
+    "claimedRuns": 2499
+  },
+  "metrics": {
+    "P02": {
+      "virtualMs": {
+        "n": 2498,
+        "min": 15611,
+        "p50": 54332,
+        "p95": 1302847,
+        "p99": 4072101,
+        "max": 5126127
+      },
+      "realMs": {
+        "n": 2498,
+        "min": 32.52291666666667,
+        "p50": 113.19166666666666,
+        "p95": 2714.264583333333,
+        "p99": 8483.54375,
+        "max": 10679.43125
+      },
+      "cancelledBeforeStart": 1,
+      "droppedNeverStarted": 0
+    },
+    "P03": {
+      "eligibleExecutions": 2444,
+      "eligibleSteps": 7332,
+      "succeededWithin10Min": 1762,
+      "successRate": 0.720949263502455,
+      "excludedIntentional": 55,
+      "failedOrQuarantined": 21,
+      "notTerminalAtEnd": 0
+    },
+    "P04": {
+      "injected": 100,
+      "releasedCount": 100,
+      "unreleased": 0,
+      "leaseExpiryToRelease": {
+        "virtualMs": {
+          "n": 100,
+          "min": 484,
+          "p50": 45947,
+          "p95": 1891919,
+          "p99": 2050532,
+          "max": 4024293
+        },
+        "realMs": {
+          "n": 100,
+          "min": 1.0083333333333333,
+          "p50": 95.72291666666666,
+          "p95": 3941.4979166666667,
+          "p99": 4271.941666666667,
+          "max": 8383.94375
+        }
+      },
+      "deathToRelease": {
+        "virtualMs": {
+          "n": 100,
+          "min": 297343.06005859375,
+          "p50": 430549.4404296875,
+          "p95": 2280223.0400390625,
+          "p99": 2422546.7600097656,
+          "max": 4421316.7001953125
+        },
+        "realMs": {
+          "n": 100,
+          "min": 619.4647084554036,
+          "p50": 896.9780008951823,
+          "p95": 4750.4646667480465,
+          "p99": 5046.972416687012,
+          "max": 9211.076458740234
+        }
+      },
+      "deathToResume": {
+        "virtualMs": {
+          "n": 94,
+          "min": 368779.9602050781,
+          "p50": 550517.6398925781,
+          "p95": 2208396.639892578,
+          "p99": 2531143.7600097656,
+          "max": 2531143.7600097656
+        },
+        "realMs": {
+          "n": 94,
+          "min": 768.2915837605794,
+          "p50": 1146.9117497762045,
+          "p95": 4600.826333109538,
+          "p99": 5273.2161666870115,
+          "max": 5273.2161666870115
+        }
+      },
+      "worstCaseLeaseExpiryToReleaseVirtualMs": 4024293
+    },
+    "P05": {
+      "queued": {
+        "committed": 5,
+        "observed": 5,
+        "unobserved": 0,
+        "virtualMs": {
+          "n": 5,
+          "min": 7445.919921875,
+          "p50": 27648.020263671875,
+          "p95": 30239.620361328125,
+          "p99": 30239.620361328125,
+          "max": 30239.620361328125
+        },
+        "realMs": {
+          "n": 5,
+          "min": 15.512333170572917,
+          "p50": 57.60004221598307,
+          "p95": 62.99920908610026,
+          "p99": 62.99920908610026,
+          "max": 62.99920908610026
+        }
+      },
+      "running": {
+        "committed": 50,
+        "observed": 50,
+        "unobserved": 0,
+        "virtualMs": {
+          "n": 50,
+          "min": 472.42041015625,
+          "p50": 21584.39990234375,
+          "p95": 628845.5197753906,
+          "p99": 5629990.560058594,
+          "max": 5629990.560058594
+        },
+        "realMs": {
+          "n": 50,
+          "min": 0.9842091878255208,
+          "p50": 44.96749979654948,
+          "p95": 1310.0948328653972,
+          "p99": 11729.14700012207,
+          "max": 11729.14700012207
+        }
+      }
+    },
+    "integrity": {
+      "duplicateRemoteWrites": 0,
+      "duplicateRuns": 0,
+      "replayedWrites": 36,
+      "appliedButUnrecorded": 0,
+      "uncertainEffectsEver": 50,
+      "uncertainEffectsReconciled": 50,
+      "uncertainEffectsUnresolvedAtEnd": 0,
+      "loss": {
+        "noWorkerRow": 0,
+        "stuckQueuedOrRunning": 0,
+        "total": 0
+      },
+      "visibleNotLost": {
+        "quarantined": 21,
+        "awaitingReconciliation": 0
+      }
+    }
+  },
+  "evaluation": {
+    "comparableToLiveTargets": false,
+    "note": "Time compressed 480x: fixed real costs (DB round trips, poll ticks) are inflated 480x in virtual time, so latency numbers are indicative only.",
+    "P02": {
+      "target": {
+        "p95Ms": 120000,
+        "p99Ms": 300000
+      },
+      "observedP95Ms": 1302847,
+      "observedP99Ms": 4072101,
+      "sampleSize": 2498,
+      "verdict": "exceeds-provisional-target"
+    },
+    "P03": {
+      "target": {
+        "minSuccessRate": 0.99,
+        "withinMs": 600000,
+        "minSteps": 5000
+      },
+      "observedRate": 0.720949263502455,
+      "sampleSteps": 7332,
+      "verdict": "exceeds-provisional-target"
+    },
+    "P04": {
+      "target": {
+        "maxRecoveryMs": 120000,
+        "minDeaths": 100
+      },
+      "observedWorstCaseMs": 4024293,
+      "observedMedianMs": 45947,
+      "sampleSize": 100,
+      "unreleased": 0,
+      "verdict": "exceeds-provisional-target"
+    },
+    "P05": {
+      "target": {
+        "maxObservationMs": 60000
+      },
+      "observedWorstCaseMs": 5629990.560058594,
+      "sampleSize": 55,
+      "unobserved": 0,
+      "verdict": "exceeds-provisional-target"
+    },
+    "P01": {
+      "sizes": {
+        "schedules": 1500,
+        "executions": 2499,
+        "steps": 7497,
+        "workerDeaths": 100,
+        "revocations": 55
+      },
+      "note": "Workload shape is recorded in spec and sizes; P01 is a load profile, not a pass/fail value."
+    },
+    "P06": {
+      "verdict": "AWAITING_OPERATOR",
+      "note": "Restore RTO/RPO need the live operator drill."
+    },
+    "P07": {
+      "verdict": "AWAITING_OPERATOR",
+      "note": "A soak cannot establish monthly availability."
+    }
+  },
+  "outbox": {
+    "pending": 0,
+    "abandoned": 0,
+    "published": 2508
+  },
+  "revocationsMoot": 3,
+  "faults": [
+    {
+      "kind": "queue-drop",
+      "startedMs": 1793776919676.2598,
+      "plannedDurationMs": 600000,
+      "endedMs": 1793777520486.2798
+    },
+    {
+      "kind": "queue-unavailable",
+      "startedMs": 1793784120240.18,
+      "plannedDurationMs": 300000,
+      "endedMs": 1793784420270.9998
+    },
+    {
+      "kind": "db-crash-restart",
+      "startedMs": 1793791320132.8198,
+      "downRealMs": 5000,
+      "databaseAnswersAfterRealMs": 5446,
+      "dispatcherRecoveredAfterRealMs": 10157,
+      "endedMs": 1793796195710.52
+    },
+    {
+      "kind": "provider-unavailable",
+      "startedMs": 1793805719598.0198,
+      "plannedDurationMs": 900000,
+      "endedMs": 1793806620203.0798
+    },
+    {
+      "kind": "provider-ack-lost",
+      "startedMs": 1793812920451.66,
+      "plannedDurationMs": 300000,
+      "endedMs": 1793813220202.5398
+    }
+  ],
+  "counters": {
+    "claimedRuns": 2499,
+    "publishedMessages": 2508,
+    "droppedMessages": 9,
+    "duplicateDeliveries": 49
+  },
+  "checks": {
+    "loopErrors": {
+      "revoke:CONNECTION_CLOSED:write CONNECTION_CLOSED 127.0.0.1:57336": 1,
+      "worker:CONNECTION_CLOSED:write CONNECTION_CLOSED 127.0.0.1:57336": 13,
+      "delivery:CONNECTION_CLOSED:write CONNECTION_CLOSED 127.0.0.1:57336": 1,
+      "control:CONNECTION_CLOSED:write CONNECTION_CLOSED 127.0.0.1:57336": 1,
+      "dispatcher:CONNECTION_CLOSED:write CONNECTION_CLOSED 127.0.0.1:57336": 1,
+      "worker:ECONNREFUSED:connect ECONNREFUSED 127.0.0.1:57336": 35,
+      "revoke:23505:duplicate key value violates unique constraint \"ops04_revoca": 1
+    },
+    "remoteWritesTotal": 7322,
+    "executionsReachedSucceeded": 2423,
+    "runCount": 1,
+    "repeatability": "Single run; no run-to-run range. Repeat before treating any number as stable."
+  },
+  "harnessProcess": {
+    "cpuUserMs": 22069,
+    "cpuSystemMs": 7664,
+    "eventLoopDelayP99Ms": 13,
+    "note": "The harness runs workers, dispatcher and fault injection in one Node process; high event-loop delay means the load generator, not the system, set the number."
+  },
+  "explain": {
+    "dueToStart": {
+      "pipelineFloorRealMs": 170,
+      "pipelineFloorVirtualMs": 81600,
+      "limiter": "Median is bounded below by dispatcher tick + publisher tick + queue delay + worker poll (170 ms real, 81600 ms virtual at 480x). The tail is bounded by worker capacity during the 500-slot burst (about 720 s to drain at 0.7 executions/s virtual), by redriveAfterMs=120000 ms for lost queue messages, and by fault windows (DB crash, provider and queue outages)."
+    },
+    "workerDeathRecovery": {
+      "limiter": "Lease expiry to release is bounded by sweepEveryMs=20000 ms virtual plus the real sweep transaction cost times 480. Resume additionally waits for retry backoff (10-80 s) and, for in-effect deaths, reconciliation every 30000 ms."
+    },
+    "stopRevoke": {
+      "limiter": "Queued observation is bounded by controlPollMs=10000 ms. Running observation is bounded by the next gate check, one step (24000 ms) away at most."
+    },
+    "terminalSuccess": {
+      "limiter": "Failures come from retry exhaustion or time budget (retry maxAttempts=4) during outages; unreconciled effects are counted separately, not as success."
+    },
+    "compression": {
+      "speed": 480,
+      "note": "Virtual time = real elapsed time times speed. Real costs that do not shrink with the schedule are inflated by this factor in virtual-ms numbers."
+    },
+    "integrityCounts": {
+      "noWorkerRow": 0,
+      "stuckQueuedOrRunning": 0,
+      "total": 0
+    }
+  }
+}

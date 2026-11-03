@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "kind": "threshold-proposal",
+  "generatedAt": "2026-11-03T23:26:08.539Z",
+  "approved": false,
+  "approvalRequired": "A named human owner approves target values (templates/operator-approval.md and stage gate). This file approves nothing.",
+  "basis": "local-synthetic results only; no live evidence",
+  "resultsConsidered": [
+    {
+      "runId": "ops04-2026-11-03T23-22-45-825Z",
+      "spec": "p01-local-scaled-480x",
+      "speed": 480,
+      "finishedAt": "2026-11-03T23:25:49.354Z"
+    }
+  ],
+  "resultsIgnored": 0,
+  "lines": [
+    {
+      "id": "P02-p95",
+      "status": "NO_COMPARABLE_EVIDENCE",
+      "provisional": {
+        "p95Ms": 120000
+      },
+      "proposed": {
+        "p95Ms": 120000
+      },
+      "rationale": "No uncompressed (speed 1) result with the required sample. Keep the provisional due-to-start p95 until one exists."
+    },
+    {
+      "id": "P02-p99",
+      "status": "NO_COMPARABLE_EVIDENCE",
+      "provisional": {
+        "p99Ms": 300000
+      },
+      "proposed": {
+        "p99Ms": 300000
+      },
+      "rationale": "No uncompressed (speed 1) result with the required sample. Keep the provisional due-to-start p99 until one exists."
+    },
+    {
+      "id": "P03",
+      "status": "NO_COMPARABLE_EVIDENCE",
+      "provisional": {
+        "minSuccessRate": 0.99
+      },
+      "proposed": {
+        "minSuccessRate": 0.99
+      },
+      "rationale": "No uncompressed (speed 1) result with the required sample. Keep the provisional terminal-success rate until one exists."
+    },
+    {
+      "id": "P04",
+      "status": "NO_COMPARABLE_EVIDENCE",
+      "provisional": {
+        "maxRecoveryMs": 120000
+      },
+      "proposed": {
+        "maxRecoveryMs": 120000
+      },
+      "rationale": "No uncompressed (speed 1) result with the required sample. Keep the provisional lease recovery worst case until one exists."
+    },
+    {
+      "id": "P05",
+      "status": "NO_COMPARABLE_EVIDENCE",
+      "provisional": {
+        "maxObservationMs": 60000
+      },
+      "proposed": {
+        "maxObservationMs": 60000
+      },
+      "rationale": "No uncompressed (speed 1) result with the required sample. Keep the provisional stop/revoke observation until one exists."
+    }
+  ],
+  "notApplicable": {
+    "P06": "RTO/RPO need the live operator restore drill.",
+    "P07": "Monthly availability needs a live observation window."
+  }
+}
