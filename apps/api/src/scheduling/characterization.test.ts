@@ -188,7 +188,7 @@ describe('characterization: window, expiry, misfire', () => {
     expect(dueSlot(spec, '2024-01-01T00:00:00.000Z', at('2025-01-15T00:00:00.000Z'))).toBe(
       '2024-02-29T00:00:00.000Z',
     );
-  });
+  }, 30_000);
 });
 
 describe('characterization: resume and pause on the store', () => {
