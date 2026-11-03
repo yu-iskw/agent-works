@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0.0",
+  "source": "ACCEPTANCE.md hard invariants",
+  "invariants": [
+    {
+      "id": "SEC-01",
+      "deterministic": [
+        { "file": "apps/api/src/auth/iap.test.ts" },
+        { "file": "apps/api/src/auth/service-identity.test.ts" },
+        { "file": "apps/api/src/memory/acl.test.ts" },
+        { "file": "e2e/security/identity.forged.spec.ts" },
+        { "file": "e2e/adversarial/cross-user-doc.spec.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Forged identity, cross-user, cross-segment, expired and revoked grant requests denied on the deployed stack",
+        "files": ["e2e/security/identity.stale.spec.ts"]
+      }
+    },
+    {
+      "id": "SEC-02",
+      "deterministic": [
+        { "file": "scripts/acl-01/acl-01.test.mjs" },
+        { "file": "tools/evals/scorer.test.mjs" },
+        { "file": "spikes/retrieval/compare/aggregate.test.mjs" },
+        { "file": "apps/api/src/retrieval/worker-drive.test.ts" },
+        { "file": "e2e/security/retrieval.spec.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Owner positive control plus zero unauthorized content, title or snippet disclosures over the defined corpus on live Drive",
+        "files": []
+      }
+    },
+    {
+      "id": "SEC-03",
+      "deterministic": [
+        { "file": "apps/api/src/broker/approvals.test.ts" },
+        { "file": "apps/api/src/broker/broker.test.ts" },
+        { "file": "apps/api/src/connectors/approval-binding.test.ts" },
+        { "file": "packages/domain/src/approval.test.ts" },
+        { "file": "e2e/adversarial/approval-payload-change.spec.ts" },
+        { "file": "e2e/security/approval.spec.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Revocation between enqueue, start and effect, plus changed-input replay, denied against deployed broker",
+        "files": []
+      }
+    },
+    {
+      "id": "SEC-04",
+      "deterministic": [
+        { "file": "apps/api/src/auth/iap.test.ts" },
+        { "file": "apps/api/src/auth/google-jwks.test.ts" },
+        { "file": "apps/api/src/auth/service-identity.test.ts" },
+        { "file": "packages/fakes/src/iap-sign-in.test.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Direct Cloud Run URL, wrong issuer, wrong audience and unauthorized service account rejected",
+        "files": []
+      }
+    },
+    {
+      "id": "DUR-01",
+      "deterministic": [
+        { "file": "apps/api/src/ports/schedule-row-claim.test.ts" },
+        { "file": "apps/api/src/ports/schedule-postgres.test.ts" },
+        { "file": "packages/domain/src/schedule-run.test.ts" },
+        { "file": "apps/api/src/scheduling/admission-races.test.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Concurrent claim and redelivery against deployed database yields one run per occurrence",
+        "files": []
+      }
+    },
+    {
+      "id": "DUR-02",
+      "coverage": "partial",
+      "coverageNote": "No dedicated forced-lease-expiry fencing test was found; mapped tests cover dispatch and claim races only",
+      "deterministic": [
+        { "file": "apps/api/src/ledger/postgres-dispatch.test.ts" },
+        { "file": "apps/api/src/queue/worker-delivery.test.ts" },
+        { "file": "apps/api/src/scheduling/worker.test.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Forced lease expiry with a stale worker commit rejected by fencing on the deployed stack",
+        "files": []
+      }
+    },
+    {
+      "id": "DUR-03",
+      "deterministic": [
+        { "file": "apps/api/src/reliability/degradation.test.ts" },
+        { "file": "apps/api/src/reliability/dlq-service.test.ts" },
+        { "file": "apps/api/src/reliability/restore-drill.test.ts" },
+        { "file": "apps/api/src/connectors/idempotency.test.ts" },
+        { "file": "e2e/adversarial/duplicate-delivery.spec.ts" }
+      ],
+      "live": {
+        "operatorEvidence": "Fault campaign with approved scope: no false success and no blind replay of uncertain writes",
+        "files": []
+      }
+    },
+    {
+      "id": "GOV-01",
+      "deterministic": [
+        { "file": "apps/api/src/capabilities/gate.test.ts" },
+        { "file": "apps/api/src/delegation/flag.test.ts" },
+        { "file": "scripts/release-gate.test.mjs" },
+        { "file": "tools/evals/gate.test.mjs" }
+      ],
+      "live": {
+        "operatorEvidence": "Approval record bound to project, scope and deployed image digest for each enabled capability",
+        "files": []
+      }
+    },
+    {
+      "id": "OBS-01",
+      "deterministic": [
+        { "file": "apps/api/src/governance/redaction.test.ts" },
+        { "file": "apps/api/src/telemetry/trace.test.ts" },
+        { "file": "apps/api/src/audit/write.test.ts" },
+        { "file": "e2e/contract/audit.contract.test.ts" },
+        { "file": "scripts/reconcile-audit.test.mjs" }
+      ],
+      "live": {
+        "operatorEvidence": "Trace-to-ledger join for every restricted effect on the deployed stack with secrets absent from sinks",
+        "files": []
+      }
+    }
+  ]
+}

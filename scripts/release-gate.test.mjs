@@ -51,7 +51,7 @@ test.skipIf(process.env.RUN_HOLDOUT_EVAL !== '1')(
   () => {
     const result = run(['--include-holdout']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout).cases).toBe(156);
+    expect(JSON.parse(result.stdout).cases).toBe(176);
   },
   30000,
 );
