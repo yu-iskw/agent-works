@@ -1,0 +1,41 @@
+{
+  "name": "tiny-test",
+  "description": "Test-scale profile: about 15 s of wall clock. Proves the harness mechanics, not capacity.",
+  "speed": 60,
+  "durationMs": 900000,
+  "schedules": 20,
+  "executionsPerDay": 14400,
+  "activeSteps": 6,
+  "stepsPerExecution": 2,
+  "dbPoolMax": 12,
+  "burst": { "slots": 10, "atMs": 300000 },
+  "retry": {
+    "maxAttempts": 4,
+    "minBackoffSeconds": 10,
+    "maxBackoffSeconds": 80,
+    "maxDoublings": 3,
+    "maxRetryDurationSeconds": 3600
+  },
+  "timing": {
+    "stepMs": 6000,
+    "leaseMs": 90000,
+    "sweepEveryMs": 15000,
+    "dispatchTickRealMs": 50,
+    "workerPollRealMs": 50,
+    "queueDelayRealMs": 10,
+    "redriveAfterMs": 60000,
+    "maxRedrives": 3,
+    "reconcileEveryMs": 20000,
+    "controlPollMs": 6000,
+    "workerColdStartMs": 6000,
+    "drainMaxMs": 900000
+  },
+  "faults": {
+    "workerDeaths": { "count": 3, "startMs": 120000, "endMs": 600000 },
+    "queueWindows": [{ "atMs": 400000, "durationMs": 60000, "mode": "drop", "dropRate": 1 }],
+    "duplicateDeliveryRate": 0.2,
+    "dbRestarts": [{ "atMs": 500000, "downRealMs": 1500 }],
+    "providerOutages": [{ "atMs": 650000, "durationMs": 60000, "mode": "ack-lost" }],
+    "revocations": { "count": 4, "startMs": 60000, "endMs": 700000 }
+  }
+}
