@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 
 import { createMemoryApprovalStore } from '../../apps/api/src/broker/approvals.js';
 import { createBroker, TICKET_TOOL } from '../../apps/api/src/broker/broker.js';
+import { trustedTestResolver } from '../../apps/api/src/broker/test-authority.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
 import { canonicalPayloadSha256 } from '../../packages/domain/src/index.js';
 import { createTicket, listen } from '../../packages/fakes/src/index.js';
@@ -32,9 +33,11 @@ async function world() {
   let attempts = 0;
   let failOnce = false;
   const decisions: string[] = [];
+  let claimedFacts: typeof facts = facts;
   const broker = createBroker({
     store,
     ledger,
+    authorize: trustedTestResolver(() => claimedFacts),
     now: () => new Date(),
     approverAuthorized: (sub) => reviewerActive && sub === 'bob',
     decide: (input) => {
@@ -85,7 +88,13 @@ async function world() {
     facts,
   };
   return {
-    broker,
+    broker: {
+      ...broker,
+      execute(call: Parameters<typeof broker.execute>[0]) {
+        claimedFacts = call.facts as typeof facts;
+        return broker.execute(call);
+      },
+    },
     input,
     store,
     ledger,
