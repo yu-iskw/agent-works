@@ -29,7 +29,7 @@ import type { RowClaimOptions, Scope, Tx } from './schedule-row-claim-store.js';
 import type { ScheduleRecord, ScheduleRun } from '@agent-works/domain';
 import type postgres from 'postgres';
 
-type ClaimDueInput = { now: string; limit: number; owner: string; leaseMs: number };
+export type ClaimDueInput = { now: string; limit: number; owner: string; leaseMs: number };
 export type RowClaimSchedulePort = SchedulePort & {
   /**
    * One short transaction: lock up to `limit` due schedules with FOR UPDATE SKIP LOCKED, claim the
@@ -157,10 +157,14 @@ function dueOf(row: ScheduleRecord, hasTrigger: boolean): string | null {
   return nextDueAfter(row.spec, row.cursor);
 }
 
-async function claimDue(
+/** Runs inside the claim transaction for each newly claimed run (the SCH-02 outbox write). */
+export type OnClaimed = (tx: Tx, run: ScheduleRun) => Promise<void>;
+
+export async function claimDue(
   sql: postgres.Sql,
   options: RowClaimOptions,
   input: ClaimDueInput,
+  onClaimed?: OnClaimed,
 ): Promise<ScheduleRun[]> {
   if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 500)
     throw new ScheduleConflict('invalid batch');
@@ -173,7 +177,10 @@ async function claimDue(
     const claimed: ScheduleRun[] = [];
     for (const { payload } of due) {
       const run = await claimOne(tx, scheduleRecordSchema.parse(payload), input);
-      if (run !== undefined) claimed.push(run);
+      if (run !== undefined) {
+        claimed.push(run);
+        await onClaimed?.(tx, run);
+      }
     }
     return claimed;
   });
