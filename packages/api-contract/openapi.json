@@ -9094,7 +9094,7 @@
     "tasks-events.ts": "e7f884d1c9a0172233ff1a95ab46ba515992f3cfefd9f27bde8e40d0bd701e14",
     "tasks-read.ts": "d630e322afe2aba00ed986fba929f0215a174ef85feaf14023ecb575457d83e1",
     "tasks-submit.ts": "2f9b2b19f4a00ca315c1847dcdd74c6be59985dbf66d241e5a2623f026b92056",
-    "tasks-telemetry.ts": "68d2124cf24d56da5a7c3196c7655faab223e60414ddc78aaebfeda04661035e",
+    "tasks-telemetry.ts": "73f27bb38ee231f5b1e799ef371814664a529823c7ca558b81eaa2bb1bed9b88",
     "tasks.ts": "fe81f47adfe6b317226600ce19b5404dea39dbfd8ce34d9db4de4054ad9d0770"
   }
 }

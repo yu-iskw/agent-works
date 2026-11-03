@@ -39,6 +39,12 @@ export default defineConfig({
             '@agent-works/domain/user-memory-pii': fileURLToPath(
               new URL('./packages/domain/src/user-memory-pii.ts', import.meta.url),
             ),
+            '@agent-works/domain/teamwork-graph-contract': fileURLToPath(
+              new URL('./packages/domain/src/teamwork-graph-contract.ts', import.meta.url),
+            ),
+            '@agent-works/domain/standing-grant-contract': fileURLToPath(
+              new URL('./packages/domain/src/standing-grant-contract.ts', import.meta.url),
+            ),
             '@agent-works/domain/delegation-authority': fileURLToPath(
               new URL('./packages/domain/src/delegation-authority.ts', import.meta.url),
             ),
