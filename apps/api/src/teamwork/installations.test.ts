@@ -9,6 +9,7 @@ import { startDisposablePostgres } from '../ledger/disposable-postgres.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 
 import { readSegmentConfig } from './config.js';
+import { applyGraphMigration } from './graph-migration.js';
 import {
   BOOTSTRAP_ACTOR,
   bootstrapInstallations,
@@ -29,6 +30,7 @@ async function segment(
   const database = await startDisposablePostgres();
   const sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
   const base = readSegmentConfig({
     AW_SEGMENT_ID: id,
     AW_IDENTITY: 'local-test',

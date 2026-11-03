@@ -11,6 +11,7 @@ import { applyWorkbenchMigration } from '../workbench/migration.js';
 
 import { readSegmentConfig } from './config.js';
 import { checkSources } from './diagnostics.js';
+import { applyGraphMigration } from './graph-migration.js';
 import { createModelGate } from './model.js';
 import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
@@ -69,6 +70,7 @@ beforeAll(async () => {
   database = await startDisposablePostgres();
   sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
 }, 60_000);
 
 afterAll(async () => {

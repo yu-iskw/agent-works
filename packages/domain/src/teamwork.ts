@@ -318,10 +318,10 @@ export const assignmentStatusSchema = z.enum(ASSIGNMENT_STATUSES);
 export type AssignmentStatus = z.infer<typeof assignmentStatusSchema>;
 
 export const ASSIGNMENT_TRANSITIONS: Record<AssignmentStatus, readonly AssignmentStatus[]> = {
-  queued: ['running', 'cancelled', 'superseded'],
+  queued: ['running', 'failed', 'cancelled', 'superseded'],
   running: ['succeeded', 'failed', 'timed_out', 'needs_input', 'cancelled', 'queued', 'superseded'],
   needs_input: ['queued', 'cancelled', 'superseded'],
-  succeeded: ['queued', 'superseded'],
+  succeeded: ['superseded'],
   failed: ['queued', 'cancelled', 'superseded'],
   timed_out: ['queued', 'cancelled', 'superseded'],
   cancelled: [],

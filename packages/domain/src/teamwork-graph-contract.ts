@@ -228,16 +228,13 @@ export function reasonFor(state: NodeState, facts: NodeFacts): NodeReason | null
 }
 
 /**
- * Edges of today's `ASSIGNMENT_TRANSITIONS` that the frozen table does not allow. Each is a
- * documented divergence, not a bug fixed here: AGT-01 removes or fences them.
+ * Edges of `ASSIGNMENT_TRANSITIONS` that the frozen table does not allow. Empty since AGT-01: a
+ * rerun is a new node (the old one is superseded), so a succeeded node is never re-queued.
  */
 export const KNOWN_ASSIGNMENT_DIVERGENCES: readonly (readonly [
   AssignmentStatus,
   AssignmentStatus,
-])[] = [
-  // A succeeded node is re-queued by rescope/revision (`followUpRescope`, `requeue`): a replay.
-  ['succeeded', 'queued'],
-];
+])[] = [];
 
 // ---------------------------------------------------------------------------------------------
 // UI projection. Strict objects, so a field that is not listed here cannot reach the browser.

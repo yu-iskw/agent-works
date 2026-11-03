@@ -20,6 +20,7 @@ import { resolveAttachments } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, connections } from './connections.js';
 import { Conflict, audit } from './context.js';
+import { completedNodes, completedViolations } from './graph.js';
 import { segmentCapabilities } from './installations.js';
 import { WORKFLOW_SOURCES } from './prompts.js';
 import {
@@ -36,6 +37,7 @@ import {
   readTask,
   releaseReady,
   requeue,
+  rerunAsNewNode,
   supersedeLivePlan,
   syncInbox,
   touchTask,
@@ -721,6 +723,8 @@ export async function checkPlan(
     if (assignment.dependsOn.some((key) => !keys.has(key) || key === assignment.key))
       throw new Conflict('bad_dependency', 400);
   if (hasDependencyCycle(content.assignments)) throw new Conflict('bad_dependency', 400);
+  const changed = completedViolations(content, completedNodes(await assignmentsFor(tx, task.id)));
+  if (changed.length > 0) throw new Conflict('completed_node_changed', 409, changed.join(', '));
   const capabilities = new Set(
     content.assignments.flatMap((assignment) => [...capabilitiesForSources(assignment.sources)]),
   );
@@ -769,18 +773,17 @@ export async function decidePlan(
         summary: `You approved plan version ${input.version}`,
         detail: { planVersion: input.version, digest: plan.digest.slice(0, 12) },
       });
-      await dispatch(deps, tx, {
-        task,
-        member,
-        work: plan.content.assignments,
-        planVersion: input.version,
-      });
+      // Completed nodes carry over as they are; only the rest of the revision is dispatched.
+      const done = new Set(completedNodes(await assignmentsFor(tx, id)).map((a) => a.key));
+      const work = plan.content.assignments.filter((a) => !done.has(a.key));
+      await dispatch(deps, tx, { task, member, work, planVersion: input.version });
+      const carried = done.size === 0 ? '' : `, keeping ${done.size} completed`;
       await moveTask(deps, tx, task, {
         to: 'running',
         events: [
           {
             type: 'task.dispatched',
-            summary: `Dispatched ${plan.content.assignments.length} assignments from plan version ${input.version}`,
+            summary: `Dispatched ${work.length} assignments from plan version ${input.version}${carried}`,
           },
         ],
       });
@@ -838,9 +841,11 @@ export async function replan(
     if (task.status !== 'plan_review' && task.status !== 'needs_input')
       throw new Conflict('cannot_replan');
     await supersedeLivePlan(tx, id);
-    // A new plan defines all remaining work; nothing from the old plan may still run or be answered.
+    // A new plan defines all remaining work; nothing unfinished from the old plan may still run or be answered.
+    // Completed nodes are effects and stay; the new plan can only add to or follow them.
     for (const assignment of await assignmentsFor(tx, id))
-      await moveAssignment(deps, tx, assignment, 'superseded');
+      if (assignment.status !== 'succeeded')
+        await moveAssignment(deps, tx, assignment, 'superseded');
     await tx`update tw_jobs set state = 'cancelled', updated_at = ${deps.now()} where task_id = ${id} and kind = 'assignment' and state = 'queued'`;
     const latest = await latestPlanVersion(tx, id);
     await moveTask(deps, tx, task, {
@@ -927,11 +932,10 @@ async function followUpRescope(
   const succeeded = (await assignmentsFor(tx, id)).filter((a) => a.status === 'succeeded');
   const data = succeeded.filter((a) => a.sources.includes('bigquery_metrics'));
   if (data.length === 0) throw new Conflict('no_data_assignment');
-  // The rerun is a new attempt of the same reviewed assignment; sources and capabilities are
-  // unchanged. Assignments built on the data's output re-run too, after it, for the new periods.
+  // The rerun is a new node with the same reviewed definition (the finished one is kept,
+  // superseded); sources and capabilities are unchanged. Assignments built on the data's output re-run too, after it, for the new periods.
   const dependents = closure(data, succeeded, (a, keys) => a.depends_on.some((k) => keys.has(k)));
-  for (const assignment of dependents)
-    await requeue(deps, tx, assignment, { output: null, calculations: [] });
+  for (const assignment of dependents) await rerunAsNewNode(deps, tx, assignment);
   await releaseReady(deps, tx, id);
   await moveTask(deps, tx, task, {
     to: 'running',
@@ -1033,7 +1037,13 @@ export async function decideMissing(
       const needed = closure(chosen, missing, (a, keys) =>
         missing.some((r) => keys.has(r.key) && r.depends_on.includes(a.key)),
       );
-      for (const assignment of needed) await requeue(deps, tx, assignment);
+      // A node blocked by a retried prerequisite is retried with it.
+      const blocked = closure(
+        needed,
+        missing,
+        (a, keys) => a.error_code === 'dependency_failed' && a.depends_on.some((k) => keys.has(k)),
+      );
+      for (const assignment of blocked) await requeue(deps, tx, assignment);
       await releaseReady(deps, tx, id);
       await moveTask(deps, tx, task, {
         to: 'running',

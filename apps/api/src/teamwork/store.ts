@@ -76,6 +76,10 @@ export type AssignmentRow = {
   started_at: Date | null;
   finished_at: Date | null;
   created_at: Date;
+  /** Earliest next attempt of a queued node (retry_wait); null when it may run now. */
+  retry_not_before: Date | null;
+  /** Fencing token of the worker that owns this node while it runs; null otherwise. */
+  owner_token: string | null;
 };
 
 export type EventInput = {
@@ -207,11 +211,22 @@ type AssignmentFields = {
   readonly model?: AssignmentRow['model'];
   readonly error?: { readonly code: string; readonly message: string } | null;
   readonly attemptIncrement?: boolean;
+  /** Queued only: the node waits until this time before a job may run it. */
+  readonly retryNotBefore?: Date | null;
+  /** Leaving `running`: only the owner holding this token may settle the node. */
+  readonly fence?: string;
 };
 
 /** Whether entering the status stops the assignment's clock; a question pauses it like an end. */
 const stopsWork = (status: AssignmentStatus): boolean =>
   TERMINAL_ASSIGNMENT.has(status) || status === 'needs_input';
+
+/** A retired node keeps its record, a stop stamps it and a new attempt clears it. */
+function finishedAt(tx: Tx, to: AssignmentStatus, at: Date) {
+  if (to === 'superseded') return tx`finished_at`;
+  if (stopsWork(to)) return at;
+  return to === 'queued' ? null : tx`finished_at`;
+}
 
 /**
  * Moves an assignment along an allowed edge. Its deadline starts when it starts running, so waiting
@@ -237,9 +252,12 @@ export async function moveAssignment(
       error_code = ${column(fields.error, tx`error_code`, (error) => error.code)},
       error_message = ${column(fields.error, tx`error_message`, (error) => error.message)},
       started_at = ${to === 'running' ? at : tx`started_at`},
-      finished_at = ${stopsWork(to) ? at : to === 'queued' ? null : tx`finished_at`},
+      retry_not_before = ${to === 'queued' ? (fields.retryNotBefore ?? null) : null},
+      owner_token = ${to === 'running' ? tx`gen_random_uuid()` : null},
+      finished_at = ${finishedAt(tx, to, at)},
       deadline_at = ${to === 'running' ? new Date(at.getTime() + deps.config.assignmentDeadlineMs) : tx`deadline_at`}
     where id = ${assignment.id} and status = ${assignment.status}
+      ${fields.fence === undefined ? tx`` : tx`and owner_token = ${fields.fence}`}
     returning *
   `;
   const moved = rows.at(0);
@@ -266,6 +284,32 @@ export async function requeue(
 }
 
 /**
+ * Reruns a completed node as a new node. A succeeded node is an immutable effect: it is retired as
+ * `superseded` with its output intact, and a fresh queued node with the same reviewed definition and
+ * the next attempt number takes its key. The caller runs `releaseReady` once after all changes.
+ */
+export async function rerunAsNewNode(
+  deps: Deps,
+  tx: Tx,
+  assignment: AssignmentRow,
+): Promise<AssignmentRow | undefined> {
+  if (assignment.status !== 'succeeded') return undefined;
+  if ((await moveAssignment(deps, tx, assignment, 'superseded')) === undefined) return undefined;
+  const at = deps.now();
+  const rows = await tx<AssignmentRow[]>`
+    insert into tw_assignments (id, task_id, key, teammate_id, teammate_snapshot, skills, brief, deliverable,
+      sources, capabilities, plan_version, status, attempt, calculations, deadline_at, created_at, updated_at, depends_on)
+    select ${deps.newId()}, task_id, key, teammate_id, teammate_snapshot, skills, brief, deliverable,
+      sources, capabilities, plan_version, 'queued', attempt + 1, '[]'::jsonb,
+      ${new Date(at.getTime() + deps.config.assignmentDeadlineMs)}, ${at}, ${at}, depends_on
+    from tw_assignments where id = ${assignment.id}
+    returning *
+  `;
+  await touchTask(deps, tx, assignment.task_id);
+  return rows.at(0);
+}
+
+/**
  * Queues the job of every queued assignment whose dependencies all succeeded, so an approved plan
  * runs in the order it was reviewed. Every path that queues work ends here; `enqueue` ignores a
  * job that is already open.
@@ -274,8 +318,13 @@ export async function releaseReady(deps: Deps, tx: Tx, taskId: string): Promise<
   const rows = await assignmentsFor(tx, taskId);
   const succeeded = new Set(rows.filter((a) => a.status === 'succeeded').map((a) => a.key));
   for (const a of rows)
-    if (a.status === 'queued' && a.depends_on.every((key) => succeeded.has(key)))
-      await enqueue(deps, tx, taskId, 'assignment', `${a.id}:${a.attempt}`);
+    if (a.status === 'queued' && a.depends_on.every((key) => succeeded.has(key))) {
+      const ref = `${a.id}:${a.attempt}`;
+      await enqueue(deps, tx, taskId, 'assignment', ref);
+      // A node in retry_wait has a job that no worker may claim before its not-before time.
+      if (a.retry_not_before !== null)
+        await tx`update tw_jobs set run_after = ${a.retry_not_before} where kind = 'assignment' and ref = ${ref} and state = 'queued'`;
+    }
 }
 
 export async function enqueue(

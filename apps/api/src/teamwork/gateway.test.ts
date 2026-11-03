@@ -14,6 +14,7 @@ import { readSegmentConfig } from './config.js';
 import { tokenSource } from './connections.js';
 import { conversation } from './conversations.js';
 import { invoke, publishThroughGateway, readThroughGateway } from './gateway.js';
+import { applyGraphMigration } from './graph-migration.js';
 import { bootstrapInstallations, updateInstallation } from './installations.js';
 import { createModelGate } from './model.js';
 import { createScriptedModel } from './scripted-model.js';
@@ -109,6 +110,7 @@ beforeAll(async () => {
   database = await startDisposablePostgres();
   sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
 }, 60_000);
 
 afterAll(async () => {
