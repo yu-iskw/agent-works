@@ -20,6 +20,7 @@ export const UNKNOWN_CORRELATION = 'unknown';
 export function correlation(input: CorrelationInput = {}): Correlation {
   return Object.freeze(
     Object.fromEntries(
+      // eslint-disable-next-line security/detect-object-injection -- key comes from a closed union
       CORRELATION_KEYS.map((key) => [key, input[key] ? input[key] : UNKNOWN_CORRELATION]),
     ),
   ) as Correlation;

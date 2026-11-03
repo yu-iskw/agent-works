@@ -18,6 +18,7 @@ const routeLabels: Readonly<Record<keyof Omit<TaskRoutes, 'cancel'> | 'cancel', 
  */
 export function instrumentTaskRoutes(routes: TaskRoutes, telemetry: Telemetry): TaskRoutes {
   const wrap = (name: keyof typeof routeLabels, route: Route): Route => {
+    // eslint-disable-next-line security/detect-object-injection -- key comes from a closed union
     const label = routeLabels[name];
     return (request) =>
       telemetry.span(

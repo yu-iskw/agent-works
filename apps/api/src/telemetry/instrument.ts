@@ -111,6 +111,7 @@ export function createTelemetry(sink: TelemetrySink): Telemetry {
           scope.correlation = mergeCorrelation(scope.correlation, extra);
         },
         attribute(key, value) {
+          // eslint-disable-next-line security/detect-object-injection -- key comes from a closed union
           attributes[key] = value;
         },
         status(next) {
