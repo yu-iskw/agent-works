@@ -9,14 +9,14 @@ It is **Proposed**, not Accepted. This page describes the merged code.
 
 ## Concepts
 
-| Term         | Meaning in the code                                                                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Workspace    | A teamwork **segment**: one process, one database, one member allowlist. There is no `workspace_id` column.                                            |
-| Connector    | A first-party manifest in `packages/domain/src/connector-catalog.ts` (`CONNECTOR_CATALOG`): provider (`google` or `github`), version and capabilities. |
-| MCP server   | A first-party manifest in the same file (`MCP_SERVER_CATALOG`) with `transport: 'mcp'`. The only one today is `notes` (Team notes).                    |
-| Capability   | One of `drive.read`, `bigquery.query`, `docs.publish`, `github.read`, `files.read`, `notes.read`, `notes.write` (`packages/domain/src/teamwork.ts`).   |
-| Installation | One row per connector or MCP server in the segment DB, table `tw_installations` (`apps/api/migrations/0023_installations.sql`).                        |
-| Admin        | A segment member listed in `AW_M1_<SEG>_ADMINS` (`AW_LOCAL_TEST_ADMINS` with local identity). Non-members listed there are ignored.                    |
+| Term         | Meaning in the code                                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace    | A teamwork **segment**: one process, one database, one member allowlist. There is no `workspace_id` column.                                                     |
+| Connector    | A first-party manifest in `packages/domain/src/connector-catalog.ts` (`CONNECTOR_CATALOG`): provider (`google` or `github`), version and capabilities.          |
+| MCP server   | A first-party manifest in the same file (`MCP_SERVER_CATALOG`) with `transport: 'mcp'`. The only one today is `notes` (Team notes).                             |
+| Capability   | One of `drive.read`, `bigquery.query`, `docs.publish`, `github.read`, `files.read`, `notes.read`, `notes.write` (`packages/domain/src/teamwork.ts`).            |
+| Installation | One row per connector, and per MCP server once `Deps.mcp` is wired, in the segment DB, table `tw_installations` (`apps/api/migrations/0023_installations.sql`). |
+| Admin        | A segment member listed in `AW_M1_<SEG>_ADMINS` (`AW_LOCAL_TEST_ADMINS` with local identity). Non-members listed there are ignored.                             |
 
 ## Architecture
 
@@ -40,7 +40,8 @@ CONNECTOR_CATALOG  ->  tw_installations  ->  segmentCapabilities()  ->  gateway 
   out the MCP capabilities (`notes.*`).
 - **Bootstrap.** On start the segment inserts one enabled row per env-allowed provider
   (`insert … on conflict do nothing`, actor `system:bootstrap`). Existing segments keep
-  their behavior, and an admin's later disable persists.
+  their behavior, and an admin's later disable persists. An MCP server gets no row while
+  `Deps.mcp` is unwired.
 - **Gateway.** `apps/api/src/teamwork/gateway.ts` runs source fetches and `docs.publish`
   (both called from `worker.ts`) and the MCP tools `notes.search` and `notes.append` through
   one `invoke`. Per call it checks, in order: the member is still in the segment, the tool
@@ -60,14 +61,15 @@ CONNECTOR_CATALOG  ->  tw_installations  ->  segmentCapabilities()  ->  gateway 
 
 ### Marketplace listings
 
-| Kind         | Source                                          | Status                                  |
-| ------------ | ----------------------------------------------- | --------------------------------------- |
-| `connector`  | `CONNECTOR_CATALOG` plus the installation row   | `available`, `enabled` or `disabled`    |
-| `team_bot`   | A projection of the existing teamwork templates | `available`; links to the template flow |
-| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row  | `available`, `enabled` or `disabled`    |
-| `a2a_agent`  | Placeholder entry                               | `coming_soon`                           |
+| Kind         | Source                                                                                                              | Status                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `connector`  | `CONNECTOR_CATALOG` plus the installation row                                                                       | `available`, `enabled` or `disabled`                                                      |
+| `team_bot`   | A projection of the existing teamwork templates                                                                     | `available`; links to the template flow                                                   |
+| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row once `Deps.mcp` is wired, and a `coming_soon` placeholder until then | `coming_soon` while `Deps.mcp` is unwired, otherwise `available`, `enabled` or `disabled` |
+| `a2a_agent`  | Placeholder entry                                                                                                   | `coming_soon`                                                                             |
 
-Only `a2a_agent` is `coming_soon`. A2A execution is not built.
+`a2a_agent` is always `coming_soon`. `mcp_server` is `coming_soon` while `Deps.mcp` is
+unwired, which is every segment today. A2A execution is not built.
 
 ### MCP servers
 
@@ -81,8 +83,14 @@ it through `apps/api/src/teamwork/mcp-adapter.ts`, which uses the MCP SDK client
 
 - **Opt-in.** `notes.read` and `notes.write` are not in the default segment allowlist. To
   offer the server, list them in `AW_SEGMENT_CAPABILITIES`. An unset variable never enables
-  it. `available` means no installation row exists, which is the case while the env allows
-  no `notes.*` capability. Then `enabled` or `disabled` follows the row.
+  it. Listing `notes.*` does not make the server installable while `Deps.mcp` is unwired.
+  The gateway still fails closed with `mcp_unavailable`.
+- **Not installable while unwired.** The listing is the `coming_soon` placeholder
+  (`mcp-servers`), and `GET /v1/teamwork/marketplace/mcp_server/notes` is 404. Bootstrap
+  creates no row, even when the env lists `notes.*`.
+  `POST /v1/teamwork/marketplace/connectors/notes` with `enable`, `set_capabilities`, `upgrade`
+  or `rollback` answers `409 connector_not_available` and is audited as `not_available`.
+  `disable` is still accepted for a row left from an earlier version.
 - **No member connection.** `notes` is a connectionless provider. The server needs no
   per-member OAuth connection, so its capabilities count as connected.
 - **Read never grants write.** `notes.write` is its own capability and sits in
@@ -130,7 +138,7 @@ segment. Every request checks membership server-side.
 | `GET /marketplace/:kind/:id`       | Member | One item; a connector shows per-capability state               |
 | `POST /marketplace/connectors/:id` | Admin  | `enable`, `disable`, `set_capabilities`, `upgrade`, `rollback` |
 
-MCP servers use the same mutation route, with `notes` as the id.
+MCP servers use the same mutation route, with `notes` as the id, once `Deps.mcp` is wired.
 
 The mutation body is strict. It carries `action`, `expectedGeneration` and the action's
 own fields (`capabilities`, `version`). A body that names a segment or actor is rejected
@@ -146,22 +154,23 @@ capability never adds the write capability, because the stored subset is explici
 
 ## What is real and what is simulated
 
-| Piece                                               | State                                                                                                            |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Catalog, installations, admin allowlist, API and UI | **Real.** Backed by the segment Postgres database.                                                               |
-| Per-call recheck in the segment gateway             | **Real** for source fetches, `docs.publish` and the MCP tools (see limitations).                                 |
-| MCP adapter and the `notes` server                  | **Real** code, tested against an in-process server. No segment sets a transport, so `notes.search` fails closed. |
-| Flagship broker registry                            | **Real.** Tool dispatch is a registry; policy and approval order are unchanged.                                  |
-| Runtime port, `FakeRuntimeManager` and reconciler   | **Simulated.** The fake is in memory and bound to one segment. No cloud call is made.                            |
-| Default runtime manager                             | `unavailableRuntimeManager`: every call fails closed with `runtime_unavailable`.                                 |
-| In-process connectors (`google`, `github`)          | Reconcile to `observed_state = 'not_required'`. The runtime is never called.                                     |
+| Piece                                               | State                                                                                                                                                                 |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog, installations, admin allowlist, API and UI | **Real.** Backed by the segment Postgres database.                                                                                                                    |
+| Per-call recheck in the segment gateway             | **Real** for source fetches, `docs.publish` and the MCP tools (see limitations).                                                                                      |
+| MCP adapter and the `notes` server                  | **Real** code, tested against an in-process server. No segment sets a transport, so `notes.search` fails closed and the marketplace lists MCP servers as coming soon. |
+| Flagship broker registry                            | **Real.** Tool dispatch is a registry; policy and approval order are unchanged.                                                                                       |
+| Runtime port, `FakeRuntimeManager` and reconciler   | **Simulated.** The fake is in memory and bound to one segment. No cloud call is made.                                                                                 |
+| Default runtime manager                             | `unavailableRuntimeManager`: every call fails closed with `runtime_unavailable`.                                                                                      |
+| In-process connectors (`google`, `github`)          | Reconcile to `observed_state = 'not_required'`. The runtime is never called.                                                                                          |
 
 ### Future, not built
 
 - **Cloud Run client.** Only the fake exists. See the plan in
   [connector-runtime-staging](../runbooks/connector-runtime-staging.md).
 - **MCP transport in a segment.** The adapter has an HTTP transport. No segment sets
-  `Deps.mcp`, so nothing reaches an MCP server yet. Wiring one is its own change.
+  `Deps.mcp`, so nothing reaches an MCP server yet. Setting `Deps.mcp` also lifts the
+  coming-soon hold on MCP servers. Wiring one is its own change.
 - **MCP writes.** `notes.append` has no approval path. Policy `mcp-write-v1` has none yet.
 - **A2A execution.** The A2A listing is `coming_soon` metadata only. Nothing fetches an
   Agent Card or delegates to an agent.

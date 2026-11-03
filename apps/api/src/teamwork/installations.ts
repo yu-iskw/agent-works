@@ -15,6 +15,16 @@ export const BOOTSTRAP_ACTOR = 'system:bootstrap';
 export const findInstallable: ManifestLookup = (id, version) =>
   findConnector(id, version) ?? findMcpServer(id, version);
 
+/**
+ * An MCP server cannot run without `Deps.mcp`, so it is not installable: no row is bootstrapped and
+ * the marketplace lists it as coming soon. Setting `Deps.mcp` lifts the hold.
+ */
+export function unwiredMcpServer(deps: Deps, id: string): boolean {
+  return (
+    deps.mcp === undefined && findConnector(id) === undefined && findMcpServer(id) !== undefined
+  );
+}
+
 const capabilityListSchema = z.array(capabilitySchema);
 
 // Not strict: `select *` also returns `item_kind`, which the only kind in use makes redundant here.
@@ -92,7 +102,7 @@ export async function bootstrapInstallations(deps: Deps): Promise<void> {
   }
   for (const [provider, capabilities] of byProvider) {
     const manifest = findInstallable(provider);
-    if (manifest === undefined) continue;
+    if (manifest === undefined || unwiredMcpServer(deps, provider)) continue;
     await deps.sql.begin(async (tx) => {
       const inserted = await tx`
         insert into tw_installations (item_kind, item_id, version, capabilities, desired_state,
