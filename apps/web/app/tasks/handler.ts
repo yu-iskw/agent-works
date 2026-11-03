@@ -3,9 +3,16 @@ import { z } from 'zod';
 
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 
+/** Structural sink so the web app records owner reads without depending on the API package. */
+type OwnerReadObserver = (event: {
+  readonly kind: 'tasks' | 'artifacts';
+  readonly status: number;
+  readonly traceparent: string | null;
+}) => void;
 export type OwnerReadOptions = {
   readonly apiUrl: string;
   readonly fetch?: typeof fetch;
+  readonly observe?: OwnerReadObserver;
 };
 
 const readPath = /^\/(tasks|artifacts)\/([a-zA-Z0-9_-]{1,128})$/;
@@ -31,8 +38,9 @@ export function isOwnerReadPath(path: string): boolean {
 export function createOwnerReadHandler(options: OwnerReadOptions): RequestListener {
   const load = options.fetch ?? fetch;
   return (request, response) => {
-    void handle(options.apiUrl, load, request, response).catch(() => {
-      if (!response.headersSent) send(response, 503, 'unavailable');
+    const reply = observed(response, request, options.observe);
+    void handle(options.apiUrl, load, request, reply).catch(() => {
+      if (!reply.headersSent) send(reply, 503, 'unavailable');
     });
   };
 }
@@ -57,7 +65,12 @@ async function handle(
   const [, kind, id] = match;
   const upstream = await load(new URL(`/v1/${kind}/${id}`, apiUrl), {
     method: 'GET',
-    headers: { [IAP_ASSERTION_HEADER]: assertion },
+    headers: {
+      [IAP_ASSERTION_HEADER]: assertion,
+      ...(typeof request.headers.traceparent === 'string'
+        ? { traceparent: request.headers.traceparent }
+        : {}),
+    },
     cache: 'no-store',
     redirect: 'manual',
     signal: AbortSignal.timeout(2500),
@@ -74,6 +87,30 @@ async function handle(
   const body = readBody(kind, id, await upstream.json());
   if (body === undefined) send(response, 502, 'invalid response');
   else send(response, 200, body, jsonType);
+}
+
+function observed(
+  response: ServerResponse,
+  request: IncomingMessage,
+  observe: OwnerReadObserver | undefined,
+): ServerResponse {
+  if (observe === undefined) return response;
+  const kind = readPath.exec(
+    URL.parse(request.url ?? '/', 'http://localhost')?.pathname ?? '',
+  )?.[1];
+  response.once('finish', () => {
+    try {
+      observe({
+        kind: kind === 'artifacts' ? 'artifacts' : 'tasks',
+        status: response.statusCode,
+        traceparent:
+          typeof request.headers.traceparent === 'string' ? request.headers.traceparent : null,
+      });
+    } catch {
+      /* Observation failure never changes the owner-scoped reply. */
+    }
+  });
+  return response;
 }
 
 function readBody(kind: string, id: string, payload: unknown): string | undefined {
