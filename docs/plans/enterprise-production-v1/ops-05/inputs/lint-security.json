@@ -1,0 +1,8 @@
+{
+  "command": "pnpm lint:security",
+  "exitCode": 1,
+  "capturedAt": "2026-11-04",
+  "sourceSha": "b322e7dbc9ab7b1721f793c56613c5cd06506756",
+  "note": "Raw Trunk output, ANSI stripped, run on the origin/epv1/integration head. Local scan using network vulnerability databases. Not an image scan.",
+  "output": "$ trunk check --all --scope security\n  ISSUES  \ninfra/terraform/modules/worker_identity/main.tf:41:0\n 41:0  high  Storage bucket encryption does not use a customer-managed key.  trivy/GCP-0066\r\n 41:0  high  Storage bucket versioning is not enabled.                       trivy/GCP-0078\npnpm-lock.yaml:2001:0\n 2001:0  medium  'minimatch' has potential denial of service via globparts               osv-scanner/GHSA-g3hv-75wg-m249\r\n                 amplification. Current version is vulnerable: 10.2.5.                                                  \nChecked 119 files\n✖ 3 security issues\nRun trunk upgrade to upgrade trunk and 9 linters"
+}
