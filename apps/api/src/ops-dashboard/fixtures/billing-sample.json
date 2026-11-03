@@ -1,0 +1,19 @@
+{
+  "lines": [
+    {
+      "lineId": "bl1",
+      "amountMicros": 1000,
+      "executionId": "0000000000000000000000000000000000000000000000000000000000000001",
+      "service": "model"
+    },
+    {
+      "lineId": "bl2",
+      "amountMicros": 2000,
+      "executionId": "0000000000000000000000000000000000000000000000000000000000000003",
+      "service": "model"
+    },
+    { "lineId": "bl3", "amountMicros": 300, "segmentId": "s2", "service": "tool" },
+    { "lineId": "bl4", "amountMicros": 50, "service": "tool" },
+    { "lineId": "bl5", "amountMicros": 25, "executionId": "ghost-execution", "service": "model" }
+  ]
+}

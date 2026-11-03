@@ -1,0 +1,24 @@
+{
+  "alerts": [
+    {
+      "id": "outbox-lag",
+      "metric": "outbox.oldestPendingMs",
+      "comparator": "gt",
+      "threshold": null,
+      "forSeconds": 300,
+      "severity": "page",
+      "responder": { "name": "UNSET", "contact": "UNSET" },
+      "runbook": { "url": "UNSET" }
+    },
+    {
+      "id": "unassigned-spend",
+      "metric": "cost.unassigned.micros",
+      "comparator": "gt",
+      "threshold": null,
+      "forSeconds": 3600,
+      "severity": "ticket",
+      "responder": { "name": "UNSET", "contact": "UNSET" },
+      "runbook": { "url": "UNSET" }
+    }
+  ]
+}
