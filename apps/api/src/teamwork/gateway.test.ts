@@ -9,14 +9,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { startDisposablePostgres } from '../ledger/disposable-postgres.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 
-import { createStarterTeam, seedCatalog } from './catalog.js';
+import { createStarterTeam, exportTeammate, getTeammate, seedCatalog } from './catalog.js';
 import { readSegmentConfig } from './config.js';
+import { tokenSource } from './connections.js';
+import { conversation } from './conversations.js';
 import { invoke, publishThroughGateway, readThroughGateway } from './gateway.js';
 import { bootstrapInstallations, updateInstallation } from './installations.js';
 import { createModelGate } from './model.js';
 import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
-import { createTask, publishDigest } from './tasks.js';
+import { createTask, publishDigest, taskDetail } from './tasks.js';
+import { createWorker } from './worker.js';
 
 import type { Deps, Member } from './context.js';
 import type { SourcePort, TokenSource } from './sources/port.js';
@@ -170,16 +173,21 @@ const proposal: PublishProposal = {
 /** A publication as the approval flow leaves it: the task is publishing and the approval row exists. */
 async function approval(
   taskId: string,
-  over: { readonly state?: string; readonly digest?: string; readonly subjectRef?: number } = {},
+  over: {
+    readonly state?: string;
+    readonly digest?: string;
+    readonly subjectRef?: number;
+    readonly decidedBy?: string;
+  } = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
   await sql`update wb_tasks set status = 'publishing', latest_revision = 1 where id = ${taskId}`;
   await sql`
     insert into wb_approvals (id, task_id, proposal, document, payload_sha256, state, requested_at,
-      expires_at, subject, subject_ref)
+      expires_at, subject, subject_ref, decided_by)
     values (${id}, ${taskId}, ${sql.json(proposal)}, ${sql.json({ markdown: '# Brief' })},
       ${over.digest ?? publishDigest(proposal)}, ${over.state ?? 'approved'}, now(),
-      now() + interval '1 hour', 'publish', ${over.subjectRef ?? 1})
+      now() + interval '1 hour', 'publish', ${over.subjectRef ?? 1}, ${over.decidedBy ?? alice.sub})
   `;
   await sql`
     insert into wb_actions (task_id, approval_id, idempotency_key, status, simulated, updated_at, kind)
@@ -408,5 +416,170 @@ describe('segment gateway', () => {
       readThroughGateway(segment({ members: 'bob@local.test' }), alice, call),
     ).rejects.toMatchObject({ code: 'not_entitled' });
     expect(stats.reads + stats.tokens).toBe(0);
+  });
+});
+
+const audits = async (action: string) =>
+  sql<{ outcome: string; owner_sub: string | null }[]>`
+    select outcome, owner_sub from tw_audit where action = ${action} order by id`;
+
+describe('gateway authority resolution (AGT-04)', () => {
+  it('denies an approval decided by someone other than the calling member', async () => {
+    const d = segment();
+    const { taskId } = await startTask(d);
+    const id = await approval(taskId, { decidedBy: bob.sub });
+    await expect(
+      publishThroughGateway(d, alice, { taskId, approvalId: id, token }),
+    ).rejects.toMatchObject({ code: 'approval_invalid' });
+    const undecided = await approval(taskId);
+    await sql`update wb_approvals set decided_by = null where id = ${undecided}`;
+    await expect(
+      publishThroughGateway(d, alice, { taskId, approvalId: undecided, token }),
+    ).rejects.toMatchObject({ code: 'approval_invalid' });
+    expect(stats.publishes + stats.tokens).toBe(0);
+    expect(
+      (await audits('gateway.denied')).filter((row) => row.outcome === 'approval_invalid'),
+    ).toHaveLength(2);
+    const ok = await approval(taskId);
+    expect(
+      (await publishThroughGateway(d, alice, { taskId, approvalId: ok, token })).published,
+    ).toBeDefined();
+    expect(stats.publishes).toBe(1);
+  });
+
+  it('treats a directory failure as retryable and never as removal, with no provider call', async () => {
+    const d = segment();
+    const { taskId, assignmentId } = await startTask(d);
+    const call = { taskId, assignmentId, token, input: driveInput };
+    let mode: 'member' | 'removed' | 'down' = 'down';
+    const directory = {
+      isMember: () =>
+        mode === 'down'
+          ? Promise.reject(new Error('directory 503'))
+          : Promise.resolve(mode === 'member'),
+    };
+    const withDirectory: Deps = { ...d, directory };
+    const down = await readThroughGateway(withDirectory, alice, call).catch((e: unknown) => e);
+    expect(down).toMatchObject({ code: 'resolution_unavailable', retryable: true });
+    mode = 'removed';
+    const removed = await readThroughGateway(withDirectory, alice, call).catch((e: unknown) => e);
+    expect(removed).toMatchObject({ code: 'not_entitled', retryable: false });
+    expect(stats.reads + stats.tokens).toBe(0);
+    mode = 'member';
+    expect(
+      (await readThroughGateway(withDirectory, alice, call)).result.items.length,
+    ).toBeGreaterThan(0);
+    expect((await audits('gateway.denied')).map((row) => row.outcome)).toEqual([
+      'resolution_unavailable',
+      'not_entitled',
+    ]);
+  });
+
+  it('applies a disabled connector to already queued work', async () => {
+    const d = segment();
+    const { taskId, assignmentId } = await startTask(d);
+    expect(
+      await sql`select 1 from tw_jobs where kind = 'assignment' and state = 'queued'`,
+    ).toHaveLength(1);
+    await bootstrapInstallations(d);
+    await disable(d);
+    const worker = createWorker(d, (error) => {
+      throw error;
+    });
+    await worker.drain();
+    const rows = await sql<
+      { status: string; error_code: string | null }[]
+    >`select status, error_code from tw_assignments where id = ${assignmentId}`;
+    expect(rows.at(0)).toMatchObject({ status: 'failed', error_code: 'source_denied' });
+    expect(stats.reads + stats.tokens).toBe(0);
+    expect((await taskDetail(d, alice, taskId))?.task.status).not.toBe('completed');
+  });
+
+  it('denies the next call once an installation subset drops the capability', async () => {
+    const d = segment();
+    const { taskId, assignmentId } = await startTask(d);
+    const call = { taskId, assignmentId, token, input: driveInput };
+    await bootstrapInstallations(d);
+    expect((await readThroughGateway(d, alice, call)).result.items.length).toBeGreaterThan(0);
+    await updateInstallation(d, {
+      id: 'google',
+      expectedGeneration: 1,
+      actor: 'admin@local.test',
+      action: 'installation.enable',
+      change: { desiredState: 'enabled', capabilities: ['docs.publish'] },
+    });
+    const before = stats.reads;
+    await expect(readThroughGateway(d, alice, call)).rejects.toMatchObject({
+      code: 'capability_disabled',
+    });
+    expect(stats.reads).toBe(before);
+  });
+
+  it('fails queued work retryably, not as denied, when membership cannot be resolved', async () => {
+    const d = segment();
+    const { assignmentId } = await startTask(d);
+    const down: Deps = { ...d, directory: { isMember: () => Promise.reject(new Error('503')) } };
+    await createWorker(down, (error) => {
+      throw error;
+    }).drain();
+    const rows = await sql<
+      { error_code: string | null }[]
+    >`select error_code from tw_assignments where id = ${assignmentId}`;
+    expect(rows.at(0)?.error_code).toBe('source_resolution_unavailable');
+    expect(stats.reads + stats.tokens).toBe(0);
+  });
+
+  it('denies a read for a capability the installation row lists but the environment does not allow', async () => {
+    const d = segment();
+    const narrow: Deps = {
+      ...d,
+      config: { ...d.config, capabilities: new Set<Capability>(['github.read', 'files.read']) },
+    };
+    const { taskId, assignmentId } = await startTask(d);
+    await sql`insert into tw_installations (item_kind, item_id, version, capabilities,
+      desired_state, observed_state, updated_by, updated_at)
+      values ('connector', 'google', '1.0.0',
+        ${sql.json(['drive.read', 'docs.publish', 'bigquery.query'])}, 'enabled', 'not_required',
+        'admin', now())`;
+    await expect(
+      readThroughGateway(narrow, alice, { taskId, assignmentId, token, input: driveInput }),
+    ).rejects.toMatchObject({ code: 'capability_disabled' });
+    expect(stats.reads + stats.tokens).toBe(0);
+  });
+});
+
+describe('shared bot isolation (AGT-04)', () => {
+  it('keeps one member history, token and sources private when both use the same templates', async () => {
+    const live = segment({ live: true });
+    const aliceTask = await startTask(segment(), alice);
+    const bobTeam = await createStarterTeam(live, bob);
+    const aliceTeam = await createStarterTeam(live, alice);
+    const aliceBot = aliceTeam.at(0)?.id ?? '';
+    expect(aliceBot).not.toBe('');
+    const aliceIds = new Set(aliceTeam.map((t) => t.id));
+    expect(bobTeam.filter((t) => aliceIds.has(t.id))).toEqual([]);
+    const owners = await sql<{ owner_sub: string }[]>`select distinct owner_sub from tw_teammates`;
+    expect(owners.map((row) => row.owner_sub).sort()).toEqual([alice.sub, bob.sub]);
+    await sql`insert into tw_connections (owner_sub, provider, account, scopes, sealed_access,
+      access_expires_at, status, connected_at, updated_at)
+      values (${alice.sub}, 'google', 'alice@local.test', ${sql.json(['drive.readonly'])},
+        ${sealer.seal('alice-secret')}, now() + interval '1 hour', 'active', now(), now())`;
+
+    expect(await getTeammate(live, bob, aliceBot)).toBeUndefined();
+    expect(await conversation(live, bob, aliceBot)).toBeUndefined();
+    expect(await conversation(live, alice, aliceBot)).toBeDefined();
+    await expect(exportTeammate(live, bob, aliceBot)).rejects.toMatchObject({ code: 'not_found' });
+    expect(await taskDetail(live, bob, aliceTask.taskId)).toBeUndefined();
+    await expect(
+      readThroughGateway(live, bob, { ...aliceTask, token, input: driveInput }),
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(tokenSource(live, bob.sub)('google')).rejects.toMatchObject({
+      code: 'not_connected',
+    });
+    expect(await tokenSource(live, alice.sub)('google')).toBe('alice-secret');
+    expect(stats.reads + stats.tokens).toBe(0);
+    const stored = await sql<{ owner_sub: string }[]>`
+      select owner_sub from wb_tasks where id = ${aliceTask.taskId}`;
+    expect(stored.at(0)?.owner_sub).toBe(alice.sub);
   });
 });

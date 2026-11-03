@@ -36,7 +36,8 @@ type DenialCode =
   | 'not_permitted'
   | 'not_connected'
   | 'invalid_input'
-  | 'approval_invalid';
+  | 'approval_invalid'
+  | 'resolution_unavailable';
 
 /** A call the gateway refused before any handler ran; `reason` is safe to show the member. */
 export class GatewayDenied extends Error {
@@ -47,6 +48,28 @@ export class GatewayDenied extends Error {
     super(code);
     this.name = 'GatewayDenied';
   }
+
+  /** True when the denial says "could not decide", so the same call may succeed later. */
+  get retryable(): boolean {
+    return this.code === 'resolution_unavailable';
+  }
+}
+
+/** Current segment membership; a failed directory lookup denies with a retryable code. */
+export async function assertEntitled(deps: Deps, member: Member): Promise<void> {
+  let entitled: boolean;
+  try {
+    entitled = deps.directory
+      ? await deps.directory.isMember(member.email)
+      : deps.config.members.has(member.email);
+  } catch {
+    throw new GatewayDenied(
+      'resolution_unavailable',
+      'Your membership could not be confirmed right now. Nothing was read or written; try again.',
+    );
+  }
+  if (!entitled)
+    throw new GatewayDenied('not_entitled', 'You are no longer a member of this segment.');
 }
 
 type PublishApproval = {
@@ -186,9 +209,10 @@ async function requestedCapabilities(
   return z.array(capabilitySchema).parse(rows.at(0)?.capability_requests ?? []);
 }
 
-/** The exact approved publication: same row, same digest and same revision the member approved. */
+/** The exact approved publication: same row, digest and revision, approved by this member. */
 async function approvedPublication(
   deps: Deps,
+  member: Member,
   task: TaskRow,
   approvalId: string,
 ): Promise<PublishApproval> {
@@ -204,10 +228,12 @@ async function approvedPublication(
         proposal: unknown;
         payload_sha256: string;
         subject_ref: number;
+        decided_by: string | null;
         idempotency_key: string;
       }[]
     >`
-    select ap.id, ap.state, ap.proposal, ap.payload_sha256, ap.subject_ref, ac.idempotency_key
+    select ap.id, ap.state, ap.proposal, ap.payload_sha256, ap.subject_ref, ap.decided_by,
+      ac.idempotency_key
     from wb_approvals ap join wb_actions ac on ac.approval_id = ap.id
     where ap.id = ${approvalId} and ap.task_id = ${task.id} and ap.subject = 'publish'
   `
@@ -217,6 +243,7 @@ async function approvedPublication(
     row === undefined ||
     task.status !== 'publishing' ||
     row.state !== 'approved' ||
+    row.decided_by !== member.sub ||
     !proposal.success ||
     publishDigest(proposal.data) !== row.payload_sha256 ||
     row.subject_ref !== task.latest_revision
@@ -285,8 +312,7 @@ async function recheckAndRun(
   call: GatewayCall,
 ): Promise<GatewayResult> {
   if (task === undefined) throw new GatewayDenied('not_found', 'The task was not found.');
-  if (!deps.config.members.has(member.email))
-    throw new GatewayDenied('not_entitled', 'You are no longer a member of this segment.');
+  await assertEntitled(deps, member);
   const entry = REGISTRY.get(call.tool);
   if (entry === undefined) throw new GatewayDenied('unknown_tool', 'That tool is not available.');
   await assertEffective(
@@ -308,7 +334,12 @@ async function recheckAndRun(
       task,
       token: call.token ?? tokenSource(deps, member.sub),
       approval: approval.required
-        ? await approvedPublication(deps, task, approvalInputSchema.parse(parsed.data).approvalId)
+        ? await approvedPublication(
+            deps,
+            member,
+            task,
+            approvalInputSchema.parse(parsed.data).approvalId,
+          )
         : undefined,
     },
     parsed.data,

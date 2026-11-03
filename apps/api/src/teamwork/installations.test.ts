@@ -137,4 +137,18 @@ describe('installations', () => {
     expect(sorted(await segmentCapabilities(beta.deps))).toEqual(sorted(new Set(all)));
     expect(sorted(await segmentCapabilities(alpha.deps))).not.toEqual(sorted(new Set(all)));
   });
+
+  it('never widens the environment allowlist, whatever an installation row lists', async () => {
+    const narrow = await segment('narrow', ['github.read', 'files.read']);
+    try {
+      await narrow.sql`insert into tw_installations (item_kind, item_id, version, capabilities,
+        desired_state, observed_state, updated_by, updated_at)
+        values ('connector', 'google', '1.0.0',
+          ${narrow.sql.json(['drive.read', 'docs.publish', 'bigquery.query'])}, 'enabled',
+          'not_required', 'admin@local.test', now())`;
+      expect(sorted(await segmentCapabilities(narrow.deps))).toEqual(['files.read', 'github.read']);
+    } finally {
+      await narrow.stop();
+    }
+  });
 });
