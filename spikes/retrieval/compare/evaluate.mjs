@@ -16,6 +16,7 @@
     | typeof unknownSource
     | 'provenance'
     | 'missing-case'
+    | 'positive-control'
     | 'unavailable'
     | 'timing'
     | 'recall'
@@ -41,7 +42,7 @@
     readonly costUsd: number | null;
   };
 }} ArmResult */
-import { corpus, forbiddenDocuments, matrix, matrixCase } from './matrix.mjs';
+import { corpus, forbiddenDocuments, matrix, matrixCase, positiveControls } from './matrix.mjs';
 import { parseEvidence } from './schema.mjs';
 const unknownSource = 'unknown-source';
 /** Proposal only; the owner must set approval before an arm can be selected. */
@@ -128,6 +129,10 @@ function caseFindings(entry, capturedAt) {
   }
   if (entry.status !== 'ok' || entry.httpStatus !== 200)
     findings.push({ caseId: entry.id, code: 'unavailable', surface: null });
+  // Denying everything is not a pass: the rightful owner or group member must see their own object.
+  const control = positiveControls[/** @type {keyof typeof positiveControls} */ (entry.id)];
+  if (control && entry.status === 'ok' && !entry.hits.some((hit) => hit.sourceObjectId === control))
+    findings.push({ caseId: entry.id, code: 'positive-control', surface: null });
   if (
     (entry.id === 'revoked-member' || entry.id === 'source-deletion') &&
     (!entry.changedAt || !entry.checkedAt || entry.revocationLagMs === null)

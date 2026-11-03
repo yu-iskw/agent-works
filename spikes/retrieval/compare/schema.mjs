@@ -8,6 +8,8 @@ import { canonicalPayloadSha256 } from '../../../packages/domain/src/canonical-h
 import { verifyTranscriptBytes } from '../../common/verify.mjs';
 import { matrix, matrixId, query } from './matrix.mjs';
 import { summarizeRevocation } from './revocation.mjs';
+/** Stage label stamped by the local harness; observed evidence may never carry it. */
+export const offlineStage = 'offline-local-harness';
 const label = z.string().trim().min(1).max(500);
 const timestamp = z.iso.datetime();
 const measurement = z.number().finite().nonnegative().nullable();
@@ -124,6 +126,8 @@ function runErrors(value) {
     errors.push('unavailable must defer');
   if (value.verdict === 'GO' && !observedComplete(value))
     errors.push('GO requires complete observed evidence');
+  if (value.provenance === 'observed' && value.configuration.featureStage === offlineStage)
+    errors.push('offline harness output cannot be labeled observed');
   if (value.provenance === 'synthetic' && hasMeasurements(value))
     errors.push('synthetic measurements prohibited');
   return errors;
@@ -231,6 +235,11 @@ function validateBinding(envelope) {
     Date.parse(bound.capturedAt) !== Date.parse(envelope.evidence.capturedAt) ||
     bound.region !== envelope.evidence.region ||
     bound.verdict !== transcriptVerdict(envelope.evidence.verdict) ||
+    bound.response.observations.filter(
+      (item) =>
+        item.name === 'live-probed' && item.value === (bound.provenance.kind === 'observed'),
+    ).length !== 1 ||
+    bound.response.observations.filter((item) => item.name === 'live-probed').length !== 1 ||
     bound.response.observations.filter(
       (item) => item.name === 'evidence-sha256' && item.value === envelope.digest,
     ).length !== 1
