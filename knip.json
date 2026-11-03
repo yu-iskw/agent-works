@@ -17,6 +17,8 @@
         "e2e/m1/playwright.config.ts",
         "scripts/m1/*.mjs",
         "e2e/ui/playwright.config.ts",
+        "e2e/ui/graph-status/playwright.config.ts",
+        "e2e/ui/graph-status/build-harness.mjs",
         "scripts/ui/*.mjs"
       ],
       "project": [

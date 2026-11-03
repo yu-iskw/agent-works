@@ -14,6 +14,9 @@ export default defineProject({
       '@agent-works/domain/marketplace': fileURLToPath(
         new URL('../../packages/domain/src/marketplace.ts', import.meta.url),
       ),
+      '@agent-works/domain/teamwork-graph-contract': fileURLToPath(
+        new URL('../../packages/domain/src/teamwork-graph-contract.ts', import.meta.url),
+      ),
       '@agent-works/domain/teamwork-policy': fileURLToPath(
         new URL('../../packages/domain/src/teamwork-policy.ts', import.meta.url),
       ),

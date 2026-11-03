@@ -28,7 +28,9 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
 /** The slice of the workspace request these routes read; structurally satisfied by routes.ts. */
 type TaskReq = {
-  readonly deps: { readonly api: Pick<SegmentClient, 'task' | 'attachment' | 'command'> };
+  readonly deps: {
+    readonly api: Pick<SegmentClient, 'task' | 'attachment' | 'command' | 'graph' | 'graphCommand'>;
+  };
   readonly response: ServerResponse;
   readonly session: Session;
   readonly segment: Segment;

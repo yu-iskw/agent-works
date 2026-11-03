@@ -291,6 +291,23 @@ export function createSegmentClient(
         `/marketplace/connectors/${encodeURIComponent(id)}`,
         body,
       ),
+    /** Status projection of the task graph; the segment omits nodes the member may not see. */
+    graph: (s: Session, seg: string, id: string) =>
+      call<{ projection: unknown; taskVersion: number }>(s, seg, 'GET', `/tasks/${id}/graph`),
+    graphCommand: (
+      s: Session,
+      seg: string,
+      id: string,
+      action: 'cancel' | 'approve',
+      body: unknown,
+    ) =>
+      call<{ projection: unknown; taskVersion: number }>(
+        s,
+        seg,
+        'POST',
+        `/tasks/${id}/graph/${action}`,
+        body,
+      ),
     command: (s: Session, seg: string, id: string, command: string, body?: unknown) =>
       call<{ task: TaskSummary }>(s, seg, 'POST', `/tasks/${id}/${command}`, body),
     inbox: (s: Session, seg: string) => call<{ items: InboxItem[] }>(s, seg, 'GET', '/inbox'),
