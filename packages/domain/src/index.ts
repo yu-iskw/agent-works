@@ -133,3 +133,4 @@ export * from './event-trigger-payload.js';
 export * from './schedule-fixtures.js';
 export * from './analytics.js';
 export * from './analytics-report.js';
+export * from './dispatch-envelope.js';
