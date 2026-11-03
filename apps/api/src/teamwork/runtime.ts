@@ -11,6 +11,7 @@ import { createVertexModel } from '../workbench/vertex.js';
 
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
+import { applyGraphMigration } from './graph-migration.js';
 import {
   bootstrapInstallations,
   listInstallations,
@@ -145,6 +146,7 @@ export async function createTeamworkRuntime(input: {
 }): Promise<TeamworkRuntime> {
   const { sql, config, env } = input;
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
   const vertex = modelFor(env, config);
   const now = () => new Date();
   const gate = createModelGate({

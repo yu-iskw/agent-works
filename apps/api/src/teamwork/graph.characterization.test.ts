@@ -11,6 +11,7 @@ import { applyWorkbenchMigration } from '../workbench/migration.js';
 
 import { createStarterTeam, seedCatalog } from './catalog.js';
 import { readSegmentConfig } from './config.js';
+import { applyGraphMigration } from './graph-migration.js';
 import { createModelGate } from './model.js';
 import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
@@ -21,8 +22,8 @@ import type { Deps, Member } from './context.js';
 import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
 
 /**
- * AGT-00 characterization of the assignment graph as it behaves today, on the scripted model and
- * fixture sources. It pins current behavior for AGT-01 to change on purpose; it is not evidence
+ * AGT-00 characterization of the assignment graph on the scripted model and fixture sources. AGT-01
+ * changed the two pinned defect cases on purpose; the rest still pins behavior. It is not evidence
  * of production readiness and the runtime it drives is a local fake.
  */
 const alice: Member = { sub: 'local-test:alice', email: 'alice@local.test' };
@@ -62,6 +63,7 @@ beforeAll(async () => {
   database = await startDisposablePostgres();
   sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
 }, 60_000);
 
 afterAll(async () => {
@@ -111,74 +113,86 @@ async function approvedTask(d: Deps, question: string, chain: boolean) {
   return { taskId: task.id, version };
 }
 
-describe('assignment graph today', { timeout: 30_000 }, () => {
-  // DEFECT PIN for AGT-01. `releaseDependents` tries `queued -> failed` with dependency_failed, but
-  // ASSIGNMENT_TRANSITIONS forbids that edge, so `moveAssignment` returns undefined. The dependent
-  // is never failed or blocked visibly and the task stays `running` with nothing left to run.
-  it('leaves the dependent of a failed prerequisite queued and the task running', async () => {
-    const d = segment();
-    const { taskId } = await approvedTask(d, 'Compare [fault:denied]', true);
-    await createWorker(d, (error) => {
-      throw error;
-    }).drain();
-    const detail = (await taskDetail(d, alice, taskId))!;
-    const [first, second] = detail.assignments;
-    expect([first.status, first.errorCode]).toEqual(['failed', 'source_denied']);
-    expect([second.status, second.errorCode]).toEqual(['queued', null]);
-    expect(second.startedAt).toBeNull();
-    expect(detail.task.status).toBe('running');
-    const open =
-      await sql`select 1 from tw_jobs where task_id = ${taskId} and kind = 'assignment' and state in ('queued', 'running')`;
-    expect(open).toHaveLength(0);
-    const calls = await sql`select 1 from wb_model_calls where purpose = 'contribution'`;
-    expect(calls).toHaveLength(0);
-  });
+describe(
+  'assignment graph (AGT-00 characterization, updated by AGT-01)',
+  { timeout: 30_000 },
+  () => {
+    // AGT-00 pinned a defect here: `releaseDependents` tried `queued -> failed`, which
+    // ASSIGNMENT_TRANSITIONS forbade, so the dependent stayed queued and the task stayed `running`
+    // with nothing left to run. AGT-01 allowed the edge: the dependent is failed `dependency_failed`
+    // (logical state blocked) and the task reaches `needs_input`.
+    it('fails the dependent of a failed prerequisite and hands the task to the member', async () => {
+      const d = segment();
+      const { taskId } = await approvedTask(d, 'Compare [fault:denied]', true);
+      await createWorker(d, (error) => {
+        throw error;
+      }).drain();
+      const detail = (await taskDetail(d, alice, taskId))!;
+      const [first, second] = detail.assignments;
+      expect([first.status, first.errorCode]).toEqual(['failed', 'source_denied']);
+      expect([second.status, second.errorCode]).toEqual(['failed', 'dependency_failed']);
+      expect(second.startedAt).toBeNull();
+      expect(detail.task.status).toBe('needs_input');
+      const open =
+        await sql`select 1 from tw_jobs where task_id = ${taskId} and kind = 'assignment' and state in ('queued', 'running')`;
+      expect(open).toHaveLength(0);
+      const calls = await sql`select 1 from wb_model_calls where purpose = 'contribution'`;
+      expect(calls).toHaveLength(0);
+    });
 
-  it('offers no replan from that stuck state, only the plan_review and needs_input states', async () => {
-    const d = segment();
-    const { taskId } = await approvedTask(d, 'Compare [fault:denied]', true);
-    await createWorker(d, (error) => {
-      throw error;
-    }).drain();
-    await expect(replan(d, alice, taskId, 'Try again')).rejects.toThrow('cannot_replan');
-  });
+    it('offers a replan from that state', async () => {
+      const d = segment();
+      const { taskId } = await approvedTask(d, 'Compare [fault:denied]', true);
+      await createWorker(d, (error) => {
+        throw error;
+      }).drain();
+      const replanned = await replan(d, alice, taskId, 'Try again');
+      expect(replanned.status).toBe('planning');
+    });
 
-  it('runs each assignment exactly once when two workers drain the same queue at once', async () => {
-    const d = segment();
-    const { taskId } = await approvedTask(d, 'Which feature-flag service should we adopt?', false);
-    const onError = (error: unknown) => {
-      throw error;
-    };
-    await Promise.all([createWorker(d, onError).drain(), createWorker(d, onError).drain()]);
-    const detail = (await taskDetail(d, alice, taskId))!;
-    expect(detail.assignments.map((a) => [a.status, a.attempt])).toEqual([
-      ['succeeded', 1],
-      ['succeeded', 1],
-    ]);
-    const calls = await sql`select 1 from wb_model_calls where purpose = 'contribution'`;
-    expect(calls).toHaveLength(2);
-    const done = await sql`select 1 from tw_jobs where kind = 'assignment' and state = 'done'`;
-    expect(done).toHaveLength(2);
-  });
+    it('runs each assignment exactly once when two workers drain the same queue at once', async () => {
+      const d = segment();
+      const { taskId } = await approvedTask(
+        d,
+        'Which feature-flag service should we adopt?',
+        false,
+      );
+      const onError = (error: unknown) => {
+        throw error;
+      };
+      await Promise.all([createWorker(d, onError).drain(), createWorker(d, onError).drain()]);
+      const detail = (await taskDetail(d, alice, taskId))!;
+      expect(detail.assignments.map((a) => [a.status, a.attempt])).toEqual([
+        ['succeeded', 1],
+        ['succeeded', 1],
+      ]);
+      const calls = await sql`select 1 from wb_model_calls where purpose = 'contribution'`;
+      expect(calls).toHaveLength(2);
+      const done = await sql`select 1 from tw_jobs where kind = 'assignment' and state = 'done'`;
+      expect(done).toHaveLength(2);
+    });
 
-  it('has revisioned plans but no graph revision, retry schedule or per-node approval column', async () => {
-    const columns = async (table: string) =>
-      (
-        await sql<
-          { column_name: string }[]
-        >`select column_name from information_schema.columns where table_name = ${table}`
-      ).map((row) => row.column_name);
-    const assignments = await columns('tw_assignments');
-    expect(assignments).toContain('depends_on');
-    expect(assignments).toContain('plan_version');
-    expect(assignments).toContain('attempt');
-    for (const absent of ['revision', 'graph_revision', 'retry_at', 'not_before', 'approval_id'])
-      expect(assignments).not.toContain(absent);
-    const plans = await sql<
-      { indexdef: string }[]
-    >`select indexdef from pg_indexes where tablename = 'tw_plans'`;
-    expect(plans.map((p) => p.indexdef).join('\n')).toContain(
-      "WHERE (state = ANY (ARRAY['proposed'",
-    );
-  });
-});
+    it('has revisioned plans, a stored retry time and owner token, and no per-node approval column', async () => {
+      const columns = async (table: string) =>
+        (
+          await sql<
+            { column_name: string }[]
+          >`select column_name from information_schema.columns where table_name = ${table}`
+        ).map((row) => row.column_name);
+      const assignments = await columns('tw_assignments');
+      expect(assignments).toContain('depends_on');
+      expect(assignments).toContain('plan_version');
+      expect(assignments).toContain('attempt');
+      expect(assignments).toContain('retry_not_before');
+      expect(assignments).toContain('owner_token');
+      for (const absent of ['revision', 'graph_revision', 'approval_id'])
+        expect(assignments).not.toContain(absent);
+      const plans = await sql<
+        { indexdef: string }[]
+      >`select indexdef from pg_indexes where tablename = 'tw_plans'`;
+      expect(plans.map((p) => p.indexdef).join('\n')).toContain(
+        "WHERE (state = ANY (ARRAY['proposed'",
+      );
+    });
+  },
+);

@@ -9,6 +9,7 @@ import { ModelError } from '../workbench/model-port.js';
 import { createVertexModel } from '../workbench/vertex.js';
 
 import { readSegmentConfig } from './config.js';
+import { applyGraphMigration } from './graph-migration.js';
 import { createModelGate } from './model.js';
 
 const env = process.env;
@@ -28,6 +29,7 @@ if ('missing' in vertex) {
 }
 const sql = await openDatabase(config.databaseUrl);
 await applyWorkbenchMigration(sql);
+await applyGraphMigration(sql);
 const gate = createModelGate({
   sql,
   segment: config.segment,

@@ -71,6 +71,9 @@ export default defineProject({
       '@agent-works/domain/teamwork-inbox': fileURLToPath(
         new URL('../../packages/domain/src/teamwork-inbox.ts', import.meta.url),
       ),
+      '@agent-works/domain/teamwork-graph-contract': fileURLToPath(
+        new URL('../../packages/domain/src/teamwork-graph-contract.ts', import.meta.url),
+      ),
       '@agent-works/domain/teamwork': fileURLToPath(
         new URL('../../packages/domain/src/teamwork.ts', import.meta.url),
       ),
