@@ -109,8 +109,8 @@ with a 1 s to 60 s backoff, kept in memory.
   `FakeRuntimeManager` in tests succeeds.
 - **Future:** a Cloud Run client ([plan](connector-runtime-staging.md)), an MCP transport
   wired into a segment (until one is set, MCP servers are `coming_soon` and `notes.search`
-  returns `mcp_unavailable`), MCP write approval, A2A execution and workspace service
-  identities. Do not promise these to users. The gateway also does not check
+  is refused with `capability_disabled`), MCP write approval, A2A execution and workspace
+  service identities. Do not promise these to users. The gateway also does not check
   `observed_state` yet; that must land before any out-of-process connector.
 
 ## Local development and test
