@@ -10,6 +10,7 @@ import {
   marketplaceDetailSchema,
   marketplaceListingSchema,
 } from '@agent-works/domain/marketplace';
+import { CAPABILITY_PROVIDER } from '@agent-works/domain/teamwork';
 
 import { listTemplates } from './catalog.js';
 import { Conflict, audit } from './context.js';
@@ -76,7 +77,26 @@ function installationView(row: Installation): InstallationView {
 
 type InstallableKind = Extract<MarketplaceKind, 'connector' | 'mcp_server'>;
 
+/**
+ * Bootstrap creates a row only for a provider the env allowlist names. An MCP server with no row
+ * and no env-named capability can never be enabled, so it is coming soon. Connectors are unchanged.
+ */
+function listingStatus(
+  deps: Deps,
+  manifest: ConnectorManifest,
+  row: Installation | undefined,
+  kind: InstallableKind,
+): MarketplaceListing['status'] {
+  if (row !== undefined) return row.desired_state;
+  const envNamed = [...deps.config.capabilities].some(
+    // eslint-disable-next-line security/detect-object-injection
+    (capability) => CAPABILITY_PROVIDER[capability] === manifest.id,
+  );
+  return kind === 'mcp_server' && !envNamed ? 'coming_soon' : 'available';
+}
+
 function connectorListing(
+  deps: Deps,
   manifest: ConnectorManifest,
   row: Installation | undefined,
   kind: InstallableKind = 'connector',
@@ -88,7 +108,7 @@ function connectorListing(
     name: manifest.displayName,
     summary: manifest.summary,
     publisher: manifest.publisher,
-    status: row === undefined ? 'available' : row.desired_state,
+    status: listingStatus(deps, manifest, row, kind),
   });
 }
 
@@ -128,7 +148,9 @@ export async function listMarketplace(
   if (wants('connector')) {
     const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
     listings.push(
-      ...CONNECTOR_CATALOG.map((manifest) => connectorListing(manifest, rows.get(manifest.id))),
+      ...CONNECTOR_CATALOG.map((manifest) =>
+        connectorListing(deps, manifest, rows.get(manifest.id)),
+      ),
     );
   }
   if (wants('team_bot'))
@@ -142,7 +164,7 @@ export async function listMarketplace(
       const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
       listings.push(
         ...MCP_SERVER_CATALOG.map((manifest) =>
-          connectorListing(manifest, rows.get(manifest.id), 'mcp_server'),
+          connectorListing(deps, manifest, rows.get(manifest.id), 'mcp_server'),
         ),
       );
     }
@@ -163,7 +185,7 @@ async function connectorDetail(
   const active = row?.desired_state === 'enabled';
   return marketplaceDetailSchema.parse({
     kind,
-    listing: connectorListing(manifest, row, kind),
+    listing: connectorListing(deps, manifest, row, kind),
     capabilities: manifest.capabilities.map((capability) => ({
       id: capability.id,
       access: WRITE_CAPABILITIES.has(capability.id) ? 'write' : 'read',

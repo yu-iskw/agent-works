@@ -61,15 +61,17 @@ CONNECTOR_CATALOG  ->  tw_installations  ->  segmentCapabilities()  ->  gateway 
 
 ### Marketplace listings
 
-| Kind         | Source                                                                                                              | Status                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `connector`  | `CONNECTOR_CATALOG` plus the installation row                                                                       | `available`, `enabled` or `disabled`                                                      |
-| `team_bot`   | A projection of the existing teamwork templates                                                                     | `available`; links to the template flow                                                   |
-| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row once `Deps.mcp` is wired, and a `coming_soon` placeholder until then | `coming_soon` while `Deps.mcp` is unwired, otherwise `available`, `enabled` or `disabled` |
-| `a2a_agent`  | Placeholder entry                                                                                                   | `coming_soon`                                                                             |
+| Kind         | Source                                                                                                              | Status                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connector`  | `CONNECTOR_CATALOG` plus the installation row                                                                       | `available`, `enabled` or `disabled`                                                                                                                                  |
+| `team_bot`   | A projection of the existing teamwork templates                                                                     | `available`; links to the template flow                                                                                                                               |
+| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row once `Deps.mcp` is wired, and a `coming_soon` placeholder until then | `coming_soon` while `Deps.mcp` is unwired, or when no row exists and the env allowlist names none of its capabilities; otherwise `available`, `enabled` or `disabled` |
+| `a2a_agent`  | Placeholder entry                                                                                                   | `coming_soon`                                                                                                                                                         |
 
 `a2a_agent` is always `coming_soon`. `mcp_server` is `coming_soon` while `Deps.mcp` is
-unwired, which is every segment today. A2A execution is not built.
+unwired, which is every segment today. Once it is wired, an MCP server with no row is still
+`coming_soon` unless the env allowlist names one of its capabilities, because bootstrap creates
+a row only for those. A2A execution is not built.
 
 ### MCP servers
 
