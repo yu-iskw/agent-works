@@ -36,3 +36,8 @@ variable "enable_agent" {
   type        = bool
   default     = false
 }
+variable "enable_worker" {
+  description = "Create the aw-worker runtime identity consumed by modules/worker_identity."
+  type        = bool
+  default     = false
+}

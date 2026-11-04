@@ -1,21 +1,10 @@
 locals {
   worker_ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 }
-resource "google_service_account" "worker" {
-  project      = var.project_id
-  account_id   = var.account_id
-  display_name = var.account_id
-  lifecycle {
-    precondition {
-      condition     = "${var.account_id}@${var.project_id}.iam.gserviceaccount.com" != var.api_service_account_email
-      error_message = "The worker identity must be distinct from the human/API identity."
-    }
-  }
-}
 resource "google_project_iam_member" "worker" {
   for_each = var.project_roles
   project  = var.project_id
-  member   = "serviceAccount:${google_service_account.worker.email}"
+  member   = "serviceAccount:${var.worker_service_account_email}"
   role     = each.key
 }
 resource "google_cloud_run_v2_service_iam_member" "caller" {
@@ -34,7 +23,7 @@ resource "google_cloud_run_v2_service_iam_member" "deployer" {
   member   = "serviceAccount:${var.deployer_email}"
 }
 resource "google_service_account_iam_member" "deployer_acts_as" {
-  service_account_id = google_service_account.worker.name
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.worker_service_account_email}"
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.deployer_email}"
 }
@@ -60,7 +49,7 @@ resource "google_storage_bucket" "artifacts" {
   }
 }
 resource "google_storage_bucket_iam_member" "artifact_users" {
-  for_each = { worker = google_service_account.worker.email, api = var.api_service_account_email }
+  for_each = { worker = var.worker_service_account_email, api = var.api_service_account_email }
   bucket   = google_storage_bucket.artifacts.name
   role     = "roles/storage.objectUser"
   member   = "serviceAccount:${each.value}"

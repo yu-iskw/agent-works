@@ -19,10 +19,17 @@ variable "region" {
     error_message = "Invalid region: use the approved interface and pilot region."
   }
 }
-variable "account_id" {
-  description = "Worker service account id."
+variable "worker_service_account_email" {
+  description = "Worker runtime service account email, created in identity/dev (identities never live in modules). It must differ from the human/API identity."
   type        = string
-  default     = "aw-worker"
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]+@[a-z][a-z0-9-]+\\.iam\\.gserviceaccount\\.com$", var.worker_service_account_email))
+    error_message = "Invalid worker_service_account_email: use a service account email."
+  }
+  validation {
+    condition     = var.worker_service_account_email != var.api_service_account_email
+    error_message = "The worker identity must be distinct from the human/API identity."
+  }
 }
 variable "worker_service_name" {
   description = "Cloud Run service name of the worker endpoint."

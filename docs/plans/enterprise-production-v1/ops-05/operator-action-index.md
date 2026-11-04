@@ -44,7 +44,7 @@ No AWAITING_OPERATOR line recorded in its evidence files.
 
 - `fnd-05/evidence.md:14` Live direct URL, wrong audience, unauthorized SA / operator OP-1 / AWAITING_OPERATOR / n/a / live / n/a
 - `fnd-05/identity-and-credential-controls.md:3` Status: local draft. Nothing is applied. Live proof is AWAITING_OPERATOR.
-- `fnd-05/identity-and-credential-controls.md:69` ## Operator steps and evidence (AWAITING_OPERATOR)
+- `fnd-05/identity-and-credential-controls.md:70` ## Operator steps and evidence (AWAITING_OPERATOR)
 
 ### G1 FND-06
 
