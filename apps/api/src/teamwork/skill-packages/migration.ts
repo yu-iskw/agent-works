@@ -6,6 +6,7 @@ import type postgres from 'postgres';
 
 export async function applySkillPackagesMigration(sql: postgres.Sql): Promise<void> {
   const name = '0032_skill_packages.sql';
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- fixed repository migration URL
   const body = readFileSync(new URL(`../../../migrations/${name}`, import.meta.url), 'utf8');
   await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(7017)`;

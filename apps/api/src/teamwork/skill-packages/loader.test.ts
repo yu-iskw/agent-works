@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- test-owned temporary plugin directories */
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

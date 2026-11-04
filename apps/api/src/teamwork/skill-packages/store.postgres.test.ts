@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- test-owned temporary package copies */
 import { mkdtemp, cp, rm, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

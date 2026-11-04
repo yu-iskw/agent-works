@@ -19,6 +19,7 @@ export async function syncCuratedPackages(deps: {
     deps.root ??
     fileURLToPath(new URL('../../../src/teamwork/skill-packages/curated/', import.meta.url));
   const results = [];
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the curated directory shipped with the build, or a test root
   for (const entry of (await readdir(root, { withFileTypes: true })).sort((a, b) =>
     a.name.localeCompare(b.name),
   )) {
