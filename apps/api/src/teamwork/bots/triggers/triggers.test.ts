@@ -23,6 +23,8 @@ let sql: postgres.Sql;
 let id: string;
 let now: Date;
 let defer = false;
+let revisionChanged = false;
+let expectedRevisions: (number | undefined)[] = [];
 const key = {
   id: 'key',
   source: 'source',
@@ -65,7 +67,9 @@ const definition: BotDefinition = {
   },
   result: { destination: 'inbox' },
 };
-const start: StartBotRun = async ({ teammateId, trigger }) => {
+const start: StartBotRun = async ({ teammateId, trigger, expectedRevision }) => {
+  expectedRevisions.push(expectedRevision);
+  if (revisionChanged) return { kind: 'denied', code: 'revision_changed' };
   if (defer) return { kind: 'deferred', code: 'bot_cap' };
   if (trigger.kind === 'manual') throw new Error('unexpected manual');
   const taskId = randomUUID();
@@ -112,6 +116,8 @@ beforeEach(async () => {
   id = (await createStarterTeam(deps, alice))[0].id;
   await sql`insert into tw_bots (teammate_id, owner_sub, updated_at) values (${id}, ${alice.sub}, now())`;
   defer = false;
+  revisionChanged = false;
+  expectedRevisions = [];
 });
 describe('bot triggers', () => {
   it('fires Tokyo slots once across concurrent ticks and does not backfill a new revision', async () => {
@@ -182,6 +188,37 @@ describe('bot triggers', () => {
     now = new Date('2026-11-01T06:30:00.000Z');
     await service().tick();
     expect(await sql`select * from trigger_test_runs`).toHaveLength(2);
+  });
+  it('audits changed revisions and does not retry the matched occurrence', async () => {
+    const eventTrigger: BotDefinition['triggers'][number] = {
+      kind: 'event',
+      source: 'source',
+      eventType: 'changed',
+    };
+    await publish([...definition.triggers, eventTrigger], '2026-01-01T00:00:00.000Z');
+    now = new Date('2026-01-02T00:00:00.000Z');
+    revisionChanged = true;
+    const api = service();
+    expect((await api.tick()).denied).toBe(1);
+    const unsigned = {
+      triggerId: 'changed',
+      source: 'source',
+      eventId: 'event',
+      timestamp: now.toISOString(),
+      keyId: key.id,
+      body: Buffer.from('{}'),
+    };
+    const event = {
+      ...unsigned,
+      signature: createHmac('sha256', key.secret).update(signedEventBytes(unsigned)).digest('hex'),
+    };
+    expect((await api.ingest(event)).outcome).toBe('ignored');
+    expect(expectedRevisions).toEqual([1, 1]);
+    expect(await sql`select * from tw_audit where outcome = 'revision_changed'`).toHaveLength(2);
+    revisionChanged = false;
+    await api.tick();
+    expect(expectedRevisions).toEqual([1, 1]);
+    expect(await sql`select * from trigger_test_runs`).toHaveLength(0);
   });
   it('authenticates and deduplicates signed events', async () => {
     await publish(

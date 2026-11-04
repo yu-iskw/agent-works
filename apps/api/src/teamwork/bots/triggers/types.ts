@@ -7,6 +7,7 @@ type StartBotRunInput = {
   trigger: BotTrigger;
   initiatedBy: string;
   clientRequestId: string;
+  expectedRevision?: number;
 };
 type StartBotRunResult =
   | { kind: 'started'; taskId: string; revision: number; digest: string }

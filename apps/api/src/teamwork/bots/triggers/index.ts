@@ -96,6 +96,9 @@ function validateEvent(event: SignedEvent, deps: Dependencies): unknown {
     throw new Error('invalid_event');
   }
 }
+function auditOutcome(result: Awaited<ReturnType<StartBotRun>>): string {
+  return result.kind === 'denied' ? result.code : result.kind;
+}
 export function createBotTriggers(deps: Dependencies) {
   const auditDeps = { now: deps.now } as Deps;
   async function tick(): Promise<TickReport> {
@@ -143,6 +146,7 @@ export function createBotTriggers(deps: Dependencies) {
             const ref = `schedule:${bot.revision}:${index}:${slot}`;
             const result = await deps.startBotRun({
               teammateId: bot.teammate_id,
+              expectedRevision: bot.revision,
               trigger: { kind: 'schedule', ref, scheduledFor: slot },
               initiatedBy: `schedule:${bot.teammate_id}`,
               clientRequestId: randomUUID(),
@@ -154,7 +158,7 @@ export function createBotTriggers(deps: Dependencies) {
               taskId:
                 result.kind === 'started' || result.kind === 'duplicate' ? result.taskId : null,
               action: 'bot.trigger.schedule',
-              outcome: result.kind,
+              outcome: auditOutcome(result),
               detail: { revision: bot.revision, triggerIndex: index, slot },
             });
           }
@@ -191,6 +195,7 @@ export function createBotTriggers(deps: Dependencies) {
       const ref = `event:${event.source}:${event.eventId}`;
       const result = await deps.startBotRun({
         teammateId: bot.teammate_id,
+        expectedRevision: bot.revision,
         trigger: { kind: 'event', ref, source: event.source, eventType: event.triggerId, payload },
         initiatedBy: ref,
         clientRequestId: randomUUID(),
@@ -207,7 +212,7 @@ export function createBotTriggers(deps: Dependencies) {
         ownerSub: bot.owner_sub,
         taskId,
         action: 'bot.trigger.event',
-        outcome: result.kind,
+        outcome: auditOutcome(result),
         detail: { source: event.source, eventId: event.eventId, eventType: event.triggerId },
       });
     }
