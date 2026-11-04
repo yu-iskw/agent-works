@@ -179,7 +179,7 @@ describe('marketplace browse', () => {
     const d = wired(deps);
     const rows = await listMarketplace(d, member, 'mcp_server');
     expect(rows.map((row) => [row.kind, row.id, row.status])).toEqual([
-      ['mcp_server', 'notes', 'available'],
+      ['mcp_server', 'notes', 'coming_soon'],
     ]);
     const item = await marketplaceItem(d, member, 'mcp_server', 'notes');
     expect(item?.kind).toBe('mcp_server');
@@ -404,6 +404,21 @@ describe('MCP server installation', () => {
     expect(sorted(await segmentCapabilities(d))).not.toContain('notes.read');
   });
 
+  it('lists an MCP server the env allowlist cannot install as coming soon', async () => {
+    const d = wired(withEnv(ENV_CAPABILITIES));
+    expect(await notesStatus(d)).toEqual(['coming_soon']);
+    const detail = await marketplaceItem(d, member, 'mcp_server', 'notes');
+    expect(detail?.kind === 'mcp_server' && detail.listing.status).toBe('coming_soon');
+    await expect(
+      mutateConnector(d, admin, 'notes', { action: 'enable', expectedGeneration: 1 }),
+    ).rejects.toMatchObject({ code: 'connector_not_available', status: 409 });
+  });
+
+  it('lists an MCP server the env allowlist can install as available', async () => {
+    const d = wired(withEnv([...ENV_CAPABILITIES, 'notes.read']));
+    expect(await notesStatus(d)).toEqual(['available']);
+  });
+
   it('enabling read never enables write, and the env allowlist still bounds it', async () => {
     const d = wired(withEnv([...ENV_CAPABILITIES, 'notes.read']));
     await bootstrapInstallations(d);
@@ -447,6 +462,20 @@ describe('MCP server installation', () => {
       select outcome from tw_audit where action = 'installation.enable' order by id
     `;
     expect(refusals.map((row) => row.outcome)).toEqual(['not_available', 'not_available']);
+  });
+
+  it('refuses enabling notes.write while Deps.mcp is unwired, even when the env allows it', async () => {
+    const d = withEnv(NOTES_ENV);
+    await bootstrapInstallations(d);
+    await expect(
+      mutateConnector(d, admin, 'notes', {
+        action: 'set_capabilities',
+        capabilities: ['notes.write'],
+        expectedGeneration: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'connector_not_available', status: 409 });
+    expect(await getInstallation(d, 'notes')).toBeUndefined();
+    expect(sorted(await segmentCapabilities(d))).not.toContain('notes.write');
   });
 
   it('a row left from before the gate can be disabled but not re-enabled', async () => {

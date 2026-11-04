@@ -177,6 +177,9 @@ export function mcpHttpTransport(url: string, options: McpHttpOptions): Transpor
   return new StreamableHTTPClientTransport(target, { fetch: guarded });
 }
 
+/** Plain http is allowed only to loopback, as in `connectors/google-http.ts`. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 function parseAllowed(value: string, allowedHosts: readonly string[]): URL {
   let url: URL;
   try {
@@ -184,12 +187,11 @@ function parseAllowed(value: string, allowedHosts: readonly string[]): URL {
   } catch {
     throw new McpAdapterError('mcp_host_not_allowed');
   }
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    !allowedHosts.includes(url.hostname)
-  )
+  const secure =
+    url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname));
+  // `url.host` carries the port only when it is not the default, so a hostname entry admits the
+  // default port alone and an explicit port needs its exact `host:port` entry.
+  if (!secure || url.username || url.password || !allowedHosts.includes(url.host))
     throw new McpAdapterError('mcp_host_not_allowed');
   return url;
 }

@@ -61,15 +61,17 @@ CONNECTOR_CATALOG  ->  tw_installations  ->  segmentCapabilities()  ->  gateway 
 
 ### Marketplace listings
 
-| Kind         | Source                                                                                                              | Status                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `connector`  | `CONNECTOR_CATALOG` plus the installation row                                                                       | `available`, `enabled` or `disabled`                                                      |
-| `team_bot`   | A projection of the existing teamwork templates                                                                     | `available`; links to the template flow                                                   |
-| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row once `Deps.mcp` is wired, and a `coming_soon` placeholder until then | `coming_soon` while `Deps.mcp` is unwired, otherwise `available`, `enabled` or `disabled` |
-| `a2a_agent`  | Placeholder entry                                                                                                   | `coming_soon`                                                                             |
+| Kind         | Source                                                                                                              | Status                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connector`  | `CONNECTOR_CATALOG` plus the installation row                                                                       | `available`, `enabled` or `disabled`                                                                                                                                  |
+| `team_bot`   | A projection of the existing teamwork templates                                                                     | `available`; links to the template flow                                                                                                                               |
+| `mcp_server` | `MCP_SERVER_CATALOG` plus the installation row once `Deps.mcp` is wired, and a `coming_soon` placeholder until then | `coming_soon` while `Deps.mcp` is unwired, or when no row exists and the env allowlist names none of its capabilities; otherwise `available`, `enabled` or `disabled` |
+| `a2a_agent`  | Placeholder entry                                                                                                   | `coming_soon`                                                                                                                                                         |
 
 `a2a_agent` is always `coming_soon`. `mcp_server` is `coming_soon` while `Deps.mcp` is
-unwired, which is every segment today. A2A execution is not built.
+unwired, which is every segment today. Once it is wired, an MCP server with no row is still
+`coming_soon` unless the env allowlist names one of its capabilities, because bootstrap creates
+a row only for those. A2A execution is not built.
 
 ### MCP servers
 
@@ -119,8 +121,10 @@ it through `apps/api/src/teamwork/mcp-adapter.ts`, which uses the MCP SDK client
   (`mcp_output_too_large`). The check runs after the SDK has read the response. It limits
   what the gateway returns, not what is received.
 - **Hosts and redirects.** `mcpHttpTransport` talks only to hosts on the caller's
-  allowlist, over `http` or `https`, with no credentials in the URL. It checks the host on
-  every request. It sends `redirect: 'manual'` and fails any 3xx with `mcp_redirect`.
+  allowlist, over `https`, or over plain `http` to `localhost`, `127.0.0.1` or `[::1]`. It
+  refuses credentials in the URL. A hostname entry admits the default port only; an explicit
+  port needs its exact `host:port` entry. It checks the host on every request. It sends
+  `redirect: 'manual'` and fails any 3xx with `mcp_redirect`.
 - **Safe errors.** Every failure maps to one of eleven codes with a fixed message. Upstream
   text never reaches the error, the denial reason or the audit row. The audit row keeps the
   code and the tool name.

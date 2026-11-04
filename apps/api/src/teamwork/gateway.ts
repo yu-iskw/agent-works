@@ -1,5 +1,9 @@
-import { CONNECTOR_CATALOG, MCP_SERVER_CATALOG } from '@agent-works/domain/connector-catalog';
-import { defineConnector } from '@agent-works/domain/connector-cdk';
+import {
+  CONNECTOR_CATALOG,
+  MCP_SERVER_CATALOG,
+  findMcpServer,
+} from '@agent-works/domain/connector-catalog';
+import { connectorToolManifests, defineConnector } from '@agent-works/domain/connector-cdk';
 import {
   SOURCE_CAPABILITY,
   capabilitySchema,
@@ -139,16 +143,16 @@ const publishTool = toolHandler(approvalInputSchema, async ({ deps, task, token,
 const notesSearchInput = z.strictObject({ query: z.string().max(200) });
 const notesAppendInput = z.strictObject({ text: z.string().max(2000) });
 
-const NOTES_MANIFEST = MCP_SERVER_CATALOG.find((manifest) => manifest.id === 'notes');
+const NOTES_MANIFEST = findMcpServer('notes');
 
-/** Pins come from the manifest, so a server advertising anything else is refused on connect. */
-const NOTES_PINS: readonly McpToolPin[] = (NOTES_MANIFEST?.capabilities ?? []).flatMap(
-  (capability) =>
-    capability.tools.map((tool) => ({
-      name: tool.metadata.name,
-      sideEffect: tool.spec.sideEffect,
-    })),
-);
+/**
+ * Pins come from the manifest, so a server advertising anything else is refused on connect. A
+ * missing manifest would leave the server with no pins, so the gateway fails at load instead.
+ */
+const NOTES_PINS: readonly McpToolPin[] = (
+  NOTES_MANIFEST === undefined ? [] : connectorToolManifests(NOTES_MANIFEST)
+).map((tool) => ({ name: tool.metadata.name, sideEffect: tool.spec.sideEffect }));
+if (NOTES_PINS.length === 0) throw new Error('The notes MCP manifest is missing or has no tools.');
 
 /**
  * One MCP call. The gateway has just proven this one tool's capability effective, so only that

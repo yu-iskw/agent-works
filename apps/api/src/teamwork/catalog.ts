@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { canonicalPayloadSha256 } from '@agent-works/domain';
+import { WRITE_CAPABILITIES } from '@agent-works/domain/connector-cdk';
 import { skillDefinitionSchema, templateDefinitionSchema } from '@agent-works/domain/teamwork';
 import { CARD_KINDS } from '@agent-works/domain/teamwork-inbox';
 import { capabilityStates } from '@agent-works/domain/teamwork-policy';
@@ -233,14 +234,16 @@ export async function teammateSkills(
   return out;
 }
 
-/** The segment's capabilities as this member holds them: a read-only member loses `docs.publish`. */
+/** The segment's capabilities as this member holds them: a read-only member loses all writes. */
 export function memberCapabilities(
   deps: Deps,
   member: Member,
   segment: ReadonlySet<Capability>,
 ): ReadonlySet<Capability> {
   const readOnly = deps.config.readOnlyMembers.has(member.email);
-  return new Set([...segment].filter((capability) => !(readOnly && capability === 'docs.publish')));
+  return new Set(
+    [...segment].filter((capability) => !(readOnly && WRITE_CAPABILITIES.has(capability))),
+  );
 }
 
 /** Reads a caller that checks several teammates looks up once and shares across the checks. */

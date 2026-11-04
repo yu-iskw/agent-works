@@ -276,7 +276,9 @@ describe('mcpHttpTransport', () => {
 
   it.each([
     'http://evil.example/mcp',
+    'http://notes.internal/mcp',
     'https://user:pw@notes.internal/mcp',
+    'https://notes.internal:8443/mcp',
     'ftp://notes.internal/mcp',
     'not a url',
   ])('rejects %s at construction without calling fetch', (url) => {
@@ -289,6 +291,18 @@ describe('mcpHttpTransport', () => {
     }
     expect(error).toBeInstanceOf(McpAdapterError);
     expect((error as McpAdapterError).code).toBe('mcp_host_not_allowed');
+    expect(fake).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['https://notes.internal/mcp', ['notes.internal']],
+    ['http://localhost/mcp', ['localhost']],
+    ['http://127.0.0.1:8080/mcp', ['127.0.0.1:8080']],
+    ['http://[::1]/mcp', ['[::1]']],
+    ['https://notes.internal:8443/mcp', ['notes.internal:8443']],
+  ])('accepts %s when the allowlist names it, without calling fetch', (url, hosts) => {
+    const fake = vi.fn<typeof fetch>();
+    expect(() => mcpHttpTransport(url, { allowedHosts: hosts, fetch: fake })).not.toThrow();
     expect(fake).not.toHaveBeenCalled();
   });
 

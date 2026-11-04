@@ -29,6 +29,7 @@ import {
   listSkills,
   listTeammateRows,
   listTeammates,
+  memberCapabilities,
   setSkill,
   updateTeammate,
   seedCatalog,
@@ -61,7 +62,7 @@ import { createWorker } from './worker.js';
 import type { Deps, Member } from './context.js';
 import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
 import type { GenerateRequest, ModelPort } from '../workbench/model-port.js';
-import type { AttachmentUpload, TaskCreate } from '@agent-works/domain/teamwork';
+import type { AttachmentUpload, Capability, TaskCreate } from '@agent-works/domain/teamwork';
 
 /**
  * State-machine and policy tests with a scripted model port. These prove the invariants (no
@@ -1581,5 +1582,21 @@ describe('member files', () => {
     expect(exported.findings).toEqual([]);
     for (const canary of ['CANARY-FILE-5e1d', 'CANARY-NAME-77', file.id, file.sha256, 'attachment'])
       expect(exported.json).not.toContain(canary);
+  });
+
+  it('strips every write capability from a read-only member, not only docs.publish', () => {
+    const base = deps();
+    const d: Deps = {
+      ...base,
+      config: { ...base.config, readOnlyMembers: new Set([alice.email]) },
+    };
+    const segment = new Set<Capability>([
+      'files.read',
+      'docs.publish',
+      'notes.read',
+      'notes.write',
+    ]);
+    expect(memberCapabilities(d, alice, segment)).toEqual(new Set(['files.read', 'notes.read']));
+    expect(memberCapabilities(d, bob, segment)).toEqual(segment);
   });
 });
