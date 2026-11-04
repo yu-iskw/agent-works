@@ -622,9 +622,18 @@ function ConversationPanel(props: {
               at={message.at}
             >
               {message.card === null ? null : (
-                <a class="card-link" href={segPath(ctx.segment, `/tasks/${message.card.taskId}`)}>
+                <a
+                  class="card-link"
+                  href={segPath(
+                    ctx.segment,
+                    message.card.kind === 'bot_draft'
+                      ? `/bots/${message.card.teammateId}`
+                      : `/tasks/${message.card.taskId}`,
+                  )}
+                >
                   <Icon name="external" small />
-                  Open task: {message.card.title}
+                  {message.card.kind === 'bot_draft' ? 'Open bot draft' : 'Open task'}:{' '}
+                  {message.card.title}
                 </a>
               )}
             </Bubble>
@@ -686,6 +695,9 @@ export function TeammatePage(props: {
         lead={teammate.role}
         crumbs={[{ label: 'Teammates', href: segPath(ctx.segment, TEAMMATES_PATH) }]}
       >
+        <a class="btn" href={segPath(ctx.segment, `/bots/${teammate.id}`)}>
+          Design a bot
+        </a>
         <a class="btn" href={segPath(ctx.segment, `/teammates/${teammate.id}/export`)}>
           <Icon name="download" small />
           Export definition

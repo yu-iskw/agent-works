@@ -4,8 +4,10 @@ import * as z from 'zod';
 
 import { Conflict } from '../context.js';
 
+import { designBot, emptyBotDesignCatalog } from './design.js';
 import { createBotService, InvalidBotDefinition } from './service.js';
 
+import type { BotDesignCatalog } from './design.js';
 import type { Deps, Member, Reply, Request } from '../context.js';
 
 export type BotRoute = {
@@ -30,6 +32,11 @@ const revise = z.strictObject({
   baseDigest: sha256DigestSchema,
   definition: z.unknown(),
 });
+const design = z.strictObject({
+  clientRequestId: z.uuid(),
+  message: z.string().trim().min(1).max(2000),
+  base: confirmation.nullable(),
+});
 function body<T>(schema: z.ZodType<T>, request: Request): T {
   try {
     return schema.parse(JSON.parse(request.body.toString('utf8')) as unknown);
@@ -37,7 +44,11 @@ function body<T>(schema: z.ZodType<T>, request: Request): T {
     throw new Conflict('invalid_request', 400);
   }
 }
-export function createBotRoutes(deps: Deps, service = createBotService(deps)): readonly BotRoute[] {
+export function createBotRoutes(
+  deps: Deps,
+  service = createBotService(deps),
+  catalog: BotDesignCatalog = emptyBotDesignCatalog,
+): readonly BotRoute[] {
   const route = (
     method: BotRoute['method'],
     suffix: string,
@@ -67,6 +78,9 @@ export function createBotRoutes(deps: Deps, service = createBotService(deps)): r
     },
   });
   return [
+    route('POST', '/design', (member, request, [id]) =>
+      designBot(deps, service, catalog, member, id, body(design, request)),
+    ),
     route(
       'POST',
       '/drafts',

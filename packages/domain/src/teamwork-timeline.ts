@@ -411,7 +411,7 @@ function anchoredCard(
   now: string,
 ): Anchored | undefined {
   const card = message.card;
-  if (card === null) return undefined;
+  if (card === null || card.kind === 'bot_draft') return undefined;
   if (card.kind === 'task_created') return { ref: 'live', card: runningCard(detail, names) };
   if (card.kind === 'result_ready') return resultAnchor(message, detail, card.ref);
   const ref = card.ref;
@@ -489,7 +489,10 @@ function placeMessages(
   const placed: Placed[] = [];
   const cards = new Set<string>();
   for (const message of messages) {
-    const detail = message.card === null ? undefined : tasks.get(message.card.taskId);
+    const detail =
+      message.card === null || message.card.kind === 'bot_draft'
+        ? undefined
+        : tasks.get(message.card.taskId);
     const anchored =
       detail === undefined ? undefined : anchoredCard(message, detail, names, input.now);
     const id = anchored === undefined ? undefined : `card:${anchored.card.taskId}:${anchored.ref}`;
@@ -497,7 +500,10 @@ function placeMessages(
     if (id === undefined || anchored === undefined || cards.has(id)) {
       placed.push({
         seq: message.id,
-        item: message.card === null ? messageItem(message, input.teammate) : systemItem(message),
+        item:
+          message.card === null || message.card.kind === 'bot_draft'
+            ? messageItem(message, input.teammate)
+            : systemItem(message),
       });
       continue;
     }

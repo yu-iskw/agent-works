@@ -10,6 +10,7 @@ import { csrfOk, same } from '../workspace/csrf.js';
 import { securityHeaders } from '../workspace/headers.js';
 import { handleApi, handleShell } from '../workspace/routes.js';
 
+import { BotPage, RunPage } from './bot-views.js';
 import { segmentsFor } from './config.js';
 import { SESSION_COOKIE, SESSION_TTL_S, SignInError } from './identity.js';
 import { errorText } from './labels.js';
@@ -31,7 +32,7 @@ import {
   segPath,
 } from './views.js';
 
-import type { ApiResult, ExportPreview, SegmentClient } from './api.js';
+import type { ApiResult, BotDesign, ExportPreview, SegmentClient } from './api.js';
 import type { Segment, WebConfig } from './config.js';
 import type { Identity, Session } from './identity.js';
 import type { NewTaskValues } from './task-views.js';
@@ -473,6 +474,114 @@ async function teammatePage(req: SegReq): Promise<void> {
   );
 }
 
+// Each independent backend result has its own unavailable state.
+// eslint-disable-next-line sonarjs/cognitive-complexity, sonarjs/cyclomatic-complexity
+async function botPage(req: SegReq, design?: BotDesign, error?: string): Promise<void> {
+  const { app, response, session, segment, m } = req;
+  const [ctx, teammate, preview, active, runs] = await Promise.all([
+    ctxFor(req, 'teammates'),
+    app.api.teammate(session, segment.id, m[1]),
+    app.api.botPreview(session, segment.id, m[1]),
+    app.api.botActive(session, segment.id, m[1]),
+    app.api.botRuns(session, segment.id, m[1]),
+  ]);
+  if (!teammate.ok) return failPage(response, ctx, teammate);
+  if (!preview.ok && preview.status !== 404) return failPage(response, ctx, preview);
+  if (!active.ok && active.status !== 404) return failPage(response, ctx, active);
+  if (!runs.ok && runs.status !== 404) return failPage(response, ctx, runs);
+  render(
+    response,
+    error === undefined ? 200 : 409,
+    'Bot design',
+    BotPage({
+      ctx,
+      id: m[1],
+      name: teammate.value.teammate.name,
+      preview:
+        design?.outcome === 'draft'
+          ? design.preview
+          : preview.ok
+            ? preview.value.preview
+            : undefined,
+      base: active.ok ? active.value.revision : undefined,
+      conversation: teammate.value.conversation,
+      design,
+      error,
+      runs: runs.ok ? runs.value.runs : [],
+      unavailable: !runs.ok && runs.status === 404,
+    }),
+  );
+}
+
+async function botRunPage(req: SegReq): Promise<void> {
+  const [ctx, found] = await Promise.all([
+    ctxFor(req, 'teammates'),
+    req.app.api.botRun(req.session, req.segment.id, req.m[1]),
+  ]);
+  if (!found.ok) return failPage(req.response, ctx, found);
+  render(
+    req.response,
+    200,
+    'Bot run',
+    RunPage({ ctx, run: found.value.run, error: req.url.searchParams.get('error') ?? undefined }),
+  );
+}
+
+async function botDesign(req: PostReq): Promise<void> {
+  const { app, session, segment, form, m } = req;
+  const revision = form.get('revision');
+  const result = await app.api.botDesign(session, segment.id, m[1], {
+    clientRequestId: form.get('clientRequestId'),
+    message: form.get('message'),
+    base: revision ? { revision: Number(revision), digest: form.get('digest') } : null,
+  });
+  if (!result.ok) return botPage(req, undefined, result.error);
+  return botPage(req, result.value);
+}
+
+async function botPublish(req: PostReq): Promise<void> {
+  const { app, session, segment, form, m } = req;
+  const result = await app.api.botPublish(session, segment.id, m[1], {
+    revision: Number(form.get('revision')),
+    digest: form.get('digest'),
+  });
+  if (!result.ok) return botPage(req, undefined, result.error);
+  redirect(req.response, segPath(segment, `/bots/${m[1]}`));
+}
+
+async function botStart(req: PostReq): Promise<void> {
+  const { app, session, segment, form, m } = req;
+  const result = await app.api.botStart(session, segment.id, m[1], {
+    clientRequestId: form.get('clientRequestId'),
+  });
+  if (!result.ok) return botPage(req, undefined, result.error);
+  redirect(req.response, segPath(segment, `/bot-runs/${result.value.run.taskId}`));
+}
+
+async function botRunCommand(req: PostReq): Promise<void> {
+  const { app, session, segment, form, m } = req;
+  const suffix = m[2];
+  const body = suffix.startsWith('approvals/')
+    ? { decision: form.get('decision'), actionDigest: form.get('actionDigest') }
+    : suffix.endsWith('/resolve')
+      ? { outcome: form.get('outcome'), note: form.get('note') }
+      : {};
+  const result = await app.api.botRunCommand(session, segment.id, m[1], suffix, body);
+  redirect(
+    req.response,
+    segPath(
+      segment,
+      `/bot-runs/${m[1]}${result.ok ? '' : `?error=${encodeURIComponent(result.error)}`}`,
+    ),
+  );
+}
+
+async function botExport(req: SegReq): Promise<void> {
+  const result = await req.app.api.botExport(req.session, req.segment.id, req.m[1], req.m[2]);
+  if (!result.ok) return failPage(req.response, await ctxFor(req, 'teammates'), result);
+  json(req.response, 200, result.value.export);
+}
+
 async function loadExport(
   req: SegReq,
 ): Promise<
@@ -769,6 +878,12 @@ async function newTaskPage(
 }
 
 const GET_ROUTES: readonly Route<SegReq>[] = [
+  { pattern: new RegExp(`^/bots/(${uuid})$`), handle: botPage },
+  {
+    pattern: new RegExp(`^/bots/(${uuid})/revisions/([1-9][0-9]{0,8})/export$`),
+    handle: botExport,
+  },
+  { pattern: new RegExp(`^/bot-runs/(${uuid})$`), handle: botRunPage },
   { pattern: /^\/(?:inbox)?$/, handle: inboxPage },
   { pattern: /^\/teammates$/, handle: teammatesPage },
   { pattern: new RegExp(`^/teammates/(${uuid})$`), handle: teammatePage },
@@ -1166,6 +1281,15 @@ async function connectorAction(req: PostReq): Promise<void> {
 }
 
 const POST_ROUTES: readonly Route<PostReq>[] = [
+  { pattern: new RegExp(`^/bots/(${uuid})/design$`), handle: botDesign },
+  { pattern: new RegExp(`^/bots/(${uuid})/publish$`), handle: botPublish },
+  { pattern: new RegExp(`^/bots/(${uuid})/runs$`), handle: botStart },
+  {
+    pattern: new RegExp(
+      `^/bot-runs/(${uuid})/(cancel|approvals/${uuid}|steps/[a-z][a-z0-9_]{0,31}/(?:retry|resolve))$`,
+    ),
+    handle: botRunCommand,
+  },
   { pattern: /^\/teammates$/, handle: createTeammate },
   {
     pattern: /^\/teammates\/starter$/,

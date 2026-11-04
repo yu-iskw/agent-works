@@ -10,7 +10,8 @@ import type {
 } from '../workbench/model-port.js';
 import type postgres from 'postgres';
 
-type Purpose = 'plan' | 'contribution' | 'synthesis' | 'revision' | 'reply' | 'smoke';
+type Purpose =
+  'plan' | 'contribution' | 'synthesis' | 'revision' | 'reply' | 'smoke' | 'bot_design';
 
 export type CallContext = {
   readonly taskId: string | null;

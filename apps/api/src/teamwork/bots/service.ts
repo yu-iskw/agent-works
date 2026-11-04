@@ -75,24 +75,51 @@ export function createBotService(
       throw new Conflict('stale_confirmation');
     return row;
   }
-  return {
-    createDraft: (member: Member, teammateId: string, definition: unknown, source: BotSource) =>
-      withBot(deps, member, teammateId, async (tx) => {
+  async function inBot<T>(
+    member: Member,
+    teammateId: string,
+    action: (tx: Tx) => Promise<T>,
+    outer?: Tx,
+  ): Promise<T> {
+    if (outer === undefined) return withBot(deps, member, teammateId, action);
+    await requireOwner(outer, member, teammateId, true);
+    return action(outer);
+  }
+  function createDraft(
+    member: Member,
+    teammateId: string,
+    definition: unknown,
+    source: BotSource,
+    outer?: Tx,
+  ) {
+    return inBot(
+      member,
+      teammateId,
+      async (tx) => {
         const latest = await latestRevision(tx, teammateId);
         if (latest?.state === 'draft') throw new Conflict('draft_exists');
         return insert(tx, member, teammateId, await validated(definition), {
           ...source,
           revision: (latest?.revision ?? 0) + 1,
         });
-      }),
-    reviseDraft: (
-      member: Member,
-      teammateId: string,
-      cas: { readonly baseRevision: number; readonly baseDigest: string },
-      definition: unknown,
-      source: BotSource = { source: 'api' },
-    ) =>
-      withBot(deps, member, teammateId, async (tx) => {
+      },
+      outer,
+    );
+  }
+  // Existing callers use positional arguments; a caller transaction is optional.
+  // eslint-disable-next-line max-params
+  function reviseDraft(
+    member: Member,
+    teammateId: string,
+    cas: { readonly baseRevision: number; readonly baseDigest: string },
+    definition: unknown,
+    source: BotSource = { source: 'api' },
+    outer?: Tx,
+  ) {
+    return inBot(
+      member,
+      teammateId,
+      async (tx) => {
         const latest = await latestRevision(tx, teammateId);
         if (
           latest === undefined ||
@@ -108,15 +135,28 @@ export function createBotService(
           ...source,
           revision: latest.revision + 1,
         });
-      }),
-    previewDraft: (member: Member, teammateId: string) =>
-      withBot(deps, member, teammateId, async (tx) => {
+      },
+      outer,
+    );
+  }
+  function previewDraft(member: Member, teammateId: string, outer?: Tx) {
+    return inBot(
+      member,
+      teammateId,
+      async (tx) => {
         const row = await latestRevision(tx, teammateId);
         if (row?.state !== 'draft') throw new Conflict('not_found', 404);
         const preview = await previewBot(row.definition, await context());
         if (!preview.success) throw new InvalidBotDefinition(preview.diagnostics);
         return { revision: row.revision, ...preview.preview };
-      }),
+      },
+      outer,
+    );
+  }
+  return {
+    createDraft,
+    reviseDraft,
+    previewDraft,
     publish: (member: Member, teammateId: string, confirmation: BotConfirmation) =>
       withBot(deps, member, teammateId, async (tx) => {
         const row = assertConfirmation(await latestRevision(tx, teammateId), confirmation);
