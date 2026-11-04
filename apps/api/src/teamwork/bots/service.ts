@@ -90,6 +90,7 @@ export function createBotService(
       teammateId: string,
       cas: { readonly baseRevision: number; readonly baseDigest: string },
       definition: unknown,
+      source: BotSource = { source: 'api' },
     ) =>
       withBot(deps, member, teammateId, async (tx) => {
         const latest = await latestRevision(tx, teammateId);
@@ -104,7 +105,7 @@ export function createBotService(
         if (latest.state === 'draft')
           await tx`update tw_bot_revisions set state = 'discarded' where teammate_id = ${teammateId} and revision = ${latest.revision}`;
         return insert(tx, member, teammateId, next, {
-          source: 'api',
+          ...source,
           revision: latest.revision + 1,
         });
       }),

@@ -301,6 +301,23 @@ describe('bot revisions in real Postgres', () => {
     ]);
     expect(next.revision).toBe(2);
   });
+  it('preserves conversation provenance when revising a draft', async () => {
+    const old = await draft();
+    const messageId = randomUUID();
+    const revised = await service.reviseDraft(
+      alice,
+      teammateId,
+      { baseRevision: old.revision, baseDigest: old.digest },
+      { ...definition(), purpose: 'A revised purpose' },
+      { source: 'conversation', sourceMessageId: messageId },
+    );
+    expect(
+      (await service.exportRevision(alice, teammateId, revised.revision)).provenance,
+    ).toMatchObject({
+      source: 'conversation',
+      sourceMessageId: messageId,
+    });
+  });
   it('allows exactly one of two concurrent publishes', async () => {
     const created = await draft();
     const outcomes = await Promise.allSettled([
