@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
 import { assertStartup, ProductionStartupRejected } from '../startup/providers.js';
 import { createSuspensionEnforcer } from '../suspension/enforcement.js';
 
-import { admittedSkill, AdmissionDenied } from './admission.js';
+import { admittedSkill, AdmissionDenied, AdmissionLeaseLost } from './admission.js';
 import { buildBackgroundLoops } from './background.js';
 import { createDeliveryRoutes, DELIVERY_PATH } from './delivery.js';
 import { readWiring, WiringConfigError } from './flags.js';
@@ -254,6 +254,106 @@ describe('admission wrapper', () => {
     await admittedSkill(fakeSkill(run), service, policy, 'gemini').dispatch(...dispatchArgs);
     expect(run).toHaveBeenCalledOnce();
     expect(calls).toEqual(['admit:task-1']);
+  });
+});
+
+describe('admission lease renewal', () => {
+  const held = { admitted: true, replay: false, expiresAt: new Date() } as const;
+  const leaseArgs = (signal?: AbortSignal) =>
+    [{}, accepted, { caller }, { deadline: Infinity, signal }] as unknown as Parameters<
+      RegisteredSkill['dispatch']
+    >;
+  const runningSkill = (observed: { aborted?: boolean }) =>
+    fakeSkill(
+      (...args: unknown[]) =>
+        new Promise<void>((resolve) => {
+          const exec = args[3] as { signal: AbortSignal };
+          const done = () => {
+            observed.aborted = exec.signal.aborted;
+            resolve();
+          };
+          if (exec.signal.aborted) done();
+          else exec.signal.addEventListener('abort', done);
+          setTimeout(done, 100_000);
+        }),
+    );
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('aborts the skill and fails the run when the lease has lapsed', async () => {
+    const { service, calls } = fakeAdmission(held);
+    (service.renew as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    const observed: { aborted?: boolean } = {};
+    const run = admittedSkill(runningSkill(observed), service, policy, 'gemini').dispatch(
+      ...leaseArgs(),
+    );
+    const settled = run.then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await settled).toBeInstanceOf(AdmissionLeaseLost);
+    expect(observed.aborted).toBe(true);
+    expect(calls).toEqual(['admit:task-1', 'release:task-1:failed']);
+  });
+
+  it('never reports success when the skill returns after losing the lease', async () => {
+    const { service } = fakeAdmission(held);
+    (service.renew as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    const ignoring = fakeSkill(() => new Promise<void>((r) => setTimeout(r, 20_000)));
+    const run = admittedSkill(ignoring, service, policy, 'gemini').dispatch(...leaseArgs());
+    const settled = run.then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await settled).toBeInstanceOf(AdmissionLeaseLost);
+  });
+
+  it('keeps running through a transient renew error', async () => {
+    const { service, calls } = fakeAdmission(held);
+    (service.renew as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockResolvedValue(true);
+    const run = admittedSkill(
+      fakeSkill(() => new Promise<void>((r) => setTimeout(r, 25_000))),
+      service,
+      policy,
+      'gemini',
+    ).dispatch(...leaseArgs());
+    await vi.advanceTimersByTimeAsync(30_000);
+    await run;
+    expect(calls).toEqual(['admit:task-1', 'release:task-1:succeeded']);
+  });
+
+  it('aborts when renew errors persist beyond the lease', async () => {
+    const { service } = fakeAdmission(held);
+    (service.renew as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db down'));
+    const observed: { aborted?: boolean } = {};
+    const run = admittedSkill(runningSkill(observed), service, policy, 'gemini').dispatch(
+      ...leaseArgs(),
+    );
+    const settled = run.then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(await settled).toBeInstanceOf(AdmissionLeaseLost);
+    expect(observed.aborted).toBe(true);
+  });
+
+  it('forwards a caller cancellation to the skill', async () => {
+    const { service, calls } = fakeAdmission(held);
+    const parent = new AbortController();
+    const observed: { aborted?: boolean } = {};
+    const run = admittedSkill(runningSkill(observed), service, policy, 'gemini').dispatch(
+      ...leaseArgs(parent.signal),
+    );
+    parent.abort();
+    await vi.advanceTimersByTimeAsync(1);
+    await run;
+    expect(observed.aborted).toBe(true);
+    expect(calls.at(-1)).toBe('release:task-1:succeeded');
   });
 });
 

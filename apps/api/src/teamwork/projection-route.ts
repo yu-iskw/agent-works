@@ -76,7 +76,14 @@ async function accessibleTeammates(db: postgres.Sql, member: Member): Promise<Se
 function candidateFrom(
   row: NodeRow,
   allDone: ReadonlySet<string>,
-  context: { taskId: string; segment: string; revision: number; now: string; resultReady: boolean },
+  context: {
+    taskId: string;
+    segment: string;
+    teammate: string;
+    revision: number;
+    now: string;
+    resultReady: boolean;
+  },
   accessible: boolean,
 ): CandidateNode {
   const facts: NodeFacts = {
@@ -92,7 +99,7 @@ function candidateFrom(
   const result =
     state === 'succeeded' && row.has_output && context.resultReady
       ? {
-          href: `/s/${context.segment}/tasks/${context.taskId}/results/${context.revision}`,
+          href: `/s/${context.segment}/teammates/${context.teammate}/tasks/${context.taskId}/results/${context.revision}`,
           label: 'Open result',
         }
       : null;
@@ -209,6 +216,7 @@ export async function buildProjection(
   const context = {
     taskId,
     segment: deps.config.segment,
+    teammate: task.result_owner,
     revision: task.latest_revision,
     now,
     resultReady: task.latest_revision > 0,

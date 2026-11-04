@@ -778,6 +778,8 @@ export async function decidePlan(
       const work = plan.content.assignments.filter((a) => !done.has(a.key));
       await dispatch(deps, tx, { task, member, work, planVersion: input.version });
       const carried = done.size === 0 ? '' : `, keeping ${done.size} completed`;
+      // Nothing left to run means no assignment will finish and trigger synthesis, so start it here.
+      const settled = work.length === 0 && done.size > 0;
       await moveTask(deps, tx, task, {
         to: 'running',
         events: [
@@ -787,6 +789,23 @@ export async function decidePlan(
           },
         ],
       });
+      if (settled) {
+        await moveTask(
+          deps,
+          tx,
+          { ...task, status: 'running' },
+          {
+            to: 'synthesizing',
+            events: [
+              {
+                type: 'synthesis.started',
+                summary: `All ${done.size} contributions are in; writing the combined result`,
+              },
+            ],
+          },
+        );
+        await enqueue(deps, tx, id, 'synthesis', `${id}:${task.latest_revision + 1}`);
+      }
     }
     await audit(deps, tx, {
       ownerSub: member.sub,
