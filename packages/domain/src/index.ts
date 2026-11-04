@@ -134,3 +134,5 @@ export * from './schedule-fixtures.js';
 export * from './analytics.js';
 export * from './analytics-report.js';
 export * from './dispatch-envelope.js';
+export * from './bot-definition.js';
+export * from './bot-run.js';

@@ -91,6 +91,7 @@ import {
   taskDetail,
 } from './tasks.js';
 
+import type { BotRoute } from './bots/routes.js';
 import type { Deps, Member, Reply, Request } from './context.js';
 import type { VerifyAssertion } from '../auth/iap.js';
 
@@ -530,8 +531,14 @@ const marketplaceRoutes = (): readonly Entry[] => [
   },
 ];
 
-export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Readiness) {
+export function createRoutes(
+  deps: Deps,
+  verify: VerifyAssertion,
+  readiness: Readiness,
+  botRoutes: readonly BotRoute[] = [],
+) {
   const table = [
+    ...botRoutes,
     ...catalogRoutes(readiness),
     ...workRoutes(),
     ...marketplaceRoutes(),

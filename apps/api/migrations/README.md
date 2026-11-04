@@ -50,4 +50,11 @@ Every migration below is opt-in. Each is applied on demand by the module named i
 | 0030   | `routines`           | `scheduling/routines/migration.ts`    | 7030 | SCH-04, needs 0024                    |
 | 0032   | `skill_packages`     | `skill-packages/migration.ts`         | 7017 | Curated skill package records         |
 
-`workerReady` applies 0013, 0026, 0027 and 0028 as needed. `0031` is unused.
+`workerReady` applies 0013, 0026, 0027 and 0028 as needed.
+
+| Number | Name   | Applied by                   | Lock | Used by                                             |
+| ------ | ------ | ---------------------------- | ---- | --------------------------------------------------- |
+| 0031   | `bots` | `teamwork/bots/migration.ts` | 7017 | Bot revisions and run contracts, `AW_BOT_WORKFLOWS` |
+
+`0032` is reserved for R2 skill package provenance. `0033` is reserved for R5 bot execution.
+The next free number after these reservations is `0034`.

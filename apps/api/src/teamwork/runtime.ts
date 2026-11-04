@@ -8,6 +8,8 @@ import { applyWorkbenchMigration } from '../workbench/migration.js';
 import { modelRemediation } from '../workbench/model-port.js';
 import { createVertexModel } from '../workbench/vertex.js';
 
+import { applyBotsMigration } from './bots/migration.js';
+import { createBotRoutes } from './bots/routes.js';
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
 import { applyGraphMigration } from './graph-migration.js';
@@ -147,6 +149,7 @@ export async function createTeamworkRuntime(input: {
   const { sql, config, env } = input;
   await applyWorkbenchMigration(sql);
   await applyGraphMigration(sql);
+  if (env.AW_BOT_WORKFLOWS === 'on') await applyBotsMigration(sql);
   const vertex = modelFor(env, config);
   const now = () => new Date();
   const gate = createModelGate({
@@ -213,7 +216,12 @@ export async function createTeamworkRuntime(input: {
     };
   }
 
-  const route = createRoutes(deps, input.verify, readiness);
+  const route = createRoutes(
+    deps,
+    input.verify,
+    readiness,
+    env.AW_BOT_WORKFLOWS === 'on' ? createBotRoutes(deps) : [],
+  );
   const worker = createWorker(deps, (error) =>
     console.error(
       JSON.stringify({
