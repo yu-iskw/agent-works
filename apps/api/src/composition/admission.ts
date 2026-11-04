@@ -10,6 +10,14 @@ export class AdmissionDenied extends Error {
   }
 }
 
+export class AdmissionLeaseLost extends Error {
+  readonly retryable = true;
+  constructor() {
+    super('admission lease lost');
+    this.name = 'AdmissionLeaseLost';
+  }
+}
+
 export type AdmissionPolicy = {
   readonly segmentId: string;
   readonly estimatedCostMicros: number;
@@ -59,22 +67,53 @@ export function admittedSkill(
       if (!verdict.admitted && verdict.reason !== 'already_finished')
         throw new AdmissionDenied(verdict.reason);
       const held = verdict.admitted;
+      const fence = new AbortController();
+      const stop = () => fence.abort();
+      execution?.signal?.addEventListener('abort', stop, { once: true });
+      if (execution?.signal?.aborted === true) stop();
+      const lease = { lost: false, renewedAt: Date.now() };
+      let renewing = false;
       const renewal = held
         ? setInterval(
             () => {
-              admission.renew(accepted.taskId).catch(() => undefined);
+              if (renewing || lease.lost) return;
+              renewing = true;
+              admission
+                .renew(accepted.taskId)
+                .then(
+                  (live) => {
+                    if (live) lease.renewedAt = Date.now();
+                    else lease.lost = true;
+                  },
+                  () => {
+                    if (Date.now() - lease.renewedAt >= policy.leaseMs) lease.lost = true;
+                  },
+                )
+                .finally(() => {
+                  renewing = false;
+                  if (lease.lost) fence.abort();
+                });
             },
             Math.max(1, Math.floor(policy.leaseMs / 3)),
           )
         : undefined;
       let outcome: Outcome = 'succeeded';
       try {
-        await skill.dispatch(request, accepted, authorized, execution);
+        await skill.dispatch(request, accepted, authorized, {
+          deadline: execution?.deadline ?? Infinity,
+          signal: fence.signal,
+        });
+        if (lease.lost) throw new AdmissionLeaseLost();
       } catch (error) {
+        if (lease.lost) {
+          outcome = 'failed';
+          throw new AdmissionLeaseLost();
+        }
         outcome = execution?.signal?.aborted === true ? 'cancelled' : 'failed';
         throw error;
       } finally {
         clearInterval(renewal);
+        execution?.signal?.removeEventListener('abort', stop);
         if (held) await admission.release(accepted.taskId, outcome).catch(() => undefined);
       }
     },
