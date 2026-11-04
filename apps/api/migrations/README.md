@@ -59,5 +59,6 @@ Opt-in like the table above: each is applied only when `AW_BOT_WORKFLOWS=on` in 
 | ------ | ---------------- | -------------------------------------- | ---- | --------------------------------------------------- |
 | 0031   | `bots`           | `teamwork/bots/migration.ts`           | 7017 | Bot revisions and run contracts, `AW_BOT_WORKFLOWS` |
 | 0032   | `skill_packages` | `teamwork/skill-packages/migration.ts` | 7017 | Curated skill package records                       |
+| 0034   | `bot_triggers`   | `teamwork/bots/triggers/migration.ts`  | 7017 | Bot schedule cursors                                |
 
-`0033` is reserved for R5 bot execution. The next free number after that is `0034`.
+`0033` is reserved for R5 bot execution.
