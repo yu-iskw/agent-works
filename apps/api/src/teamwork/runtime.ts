@@ -20,6 +20,8 @@ import { createStartBotRun } from './bots/execution/start.js';
 import { applyBotsMigration } from './bots/migration.js';
 import { createBotRoutes } from './bots/routes.js';
 import { createBotService } from './bots/service.js';
+import { createTriggerLoop, readBotEventKeys } from './bots/triggers/config.js';
+import { BOT_EVENTS_PATH, createBotTriggers } from './bots/triggers/index.js';
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
 import { applyGraphMigration } from './graph-migration.js';
@@ -235,7 +237,13 @@ export async function createTeamworkRuntime(input: {
   }
 
   const bot = env.AW_BOT_WORKFLOWS === 'on' ? await configureBots(deps, env) : undefined;
-  const route = createRoutes(deps, input.verify, readiness, bot?.routes ?? []);
+  const memberRoute = createRoutes(deps, input.verify, readiness, bot?.routes ?? []);
+  // Signed bot events carry no member session: the signature is their authentication, so they are
+  // routed before member authentication and nowhere else.
+  const route = (request: Request): Promise<Reply> =>
+    bot !== undefined && request.path === BOT_EVENTS_PATH
+      ? bot.triggers.handleBotEventRequest(request)
+      : memberRoute(request);
   const worker = createWorker(deps, (error) =>
     console.error(
       JSON.stringify({
@@ -272,8 +280,10 @@ export async function createTeamworkRuntime(input: {
     start: () => {
       worker.start();
       reconciler.start();
+      bot?.triggerLoop.start();
     },
     stop: async () => {
+      await bot?.triggerLoop.stop();
       await reconciler.stop();
       await worker.stop();
     },
@@ -326,8 +336,29 @@ async function configureBots(deps: Deps, env: Env) {
     grants: createPostgresGrantStore(deps.sql),
   };
   const execution = registerBotExecution(options);
+  const startBotRun = createStartBotRun(options);
+  const triggers = createBotTriggers({
+    sql: deps.sql,
+    now: deps.now,
+    startBotRun,
+    signingKeys: await readBotEventKeys(env.AW_BOT_EVENT_KEYS),
+    log: console,
+  });
   return {
-    startBotRun: createStartBotRun(options),
+    startBotRun,
+    triggers,
+    triggerLoop: createTriggerLoop(
+      triggers,
+      Number(env.AW_BOT_TRIGGER_TICK_MS ?? 60_000),
+      (error) =>
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            component: 'bot-triggers',
+            error: error instanceof Error ? error.name : 'unknown',
+          }),
+        ),
+    ),
     routes: [
       ...createBotRoutes(deps, service, createBotDesignCatalog(deps.sql, registry)),
       ...createBotRunRoutes(options, execution),

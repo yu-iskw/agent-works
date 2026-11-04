@@ -14,6 +14,8 @@ import type { Deps, Request, Reply } from '../../context.js';
 import type { BotDefinition, ScheduleSpec } from '@agent-works/domain';
 import type postgres from 'postgres';
 
+export const BOT_EVENTS_PATH = '/v1/teamwork/bot-events';
+
 type ActiveBot = {
   teammate_id: string;
   owner_sub: string;
@@ -225,7 +227,7 @@ export function createBotTriggers(deps: Dependencies) {
   async function handleBotEventRequest(
     request: Pick<Request, 'method' | 'path' | 'headers' | 'body'>,
   ): Promise<Reply> {
-    if (request.method !== 'POST' || request.path !== '/v1/teamwork/bot-events')
+    if (request.method !== 'POST' || request.path !== BOT_EVENTS_PATH)
       return { status: 404, body: { error: 'not_found' } };
     if (request.body.length > 100000) return { status: 400, body: { error: 'invalid_event' } };
     let value: unknown;

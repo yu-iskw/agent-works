@@ -11,7 +11,6 @@ import { applyGraphMigration } from '../../graph-migration.js';
 import { alice, segmentDeps } from '../../graph-test-support.js';
 import { applyBotsMigration } from '../migration.js';
 
-
 import { createBotTriggers } from './index.js';
 
 import type { StartBotRun } from './types.js';
