@@ -1,15 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 import { readVertexConfig } from '@agent-works/agent-runtime';
 import { createSealer, loadKey } from '@agent-works/domain/sealer';
 
+import { createAdmissionService } from '../admission/postgres-admission.js';
+import { applyStandingGrantMigration } from '../authority-lifecycle/migration.js';
+import { createPostgresGrantStore } from '../authority-lifecycle/postgres-store.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 import { modelRemediation } from '../workbench/model-port.js';
 import { createVertexModel } from '../workbench/vertex.js';
 
+import { registerBotExecution } from './bots/execution/engine.js';
+import { createBotGrantRoutes } from './bots/execution/grant-routes.js';
+import { applyBotExecutionMigration } from './bots/execution/migration.js';
+import { createBotRunRoutes } from './bots/execution/run-routes.js';
+import { createStartBotRun } from './bots/execution/start.js';
 import { applyBotsMigration } from './bots/migration.js';
 import { createBotRoutes } from './bots/routes.js';
+import { createBotService } from './bots/service.js';
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
 import { applyGraphMigration } from './graph-migration.js';
@@ -20,15 +30,22 @@ import {
   segmentCapabilities,
   updateInstallation,
 } from './installations.js';
+import { parseAgentRegistry } from './mcp-task/index.js';
 import { createModelGate } from './model.js';
 import { createReconciler } from './reconciler.js';
 import { createRoutes } from './routes.js';
 import { unavailableRuntimeManager } from './runtime-manager.js';
 import { createScriptedModel } from './scripted-model.js';
+import {
+  applySkillPackagesMigration,
+  createSkillPackageStore,
+  syncCuratedPackages,
+} from './skill-packages/index.js';
 import { createFixtureSources } from './sources/fixture.js';
 import { createLiveSources } from './sources/live.js';
 import { createWorker } from './worker.js';
 
+import type { StartBotRun } from './bots/execution/start.js';
 import type { SegmentConfig, SegmentSources } from './config.js';
 import type { Deps, Member, Reply, Request } from './context.js';
 import type { ModelGate } from './model.js';
@@ -41,6 +58,7 @@ type Env = Readonly<Record<string, string | undefined>>;
 
 export type TeamworkRuntime = {
   readonly deps: Deps;
+  readonly startBotRun: StartBotRun;
   route(request: Request): Promise<Reply>;
   start(): void;
   stop(): Promise<void>;
@@ -216,12 +234,8 @@ export async function createTeamworkRuntime(input: {
     };
   }
 
-  const route = createRoutes(
-    deps,
-    input.verify,
-    readiness,
-    env.AW_BOT_WORKFLOWS === 'on' ? createBotRoutes(deps) : [],
-  );
+  const bot = env.AW_BOT_WORKFLOWS === 'on' ? await configureBots(deps, env) : undefined;
+  const route = createRoutes(deps, input.verify, readiness, bot?.routes ?? []);
   const worker = createWorker(deps, (error) =>
     console.error(
       JSON.stringify({
@@ -252,6 +266,8 @@ export async function createTeamworkRuntime(input: {
     },
   );
   return {
+    startBotRun:
+      bot?.startBotRun ?? (() => Promise.resolve({ kind: 'denied', code: 'feature_disabled' })),
     route,
     start: () => {
       worker.start();
@@ -263,4 +279,88 @@ export async function createTeamworkRuntime(input: {
     },
     deps,
   };
+}
+
+async function configureBots(deps: Deps, env: Env) {
+  await applyStandingGrantMigration(deps.sql);
+  await applySkillPackagesMigration(deps.sql);
+  await applyBotExecutionMigration(deps.sql);
+  const admission = await createAdmissionService({
+    sql: deps.sql,
+    leaseMs: 300_000,
+    now: deps.now,
+  });
+  const skills = createSkillPackageStore(deps.sql);
+  const curated = await syncCuratedPackages({ store: skills });
+  const activate = new Set(
+    (env.AW_BOT_ACTIVATE_CURATED ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  for (const item of curated) {
+    if (item.report.manifest && activate.has(item.report.manifest.name))
+      await skills.activate(
+        item.report.manifest.name,
+        item.report.manifest.version,
+        'segment-config',
+      );
+  }
+  const registryJson = await registryConfig(env);
+  const allowLoopback =
+    env.AW_BOT_MCP_ALLOW_LOOPBACK === 'on' &&
+    env.NODE_ENV !== 'production' &&
+    deps.config.identity === 'local-test';
+  const registry = parseAgentRegistry(registryJson, { allowLoopback });
+  const service = createBotService(deps, async () => ({
+    segmentCapabilities: await segmentCapabilities(deps),
+    approvedAgents: registry,
+    skills,
+  }));
+  const options = {
+    deps,
+    service,
+    registry,
+    allowLoopback,
+    skills,
+    admission,
+    grants: createPostgresGrantStore(deps.sql),
+  };
+  const execution = registerBotExecution(options);
+  return {
+    startBotRun: createStartBotRun(options),
+    routes: [
+      ...createBotRoutes(deps, service),
+      ...createBotRunRoutes(options, execution),
+      ...createBotGrantRoutes(options),
+    ],
+  };
+}
+
+async function registryConfig(env: Env): Promise<unknown> {
+  let registryJson: unknown = [];
+  if (env.AW_BOT_MCP_AGENTS) {
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- operator-owned configuration path
+      registryJson = JSON.parse(await readFile(env.AW_BOT_MCP_AGENTS, 'utf8')) as unknown;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+        console.warn(
+          JSON.stringify({
+            component: 'bot-config',
+            code: 'registry_missing',
+            field: 'AW_BOT_MCP_AGENTS',
+          }),
+        );
+      else throw new Error('Invalid bot configuration fields: AW_BOT_MCP_AGENTS');
+    }
+  } else
+    console.warn(
+      JSON.stringify({
+        component: 'bot-config',
+        code: 'registry_missing',
+        field: 'AW_BOT_MCP_AGENTS',
+      }),
+    );
+  return registryJson;
 }
