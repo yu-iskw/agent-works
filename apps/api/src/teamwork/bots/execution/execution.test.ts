@@ -33,7 +33,6 @@ import { createBotService } from '../service.js';
 import { createRunCommands } from './commands.js';
 import { registerBotExecution } from './engine.js';
 import { createBotGrantRoutes } from './grant-routes.js';
-import { applyBotExecutionMigration } from './migration.js';
 import { createBotRunRoutes } from './run-routes.js';
 import { createStartBotRun } from './start.js';
 import { ADMIN_TRANSITIONS } from './types.js';
@@ -70,8 +69,7 @@ beforeAll(async () => {
   await createAdmissionService({ sql, leaseMs: 300_000 });
   await applyStandingGrantMigration(sql);
   await applySkillPackagesMigration(sql);
-  await applyBotExecutionMigration(sql);
-  await applyBotExecutionMigration(sql);
+  await applyBotsMigration(sql);
 }, 60_000);
 afterAll(async () => {
   await agent.close();

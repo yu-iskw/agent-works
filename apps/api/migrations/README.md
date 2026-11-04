@@ -55,10 +55,10 @@ Every migration below is opt-in. Each is applied on demand by the module named i
 
 Opt-in like the table above: each is applied only when `AW_BOT_WORKFLOWS=on` in the teamwork segment.
 
-| Number | Name             | Applied by                             | Lock | Used by                                                           |
-| ------ | ---------------- | -------------------------------------- | ---- | ----------------------------------------------------------------- |
-| 0031   | `bots`           | `teamwork/bots/migration.ts`           | 7017 | Bot revisions and run contracts, `AW_BOT_WORKFLOWS`               |
-| 0032   | `skill_packages` | `teamwork/skill-packages/migration.ts` | 7017 | Curated skill package records                                     |
-| 0033   | `bot_execution`  | `teamwork/bots/execution/migration.ts` | 7017 | Durable execution results, deadlines, owner binding and step cost |
+| Number | Name             | Applied by                               | Lock | Used by                                                           |
+| ------ | ---------------- | ---------------------------------------- | ---- | ----------------------------------------------------------------- |
+| 0031   | `bots`           | `teamwork/bots/migration.ts`             | 7017 | Bot revisions and run contracts, `AW_BOT_WORKFLOWS`               |
+| 0032   | `skill_packages` | `teamwork/skill-packages/migration.ts`   | 7017 | Curated skill package records                                     |
+| 0033   | `bot_execution`  | `teamwork/bots/migration.ts` (with 0031) | 7017 | Durable execution results, deadlines, owner binding and step cost |
 
 `0034` is reserved for bot triggers. The next free number after that is `0035`.

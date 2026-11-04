@@ -12,9 +12,9 @@ import { applyWorkbenchMigration } from '../workbench/migration.js';
 import { modelRemediation } from '../workbench/model-port.js';
 import { createVertexModel } from '../workbench/vertex.js';
 
+import { createBotDesignCatalog } from './bots/design-catalog.js';
 import { registerBotExecution } from './bots/execution/engine.js';
 import { createBotGrantRoutes } from './bots/execution/grant-routes.js';
-import { applyBotExecutionMigration } from './bots/execution/migration.js';
 import { createBotRunRoutes } from './bots/execution/run-routes.js';
 import { createStartBotRun } from './bots/execution/start.js';
 import { applyBotsMigration } from './bots/migration.js';
@@ -284,7 +284,6 @@ export async function createTeamworkRuntime(input: {
 async function configureBots(deps: Deps, env: Env) {
   await applyStandingGrantMigration(deps.sql);
   await applySkillPackagesMigration(deps.sql);
-  await applyBotExecutionMigration(deps.sql);
   const admission = await createAdmissionService({
     sql: deps.sql,
     leaseMs: 300_000,
@@ -330,7 +329,7 @@ async function configureBots(deps: Deps, env: Env) {
   return {
     startBotRun: createStartBotRun(options),
     routes: [
-      ...createBotRoutes(deps, service),
+      ...createBotRoutes(deps, service, createBotDesignCatalog(deps.sql, registry)),
       ...createBotRunRoutes(options, execution),
       ...createBotGrantRoutes(options),
     ],

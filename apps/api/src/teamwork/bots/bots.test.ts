@@ -172,6 +172,10 @@ describe('bot revisions in real Postgres', () => {
     expect(published.state).toBe('published');
     expect(await service.getActive(alice, teammateId)).toEqual(published);
     expect(await sql`select action from tw_audit where action = 'bot.publish'`).toHaveLength(1);
+    // Publishing binds the verified owner email that background runs check membership against.
+    expect(await sql`select owner_email from tw_bots where teammate_id = ${teammateId}`).toEqual([
+      { owner_email: alice.email.toLowerCase() },
+    ]);
   });
   it('returns specific diagnostics and persists nothing for malformed proposals', async () => {
     await expect(

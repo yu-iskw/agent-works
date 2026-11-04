@@ -170,7 +170,9 @@ export function createBotService(
           >`update tw_bot_revisions set state = 'published', published_by = ${member.sub}, published_at = ${deps.now()} where teammate_id = ${teammateId} and revision = ${row.revision} and state = 'draft' and digest = ${confirmation.digest} returning *`
         ).at(0);
         if (published === undefined) throw new Conflict('stale_confirmation');
-        await tx`update tw_bots set active_revision = ${row.revision}, updated_at = ${deps.now()} where teammate_id = ${teammateId}`;
+        // Publishing is the authenticated act that defines bot authority, so it binds the owner email
+        // background runs check membership against (D37).
+        await tx`update tw_bots set active_revision = ${row.revision}, owner_email = ${member.email.toLowerCase()}, updated_at = ${deps.now()} where teammate_id = ${teammateId}`;
         await audit(deps, tx, {
           ownerSub: member.sub,
           action: 'bot.publish',
