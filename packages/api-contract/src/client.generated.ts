@@ -1157,4 +1157,31 @@ export class ApiClient {
       headers,
     );
   }
+  adminOutstanding(headers: Readonly<Record<string, string>> = {}): Promise<Error> {
+    return this.transport.request<Error>(
+      'adminOutstanding',
+      'GET',
+      `/v1/admin/outstanding`,
+      undefined,
+      headers,
+    );
+  }
+  opsDashboard(headers: Readonly<Record<string, string>> = {}): Promise<Error> {
+    return this.transport.request<Error>(
+      'opsDashboard',
+      'POST',
+      `/v1/ops/dashboard`,
+      undefined,
+      headers,
+    );
+  }
+  opsDashboardReconcile(headers: Readonly<Record<string, string>> = {}): Promise<Error> {
+    return this.transport.request<Error>(
+      'opsDashboardReconcile',
+      'POST',
+      `/v1/ops/dashboard/reconcile`,
+      undefined,
+      headers,
+    );
+  }
 }

@@ -29,6 +29,8 @@ export type Deps = {
   readonly now: () => Date;
   readonly newId: () => string;
   readonly fetch: typeof fetch;
+  /** `AW_STRICT_PROPOSALS=on`: coordinator plans are validated whole instead of leniently trimmed. */
+  readonly strictProposals?: boolean;
 };
 
 export type Tx = postgres.TransactionSql;

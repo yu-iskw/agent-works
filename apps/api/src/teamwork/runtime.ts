@@ -175,6 +175,7 @@ export async function createTeamworkRuntime(input: {
     now,
     newId: randomUUID,
     fetch: input.fetch ?? fetch,
+    strictProposals: env.AW_STRICT_PROPOSALS === 'on',
   };
   await seedCatalog(deps);
   await bootstrapInstallations(deps);

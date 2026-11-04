@@ -34,3 +34,19 @@ order by `workbench/migration.ts` under advisory transaction lock 7017. `0018` e
 workbench tables for M1 teamwork and adds the `tw_*` tables. `0019` adds
 `tw_assignments.depends_on`. A migration that any database has applied is never edited; a change
 goes into a new number, written idempotently when an earlier draft may already exist somewhere.
+
+## Enterprise production v1 (0024 to 0030)
+
+Every migration below is opt-in. Each is applied on demand by the module named in the table, under the lock shown, and only when the capability that reads it is switched on (see `docs/plans/enterprise-production-v1/integration/flags.md`). With every flag off none of them runs. None is edited after it has been applied anywhere.
+
+| Number | Name                 | Applied by                            | Lock | Used by                               |
+| ------ | -------------------- | ------------------------------------- | ---- | ------------------------------------- |
+| 0024   | `standing_grants`    | `authority-lifecycle/migration.ts`    | 7024 | AGT-03 grants, `AW_STANDING_GRANTS`   |
+| 0025   | `admission`          | `admission/migration.ts`              | 7025 | SCH-06, `AW_ADMISSION`, ops dashboard |
+| 0026   | `schedule_row_claim` | `workerReady` (`worker/migration.ts`) | 7014 | SCH-01 row claim, worker              |
+| 0027   | `dispatch_outbox`    | `outboxReady` (`outbox/migration.ts`) | 7013 | SCH-02, `AW_OUTBOX_PUBLISHER`         |
+| 0028   | `execution_worker`   | `workerReady` (`worker/migration.ts`) | 7014 | SCH-05, delivery, sweeper, worker     |
+| 0029   | `graph_execution`    | `teamwork/graph-migration.ts`         | 7017 | AGT-01, teamwork runtime              |
+| 0030   | `routines`           | `scheduling/routines/migration.ts`    | 7030 | SCH-04, needs 0024                    |
+
+`workerReady` applies 0013, 0026, 0027 and 0028 as needed. `0031` is unused.
