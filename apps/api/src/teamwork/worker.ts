@@ -1,5 +1,9 @@
 import { canonicalPayloadSha256 } from '@agent-works/domain';
-import { CAPABILITY_PROVIDER, SOURCE_CAPABILITY } from '@agent-works/domain/teamwork';
+import {
+  CAPABILITY_PROVIDER,
+  CONNECTIONLESS_PROVIDERS,
+  SOURCE_CAPABILITY,
+} from '@agent-works/domain/teamwork';
 import { diffRevisions, missingSections } from '@agent-works/domain/teamwork-evidence';
 import {
   effectiveSet,
@@ -1363,7 +1367,10 @@ async function reply(deps: Deps, job: Job): Promise<void> {
         return provider === null ? [] : [provider];
       }),
     );
-    const readable = [...needs].every((provider) => connected.has(provider));
+    const readable = [...needs].every(
+      (provider) =>
+        CONNECTIONLESS_PROVIDERS.has(provider) || (connected as ReadonlySet<string>).has(provider),
+    );
     const latest =
       readable && task.latest_revision > 0
         ? ((

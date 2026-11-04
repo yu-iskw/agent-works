@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 
 import { readVertexConfig } from '@agent-works/agent-runtime';
-import { findConnector } from '@agent-works/domain/connector-catalog';
 import { createSealer, loadKey } from '@agent-works/domain/sealer';
 
 import { applyWorkbenchMigration } from '../workbench/migration.js';
@@ -14,6 +13,7 @@ import { connections } from './connections.js';
 import { applyGraphMigration } from './graph-migration.js';
 import {
   bootstrapInstallations,
+  findInstallable,
   listInstallations,
   segmentCapabilities,
   updateInstallation,
@@ -230,7 +230,7 @@ export async function createTeamworkRuntime(input: {
     {
       segment: config.segment,
       runtime: input.runtimeManager ?? unavailableRuntimeManager,
-      manifest: findConnector,
+      manifest: findInstallable,
       now,
       onError: (error) =>
         console.error(
