@@ -328,6 +328,24 @@ describe('durable bot execution', () => {
       await sql`select 1 from tw_inbox where task_id = ${id} and kind = 'completed' and state = 'open'`,
     ).toHaveLength(1);
   });
+  it('denies a start whose matched revision is no longer active', async () => {
+    await publish();
+    const [{ active_revision: matched }] = await sql<{ active_revision: number }[]>`
+      select active_revision from tw_bots where teammate_id = ${teammateId}
+    `;
+    await publish();
+    expect(
+      await createStartBotRun(options)({
+        teammateId,
+        trigger: { kind: 'manual' },
+        initiatedBy: alice.sub,
+        clientRequestId: randomUUID(),
+        expectedRevision: matched,
+      }),
+    ).toEqual({ kind: 'denied', code: 'revision_changed' });
+    expect(await sql`select 1 from tw_bot_runs`).toHaveLength(0);
+  });
+
   it('denies a changed skill package before creating a run', async () => {
     await publish();
     await appendFile(join(skillRoot, 'brief-writer', 'plugin.json'), ' ');

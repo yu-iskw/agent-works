@@ -17,6 +17,12 @@ export type StartBotRunInput = {
   trigger: BotTrigger;
   initiatedBy: string;
   clientRequestId: string;
+  /**
+   * The revision whose trigger declaration matched (schedule and event starts always set it).
+   * Checked under the same row lock publication takes, so a publish in between cannot run a newer
+   * revision for a trigger matched against an older one.
+   */
+  expectedRevision?: number;
 };
 export type StartBotRunResult =
   | { kind: 'started'; taskId: string; revision: number; digest: string }
@@ -154,7 +160,17 @@ async function commitRun(
     digest: run.digest,
   };
   await deps.sql.begin(async (tx) => {
-    await tx`select 1 from tw_bots where teammate_id=${run.teammate_id} for update`;
+    const locked = await tx<
+      { active_revision: number | null }[]
+    >`select active_revision from tw_bots where teammate_id=${run.teammate_id} for update`;
+    const active = locked.at(0)?.active_revision ?? null;
+    if (
+      active !== run.revision ||
+      (input.expectedRevision !== undefined && active !== input.expectedRevision)
+    ) {
+      result = { kind: 'denied', code: 'revision_changed' };
+      return;
+    }
     const duplicate = (
       await tx<
         { task_id: string }[]
