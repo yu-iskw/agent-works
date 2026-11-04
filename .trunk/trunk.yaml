@@ -44,6 +44,10 @@ lint:
     - linters: [prettier]
       paths:
         - artifacts/p0/*.json
+    # Browser harness entry bundled by esbuild; its preact import resolves from apps/web, which no root ESLint project covers.
+    - linters: [eslint]
+      paths:
+        - e2e/ui/**/harness-entry.tsx
 actions:
   enabled:
     - trunk-upgrade-available

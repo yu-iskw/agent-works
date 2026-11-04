@@ -90,7 +90,8 @@ export function summarize(values: readonly number[]): {
 } {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const at = (index: number): number => sorted.at(index) ?? Number.NaN;
+  const median = sorted.length % 2 === 1 ? at(mid) : (at(mid - 1) + at(mid)) / 2;
   return { n: sorted.length, median, min: sorted[0], max: sorted[sorted.length - 1] };
 }
 

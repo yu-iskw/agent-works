@@ -14,48 +14,55 @@ Gate-level live proof (UNTESTED until attached):
 - Real Cloud SQL persistence and migrations 0001..0030 applied. Handoff: `docs/plans/enterprise-production-v1/fnd-03/README.md`
 - Operator stop and restore drill. Handoff: `docs/runbooks/dr-restore.md`
 
-### BASE-00
+### G1 BASE-00
+
+- `base-00/evidence.md:14` Issue and PR status confirmed against live GitHub / operator or authorized agent re-query of #161, #169, #174, #175, #1 / AWAITING_OPERATOR / n/a / live / n/a
+- `base-00/evidence.md:21` - Operator work still required: re-confirm issue and PR status and the model-policy decision (AWAITING_OPERATOR).
+
+### G1 FND-01
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
-### FND-01
+### G1 FND-02
 
-No AWAITING_OPERATOR line recorded in its evidence files.
+- `fnd-02/evidence.md:16` Real ports behave against live Postgres, Directory, Drive, model, OAuth / operator starts the production-mode API against the real providers and records the provider report / AWAITING_OPERATOR / n/a / live / n/a
+- `fnd-02/evidence.md:25` - Operator work still required: a production-mode boot against real providers (AWAITING_OPERATOR).
 
-### FND-02
-
-No AWAITING_OPERATOR line recorded in its evidence files.
-
-### FND-03
+### G1 FND-03
 
 - `fnd-03/evidence.md:15` Restore proves records, grants, audit, pending tasks / `docs/runbooks/dr-restore.md` operator checklist, steps 4 to 7 / AWAITING_OPERATOR / Live, unrun
 - `fnd-03/evidence.md:16` Migration step M1 / Job execution log, section "Serialized migration step" / AWAITING_OPERATOR / Live
 - `fnd-03/evidence.md:17` Verified `max_connections` and Cloud Run max instances / `SHOW max_connections;` and service config / AWAITING_OPERATOR / Live
 - `fnd-03/README.md:13` Restore checklist / `docs/runbooks/dr-restore.md`, "Operator restore checklist" / Live restore is AWAITING_OPERATOR
 
-### FND-04
+### G1 FND-04
 
-No AWAITING_OPERATOR line recorded in its evidence files.
+- `fnd-04/evidence.md:15` Stop, resume and a non-admin denial against the deployed dev stack / operator runs the runbook steps on dev with real IAP identities / AWAITING_OPERATOR / n/a / live / n/a
+- `fnd-04/evidence.md:24` - Operator work still required: live dev stop and resume drill (AWAITING_OPERATOR).
 
-### FND-05
+### G1 FND-05
 
 - `fnd-05/evidence.md:14` Live direct URL, wrong audience, unauthorized SA / operator OP-1 / AWAITING_OPERATOR / n/a / live / n/a
 - `fnd-05/identity-and-credential-controls.md:3` Status: local draft. Nothing is applied. Live proof is AWAITING_OPERATOR.
-- `fnd-05/identity-and-credential-controls.md:69` ## Operator steps and evidence (AWAITING_OPERATOR)
+- `fnd-05/identity-and-credential-controls.md:70` ## Operator steps and evidence (AWAITING_OPERATOR)
 
-### FND-06
+### G1 FND-06
 
 - Approval request: [renovate-handoff.md](../fnd-06/renovate-handoff.md)
+- `fnd-06/evidence.md:14` Renovate inherited config fixed in `yu-iskw/renovate-config` / operator opens the PR in that repository with the four `packageRules[0..3].description` string-to-array changes / AWAITING_OPERATOR / `renovate-handoff.md...
+- `fnd-06/evidence.md:15` Image SBOM, vulnerability scan, signature and provenance for a digest / release run on the deployed digest / AWAITING_OPERATOR / `release-evidence-policy.md` section 3 / live / n/a
 
-### AUTH-01
+### G1 AUTH-01
 
-No AWAITING_OPERATOR line recorded in its evidence files.
+- `auth-01/evidence.md:15` Real directory, approval and provider path against the deployed dev stack / operator exercises a denied and an allowed broker call with real identities / AWAITING_OPERATOR / n/a / live / n/a
+- `auth-01/evidence.md:24` - Operator work still required: the live broker drill (AWAITING_OPERATOR).
 
-### TASK-01
+### G1 TASK-01
 
-No AWAITING_OPERATOR line recorded in its evidence files.
+- `task-01/evidence.md:14` Live two-user proof through IAP / `e2e/dev/cross-user.spec.ts` with `AW_DEV_USER_A_RESOURCE_PATH` and `AW_DEV_USER_A_PRIVATE_CANARY`; queued under DEP-01, not run here (live) / AWAITING_OPERATOR / n/a / live / n/a
+- `task-01/evidence.md:23` - Operator work still required: the live two-user cross-user run (AWAITING_OPERATOR).
 
-### DEP-01
+### G1 DEP-01
 
 - Approval request: [operator-approval.md](../dep-01/operator-approval.md)
 - `dep-01/evidence.md:3` Task DEP-01. Branch `epv1/dep-01-dev-deploy`. Status: READY_FOR_REVIEW (local). Live items are AWAITING_OPERATOR. Base `epv1/integration`; result SHA is the commit that carries this file.
@@ -64,7 +71,7 @@ No AWAITING_OPERATOR line recorded in its evidence files.
 - `dep-01/evidence.md:23` Operator evidence: cross-user denial / `sec.cross-user-leak` / AWAITING_OPERATOR / live
 - `dep-01/evidence.md:24` Operator evidence: direct URL denial / `sec.direct-run-url-blocked` / AWAITING_OPERATOR / live
 
-### ACL-01
+### G1 ACL-01
 
 - Approval request: [operator-handoff.md](../acl-01/operator-handoff.md)
 - `acl-01/evidence.md:3` - Task / status: ACL-01 (SEC-02), READY_FOR_REVIEW locally. Live validation AWAITING_OPERATOR, see `operator-handoff.md`.
@@ -72,7 +79,7 @@ No AWAITING_OPERATOR line recorded in its evidence files.
 - `acl-01/evidence.md:15` Live arms against real Drive and managed search / `operator-handoff.md` commands / AWAITING_OPERATOR / none yet / live / n/a
 - `acl-01/operator-handoff.md:3` Status: AWAITING_OPERATOR. Nothing here has been run live. This is a request, not an approval.
 
-### OPS-01
+### G1 OPS-01
 
 - `ops-01/evidence.md:41` None required for the local deliverable. A real exporter (OTLP/Cloud Trace) and dashboards are operator-side: AWAITING_OPERATOR.
 
@@ -86,39 +93,39 @@ Gate-level live proof (UNTESTED until attached):
 - Authority revocation observed before enqueue, start and effect (SEC-03). Handoff: `docs/plans/enterprise-production-v1/agt-03/README.md`
 - Concurrency benchmark and P01 to P04 measurements. Handoff: `docs/plans/enterprise-production-v1/ops-04/README.md`
 
-### SCH-00
+### G2 SCH-00
 
 - `sch-00/contract.md:69` 7. **Contract (later).** Drop the legacy path only after an observation window. Restore into a separate approved environment before the flip (operator item, AWAITING_OPERATOR).
 - `sch-00/evidence.md:49` - Operator work: restore drill in a separate environment before cutover; Cloud Tasks live name and dedupe behavior check. AWAITING_OPERATOR.
 
-### SCH-01
+### G2 SCH-01
 
 - `sch-01/evidence.md:47` - Operator work: restore drill in a separate environment before the live flip, and the live observation window (duplicate count, claim skew, missed slots). AWAITING_OPERATOR.
 
-### SCH-02
+### G2 SCH-02
 
 - `sch-02/evidence.md:45` - Real Cloud Tasks adapter (`QueuePublisher` implementation, ALREADY_EXISTS mapping to `exists`, reserved-name window) is not built; no live calls made. AWAITING_OPERATOR for any live observation.
 
-### SCH-03
+### G2 SCH-03
 
 - Approval request: [operator-real-queue-test.md](../sch-03/operator-real-queue-test.md)
 - `sch-03/evidence.md:15` Real queue delivery / operator-real-queue-test.md / AWAITING_OPERATOR / n/a / live / n/a
 - `sch-03/operator-real-queue-test.md:1` # SCH-03 operator real-queue test (AWAITING_OPERATOR)
 
-### SCH-04
+### G2 SCH-04
 
 - `sch-04/evidence.md:58` AWAITING_OPERATOR: Stage 1 gate and O04 signoff before setting `AW_STANDING_GRANTS=on` with an O04 reference. Real grant limits are still placeholders.
 
-### SCH-05
+### G2 SCH-05
 
 - `sch-05/evidence.md:26` Live Cloud Tasks, real IAM, DB failover / not run / AWAITING_OPERATOR / live
 - `sch-05/fault-matrix.md:32` DB failover / Commit is the durability point; unpublished or unclaimed rows survive. No failover drill / AWAITING_OPERATOR / DUR-03
 
-### SCH-06
+### G2 SCH-06
 
 - `sch-06/evidence.md:66` - Operator work: none for local. Live enablement needs those values approved (`templates/operator-approval.md`): AWAITING_OPERATOR.
 
-### AGT-03
+### G2 AGT-03
 
 - `agt-03/evidence.md:15` O04 approval before live enablement / Flag needs `AW_STANDING_GRANTS_O04_REF`; no live run / AWAITING_OPERATOR / README "Activation" / live / n/a
 
@@ -133,35 +140,35 @@ Gate-level live proof (UNTESTED until attached):
 - Private versus shared bot isolation live. Handoff: `docs/plans/enterprise-production-v1/agt-04/evidence.md`
 - Dependency and execution status UI on the deployed web app. Handoff: `docs/plans/enterprise-production-v1/agt-07/evidence.md`
 
-### AGT-00
+### G3 AGT-00
 
 - `agt-00/evidence.md:26` - Operator work still required: none for AGT-00. AWAITING_OPERATOR for later live gates (O04 approval).
 
-### AGT-01
+### G3 AGT-01
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
-### AGT-02
+### G3 AGT-02
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
-### AGT-03
+### G3 AGT-03
 
 Also listed under an earlier gate; counted once in the total.
 
 - `agt-03/evidence.md:15` O04 approval before live enablement / Flag needs `AW_STANDING_GRANTS_O04_REF`; no live run / AWAITING_OPERATOR / README "Activation" / live / n/a
 
-### AGT-04
+### G3 AGT-04
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
-### AGT-05
+### G3 AGT-05
 
 - Approval request: [operator-handoff.md](../agt-05/operator-handoff.md)
 - `agt-05/evidence.md:15` Live sandbox isolation in `asia-northeast1` / operator handoff / AWAITING_OPERATOR / live
 - `agt-05/operator-handoff.md:1` # AGT-05 operator handoff (AWAITING_OPERATOR)
 
-### AGT-06
+### G3 AGT-06
 
 - Approval request: [operator-handoff.md](../agt-06/operator-handoff.md)
 - `agt-06/evidence.md:14` Private/shared separation and deletion on a real service / operator handoff / AWAITING_OPERATOR / live
@@ -169,7 +176,7 @@ No AWAITING_OPERATOR line recorded in its evidence files.
 - `agt-06/gate-decision-record.md:24` - Core recovery with adapter disabled: PASS locally (`memory-port.test.ts`); live check AWAITING_OPERATOR.
 - `agt-06/operator-handoff.md:1` # AGT-06 operator handoff (AWAITING_OPERATOR)
 
-### AGT-07
+### G3 AGT-07
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
@@ -186,26 +193,26 @@ Gate-level live proof (UNTESTED until attached):
 - Release SBOM and image vulnerability scan bound to the image digest. Handoff: `docs/plans/enterprise-production-v1/fnd-06/release-evidence-policy.md`
 - Tagged commit, image digests, signed go/no-go record (issue 175). Handoff: `docs/plans/enterprise-production-v1/ops-05/go-no-go-form.md`
 
-### OPS-02
+### G4 OPS-02
 
 - `ops-02/evidence.md:10` Counts reconcile to approved billing sample / `reconcileBillingSample` on fixture sample only / PASS on fixture; approved real sample AWAITING_OPERATOR / `fixtures/billing-sample.*` / local fixture / result SHA
 - `ops-02/evidence.md:12` P08 measured / `meetsProvisionalTarget` on ledger and billing sample; fixture sample 97.78% (fails 99% by design) / PASS as a measurement; real-period value AWAITING_OPERATOR / README / local / result SHA
 - `ops-02/evidence.md:14` Alert has named responder and runbook / `validateAlerts` fails on shipped proposal and on unset/TBD fields, passes when named / PASS (validation); real responder AWAITING_OPERATOR / `alerts.proposed.json` / local / re...
 - `ops-02/README.md:55` Provide an approved billing export for a real period (AWAITING_OPERATOR), name the responder and runbook, set thresholds, and have the finance owner set the dollar budget through `admission_limits`.
 
-### OPS-03
+### G4 OPS-03
 
 - `ops-03/evidence.md:3` Base: origin/epv1/integration. All results are local/offline. No live evidence exists; every live row is AWAITING_OPERATOR.
 - `ops-03/evidence.md:27` Live observations / AWAITING_OPERATOR, see operator items in `invariant-map.json` `live.operatorEvidence` / live
 
-### OPS-04
+### G4 OPS-04
 
 - `ops-04/evidence.md:3` - Task / owner / date / status: OPS-04 / agent / 2026-11-04 / READY_FOR_REVIEW locally. Live campaign AWAITING_OPERATOR.
 - `ops-04/evidence.md:18` Live soak, burst, worker kill, DB failover/restore, provider outage / `docs/runbooks/capacity-campaign.md` blocks A to D / AWAITING_OPERATOR / none / live / n/a
 - `ops-04/evidence.md:19` P06 RTO/RPO, P07 monthly availability / runbook Block D; P07 needs a monthly window / AWAITING_OPERATOR / none / live / n/a
 
-### OPS-05
+### G4 OPS-05
 
 No AWAITING_OPERATOR line recorded in its evidence files.
 
-Total AWAITING_OPERATOR lines (each task counted once): 44
+Total AWAITING_OPERATOR lines (each task counted once): 56

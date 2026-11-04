@@ -52,16 +52,26 @@ type Limit = {
   max_share_bps: number | null;
   max_cost_micros: string | null;
 };
-const column: Record<ScopeKind, string> = {
-  member: 'member_id',
-  bot: 'bot_id',
-  segment: 'segment_id',
-};
-const capReason: Record<ScopeKind, DenialReason> = {
-  member: 'member_cap',
-  bot: 'bot_cap',
-  segment: 'segment_cap',
-};
+function columnFor(kind: ScopeKind): string {
+  switch (kind) {
+    case 'member':
+      return 'member_id';
+    case 'bot':
+      return 'bot_id';
+    case 'segment':
+      return 'segment_id';
+  }
+}
+function capReasonFor(kind: ScopeKind): DenialReason {
+  switch (kind) {
+    case 'member':
+      return 'member_cap';
+    case 'bot':
+      return 'bot_cap';
+    case 'segment':
+      return 'segment_cap';
+  }
+}
 
 export async function createAdmissionService(options: AdmissionOptions): Promise<AdmissionService> {
   const { sql, leaseMs } = options;
@@ -139,7 +149,7 @@ export async function createAdmissionService(options: AdmissionOptions): Promise
     async inFlight(kind, id) {
       const rows = await sql<{ count: number }[]>`
         select count(*)::int as count from admission_reservations
-        where ${sql(column[kind])} = ${id} and state = 'active' and expires_at > ${clock()}`;
+        where ${sql(columnFor(kind))} = ${id} and state = 'active' and expires_at > ${clock()}`;
       return rows[0].count;
     },
   };
@@ -241,9 +251,9 @@ async function concurrencyDenial(
   const self = request.executionId;
   const held = await tx<{ count: number }[]>`
     select count(*)::int as count from admission_reservations
-    where ${tx(column[kind])} = ${id} and state = 'active' and expires_at > ${now}
+    where ${tx(columnFor(kind))} = ${id} and state = 'active' and expires_at > ${now}
       and execution_id <> ${self}`;
-  if (held[0].count >= limit.max_concurrent) return capReason[kind];
+  if (held[0].count >= limit.max_concurrent) return capReasonFor(kind);
   if (limit.max_share_bps === null) return undefined;
   // Fairness: one member holds at most its configured share of the segment, so a noisy member
   // cannot take the slots peers need. The floor of one keeps small segments usable.
@@ -265,7 +275,7 @@ async function costDenial(
   if (limit.max_cost_micros === null) return undefined;
   const spent = await tx<{ total: string }[]>`
     select coalesce(sum(cost_micros), 0)::text as total from admission_reservations
-    where ${tx(column[kind])} = ${id} and window_key = ${request.windowKey}
+    where ${tx(columnFor(kind))} = ${id} and window_key = ${request.windowKey}
       and execution_id <> ${request.executionId}`;
   const total = BigInt(spent[0].total) + BigInt(request.estimatedCostMicros);
   return total > BigInt(limit.max_cost_micros) ? 'cost_budget' : undefined;

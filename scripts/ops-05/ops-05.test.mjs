@@ -43,10 +43,21 @@ describe('security parsing', () => {
     const result = parseSecurity(securityRecord);
     expect(result.status).toBe('FAIL');
     expect(result.exitCode).toBe(1);
-    expect(result.findings.map((item) => item.id)).toEqual(
-      expect.arrayContaining(['trivy/GCP-0066', 'trivy/GCP-0078', knownId]),
-    );
+    expect(result.findings.map((item) => item.id)).toEqual(expect.arrayContaining([knownId]));
     expect(result.findings.every((item) => item.status === 'FAIL')).toBe(true);
+  });
+
+  it('parses Trivy findings from Trunk output by file and rule', () => {
+    const output =
+      'infra/terraform/modules/x/main.tf:41:0\n 41:0  high  Bucket not versioned.  trivy/GCP-0078\nChecked 1 files';
+    const result = parseSecurity({ output, exitCode: 1 });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'trivy/GCP-0078',
+        file: 'infra/terraform/modules/x/main.tf',
+        status: 'FAIL',
+      }),
+    );
   });
 
   it('records the known minimatch advisory as FAIL even when the output omits it', () => {

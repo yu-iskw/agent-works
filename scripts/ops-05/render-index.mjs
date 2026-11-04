@@ -45,14 +45,14 @@ export function renderOperatorIndex(root) {
       seen.add(task.id);
       if (task.operatorItems.length === 0 && handoffs.length === 0) {
         lines.push(
-          `### ${task.id}`,
+          `### ${gate} ${task.id}`,
           '',
           'No AWAITING_OPERATOR line recorded in its evidence files.',
           '',
         );
         continue;
       }
-      lines.push(`### ${task.id}`, '');
+      lines.push(`### ${gate} ${task.id}`, '');
       if (repeat) lines.push(`Also listed under an earlier gate; counted once in the total.`, '');
       else total += task.operatorItems.length;
       for (const path of handoffs)

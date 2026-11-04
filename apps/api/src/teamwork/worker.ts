@@ -437,6 +437,7 @@ function draftProposal(
         sources: a.sources.filter(
           (s) =>
             ctx.allowed.has(s) &&
+            // eslint-disable-next-line security/detect-object-injection -- closed source union
             (ctx.effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
         ),
       }))

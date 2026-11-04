@@ -7,7 +7,7 @@ locals {
     workflow    = "aw-workflow"
     scheduler   = "aw-scheduler"
   }
-  service_account_emails = merge({ for slot, name in local.runtime_accounts : slot => "${name}@${var.project_id}.iam.gserviceaccount.com" }, var.enable_bigquery_analytics ? { analytics = "aw-analytics@${var.project_id}.iam.gserviceaccount.com" } : {}, var.enable_agent ? { agent = "aw-agent@${var.project_id}.iam.gserviceaccount.com" } : {})
+  service_account_emails = merge({ for slot, name in local.runtime_accounts : slot => "${name}@${var.project_id}.iam.gserviceaccount.com" }, var.enable_bigquery_analytics ? { analytics = "aw-analytics@${var.project_id}.iam.gserviceaccount.com" } : {}, var.enable_agent ? { agent = "aw-agent@${var.project_id}.iam.gserviceaccount.com" } : {}, var.enable_worker ? { worker = "aw-worker@${var.project_id}.iam.gserviceaccount.com" } : {})
 }
 resource "google_service_account" "runtime" {
   for_each     = local.runtime_accounts
@@ -24,4 +24,10 @@ resource "google_service_account" "agent" {
   count      = var.enable_agent ? 1 : 0
   project    = var.project_id
   account_id = "aw-agent"
+}
+resource "google_service_account" "worker" {
+  count        = var.enable_worker ? 1 : 0
+  project      = var.project_id
+  account_id   = "aw-worker"
+  display_name = "aw-worker"
 }

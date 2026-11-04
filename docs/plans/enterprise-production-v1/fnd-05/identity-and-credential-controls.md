@@ -11,7 +11,8 @@ Status: local draft. Nothing is applied. Live proof is AWAITING_OPERATOR.
 
 ## Added
 
-- `modules/worker_identity`: `aw-worker` service account, invoker allow-list on the worker service, deployer `run.developer` and `serviceAccountUser`, observability project roles (no admin/primitive roles), private artifact bucket (`public_access_prevention = enforced`, uniform access). Rejects the API identity as a caller, empty or non service account callers, and a worker id equal to the API id.
+- `identity/dev` (`enable_worker`, default false): the `aw-worker` service account itself, because identity resources never live in modules.
+- `modules/worker_identity`: bindings for that account (it takes `worker_service_account_email`): invoker allow-list on the worker service, deployer `run.developer` and `serviceAccountUser`, observability project roles (no admin/primitive roles), private artifact bucket (`public_access_prevention = enforced`, uniform access). Rejects the API identity as a caller, empty or non service account callers, and a worker email equal to the API email. The artifact bucket has versioning on and an optional `kms_key_name` (CMEK), see residual risk R-15.
 - `apps/api/src/auth/service-identity.ts`: claim-set verifier for worker calls.
 - `scripts/fnd-05/check-identity-controls.mjs`: repository and plan-artifact check.
 
@@ -64,7 +65,7 @@ Worker and API are `INTERNAL_ONLY`; Cloud Scheduler, Workflows and Tasks callers
 
 ## Wiring (not applied; coordinator or operator)
 
-In `environments/dev` add a `module "worker_identity"` with `api_service_account_email = local.sa.api`, `deployer_email = local.sa.deployer`, `caller_service_account_emails` from the dispatcher/scheduler/workflow SAs, a `cloud_run_service` module `aw-worker` with `iap_enabled = false`, `ingress = module.worker_identity.required_ingress`, `service_account_email = module.worker_identity.service_account_email`; add the worker email to `artifact_registry.reader_emails` and the needed `secrets` `accessor_emails`. Then run the checker on `terraform show -json`. Excluded by brief: `.github/workflows/deploy-dev.yml` (#24) and #25 paths.
+Set `enable_worker = true` in `identity/dev` first. In `environments/dev` add a `module "worker_identity"` with `worker_service_account_email = local.sa.worker`, `api_service_account_email = local.sa.api`, `deployer_email = local.sa.deployer`, `caller_service_account_emails` from the dispatcher/scheduler/workflow SAs, a `cloud_run_service` module `aw-worker` with `iap_enabled = false`, `ingress = module.worker_identity.required_ingress`, `service_account_email = module.worker_identity.service_account_email`; add the worker email to `artifact_registry.reader_emails` and the needed `secrets` `accessor_emails`. Then run the checker on `terraform show -json`. Excluded by brief: `.github/workflows/deploy-dev.yml` (#24) and #25 paths.
 
 ## Operator steps and evidence (AWAITING_OPERATOR)
 

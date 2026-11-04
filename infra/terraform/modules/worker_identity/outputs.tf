@@ -1,6 +1,6 @@
 output "service_account_email" {
   description = "Worker runtime service account email."
-  value       = google_service_account.worker.email
+  value       = var.worker_service_account_email
 }
 output "oidc_audience" {
   description = "Audience callers must request in their ID token: the worker Cloud Run URL."
