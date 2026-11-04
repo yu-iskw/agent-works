@@ -294,11 +294,11 @@ async function simulate(
     stats.noisyTried += 12;
     stats.noisyAdmitted += wave.length;
     noisyWaves.push(wave);
-    const peers = ['p1', 'p2', 'p3', 'p4'];
-    peerHeld = await tryMany(svc, peers.length, (i) =>
-      request({ memberId: peers[i], botId: `b-${peers[i]}` }),
+    const peerCount = 4;
+    peerHeld = await tryMany(svc, peerCount, (i) =>
+      request({ memberId: `p${i + 1}`, botId: `b-p${i + 1}` }),
     );
-    stats.peerTried += peers.length;
+    stats.peerTried += peerCount;
     stats.peerAdmitted += peerHeld.length;
   }
   return stats;

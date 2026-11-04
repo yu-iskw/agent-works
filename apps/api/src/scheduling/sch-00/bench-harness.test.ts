@@ -88,7 +88,9 @@ describe.skipIf(!live)('smoke: both stores drain every due schedule exactly once
         large,
         scaling,
       };
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- operator-chosen output path from SCH00_BENCH_OUT, test-only
       mkdirSync(dirname(fullOut!), { recursive: true });
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- same operator-chosen SCH00_BENCH_OUT path
       writeFileSync(fullOut!, JSON.stringify(report, null, 2));
       expect(
         [...trials, ...large, ...scaling].every((t) => t.duplicates === 0 && t.missing === 0),
