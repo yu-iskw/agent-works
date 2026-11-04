@@ -486,6 +486,25 @@ describe(
       expect(await modelCalls(a.id)).toBe(1);
     });
 
+    it('starts synthesis when the approved revision leaves nothing to dispatch', async () => {
+      const d = segmentDeps(sql, { model: failing() });
+      const { taskId, plan, a, cas } = await halfDone(d);
+      await reviseGraph(d, alice, taskId, {
+        cas,
+        content: { ...plan.content, assignments: [plan.content.assignments[0]] },
+      });
+      const next = (await taskDetail(d, alice, taskId))!.plans.at(-1)!;
+      await approve(d, taskId, next);
+      const queued = await sql<
+        { kind: string }[]
+      >`select kind from tw_jobs where task_id = ${taskId} and state = 'queued'`;
+      expect(queued.map((j) => j.kind)).toEqual(['synthesis']);
+      expect((await taskDetail(d, alice, taskId))!.task.status).toBe('synthesizing');
+      await drain(d);
+      expect((await taskDetail(d, alice, taskId))!.task.status).toBe('ready');
+      expect(await modelCalls(a.id)).toBe(1);
+    });
+
     it('leaves the last committed graph when the editor dies inside the transaction', async () => {
       const d = segmentDeps(sql, { model: failing() });
       const { taskId, plan, cas } = await halfDone(d);
