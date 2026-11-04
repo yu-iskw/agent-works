@@ -7,6 +7,7 @@ import { segmentsFor } from './config.js';
 import type { Segment, WebConfig } from './config.js';
 import type { AssertionSigner, Session } from './identity.js';
 import type { ApiResult } from '../workbench/api.js';
+import type { BotDefinition, BotDiagnostic } from '@agent-works/domain';
 import type {
   InstallationView,
   MarketplaceDetail,
@@ -28,6 +29,78 @@ import type {
   TemplateView,
 } from '@agent-works/domain/teamwork';
 import type { PortableFinding } from '@agent-works/domain/teamwork-portable';
+
+export type BotPreview = {
+  revision: number;
+  digest: string;
+  name: string;
+  purpose: string;
+  planning: string;
+  steps: BotDefinition['workflow']['steps'];
+  skills: ({ stepId: string } & Extract<
+    BotDefinition['workflow']['steps'][number],
+    { kind: 'skill' }
+  >['skill'])[];
+  externalAgents: {
+    stepId: string;
+    agentId: string;
+    displayName: string;
+    instruction: string;
+    dataSentExternally: { stepId: string; title: string }[];
+  }[];
+  triggers: (BotDefinition['triggers'][number] & { description: string })[];
+  approvals: BotDefinition['approvals'] & { checkpoints: { stepId: string; prompt: string }[] };
+  limits: BotDefinition['limits'];
+  result: BotDefinition['result'];
+  capabilities: string[];
+};
+export type BotDesign =
+  | {
+      outcome: 'draft';
+      revision: number;
+      digest: string;
+      preview: BotPreview;
+      reply: string;
+      messageId: string;
+    }
+  | { outcome: 'needs_changes'; diagnostics: BotDiagnostic[]; reply: string; messageId: string };
+export type BotRun = {
+  taskId: string;
+  teammateId: string;
+  revision: number;
+  status: string;
+  createdAt: string;
+  steps: {
+    stepId: string;
+    kind: string;
+    title: string;
+    status: string;
+    attempt: number;
+    errorCode: string | null;
+    terminalReason: string | null;
+    outputSummary: string | null;
+    external: {
+      agentId: string;
+      handle: string | null;
+      lastStatus: string | null;
+      cancel: string;
+    } | null;
+  }[];
+  approvals: { id: string; state: string; prompt: string; actionDigest: string }[];
+  lastError: { code: string; message: string } | null;
+  cost: {
+    completeness: 'complete' | 'partial' | 'unknown';
+    estimatedMicros: number | null;
+    reportedMicros: number | null;
+    unknownItems: string[];
+  };
+  result: { text: string } | null;
+  actions: { canCancel: boolean; canRetry: string[]; canResolve: string[]; canApprove: string[] };
+};
+export type BotRunSummary = Pick<
+  BotRun,
+  'taskId' | 'teammateId' | 'revision' | 'status' | 'createdAt'
+>;
 
 export type { ApiResult } from '../workbench/api.js';
 
@@ -98,6 +171,8 @@ export type ExportPreview = {
  * and only if the member belongs to it; every request carries a 60-second assertion whose
  * audience is that segment, so a token for one backend is useless at the other.
  */
+// The segment client centralizes the BFF's authenticated API calls.
+// eslint-disable-next-line max-lines-per-function
 export function createSegmentClient(
   config: WebConfig,
   signer: AssertionSigner,
@@ -152,6 +227,24 @@ export function createSegmentClient(
 
   return {
     segmentFor,
+    botPreview: (s: Session, seg: string, id: string) =>
+      call<{ preview: BotPreview }>(s, seg, 'GET', `/bots/${id}/preview`),
+    botActive: (s: Session, seg: string, id: string) =>
+      call<{ revision: { revision: number; digest: string } }>(s, seg, 'GET', `/bots/${id}/active`),
+    botDesign: (s: Session, seg: string, id: string, body: unknown) =>
+      call<BotDesign>(s, seg, 'POST', `/bots/${id}/design`, body),
+    botPublish: (s: Session, seg: string, id: string, body: unknown) =>
+      call<unknown>(s, seg, 'POST', `/bots/${id}/publish`, body),
+    botExport: (s: Session, seg: string, id: string, revision: string) =>
+      call<{ export: unknown }>(s, seg, 'GET', `/bots/${id}/revisions/${revision}/export`),
+    botRuns: (s: Session, seg: string, id: string) =>
+      call<{ runs: BotRunSummary[] }>(s, seg, 'GET', `/bots/${id}/runs`),
+    botStart: (s: Session, seg: string, id: string, body: unknown) =>
+      call<{ run: BotRun }>(s, seg, 'POST', `/bots/${id}/runs`, body),
+    botRun: (s: Session, seg: string, id: string) =>
+      call<{ run: BotRun }>(s, seg, 'GET', `/bot-runs/${id}`),
+    botRunCommand: (s: Session, seg: string, id: string, suffix: string, body: unknown) =>
+      call<{ run: BotRun }>(s, seg, 'POST', `/bot-runs/${id}/${suffix}`, body),
     me: (s: Session, seg: string) => call<Readiness>(s, seg, 'GET', '/me'),
     catalog: (s: Session, seg: string) =>
       call<{ templates: TemplateView[]; skills: SkillView[] }>(s, seg, 'GET', '/catalog'),

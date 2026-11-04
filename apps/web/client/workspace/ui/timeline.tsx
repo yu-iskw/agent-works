@@ -59,6 +59,7 @@ function Bubble(props: {
 }): JSX.Element {
   const { item, state } = props;
   const voice = voiceOf(item, state);
+  const card = state.conversation?.messages.find((message) => message.id === item.messageId)?.card;
   const { mine, name } = voice;
   const stamp = <time dateTime={item.at}>{clockTime(item.at)}</time>;
   return (
@@ -78,6 +79,17 @@ function Bubble(props: {
         )}
         <div class="bubble">
           {mine ? <p class="msg-text">{item.text}</p> : <Markdown text={item.text} />}
+          {card?.kind === 'bot_draft' ? (
+            <p>
+              <a
+                href={`/s/${encodeURIComponent(state.scope.segment)}/bots/${encodeURIComponent(card.teammateId)}`}
+              >
+                {card.outcome === 'draft'
+                  ? `Review bot draft revision ${card.revision}`
+                  : 'Review bot design'}
+              </a>
+            </p>
+          ) : null}
           {item.grouped ? <span class="msg-stamp">{stamp}</span> : null}
         </div>
       </div>

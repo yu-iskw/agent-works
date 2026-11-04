@@ -333,6 +333,14 @@ function Editor(props: { readonly detail: TeammateDetail; readonly onReload: () 
         )}
       </section>
       <section class="pn-section">
+        <h3>Bot workflows</h3>
+        <p>
+          <a href={`/s/${encodeURIComponent(segment)}/bots/${encodeURIComponent(detail.id)}`}>
+            Design and run a bot
+          </a>
+        </p>
+      </section>
+      <section class="pn-section">
         <h3>Export</h3>
         <p class="muted">
           <a href={pages.teammateExport(segment, detail.id)}>Export this teammate</a> as a portable
