@@ -20,6 +20,7 @@ export type ExecutionOptions = {
   grants: GrantStore;
   admission: AdmissionService;
   pollMs?: number;
+  allowLoopback?: boolean;
 };
 export type RunRow = {
   task_id: string;

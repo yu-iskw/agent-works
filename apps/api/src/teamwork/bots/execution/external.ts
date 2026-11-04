@@ -201,7 +201,7 @@ export function createExternalHandler(
       if (agent)
         client = await connectAgentTask(agent, {
           fetch: deps.fetch,
-          allowLoopback: deps.config.identity === 'local-test',
+          allowLoopback: options.allowLoopback === true,
         });
       await act(job, state, client);
     } catch (error) {

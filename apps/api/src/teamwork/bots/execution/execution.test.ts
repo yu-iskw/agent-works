@@ -159,6 +159,7 @@ beforeEach(async () => {
     grants: createPostgresGrantStore(sql),
     admission: await createAdmissionService({ sql, leaseMs: 300_000, now: deps.now }),
     pollMs: 1,
+    allowLoopback: true,
   };
   execution = registerBotExecution(options);
   commands = createRunCommands(options, execution);

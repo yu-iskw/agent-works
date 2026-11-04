@@ -307,12 +307,11 @@ async function configureBots(deps: Deps, env: Env) {
       );
   }
   const registryJson = await registryConfig(env);
-  const registry = parseAgentRegistry(registryJson, {
-    allowLoopback:
-      env.AW_BOT_MCP_ALLOW_LOOPBACK === 'on' &&
-      env.NODE_ENV !== 'production' &&
-      deps.config.identity === 'local-test',
-  });
+  const allowLoopback =
+    env.AW_BOT_MCP_ALLOW_LOOPBACK === 'on' &&
+    env.NODE_ENV !== 'production' &&
+    deps.config.identity === 'local-test';
+  const registry = parseAgentRegistry(registryJson, { allowLoopback });
   const service = createBotService(deps, async () => ({
     segmentCapabilities: await segmentCapabilities(deps),
     approvedAgents: registry,
@@ -322,6 +321,7 @@ async function configureBots(deps: Deps, env: Env) {
     deps,
     service,
     registry,
+    allowLoopback,
     skills,
     admission,
     grants: createPostgresGrantStore(deps.sql),
