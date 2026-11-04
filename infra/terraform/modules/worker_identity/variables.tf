@@ -70,3 +70,8 @@ variable "artifact_bucket_name" {
   description = "Private artifact bucket name."
   type        = string
 }
+variable "kms_key_name" {
+  description = "Optional customer-managed Cloud KMS key (full resource name) for the artifact bucket. Null keeps Google-managed encryption; key ownership is an open operator decision."
+  type        = string
+  default     = null
+}

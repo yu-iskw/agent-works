@@ -38,15 +38,26 @@ resource "google_service_account_iam_member" "deployer_acts_as" {
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.deployer_email}"
 }
+# CMEK key ownership is an open operator decision (residual-risk-register R-15); until it is made
+# the bucket uses Google-managed keys. Setting var.kms_key_name switches it to CMEK.
+#trivy:ignore:GCP-0066
 resource "google_storage_bucket" "artifacts" {
   #checkov:skip=CKV_GCP_62:Access logging for the artifact bucket is decided with the retention and audit settings.
-  #checkov:skip=CKV_GCP_78:Object versioning follows the retention decision, which is still open.
   project                     = var.project_id
   name                        = var.artifact_bucket_name
   location                    = var.region
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = false
+  versioning {
+    enabled = true
+  }
+  dynamic "encryption" {
+    for_each = var.kms_key_name == null ? [] : [var.kms_key_name]
+    content {
+      default_kms_key_name = encryption.value
+    }
+  }
 }
 resource "google_storage_bucket_iam_member" "artifact_users" {
   for_each = { worker = google_service_account.worker.email, api = var.api_service_account_email }

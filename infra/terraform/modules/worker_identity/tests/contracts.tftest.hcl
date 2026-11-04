@@ -57,3 +57,20 @@ run "reject_worker_equal_to_api" {
   }
   expect_failures = [google_service_account.worker]
 }
+run "artifact_bucket_versioned_and_google_managed_by_default" {
+  command = plan
+  assert {
+    condition     = google_storage_bucket.artifacts.versioning[0].enabled && length(google_storage_bucket.artifacts.encryption) == 0
+    error_message = "Versioning is on and no CMEK is configured unless a key is supplied."
+  }
+}
+run "artifact_bucket_uses_supplied_cmek" {
+  command = plan
+  variables {
+    kms_key_name = "projects/aw-test-project/locations/asia-northeast1/keyRings/aw/cryptoKeys/artifacts"
+  }
+  assert {
+    condition     = google_storage_bucket.artifacts.encryption[0].default_kms_key_name == "projects/aw-test-project/locations/asia-northeast1/keyRings/aw/cryptoKeys/artifacts"
+    error_message = "A supplied key is wired to the bucket."
+  }
+}
