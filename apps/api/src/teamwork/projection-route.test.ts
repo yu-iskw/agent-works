@@ -102,6 +102,30 @@ describe('graph projection', { timeout: 90_000 }, () => {
     expect(JSON.stringify(nodes)).not.toContain(CANARY);
   });
 
+  it('links a result to a path the web router recognizes as that result panel', async () => {
+    const d = segmentDeps(sql);
+    const { taskId, plan } = await proposedTask(d, 'Compare launches');
+    await approve(d, taskId, plan);
+    await drain(d);
+    // The web router lives outside this package's rootDir; the test loads it, the build does not.
+    const routerPath = new URL('../../../web/shared/route.ts', import.meta.url).href;
+    const { parseRoute } = (await import(/* @vite-ignore */ routerPath)) as {
+      parseRoute: (pathname: string) => unknown;
+    };
+    const links = (await view(d, taskId)).nodes.flatMap((n) => (n.result ? [n.result.href] : []));
+    expect(links.length).toBeGreaterThan(0);
+    const [{ result_owner: owner, latest_revision: revision }] = await sql<
+      { result_owner: string; latest_revision: number }[]
+    >`select result_owner, latest_revision from wb_tasks where id = ${taskId}`;
+    for (const href of links) {
+      expect(parseRoute(href)).toMatchObject({
+        segment: d.config.segment,
+        teammate: owner,
+        panel: { kind: 'result', taskId, revision, view: 'result' },
+      });
+    }
+  });
+
   it('omits an inaccessible node and every trace of it, in the body as well as the nodes', async () => {
     const d = segmentDeps(sql);
     const { taskId, plan } = await proposedTask(d, 'Compare launches', chained);
