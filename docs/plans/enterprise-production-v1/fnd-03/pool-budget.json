@@ -1,0 +1,13 @@
+{
+  "status": "PROPOSAL: every number is an unapproved placeholder until the operator confirms the instance limit and the Cloud Run max-instance settings. The pool sizes are NOT what the code does today: the postgres driver defaults to 10 and sets none here. Run `node scripts/db-pool-budget.mjs` for both results",
+  "maxConnections": 100,
+  "superuserReserved": 3,
+  "platformReserved": 5,
+  "migrationReserve": 3,
+  "operatorReserve": 5,
+  "workloads": [
+    { "name": "api", "maxInstances": 8, "poolSize": 4 },
+    { "name": "web-m1", "maxInstances": 5, "poolSize": 3 },
+    { "name": "worker-dispatcher", "maxInstances": 4, "poolSize": 3 }
+  ]
+}

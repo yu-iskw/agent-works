@@ -12,6 +12,7 @@ import { applyWorkbenchMigration } from '../workbench/migration.js';
 
 import { listTemplates, seedCatalog } from './catalog.js';
 import { readSegmentConfig } from './config.js';
+import { applyGraphMigration } from './graph-migration.js';
 import {
   bootstrapInstallations,
   getInstallation,
@@ -53,6 +54,7 @@ beforeAll(async () => {
   database = await startDisposablePostgres();
   sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
   const base = readSegmentConfig({
     AW_SEGMENT_ID: 'alpha',
     AW_IDENTITY: 'local-test',

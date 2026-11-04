@@ -11,11 +11,14 @@
         "scripts/adc-probe.mjs",
         "e2e/p0/playwright.config.ts",
         "tools/finops/*.mjs",
+        "scripts/sch-00/*.mjs",
         "tools/slo/*.mjs",
         "tools/restore-drill/*.mjs",
         "e2e/m1/playwright.config.ts",
         "scripts/m1/*.mjs",
         "e2e/ui/playwright.config.ts",
+        "e2e/ui/graph-status/playwright.config.ts",
+        "e2e/ui/graph-status/build-harness.mjs",
         "scripts/ui/*.mjs"
       ],
       "project": [

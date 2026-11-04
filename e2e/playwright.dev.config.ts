@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+import { loadDeployBinding } from './dev/deploy-binding.js';
+
 import type { PlaywrightTestConfig } from '@playwright/test';
 
 export type DevEnv = Readonly<Record<string, string | undefined>>;
@@ -16,6 +18,32 @@ const REQUIRED_ENV_KEYS = [
   'AW_DEV_ID_TOKEN_A',
   'AW_DEV_ID_TOKEN_B',
 ] as const;
+
+const FAKE_STACK_KEYS = ['AW_DEV_STACK', 'AW_FAKE_USER', 'AW_FAKE_IAP_URL'] as const;
+const PLACEHOLDER_SHAPE = /<[^>]*>|\$\{[^}]*\}/;
+const PLACEHOLDER_WORDS =
+  /placeholder|changeme|change-me|replace-me|your-token|dummy|fake|todo|x{4,}|project-number/i;
+// A real IAP ID token is far longer, so a random token cannot trip the word check.
+const WORD_CHECK_MAX_LENGTH = 200;
+const MIN_TOKEN_LENGTH = 20;
+
+function isPlaceholder(value: string): boolean {
+  return (
+    PLACEHOLDER_SHAPE.test(value) ||
+    (value.length < WORD_CHECK_MAX_LENGTH && PLACEHOLDER_WORDS.test(value))
+  );
+}
+
+/** The dev suite must never run against, or be configured for, the local fake stack. */
+function assertNoFakeFallback(env: DevEnv): void {
+  for (const key of FAKE_STACK_KEYS) {
+    // eslint-disable-next-line security/detect-object-injection -- key is from a fixed literal tuple
+    const value = env[key];
+    if (value !== undefined && value.trim().length > 0) {
+      throw new Error(`${key} must not be set when running the dev suite (no fake fallback)`);
+    }
+  }
+}
 
 export function isDevConfigAbsent(env: DevEnv = process.env): boolean {
   return REQUIRED_ENV_KEYS.every((key) => {
@@ -95,6 +123,9 @@ export function validateDevServiceUrl(
   allowedHosts: ReadonlySet<string>,
   envName: string,
 ): string {
+  if (isPlaceholder(rawUrl?.trim() ?? '')) {
+    throw new Error(`${envName} still holds a placeholder value`);
+  }
   const parsed = parseHttpsUrl(rawUrl, envName);
   assertCleanUrlParts(parsed, envName);
   const host = parsed.hostname.toLowerCase();
@@ -136,6 +167,9 @@ export type CrossUserResourceConfig =
       readonly reason: string;
     };
 
+// Mirrors the owner-read routes in apps/web/app/tasks/handler.ts (guarded by a drift test).
+const OWNER_READ_PATH = /^\/(tasks|artifacts)\/[a-zA-Z0-9_-]{1,128}$/;
+
 export function resolveCrossUserResourceConfig(env: DevEnv = process.env): CrossUserResourceConfig {
   const resourcePath = env.AW_DEV_USER_A_RESOURCE_PATH?.trim() ?? '';
   const canary = env.AW_DEV_USER_A_PRIVATE_CANARY?.trim() ?? '';
@@ -143,15 +177,17 @@ export function resolveCrossUserResourceConfig(env: DevEnv = process.env): Cross
     return {
       status: 'blocked',
       reason:
-        'BLOCKED: aw-web (apps/web/app/web-app.ts, apps/web/src/server.ts) exposes no GET route for ask/citation/audit records created by POST /, does not proxy /v1/* routes, and /approvals/:id cannot be created from aw-web (and maps upstream 403 to 503 in apps/web/app/approvals/reader.ts). Follow-up issue required to expose a user-scoped readable resource route on aw-web, or set AW_DEV_USER_A_RESOURCE_PATH and AW_DEV_USER_A_PRIVATE_CANARY once that route exists.',
+        'BLOCKED: set AW_DEV_USER_A_RESOURCE_PATH to a record User A owns on aw-web (GET /tasks/<id> or GET /artifacts/<id>) and AW_DEV_USER_A_PRIVATE_CANARY to a string only that record contains. Owner access and cross-user denial cannot be evidenced without both.',
     };
   }
-  if (!resourcePath.startsWith('/') || resourcePath.startsWith('//')) {
-    throw new Error('AW_DEV_USER_A_RESOURCE_PATH must be a relative path starting with "/"');
-  }
-  if (resourcePath === '/v1' || resourcePath.startsWith('/v1/')) {
+  if (isPlaceholder(resourcePath) || isPlaceholder(canary)) {
     throw new Error(
-      'AW_DEV_USER_A_RESOURCE_PATH must not target /v1/* on aw-web (aw-web returns 404 for all /v1/* routes)',
+      'AW_DEV_USER_A_RESOURCE_PATH and AW_DEV_USER_A_PRIVATE_CANARY must not be placeholders',
+    );
+  }
+  if (!OWNER_READ_PATH.test(resourcePath)) {
+    throw new Error(
+      'AW_DEV_USER_A_RESOURCE_PATH must be /tasks/<id> or /artifacts/<id>, the owner-read routes aw-web serves',
     );
   }
   return { status: 'ready', resourcePath, canary };
@@ -210,6 +246,9 @@ function validateIdentityToken(rawToken: string | undefined, envName: string): s
   if (/\s/.test(trimmed)) {
     throw new Error(`${envName} must be a single bearer token without whitespace`);
   }
+  if (isPlaceholder(trimmed) || trimmed.length < MIN_TOKEN_LENGTH) {
+    throw new Error(`${envName} is a placeholder or too short to be a real identity token`);
+  }
   return trimmed;
 }
 
@@ -256,7 +295,15 @@ function assertDistinctIdentities(tokenA: string, tokenB: string): void {
   }
 }
 
+function assertUrlMatchesDeployment(baseURL: string, deployedUrl: string | undefined): void {
+  if (!new URL(baseURL).hostname.endsWith('.run.app')) return;
+  if (deployedUrl === undefined || new URL(deployedUrl).origin !== baseURL) {
+    throw new Error('AW_DEV_URL does not match the aw-web url recorded in the deploy summary');
+  }
+}
+
 export function loadDevConfig(env: DevEnv = process.env): PlaywrightTestConfig {
+  assertNoFakeFallback(env);
   const allowedHosts = parseAllowedHosts(env.AW_DEV_ALLOWED_HOSTS);
   const baseURL = validateDevServiceUrl(env.AW_DEV_URL, allowedHosts, 'AW_DEV_URL');
   const approvedRaw = env.AW_DEV_OPERATOR_APPROVED_URL?.trim() ?? '';
@@ -272,6 +319,7 @@ export function loadDevConfig(env: DevEnv = process.env): PlaywrightTestConfig {
     throw new Error('AW_DEV_OPERATOR_APPROVED_URL must exactly match AW_DEV_URL');
   }
   resolveDevApiUrl(env);
+  assertUrlMatchesDeployment(baseURL, loadDeployBinding(env).web.url);
   const tokenA = validateIdentityToken(env.AW_DEV_ID_TOKEN_A, 'AW_DEV_ID_TOKEN_A');
   const tokenB = validateIdentityToken(env.AW_DEV_ID_TOKEN_B, 'AW_DEV_ID_TOKEN_B');
   assertDistinctIdentities(tokenA, tokenB);

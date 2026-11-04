@@ -4,6 +4,8 @@ import { expect, test } from '@playwright/test';
 
 import { requireDevPlaywrightConfig } from '../playwright.dev.config.js';
 
+import { attachDeployBinding } from './deploy-binding.js';
+
 const devConfig = requireDevPlaywrightConfig(process.env);
 const question = process.env.AW_DEV_SYNTHETIC_QUESTION ?? 'What are the triage runbook steps?';
 const provisionalBudgetMs = 4000;
@@ -28,6 +30,7 @@ function percentile(samples: readonly number[], percentileRank: number): number 
 test.describe('dev identity smoke behind IAP', () => {
   test('skeleton.sign-in-ask-cite-audit', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
+    await attachDeployBinding(testInfo, process.env);
     const baseURL = devConfig.use?.baseURL;
     expect(baseURL).toBeTruthy();
 

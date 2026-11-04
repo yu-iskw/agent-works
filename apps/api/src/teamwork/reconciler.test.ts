@@ -410,4 +410,38 @@ describe('reconciler', () => {
     expect(store.current().observed_state).toBe('healthy');
     expect(errors).toHaveLength(1);
   });
+
+  it('does not re-ensure a connector an admin disabled after the pass listed it', async () => {
+    const initial = row({ version: '1.0.0', observed_state: 'pending' });
+    const { fake, store, reconciler } = setup(initial);
+    const stale = [initial];
+    store.list = async () => {
+      await store.update({
+        id: 'google',
+        expectedGeneration: initial.generation,
+        actor: 'admin@local.test',
+        action: 'installation.disable',
+        change: { desiredState: 'disabled' },
+      });
+      return stale;
+    };
+    expect(await outcomes(reconciler)).toEqual(['skipped']);
+    expect(ensures(fake)).toEqual([]);
+    expect(store.current()).toMatchObject({
+      desired_state: 'disabled',
+      updated_by: 'admin@local.test',
+    });
+  });
+
+  it('writes every state change as system:reconciler and leaves a reduced subset untouched', async () => {
+    const { store, reconciler } = setup(
+      row({ version: '1.0.0', observed_state: 'pending', capabilities: ['drive.read'] }),
+    );
+    await reconciler.tick();
+    expect(store.current()).toMatchObject({
+      observed_state: 'healthy',
+      updated_by: 'system:reconciler',
+      capabilities: ['drive.read'],
+    });
+  });
 });

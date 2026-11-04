@@ -8,6 +8,8 @@ import {
   resolveCrossUserResourceConfig,
 } from '../playwright.dev.config.js';
 
+import { attachDeployBinding } from './deploy-binding.js';
+
 import type { TestInfo } from '@playwright/test';
 
 const devConfig = requireDevPlaywrightConfig(process.env);
@@ -41,8 +43,31 @@ async function attachEvidence(
 test.describe.configure({ retries: 0 });
 
 test.describe('dev cross-user isolation behind IAP', () => {
+  test('sec.owner-access', async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await attachDeployBinding(testInfo, process.env);
+    const baseURL = devConfig.use?.baseURL;
+    expect(baseURL).toBeTruthy();
+
+    const resourceConfig = resolveCrossUserResourceConfig(process.env);
+    if (resourceConfig.status === 'blocked') {
+      testInfo.annotations.push({ type: 'BLOCKED', description: resourceConfig.reason });
+      expect(resourceConfig.status, resourceConfig.reason).toBe('ready');
+      return;
+    }
+
+    const owner = await page.request.get(`${baseURL}${resourceConfig.resourcePath}`, {
+      headers: { Authorization: `Bearer ${process.env.AW_DEV_ID_TOKEN_A?.trim() ?? ''}` },
+      maxRedirects: 0,
+    });
+    expect(owner.status(), 'the owner must read their own record on the deployed digest').toBe(200);
+    expect(owner.headers()['content-type']).toContain('application/json');
+    expect(await owner.text()).toContain(resourceConfig.canary);
+  });
+
   test('sec.cross-user-leak', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
+    await attachDeployBinding(testInfo, process.env);
     const baseURL = devConfig.use?.baseURL;
     expect(baseURL).toBeTruthy();
 
@@ -76,13 +101,10 @@ test.describe('dev cross-user isolation behind IAP', () => {
       return;
     }
 
-    // 2. Resolve a real web-service route on aw-web where User A can read a User-A-specific
-    // resource. aw-web (apps/web/app/web-app.ts, apps/web/src/server.ts) does not mount /v1/*
-    // (returns 404 for all /v1/*), does not expose a GET route for ask/citation/audit records
-    // created by POST /, and has no web route to create an approval (while /approvals/:id maps
-    // upstream 403 to 503 in apps/web/app/approvals/reader.ts). Until a readable per-user route
-    // exists on aw-web and is configured via AW_DEV_USER_A_RESOURCE_PATH + AW_DEV_USER_A_PRIVATE_CANARY,
-    // fail closed as BLOCKED rather than passing vacuously.
+    // 2. aw-web serves the owner-readable, read-only GET /tasks/:id and GET /artifacts/:id
+    // (apps/web/app/tasks/handler.ts). Point AW_DEV_USER_A_RESOURCE_PATH at one of User A's
+    // records and AW_DEV_USER_A_PRIVATE_CANARY at a string only that record contains. Without
+    // both, fail closed as BLOCKED rather than passing vacuously.
     const resourceConfig = resolveCrossUserResourceConfig(process.env);
     if (resourceConfig.status === 'blocked') {
       testInfo.annotations.push({ type: 'BLOCKED', description: resourceConfig.reason });
@@ -116,6 +138,27 @@ test.describe('dev cross-user isolation behind IAP', () => {
     });
     const userBStatus = userBResponse.status();
     const userBBody = await userBResponse.text();
+
+    // 5. Outsider: no credential and a forged one must be denied on the same URL, and an
+    // unguessable id under the same collection must reveal nothing.
+    const collection = resourceConfig.resourcePath.split('/').slice(0, 2).join('/');
+    const outsiderResponse = await page.request.get(exactResourceUrl, { maxRedirects: 0 });
+    const forgedResponse = await page.request.get(exactResourceUrl, {
+      headers: { Authorization: 'Bearer forged.invalid.token' },
+      maxRedirects: 0,
+    });
+    const randomResponse = await page.request.get(
+      `${baseURL}${collection}/${crypto.randomUUID()}`,
+      { headers: { Authorization: `Bearer ${tokenB}` }, maxRedirects: 0 },
+    );
+    for (const denied of [outsiderResponse, forgedResponse, randomResponse]) {
+      expect([302, 401, 403, 404], 'outsider/forged/random must be denied').toContain(
+        denied.status(),
+      );
+      expect(await denied.text(), 'no canary for outsider/forged/random').not.toContain(
+        resourceConfig.canary,
+      );
+    }
 
     const evaluation = evaluateCrossUserProbe({
       resourcePath: resourceConfig.resourcePath,

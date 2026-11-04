@@ -4489,6 +4489,351 @@
           }
         }
       }
+    },
+    "/v1/admin/outstanding": {
+      "get": {
+        "operationId": "adminOutstanding",
+        "summary": "adminOutstanding",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ops/dashboard": {
+      "post": {
+        "operationId": "opsDashboard",
+        "summary": "opsDashboard",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ops/dashboard/reconcile": {
+      "post": {
+        "operationId": "opsDashboardReconcile",
+        "summary": "opsDashboardReconcile",
+        "parameters": [],
+        "security": [
+          {
+            "iap": []
+          }
+        ],
+        "x-implemented": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9071,7 +9416,7 @@
     "governance-deletions.ts": "48bfd3a4e645ec78028185602d7fe295246a370916cb3113be6e343215662e6f",
     "governance-holds.ts": "52a9063277c628d0f20c4f7b22b3f3071d2f614a3965faeaba040d0a11df499c",
     "governance-routes.ts": "b58fc60af85a78766edffd79454c2c0f2bef1ec3cd2366520c70c28e16a3372f",
-    "index.ts": "2d8352ddd68e0428dd21062c9f4c517c866f9faf9c618030c0381f2ec5506bb0",
+    "index.ts": "9a169f3c4d95592f211c2ba7000628eba92449a4aa8bcd85902a8d95de55b309",
     "memory-auth.ts": "1aba3e3af875852f32da0e6afc0b79c5a54c2adbac3eb1551cf77850a5bb8002",
     "memory-change.ts": "5970e8cbeea34fa8e1820f419f26b5acb224f842ac79afef32d345105db14e42",
     "memory-consent.ts": "f627bba1f2f14661c7e1b6634cb2fb83912a8dbe264841e37337c5e02aed2942",
@@ -9082,6 +9427,7 @@
     "oauth-connections-read.ts": "7dc5bd4066b15f585db3ca5085fb5adbb6f500feafe4c251c66c04564d71c9ad",
     "oauth-revoke.ts": "c0b2b4761654504897a28b7ab08e4de4a7ed5e162b53aab78c4f78a2500e5eb5",
     "oauth.ts": "16fbe2ef0509af33d7d1a80366e1fb8276bbf03b6e3871730c3e0b3d424ff3d5",
+    "ops-dashboard.ts": "ec9006e3ff1265e283b7f29c05ace4b073a91178f9b2b525fc896d98cf042e94",
     "schedules-auth.ts": "a8637afe36ae93ff510e608257cd2add3ec7463facb38d93afe08dbe95a385cb",
     "schedules-change.ts": "f41619c9de7960a187187783871d544d10e6275832b8afc0f24b91db415eb296",
     "schedules-create.ts": "7afd56728e5fbec75f936184908917614280610b3eb7103b16362b4f3bee2c49",
@@ -9094,6 +9440,7 @@
     "tasks-events.ts": "e7f884d1c9a0172233ff1a95ab46ba515992f3cfefd9f27bde8e40d0bd701e14",
     "tasks-read.ts": "d630e322afe2aba00ed986fba929f0215a174ef85feaf14023ecb575457d83e1",
     "tasks-submit.ts": "2f9b2b19f4a00ca315c1847dcdd74c6be59985dbf66d241e5a2623f026b92056",
-    "tasks.ts": "1d677c60b0c6d60187568358c9bb0e609731df1d6d5f8343be96d3cd33035179"
+    "tasks-telemetry.ts": "73f27bb38ee231f5b1e799ef371814664a529823c7ca558b81eaa2bb1bed9b88",
+    "tasks.ts": "fe81f47adfe6b317226600ce19b5404dea39dbfd8ce34d9db4de4054ad9d0770"
   }
 }

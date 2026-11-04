@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { skillManifestSchema } from '@agent-works/domain';
+import { skillManifestSchema, ticketCreateManifest } from '@agent-works/domain';
 import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
 import { decide } from '@agent-works/policy';
 
@@ -9,6 +9,7 @@ import { createBroker, TICKET_TOOL } from '../broker/broker.js';
 
 import type { Caller } from '../auth/iap.js';
 import type { ApprovalStore } from '../broker/approvals.js';
+import type { AuthorityResolver } from '../broker/authority.js';
 import type { Broker } from '../broker/broker.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type {
@@ -80,6 +81,41 @@ const skill = {
   ),
 };
 /* eslint-enable security/detect-non-literal-fs-filename */
+
+const { workloadCapability } = ticketCreateManifest.spec.permissions;
+
+/**
+ * The broker's server-side authority: the verified session subject, with facts re-derived through
+ * `reauthorize` on every resolution. The caller's `actorSub` and `facts` are only claims to compare.
+ */
+export function sessionAuthority(
+  request: TaskSubmit,
+  authorized: AuthorizedCaller,
+  deps: Pick<IncidentApprovalDeps, 'reauthorize'>,
+  taskId: string,
+  deadline: number,
+): AuthorityResolver {
+  return async (call) => {
+    try {
+      const { facts } = await deps.reauthorize(request, authorized);
+      return {
+        kind: 'granted',
+        subject: authorized.caller.sub,
+        facts,
+        authority: {
+          kind: 'userDelegated',
+          scopes: [workloadCapability],
+          resourceConstraint: call.targetResource,
+          expiresAt: new Date(deadline).toISOString(),
+          auditRef: `incident:${taskId}`,
+        },
+      };
+    } catch (error) {
+      if (error instanceof AuthorizationDenied) return { kind: 'denied', reason: 'revoked' };
+      throw error;
+    }
+  };
+}
 
 export function createIncidentSkill(
   config: () => IncidentConfig | undefined = () => undefined,
@@ -156,6 +192,7 @@ export function createIncidentSkill(
         input: DeliverInput,
         signal: AbortSignal,
         binding: Awaited<ReturnType<IncidentApprovalDeps['reauthorize']>> | undefined,
+        authorize: AuthorityResolver,
       ): Broker | undefined {
         if (approvalDeps === undefined || binding === undefined) return undefined;
         return createBroker({
@@ -164,6 +201,7 @@ export function createIncidentSkill(
           now: approvalDeps.now,
           decide,
           approverAuthorized: binding.approverAuthorized,
+          authorize,
           postTicket: async (body, key) => {
             signal.throwIfAborted();
             issuedWrites.add(accepted.taskId);
@@ -203,7 +241,12 @@ export function createIncidentSkill(
           await bounded(deps.store.savePayload(approvalId, payload), signal);
           const binding = await bounded(deps.reauthorize(request, authorized), signal);
           signal.throwIfAborted();
-          const broker = brokerFor(input, signal, binding);
+          const broker = brokerFor(
+            input,
+            signal,
+            binding,
+            sessionAuthority(request, authorized, deps, accepted.taskId, deadline),
+          );
           if (broker === undefined) throw new Error('approval broker unavailable');
           const result = await bounded(
             broker.execute({
@@ -223,7 +266,14 @@ export function createIncidentSkill(
             signal,
           );
           if (!result.ok) {
-            if (['POLICY_DENIED', 'APPROVAL_REQUIRED', 'APPROVAL_EXPIRED'].includes(result.code))
+            if (
+              [
+                'POLICY_DENIED',
+                'APPROVAL_REQUIRED',
+                'APPROVAL_EXPIRED',
+                'AUTHORITY_DENIED',
+              ].includes(result.code)
+            )
               return { kind: 'revoked' };
             throw new Error(result.code);
           }

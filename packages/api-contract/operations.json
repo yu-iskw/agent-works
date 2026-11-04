@@ -375,5 +375,35 @@
     "headers": [],
     "implemented": true,
     "successStatus": 200
+  },
+  {
+    "operationId": "adminOutstanding",
+    "method": "GET",
+    "path": "/v1/admin/outstanding",
+    "request": null,
+    "response": null,
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "opsDashboard",
+    "method": "POST",
+    "path": "/v1/ops/dashboard",
+    "request": null,
+    "response": null,
+    "parameter": null,
+    "headers": [],
+    "implemented": true
+  },
+  {
+    "operationId": "opsDashboardReconcile",
+    "method": "POST",
+    "path": "/v1/ops/dashboard/reconcile",
+    "request": null,
+    "response": null,
+    "parameter": null,
+    "headers": [],
+    "implemented": true
   }
 ]

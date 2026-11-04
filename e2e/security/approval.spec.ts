@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 
 import type * as Approvals from '../../apps/api/src/broker/approvals.js';
 import type * as Broker from '../../apps/api/src/broker/broker.js';
+import type * as TestAuthority from '../../apps/api/src/broker/test-authority.js';
 import type * as Ledger from '../../apps/api/src/ports/memory/ledger-port.js';
 import type * as Domain from '../../packages/domain/src/index.js';
 import type * as Fakes from '../../packages/fakes/src/index.js';
@@ -49,10 +50,13 @@ async function stack() {
   const ledger = await load<typeof Ledger>('apps/api/dist/ports/memory/ledger-port.js');
   const approvals = await load<typeof Approvals>('apps/api/dist/broker/approvals.js');
   const brokerMod = await load<typeof Broker>('apps/api/dist/broker/broker.js');
+  const testAuthority = await load<typeof TestAuthority>('apps/api/dist/broker/test-authority.js');
   const server = await fakes.listen(fakes.createTicket(), 0);
   const store = approvals.createMemoryApprovalStore();
   let posts = 0;
+  let claimedFacts: typeof facts = facts;
   const broker = brokerMod.createBroker({
+    authorize: testAuthority.trustedTestResolver(() => claimedFacts),
     store,
     decide: policy.decide,
     ledger: ledger.createMemoryLedgerPort(() => now),
@@ -102,6 +106,7 @@ async function stack() {
       });
     },
     execute(patch: Partial<Broker.ExecuteInput> = {}): ReturnType<Broker.Broker['execute']> {
+      claimedFacts = (patch.facts as typeof facts | undefined) ?? facts;
       return broker.execute({
         id: 'call-1',
         taskId: 'tsk-1',

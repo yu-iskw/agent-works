@@ -24,7 +24,7 @@ run "exact_identity_and_binding_set" {
     error_message = "D2 requires exactly six default responsibilities."
   }
   assert {
-    condition     = length(google_service_account.analytics) == 0 && length(google_service_account.agent) == 0
+    condition     = length(google_service_account.analytics) == 0 && length(google_service_account.agent) == 0 && length(google_service_account.worker) == 0
     error_message = "Conditional identities must be absent by default."
   }
   assert {
@@ -50,9 +50,10 @@ run "optional_identities" {
   variables {
     enable_bigquery_analytics = true
     enable_agent              = true
+    enable_worker             = true
   }
   assert {
-    condition     = length(google_service_account.analytics) == 1 && length(google_service_account.agent) == 1
+    condition     = length(google_service_account.analytics) == 1 && length(google_service_account.agent) == 1 && length(google_service_account.worker) == 1
     error_message = "Explicit flags create one identity each."
   }
 }

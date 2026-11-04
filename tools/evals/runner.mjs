@@ -6,6 +6,7 @@ import {
 import { decide, whenAllowed } from '../../packages/policy/src/index.js';
 import { createMemoryApprovalStore } from '../../apps/api/src/broker/approvals.js';
 import { createBroker, TICKET_TOOL } from '../../apps/api/src/broker/broker.js';
+import { trustedTestResolver } from '../../apps/api/src/broker/test-authority.js';
 import { createMemoryLedgerPort } from '../../apps/api/src/ports/memory/ledger-port.js';
 import { createHttpDrive } from '../../apps/api/src/retrieval/http-drive.js';
 import { createSkillRegistry } from '../../apps/api/src/skills/registry.js';
@@ -179,6 +180,7 @@ export async function createBrokerWorld({
   let active = reviewerActive;
   const payload = { summary: 'Review controls', project: 'PROJ' };
   const digest = canonicalPayloadSha256(payload);
+  let claimedFacts = facts;
   const broker = createBroker({
     store: brokerUnavailable
       ? { ...store, claim: () => Promise.reject(new Error('offline broker unavailable')) }
@@ -192,6 +194,7 @@ export async function createBrokerWorld({
     postTicket: effects.post,
     approverAuthorized: () => active,
     now: () => now,
+    authorize: trustedTestResolver(() => claimedFacts),
   });
   const input = {
     id: 'call-1',
@@ -221,7 +224,13 @@ export async function createBrokerWorld({
     executionsUsed: 0,
   });
   return {
-    broker,
+    broker: {
+      ...broker,
+      execute(call) {
+        claimedFacts = call.facts;
+        return broker.execute(call);
+      },
+    },
     store,
     effects,
     input,

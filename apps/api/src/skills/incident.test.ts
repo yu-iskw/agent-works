@@ -638,3 +638,70 @@ describe('incident delivery retries and bounds', () => {
     },
   );
 });
+
+describe('incident server-side authority', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const stubTicketing = () => {
+    const post = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+        if (init?.method === 'POST') {
+          post();
+          return Promise.resolve(Response.json({ id: 'TICKET-1' }));
+        }
+        return Promise.resolve(
+          Response.json({ id: 'inc-1', title: 'Outage', note: 'db down', severity: 'high' }),
+        );
+      }),
+    );
+    return post;
+  };
+  const run = async (reauthorize: () => Promise<unknown>) => {
+    const post = stubTicketing();
+    const skill = createIncidentSkill(() => ({
+      incidentsUrl: 'https://incidents.test',
+      ticketsUrl: 'https://tickets.test',
+      model: { answer: () => Promise.resolve('summary') },
+    }));
+    const { deps } = await approveSkill(skill);
+    let calls = 0;
+    skill.configureApprovals?.({
+      ...deps,
+      reauthorize: (async () => {
+        calls += 1;
+        return calls === 1 ? deps.reauthorize() : reauthorize();
+      }) as typeof deps.reauthorize,
+    });
+    await expect(
+      skill.dispatch(
+        submission,
+        { ...accepted, submittedAt: new Date().toISOString() },
+        authorizedCaller,
+      ),
+    ).rejects.toBeInstanceOf(Unavailable);
+    return { post, skill };
+  };
+
+  it('denies as revoked when reauthorize reports AuthorizationDenied, with no write', async () => {
+    const { AuthorizationDenied } = await import('../auth/iap.js');
+    const { post, skill } = await run(() => Promise.reject(new AuthorizationDenied()));
+    expect(post).not.toHaveBeenCalled();
+    expect(skill.result('task-1')).toEqual({ kind: 'revoked' });
+  });
+
+  it('fails retryable (not revoked) when authority cannot be read', async () => {
+    const { post, skill } = await run(() => Promise.reject(new Unavailable('directory')));
+    expect(post).not.toHaveBeenCalled();
+    expect(skill.result('task-1')).toEqual({ kind: 'failed' });
+  });
+
+  it('ignores caller-claimed facts: server-resolved facts decide the write', async () => {
+    const denyingFacts = Object.fromEntries(POLICY_CLAUSES.map((clause) => [clause, false]));
+    const { post, skill } = await run(() =>
+      Promise.resolve({ facts: denyingFacts, approverAuthorized: (sub: string) => sub === 'bob' }),
+    );
+    expect(post).not.toHaveBeenCalled();
+    expect(skill.result('task-1')?.kind).not.toBe('written');
+  });
+});

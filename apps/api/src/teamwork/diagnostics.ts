@@ -3,6 +3,7 @@ import { SOURCE_CAPABILITY, SOURCE_KINDS } from '@agent-works/domain/teamwork';
 import { memberCapabilities } from './catalog.js';
 import { oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
+import { GatewayDenied, assertEntitled } from './gateway.js';
 import { segmentCapabilities } from './installations.js';
 import { SourceError, sourceRemediation } from './sources/port.js';
 
@@ -12,9 +13,22 @@ import type { SourceCheck, SourceKind } from '@agent-works/domain/teamwork';
 
 /**
  * Reads every source this member may use in this segment once, with the member's own connections,
- * so a member can confirm the setup before starting work. Read-only, no model calls, audited.
+ * so a member can confirm the setup before starting work. Read-only, no model calls. It rechecks
+ * current membership like the gateway does and audits each source it reads or refuses.
  */
 export async function checkSources(deps: Deps, member: Member): Promise<readonly SourceCheck[]> {
+  try {
+    await assertEntitled(deps, member);
+  } catch (error) {
+    if (error instanceof GatewayDenied)
+      await audit(deps, deps.sql, {
+        ownerSub: member.sub,
+        action: 'gateway.denied',
+        outcome: error.code,
+        detail: { tool: 'sources.check' },
+      });
+    throw error;
+  }
   const token = oncePerProvider(tokenSource(deps, member.sub));
   const allowed = memberCapabilities(deps, member, await segmentCapabilities(deps));
   // Member files are not a provider: there is nothing to reach before a member attaches one.
@@ -30,6 +44,13 @@ export async function checkSources(deps: Deps, member: Member): Promise<readonly
           }),
     ),
   );
+  for (const check of checks)
+    await audit(deps, deps.sql, {
+      ownerSub: member.sub,
+      action: 'sources.check.source',
+      outcome: check.status,
+      detail: { source: check.source },
+    });
   await audit(deps, deps.sql, {
     ownerSub: member.sub,
     action: 'sources.check',

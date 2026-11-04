@@ -14,7 +14,14 @@ export type Member = {
   readonly admin?: boolean;
 };
 
+/**
+ * Live membership source (a directory). Absent means the static `config.members` allowlist. A
+ * throw is a failed lookup, never an answer: the gateway reads it as retryable, not as removed.
+ */
+type MemberDirectory = { isMember(email: string): Promise<boolean> };
+
 export type Deps = {
+  readonly directory?: MemberDirectory;
   readonly sql: postgres.Sql;
   readonly config: SegmentConfig;
   readonly gate: ModelGate;
@@ -23,6 +30,8 @@ export type Deps = {
   readonly now: () => Date;
   readonly newId: () => string;
   readonly fetch: typeof fetch;
+  /** `AW_STRICT_PROPOSALS=on`: coordinator plans are validated whole instead of leniently trimmed. */
+  readonly strictProposals?: boolean;
   /** Opens one transport to the first-party MCP server; absent means MCP calls are refused. */
   readonly mcp?: () => Promise<Transport>;
 };

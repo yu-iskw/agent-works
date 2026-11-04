@@ -2,7 +2,7 @@ import { authoritySubset } from '@agent-works/domain/delegation-authority';
 import { describe, expect, it } from 'vitest';
 
 import { childContext } from './context.js';
-import { fixtureChild, fixtureContext, fixtureNow } from './fixtures.js';
+import { fixtureChild, fixtureContext, fixtureNow, fixtureWidenedChild } from './fixtures.js';
 describe('explicit child context', () => {
   it('binds root scope, trace, depth and computed authority', () => {
     const child = childContext(fixtureContext, fixtureChild, 2, fixtureNow);
@@ -15,6 +15,21 @@ describe('explicit child context', () => {
     });
     expect(authoritySubset(child.authority, fixtureContext.authority)).toBe(true);
     expect(child.authority.grants).toEqual([{ capability: 'drive.read', resource: 'source-1' }]);
+  });
+  it('denies a widened grant request instead of trimming it', () => {
+    expect(() => childContext(fixtureContext, fixtureWidenedChild, 2, fixtureNow)).toThrow(
+      'grant_widening',
+    );
+    const other = { ...fixtureChild, grants: [{ capability: 'drive.read', resource: 'source-2' }] };
+    expect(() => childContext(fixtureContext, other, 2, fixtureNow)).toThrow('grant_widening');
+  });
+  it('gives the child its own task id and a copy, not the parent session', () => {
+    const child = childContext(fixtureContext, fixtureChild, 2, fixtureNow);
+    expect(child.taskId).toBe('child-1');
+    expect(child.taskId).not.toBe(fixtureContext.taskId);
+    child.authority.grants.push({ capability: 'email.send', resource: 'attacker' });
+    expect(fixtureContext.authority.grants).toHaveLength(1);
+    expect(Object.keys(child).sort()).toEqual(Object.keys(fixtureContext).sort());
   });
   it('enforces the depth limit on grandchildren', () => {
     const child = childContext(fixtureContext, fixtureChild, 1, fixtureNow);

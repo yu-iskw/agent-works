@@ -14,29 +14,19 @@ token acquisition are human-operator actions.**
 2. **Cross-user isolation identity gate (`sec.cross-user-leak`):** Cross-user
    tests in [`e2e/dev/cross-user.spec.ts`](../../e2e/dev/cross-user.spec.ts)
    require **two distinct real Workspace test users** in the IAP allowlist
-   (`iap_access`). The sandbox pilot currently allows only one identity
-   (`user:yu.ishikawa@example.com`). Until a second distinct real test identity
-   is provisioned and added to the IAP allowlist, `e2e/dev/cross-user.spec.ts`
-   reports **`BLOCKED`, not `PASS`**.
-3. **Web readable resource route follow-up for `sec.cross-user-leak`:**
-   `aw-web` ([`apps/web/app/web-app.ts`](../../apps/web/app/web-app.ts) and
-   [`apps/web/src/server.ts`](../../apps/web/src/server.ts)) serves `GET /`,
-   `POST /`, `POST /citations`, `GET /healthz`, `/schedules*`, `/admin*`,
-   `/connections*`, and `/approvals/:id`. It does **not** proxy `/v1/*` routes
-   (returning 404 for all `/v1/*`), does **not** expose a `GET` route to read a
-   user's ask/citation/audit record created by `POST /`, and cannot create
-   approvals from the web UI (while
-   [`apps/web/app/approvals/reader.ts`](../../apps/web/app/approvals/reader.ts)
-   currently turns upstream `403` into `503`). A **required follow-up issue**
-   must expose a user-scoped readable resource route on `aw-web` (or wire
-   approval creation and `403`/`404` status propagation on `/approvals/:id`) so
-   `e2e/dev/cross-user.spec.ts` can run its positive control first (`User A GET`
-   exact URL returns `200` with `AW_DEV_USER_A_PRIVATE_CANARY`) and then assert
-   `User B GET` on that exact URL returns `403`/`404` with zero canary/content
-   leakage. Until that route is available and configured via
-   `AW_DEV_USER_A_RESOURCE_PATH` and `AW_DEV_USER_A_PRIVATE_CANARY`,
-   `e2e/dev/cross-user.spec.ts` fails closed with an explicit `BLOCKED`
-   annotation and reason.
+   (`iap_access`). Until a second distinct real test identity is provisioned and
+   added to the allowlist, `e2e/dev/cross-user.spec.ts` reports **`BLOCKED`, not
+   `PASS`**. The config rejects empty, templated or placeholder tokens and
+   refuses to run with `AW_DEV_STACK`, `AW_FAKE_USER` or `AW_FAKE_IAP_URL` set.
+3. **Owner-read route for `sec.owner-access` and `sec.cross-user-leak`:**
+   `aw-web` serves caller-scoped, read-only `GET /tasks/:id` and
+   `GET /artifacts/:id` ([`apps/web/app/tasks/handler.ts`](../../apps/web/app/tasks/handler.ts),
+   delivered by TASK-01). Before the run, User A creates a record and the
+   operator exports `AW_DEV_USER_A_RESOURCE_PATH` (for example
+   `/tasks/<id>`) and `AW_DEV_USER_A_PRIVATE_CANARY` (a string only that record
+   contains). The suite reads the exact URL as User A first (`200` plus canary),
+   then as User B and as outsiders (`403`/`404`, no canary). Without both
+   variables the specs report `BLOCKED`, never `PASS`.
 4. **Offline CI vs live cloud evidence:** Offline CI (`.github/workflows/e2e.yml`)
    exercises local fakes and unit/contract suites only. Live deployment metrics
    come from [`.github/workflows/deploy-dev.yml`](../../.github/workflows/deploy-dev.yml)
@@ -108,25 +98,33 @@ GitHub Actions UI (`workflow_dispatch` on `main`):
 
 - `environment`: `dev`
 - `sha`: `<40-hex commit SHA on origin/main>`
+- `approval_ref`: reference to the filled operator approval request
+  ([`dep-01/operator-approval.md`](../plans/enterprise-production-v1/dep-01/operator-approval.md))
 - `web_image`: `asia-northeast1-docker.pkg.dev/<TF_PROJECT_ID>/aw-images/aw-web@sha256:<64-hex>`
 - `api_image`: `asia-northeast1-docker.pkg.dev/<TF_PROJECT_ID>/aw-images/aw-api@sha256:<64-hex>`
 
 What the workflow does:
 
-1. Validates `environment == dev`, `sha` format and `origin/main` ancestry,
-   `web_image` against
+1. Runs `node e2e/dev/validate-deploy-inputs.mjs` (unit-tested offline) to
+   validate `environment == dev`, a real project id and deployer SA, `sha`
+   format, a non-placeholder `approval_ref`, `web_image` against
    `^asia-northeast1-docker\.pkg\.dev/${TF_PROJECT_ID}/aw-images/aw-web@sha256:[0-9a-f]{64}$`,
-   and `api_image` against
-   `^asia-northeast1-docker\.pkg\.dev/${TF_PROJECT_ID}/aw-images/aw-api@sha256:[0-9a-f]{64}$`.
+   and `api_image` against the matching `aw-api` pattern, then checks
+   `origin/main` ancestry of `sha`.
 2. Authenticates via `google-github-actions/auth` using WIF (`DEPLOY_WIF_PROVIDER`)
    as `aw-deployer`.
-3. Updates the two Terraform-owned Cloud Run services (`aw-api` and `aw-web`) and
-   verifies `status.latestReadyRevisionName` matches
-   `status.latestCreatedRevisionName`. The workflow never runs Terraform, never
+3. Before any update, proves each digest resolves in Artifact Registry and that
+   `aw-api` runs with `AW_MODE=production` and internal-only ingress, and
+   records the currently serving images as `previousImages` (the rollback
+   targets). It refuses to deploy otherwise. Then updates the two
+   Terraform-owned Cloud Run services (`aw-api` and `aw-web`), verifies
+   `status.latestReadyRevisionName` matches `status.latestCreatedRevisionName`,
+   and verifies each service serves exactly the requested digest with 100% of
+   traffic on its latest revision. The workflow never runs Terraform, never
    modifies IAM or IAP settings, and never passes `--allow-unauthenticated` or
    `--no-iap`.
-4. Writes the deployed revision names, image digests, commit SHA, and deploy
-   wall-time to `$GITHUB_STEP_SUMMARY` and `e2e/artifacts/deploy-summary.json`,
+4. Writes the deployed revision names, image digests, `aw-web` url,
+   `approvalRef`, `previousImages`, commit SHA, and deploy wall-time to `$GITHUB_STEP_SUMMARY` and `e2e/artifacts/deploy-summary.json`,
    and uploads the sanitized `deploy-dev-<sha>` summary artifact.
 
 > **Terraform drift prevention:** `aw-web` and `aw-api` are Terraform-owned in
@@ -153,12 +151,22 @@ running the dev Playwright suite is an **operator-workstation step**:
    export AW_DEV_API_URL="https://aw-api-<project-number>.asia-northeast1.run.app"
    export AW_DEV_ID_TOKEN_A="<short-lived-iap-id-token-for-user-a>"
    export AW_DEV_ID_TOKEN_B="<short-lived-iap-id-token-for-user-b>"
-   # Optional once the follow-up web resource route exists:
-   # export AW_DEV_USER_A_RESOURCE_PATH="/approvals/<user-a-approval-id>"
-   # export AW_DEV_USER_A_PRIVATE_CANARY="<user-a-only-canary>"
+   # The approved deployment: the deploy-dev-<sha> artifact and its commit SHA.
+   export AW_DEV_DEPLOY_SUMMARY="./deploy-summary.json"
+   export AW_DEV_EXPECTED_SHA="<approved-40-hex-sha>"
+   # A record User A owns on aw-web and a string only it contains.
+   export AW_DEV_USER_A_RESOURCE_PATH="/tasks/<user-a-task-id>"
+   export AW_DEV_USER_A_PRIVATE_CANARY="<user-a-only-canary>"
 
    pnpm exec playwright test -c e2e/playwright.dev.config.ts
    ```
+
+   The config fails closed on an absent or non-https URL, a localhost or IP
+   host, absent, placeholder or identical identities, an unset
+   `AW_DEV_DEPLOY_SUMMARY`/`AW_DEV_EXPECTED_SHA`, a summary for a different SHA
+   or without digest-pinned images, and any fake-stack switch. Each spec attaches
+   `deploy-binding.json` so the evidence names the SHA and digests it ran
+   against.
 
 3. Scrub all artifacts (including `trace.zip` entries) and verify zero secrets
    or bearer tokens remain using the committed scrubber:

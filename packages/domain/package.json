@@ -31,6 +31,16 @@
       "development": "./src/error-class-retry.ts",
       "import": "./dist/error-class-retry.js"
     },
+    "./teamwork-graph-contract": {
+      "types": "./src/teamwork-graph-contract.ts",
+      "development": "./src/teamwork-graph-contract.ts",
+      "import": "./dist/teamwork-graph-contract.js"
+    },
+    "./standing-grant-contract": {
+      "types": "./src/standing-grant-contract.ts",
+      "development": "./src/standing-grant-contract.ts",
+      "import": "./dist/standing-grant-contract.js"
+    },
     "./delegation": {
       "types": "./src/delegation.ts",
       "development": "./src/delegation.ts",

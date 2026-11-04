@@ -10,6 +10,7 @@ import { createVertexModel } from '../workbench/vertex.js';
 
 import { seedCatalog } from './catalog.js';
 import { connections } from './connections.js';
+import { applyGraphMigration } from './graph-migration.js';
 import {
   bootstrapInstallations,
   findInstallable,
@@ -145,6 +146,7 @@ export async function createTeamworkRuntime(input: {
 }): Promise<TeamworkRuntime> {
   const { sql, config, env } = input;
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
   const vertex = modelFor(env, config);
   const now = () => new Date();
   const gate = createModelGate({
@@ -173,6 +175,7 @@ export async function createTeamworkRuntime(input: {
     now,
     newId: randomUUID,
     fetch: input.fetch ?? fetch,
+    strictProposals: env.AW_STRICT_PROPOSALS === 'on',
   };
   await seedCatalog(deps);
   await bootstrapInstallations(deps);

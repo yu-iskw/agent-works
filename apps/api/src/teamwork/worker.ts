@@ -19,6 +19,15 @@ import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
 import { GatewayDenied, publishThroughGateway, readThroughGateway } from './gateway.js';
+import {
+  blockedDependents,
+  completedNodes,
+  createNodeClaims,
+  isAutomaticallyRetryable,
+  MAX_PLAN_NODES,
+  pinCompleted,
+  retryNotBefore,
+} from './graph.js';
 import { segmentCapabilities } from './installations.js';
 import {
   contributionRequest,
@@ -48,6 +57,7 @@ import {
   touchTask,
   withTask,
 } from './store.js';
+import { strictPlan } from './strict-plan.js';
 import { checkPlan, planDigest, synthesisSkill } from './tasks.js';
 
 import type { TeammateSkill } from './catalog.js';
@@ -97,7 +107,8 @@ async function claim(deps: Deps): Promise<Job | undefined> {
       lease_until = now() + make_interval(secs => ${LEASE_SECONDS}), updated_at = now()
     where id = (
       select id from tw_jobs
-      where state = 'queued' or (state = 'running' and lease_until < now())
+      where (state = 'queued' and (run_after is null or run_after <= ${deps.now()}))
+        or (state = 'running' and lease_until < now())
       order by created_at limit 1 for update skip locked
     )
     returning id, task_id, kind, ref, attempts, lease_token
@@ -160,8 +171,8 @@ async function dependencyOutputs(
 
 /**
  * Starts each waiting assignment whose dependencies all succeeded, and fails each one whose
- * dependency can no longer succeed, so an approved plan runs in the order it was reviewed.
- * Returns the assignments as it left them.
+ * dependency can no longer succeed (see `PROPAGATION_POLICY.failure`), so an approved plan runs in
+ * the order it was reviewed. Returns the assignments as it left them.
  */
 async function releaseDependents(
   deps: Deps,
@@ -169,24 +180,21 @@ async function releaseDependents(
   taskId: string,
   live: readonly AssignmentRow[],
 ): Promise<readonly AssignmentRow[]> {
-  const byKey = new Map(live.map((a) => [a.key, a]));
   const changed = new Map<string, AssignmentRow>();
-  for (const waiting of live.filter((a) => a.status === 'queued' && a.depends_on.length > 0)) {
-    const needs = waiting.depends_on.map((key) => byKey.get(key)?.status);
-    if (
-      needs.some(
-        (status) =>
-          status === undefined ||
-          !['queued', 'running', 'needs_input', 'succeeded'].includes(status),
-      )
-    ) {
-      const failed = await moveAssignment(deps, tx, waiting, 'failed', {
-        error: {
-          code: 'dependency_failed',
-          message: `It waits for ${waiting.depends_on.join(', ')}, which did not finish.`,
-        },
+  for (const waiting of blockedDependents(live)) {
+    const failed = await moveAssignment(deps, tx, waiting, 'failed', {
+      error: {
+        code: 'dependency_failed',
+        message: `It waits for ${waiting.depends_on.join(', ')}, which did not finish.`,
+      },
+    });
+    if (failed !== undefined) {
+      changed.set(failed.id, failed);
+      await appendEvent(deps, tx, taskId, {
+        type: 'assignment.blocked',
+        summary: `${waiting.teammate_snapshot.name} cannot start ${waiting.key}: a prerequisite did not finish`,
+        detail: { assignmentId: waiting.id, code: 'dependency_failed' },
       });
-      if (failed !== undefined) changed.set(failed.id, failed);
     }
   }
   await releaseReady(deps, tx, taskId);
@@ -327,44 +335,19 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     if (failure === undefined) throw error;
     return failTask(deps, task.id, 'planning', 'planning', failure);
   }
-  let proposal;
-  try {
-    proposal = parsePlan(raw.text);
-  } catch {
-    return failTask(deps, task.id, 'planning', 'planning', {
-      code: 'invalid_output',
-      message: modelRemediation.invalid_output,
-    });
-  }
-  const seen = new Set<string>();
-  const assignments = proposal.assignments
-    .filter((a) => roster.some((r) => r.id === a.teammateId))
-    .map((a) => ({
-      ...a,
-      sources: a.sources.filter(
-        (s) =>
-          // eslint-disable-next-line security/detect-object-injection
-          allowed.has(s) && (effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
-      ),
-    }))
-    .filter((a) => a.sources.length > 0)
-    .map((a, index) => {
-      const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
-      seen.add(key);
-      return { ...a, key };
-    });
-  const keys = new Set(assignments.map((a) => a.key));
-  const linked = assignments.map((a) => ({
-    ...a,
-    dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
-  }));
-  const content: PlanContent = {
-    summary: proposal.summary || 'Coordinator plan',
-    // A cyclic proposal would never start; run it in parallel and let the member review that.
-    assignments: hasDependencyCycle(linked) ? linked.map((a) => ({ ...a, dependsOn: [] })) : linked,
-    synthesisOwner: task.result_owner,
-    expectedEffects: proposal.expectedEffects,
-  };
+  const drafted = draftProposal(deps, raw.text, {
+    coordinatorId: coordinator.id,
+    resultOwner: task.result_owner,
+    rosterIds: roster.map((r) => r.id),
+    allowed,
+    effectiveFor,
+  });
+  if ('failure' in drafted) return failTask(deps, task.id, 'planning', 'planning', drafted.failure);
+  const proposed = drafted.content;
+  // A replan keeps completed work as it was done; the coordinator only decides what is left.
+  const completed = completedNodes(await assignmentsFor(deps.sql, task.id));
+  const content =
+    completed.length === 0 ? proposed : pinCompleted(proposed, completed, MAX_PLAN_NODES);
   if (content.assignments.length === 0)
     return failTask(deps, task.id, 'planning', 'planning', {
       code: 'plan_unusable',
@@ -398,6 +381,89 @@ async function plan(deps: Deps, job: Job): Promise<void> {
       ],
     });
   });
+}
+
+type DraftContext = {
+  readonly coordinatorId: string;
+  readonly resultOwner: string;
+  readonly rosterIds: readonly string[];
+  readonly allowed: ReadonlySet<SourceKind>;
+  readonly effectiveFor: ReadonlyMap<string, ReadonlySet<Capability>>;
+};
+
+/** Strict mode denies a bad proposal whole; the default keeps the lenient parse that trims it. */
+function draftProposal(
+  deps: Deps,
+  text: string,
+  ctx: DraftContext,
+): { readonly content: PlanContent } | { readonly failure: { code: string; message: string } } {
+  const raw = { text };
+  if (deps.strictProposals === true) {
+    const verdict = strictPlan(raw.text, {
+      coordinatorId: ctx.coordinatorId,
+      roster: new Map(
+        ctx.rosterIds.map((id) => [
+          id,
+          new Set(
+            [...ctx.allowed].filter(
+              // eslint-disable-next-line security/detect-object-injection -- closed source union
+              (s) => ctx.effectiveFor.get(id)?.has(SOURCE_CAPABILITY[s]) ?? false,
+            ),
+          ),
+        ]),
+      ),
+      now: deps.now().toISOString(),
+    });
+    if (!verdict.ok)
+      return {
+        failure: {
+          code: 'invalid_output',
+          message: `${modelRemediation.invalid_output} (refused: ${verdict.reasons.join(', ')})`,
+        },
+      };
+    return { content: verdict.content };
+  } else {
+    let proposal;
+    try {
+      proposal = parsePlan(raw.text);
+    } catch {
+      return { failure: { code: 'invalid_output', message: modelRemediation.invalid_output } };
+    }
+    const seen = new Set<string>();
+    const assignments = proposal.assignments
+      .filter((a) => ctx.rosterIds.includes(a.teammateId))
+      .map((a) => ({
+        ...a,
+        sources: a.sources.filter(
+          (s) =>
+            ctx.allowed.has(s) &&
+            // eslint-disable-next-line security/detect-object-injection -- closed source union
+            (ctx.effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
+        ),
+      }))
+      .filter((a) => a.sources.length > 0)
+      .map((a, index) => {
+        const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
+        seen.add(key);
+        return { ...a, key };
+      });
+    const keys = new Set(assignments.map((a) => a.key));
+    const linked = assignments.map((a) => ({
+      ...a,
+      dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
+    }));
+    return {
+      content: {
+        summary: proposal.summary || 'Coordinator plan',
+        // A cyclic proposal would never start; run it in parallel and let the member review that.
+        assignments: hasDependencyCycle(linked)
+          ? linked.map((a) => ({ ...a, dependsOn: [] }))
+          : linked,
+        synthesisOwner: ctx.resultOwner,
+        expectedEffects: proposal.expectedEffects,
+      },
+    };
+  }
 }
 
 async function appendEventTx(
@@ -474,6 +540,7 @@ async function failAssignment(
     if (current === undefined) return;
     const moved = await moveAssignment(deps, tx, current, to, {
       error: to === 'cancelled' ? null : { code, message },
+      fence: assignment.owner_token ?? undefined,
     });
     if (moved !== undefined)
       await appendEvent(deps, tx, assignment.task_id, {
@@ -487,6 +554,44 @@ async function failAssignment(
   });
   await settleTask(deps, assignment.task_id);
 }
+
+/**
+ * Puts a node whose model call failed transiently into `retry_wait`: queued again with a stored
+ * not-before time and a job that is not claimable before it. The attempt counter is bumped, so the
+ * job is a new one and the old one is finished by the caller.
+ */
+async function retryAssignment(
+  deps: Deps,
+  assignment: AssignmentRow,
+  failure: Failure,
+): Promise<void> {
+  await deps.sql.begin(async (tx) => {
+    const current = (
+      await tx<AssignmentRow[]>`select * from tw_assignments where id = ${assignment.id} for update`
+    ).at(0);
+    if (current === undefined) return;
+    const notBefore = retryNotBefore(deps.now(), current.attempt);
+    const moved = await moveAssignment(deps, tx, current, 'queued', {
+      attemptIncrement: true,
+      retryNotBefore: notBefore,
+      error: { code: failure.code, message: failure.message },
+      fence: assignment.owner_token ?? undefined,
+    });
+    if (moved === undefined) return;
+    await appendEvent(deps, tx, assignment.task_id, {
+      type: 'assignment.retry_wait',
+      summary: `${assignment.teammate_snapshot.name} will retry ${assignment.key} after ${notBefore.toISOString()}: ${failure.message}`,
+      detail: { assignmentId: assignment.id, code: failure.code, attempt: moved.attempt },
+    });
+    await releaseReady(deps, tx, assignment.task_id);
+  });
+  await settleTask(deps, assignment.task_id);
+}
+
+const failOrRetry = (deps: Deps, assignment: AssignmentRow, failure: Failure): Promise<void> =>
+  isAutomaticallyRetryable(failure.code, assignment.attempt)
+    ? retryAssignment(deps, assignment, failure)
+    : failAssignment(deps, assignment, 'failed', failure.code, failure.message);
 
 const supportSources = (evidence: readonly EvidenceView[]): Map<string, SupportSource> =>
   new Map(
@@ -526,19 +631,23 @@ async function pastDeadline(deps: Deps, assignmentId: string): Promise<boolean> 
 const cancelling = (task: TaskRow | undefined): boolean =>
   task?.status === 'cancel_requested' || task?.status === 'cancelled';
 
-/** Moves a queued assignment to running; a running one is resumed after a crash. False means nothing to run. */
+/**
+ * Claims the node for this worker and returns it with the fencing token it must present when it
+ * settles. A running node is resumed after a crash by taking its token over, which fences out the
+ * dead owner. Undefined means there is nothing to run.
+ */
 async function startAssignment(
   deps: Deps,
   task: TaskRow,
   assignment: AssignmentRow,
   attempts: number,
-): Promise<boolean> {
+): Promise<AssignmentRow | undefined> {
   if (cancelling(task)) {
     await failAssignment(deps, assignment, 'cancelled', 'cancelled', 'cancelled');
-    return false;
+    return undefined;
   }
   const resumed = assignment.status === 'running';
-  if (assignment.status !== 'queued' && !resumed) return false;
+  if (assignment.status !== 'queued' && !resumed) return undefined;
   if (attempts > MAX_JOB_ATTEMPTS) {
     await failAssignment(
       deps,
@@ -547,7 +656,7 @@ async function startAssignment(
       'stale',
       'The worker stopped repeatedly during this assignment. Retry it.',
     );
-    return false;
+    return undefined;
   }
   // A crashed run resumes only within the deadline it got when it started.
   if (resumed && assignment.deadline_at.getTime() < deps.now().getTime()) {
@@ -558,12 +667,16 @@ async function startAssignment(
       'deadline',
       'The assignment passed its deadline.',
     );
-    return false;
+    return undefined;
   }
-  if (resumed) return true;
   return deps.sql.begin(async (tx) => {
-    const moved = await moveAssignment(deps, tx, assignment, 'running');
-    if (moved !== undefined)
+    const claims = createNodeClaims(tx, deps);
+    const owned = resumed
+      ? await claims.takeOver(assignment.id)
+      : await claims.claim(assignment.id, deps.now());
+    if (owned === undefined) return undefined;
+    if (!resumed) {
+      await touchTask(deps, tx, task.id);
       await appendEvent(deps, tx, task.id, {
         type: 'assignment.started',
         summary: `${assignment.teammate_snapshot.name} started ${assignment.key}`,
@@ -573,7 +686,8 @@ async function startAssignment(
           at: deps.now().toISOString(),
         },
       });
-    return moved !== undefined;
+    }
+    return owned;
   });
 }
 
@@ -662,7 +776,7 @@ async function gatherSources(
         deps,
         assignment,
         'failed',
-        'source_denied',
+        outcome.denied.retryable ? 'source_resolution_unavailable' : 'source_denied',
         `${outcome.kind}: ${outcome.denied.reason}`,
       );
       return undefined;
@@ -752,12 +866,21 @@ async function recordContribution(
     ).at(0);
     if (current?.status !== 'running') return;
     const question = parsed.value.question;
-    await moveAssignment(deps, tx, current, question === null ? 'succeeded' : 'needs_input', {
-      output: parsed.value,
-      model,
-      question,
-      error: null,
-    });
+    const settled = await moveAssignment(
+      deps,
+      tx,
+      current,
+      question === null ? 'succeeded' : 'needs_input',
+      {
+        output: parsed.value,
+        model,
+        question,
+        error: null,
+        fence: assignment.owner_token ?? undefined,
+      },
+    );
+    // A writer that lost the node to a newer owner records nothing.
+    if (settled === undefined) return;
     await appendEvent(deps, tx, task.id, {
       type: question === null ? 'assignment.succeeded' : 'assignment.needs_input',
       summary:
@@ -780,8 +903,9 @@ async function recordContribution(
 async function runAssignment(deps: Deps, job: Job): Promise<void> {
   const loaded = await loadAssignment(deps, job);
   if (loaded === undefined) return;
-  const { assignment, task } = loaded;
-  if (!(await startAssignment(deps, task, assignment, job.attempts))) return;
+  const { task } = loaded;
+  const assignment = await startAssignment(deps, task, loaded.assignment, job.attempts);
+  if (assignment === undefined) return;
   const member = memberOf(task);
   const states = await capabilitiesFor(deps, member, assignment.capabilities as Capability[]);
   const denied = deniedSources(assignment.sources, states);
@@ -839,7 +963,7 @@ async function runAssignment(deps: Deps, job: Job): Promise<void> {
   } catch (error) {
     const failure = modelFailure(error);
     if (failure === undefined) throw error;
-    return failAssignment(deps, assignment, 'failed', failure.code, failure.message);
+    return failOrRetry(deps, assignment, failure);
   }
   let parsed;
   try {
@@ -1354,6 +1478,24 @@ async function quarantine(deps: Deps, job: Job): Promise<void> {
   });
 }
 
+/**
+ * Restart recovery for the task graph. Committed rows are the only state, so a coordinator that died
+ * between steps left a graph that is correct but may have nothing in flight: a task still `running`
+ * with no open assignment job and no running node. Settling it queues the jobs that are due, fails
+ * the dependents of a lost prerequisite, or moves the task to the member. Returns how many it settled.
+ */
+export async function recoverGraphs(deps: Deps): Promise<number> {
+  const stuck = await deps.sql<{ id: string }[]>`
+    select t.id from wb_tasks t
+    where t.kind = 'teamwork' and t.status in ('running', 'cancel_requested')
+      and not exists (select 1 from tw_jobs j where j.task_id = t.id and j.kind = 'assignment'
+        and j.state in ('queued', 'running'))
+      and not exists (select 1 from tw_assignments a where a.task_id = t.id and a.status = 'running')
+  `;
+  for (const { id } of stuck) await settleTask(deps, id);
+  return stuck.length;
+}
+
 export type Worker = { start(): void; stop(): Promise<void>; drain(): Promise<void> };
 
 /** `concurrency` independent claim loops; each runs one job at a time, so at most N model calls fly. */
@@ -1403,6 +1545,7 @@ export function createWorker(deps: Deps, onError: (error: unknown) => void, poll
       // One API process serves a segment, so a job still marked running at start belongs to a
       // process that died. Expiring its lease lets it resume now instead of after LEASE_SECONDS.
       void deps.sql`update tw_jobs set lease_until = now() where state = 'running'`
+        .then(() => recoverGraphs(deps))
         .catch(onError)
         .finally(() => {
           for (const loop of loops) loop.start();

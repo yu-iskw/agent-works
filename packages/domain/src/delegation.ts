@@ -53,6 +53,7 @@ export const delegationAuditSchema = z.strictObject({
     'depth',
     'expired',
     'boundary',
+    'grant_widening',
     'budget_share',
     'identity',
     'verification_failed',

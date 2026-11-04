@@ -1,0 +1,47 @@
+{
+  "name": "p01-full-length",
+  "description": "Operator spec for the live-shaped campaign: P01 24 h soak at real time. Run only against an approved environment or a dedicated local machine; 24 h of wall clock.",
+  "speed": 1,
+  "durationMs": 86400000,
+  "schedules": 10500,
+  "executionsPerDay": 5000,
+  "activeSteps": 50,
+  "stepsPerExecution": 3,
+  "dbPoolMax": 30,
+  "burst": { "slots": 500, "atMs": 21600000 },
+  "retry": {
+    "maxAttempts": 4,
+    "minBackoffSeconds": 10,
+    "maxBackoffSeconds": 80,
+    "maxDoublings": 3,
+    "maxRetryDurationSeconds": 3600
+  },
+  "timing": {
+    "stepMs": 2000,
+    "leaseMs": 30000,
+    "sweepEveryMs": 10000,
+    "dispatchTickRealMs": 1000,
+    "workerPollRealMs": 1000,
+    "queueDelayRealMs": 50,
+    "redriveAfterMs": 90000,
+    "maxRedrives": 3,
+    "reconcileEveryMs": 30000,
+    "controlPollMs": 5000,
+    "workerColdStartMs": 15000,
+    "drainMaxMs": 3600000
+  },
+  "faults": {
+    "workerDeaths": { "count": 100, "startMs": 7200000, "endMs": 79200000 },
+    "queueWindows": [
+      { "atMs": 28800000, "durationMs": 600000, "mode": "drop", "dropRate": 0.5 },
+      { "atMs": 36000000, "durationMs": 300000, "mode": "unavailable" }
+    ],
+    "duplicateDeliveryRate": 0.02,
+    "dbRestarts": [{ "atMs": 43200000, "downRealMs": 30000 }],
+    "providerOutages": [
+      { "atMs": 57600000, "durationMs": 900000, "mode": "unavailable" },
+      { "atMs": 64800000, "durationMs": 300000, "mode": "ack-lost" }
+    ],
+    "revocations": { "count": 60, "startMs": 3600000, "endMs": 82800000 }
+  }
+}

@@ -18,14 +18,14 @@ test('all three JSONL splits validate and match the versioned manifest', () => {
     expect(dataset.cases.filter((item) => item.split === split)).toHaveLength(count);
     expect(dataset.fingerprints[split]).toMatch(/^[a-f0-9]{64}$/);
   }
-  expect(new Set(dataset.cases.map((item) => item.id)).size).toBe(156);
+  expect(new Set(dataset.cases.map((item) => item.id)).size).toBe(176);
 });
 
 test('development selection never includes holdout implicitly', () => {
   expect(loadDataset().splits).toEqual(['dev', 'adversarial']);
   expect(loadDataset().cases.every((item) => item.split !== 'holdout')).toBe(true);
   expect(() => loadDataset({ splits: ['holdout'] })).toThrow('explicit');
-  expect(loadDataset({ splits: ['holdout'], includeHoldout: true }).cases).toHaveLength(54);
+  expect(loadDataset({ splits: ['holdout'], includeHoldout: true }).cases).toHaveLength(74);
 });
 
 test.each([

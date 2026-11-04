@@ -1,0 +1,8 @@
+{
+  "command": "pnpm lint:security",
+  "exitCode": 1,
+  "capturedAt": "2026-11-04",
+  "sourceSha": "f6bdd79703d316426f949389d591942f09c7cada",
+  "note": "Raw Trunk output, ANSI stripped, run on the epv1/integration-cleanup head (after the GCP-0066/0078 and lint fixes). Local scan using network vulnerability databases. Not an image scan.",
+  "output": "$ trunk check --all --scope security\n  ISSUES\npnpm-lock.yaml:2001:0\n 2001:0  medium  'minimatch' has potential denial of service via globparts               osv-scanner/GHSA-g3hv-75wg-m249\n                 amplification. Current version is vulnerable: 10.2.5.\nChecked 119 files\n\u2716 1 security issue"
+}

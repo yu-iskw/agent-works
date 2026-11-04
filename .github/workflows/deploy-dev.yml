@@ -29,6 +29,10 @@ on:
         description: Full 40-hex commit SHA on origin/main to deploy
         required: true
         type: string
+      approval_ref:
+        description: Reference to the filled operator approval request for this exact SHA and these digests
+        required: true
+        type: string
       web_image:
         description: Digest-pinned aw-web image in aw-images (@sha256:...)
         required: true
@@ -64,6 +68,7 @@ jobs:
       DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
       INPUT_ENVIRONMENT: ${{ inputs.environment }}
       DEPLOY_SHA: ${{ inputs.sha }}
+      APPROVAL_REF: ${{ inputs.approval_ref }}
       WEB_IMAGE: ${{ inputs.web_image }}
       API_IMAGE: ${{ inputs.api_image }}
     steps:
@@ -83,26 +88,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$INPUT_ENVIRONMENT" != "dev" ]]; then
-            echo "Refusing deployment: only 'dev' is allowed." >&2
-            exit 1
-          fi
-
-          if [[ -z "$TF_PROJECT_ID" || -z "$DEPLOY_WIF_PROVIDER" || -z "$DEPLOYER_SA" ]]; then
-            echo "Missing TF_PROJECT_ID, DEPLOY_WIF_PROVIDER, or DEPLOYER_SA." >&2
-            exit 1
-          fi
-
-          expected_sa="aw-deployer@${TF_PROJECT_ID}.iam.gserviceaccount.com"
-          if [[ "$DEPLOYER_SA" != "$expected_sa" ]]; then
-            echo "Refusing deployment: DEPLOYER_SA must be ${expected_sa}." >&2
-            exit 1
-          fi
-
-          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Refusing deployment: sha must be 40-char lowercase hex." >&2
-            exit 1
-          fi
+          node e2e/dev/validate-deploy-inputs.mjs
 
           if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
             echo "Refusing deployment: commit ${DEPLOY_SHA} not found." >&2
@@ -111,20 +97,6 @@ jobs:
 
           if ! git merge-base --is-ancestor "$DEPLOY_SHA" origin/main; then
             echo "Refusing deployment: ${DEPLOY_SHA} not on origin/main." >&2
-            exit 1
-          fi
-
-          ar_prefix="asia-northeast1-docker.pkg.dev/${TF_PROJECT_ID}/aw-images"
-          web_pattern="^asia-northeast1-docker\\.pkg\\.dev/${TF_PROJECT_ID}/aw-images/aw-web@sha256:[0-9a-f]{64}$"
-          api_pattern="^asia-northeast1-docker\\.pkg\\.dev/${TF_PROJECT_ID}/aw-images/aw-api@sha256:[0-9a-f]{64}$"
-
-          if [[ ! "$WEB_IMAGE" =~ $web_pattern ]]; then
-            echo "Refusing web_image: must match ${ar_prefix}/aw-web@sha256:<64-hex>." >&2
-            exit 1
-          fi
-
-          if [[ ! "$API_IMAGE" =~ $api_pattern ]]; then
-            echo "Refusing api_image: must match ${ar_prefix}/aw-api@sha256:<64-hex>." >&2
             exit 1
           fi
 
@@ -141,6 +113,53 @@ jobs:
           workload_identity_provider: ${{ vars.DEPLOY_WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOYER_SA }}
           project_id: ${{ vars.TF_PROJECT_ID }}
+
+      - name: Verify digests exist and guard rails hold before any update
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e2e/artifacts
+
+          for image in "$API_IMAGE" "$WEB_IMAGE"; do
+            resolved="$(
+              gcloud artifacts docker images describe "$image" \
+                --project="$TF_PROJECT_ID" \
+                --format='value(image_summary.digest)'
+            )"
+            if [[ "$resolved" != "${image##*@}" ]]; then
+              echo "Refusing deployment: ${image} does not resolve to its pinned digest in Artifact Registry." >&2
+              exit 1
+            fi
+          done
+
+          for service in aw-api aw-web; do
+            gcloud run services describe "$service" \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format=json > "${RUNNER_TEMP}/${service}.before.json"
+          done
+
+          python3 - "${RUNNER_TEMP}/aw-api.before.json" "${RUNNER_TEMP}/aw-web.before.json" <<'PY'
+          import json
+          import sys
+
+          api = json.load(open(sys.argv[1], encoding="utf-8"))
+          web = json.load(open(sys.argv[2], encoding="utf-8"))
+
+          def container(service):
+              return service["spec"]["template"]["spec"]["containers"][0]
+
+          env = {item.get("name"): item.get("value") for item in container(api).get("env", [])}
+          if env.get("AW_MODE") != "production":
+              sys.exit("Refusing deployment: aw-api must run with AW_MODE=production so fake providers are rejected at startup.")
+          ingress = api["metadata"].get("annotations", {}).get("run.googleapis.com/ingress")
+          if ingress != "internal":
+              sys.exit("Refusing deployment: aw-api ingress must be internal-only, found " + str(ingress))
+          previous = {"aw-api": container(api)["image"], "aw-web": container(web)["image"]}
+          with open("e2e/artifacts/previous-images.json", "w", encoding="utf-8") as handle:
+              json.dump(previous, handle, indent=2)
+              handle.write("\n")
+          PY
 
       - name: Update Cloud Run revisions (aw-api and aw-web) and wait for latestReadyRevision
         id: deploy
@@ -202,6 +221,13 @@ jobs:
           api_digest="${API_IMAGE##*@}"
           web_digest="${WEB_IMAGE##*@}"
 
+          for service in aw-api aw-web; do
+            gcloud run services describe "$service" \
+              --project="$TF_PROJECT_ID" \
+              --region="$CLOUD_RUN_REGION" \
+              --format=json > "${RUNNER_TEMP}/${service}.after.json"
+          done
+
           python3 - \
             "$DEPLOY_SHA" \
             "$CLOUD_RUN_REGION" \
@@ -211,7 +237,10 @@ jobs:
             "$API_IMAGE" \
             "$api_digest" \
             "$api_revision" \
-            "$deploy_wall_ms" <<'PY'
+            "$deploy_wall_ms" \
+            "$APPROVAL_REF" \
+            "${RUNNER_TEMP}/aw-web.after.json" \
+            "${RUNNER_TEMP}/aw-api.after.json" <<'PY'
           import json
           import sys
 
@@ -225,18 +254,38 @@ jobs:
               api_digest,
               api_revision,
               deploy_wall_ms,
+              approval_ref,
+              web_after,
+              api_after,
           ) = sys.argv[1:]
+
+          def verified(name, path, expected):
+              service = json.load(open(path, encoding="utf-8"))
+              served = service["spec"]["template"]["spec"]["containers"][0]["image"]
+              if served != expected:
+                  sys.exit(f"{name} serving image {served} does not match requested {expected}")
+              traffic = service["status"].get("traffic", [])
+              if not any(t.get("latestRevision") and t.get("percent") == 100 for t in traffic):
+                  sys.exit(f"{name} is not sending 100% of traffic to its latestRevision")
+              return service["status"].get("url", "")
+
+          web_url = verified("aw-web", web_after, web_image)
+          verified("aw-api", api_after, api_image)
+          previous = json.load(open("e2e/artifacts/previous-images.json", encoding="utf-8"))
 
           summary = {
               "environment": "dev",
               "region": region,
               "commitSha": sha,
+              "approvalRef": approval_ref,
               "deployWallTimeMs": int(deploy_wall_ms),
+              "previousImages": previous,
               "services": {
                   "aw-web": {
                       "image": web_image,
                       "digest": web_digest,
                       "revision": web_revision,
+                      "url": web_url,
                   },
                   "aw-api": {
                       "image": api_image,
@@ -256,6 +305,7 @@ jobs:
             echo "- **Environment:** \`dev\`"
             echo "- **Region:** \`${CLOUD_RUN_REGION}\`"
             echo "- **Commit SHA:** \`${DEPLOY_SHA}\`"
+            echo "- **Approval reference:** \`${APPROVAL_REF}\`"
             echo "- **Deploy wall time:** \`${deploy_wall_ms} ms\`"
             echo ""
             echo "| Service | Revision | Digest | Image Reference |"

@@ -38,6 +38,7 @@ import { readSegmentConfig } from './config.js';
 import { Conflict } from './context.js';
 import { conversationPage, markRead, postToConversation } from './conversations.js';
 import { checkSources } from './diagnostics.js';
+import { applyGraphMigration } from './graph-migration.js';
 import { createModelGate } from './model.js';
 import { createFixtureSources } from './sources/fixture.js';
 import { SourceError } from './sources/port.js';
@@ -202,6 +203,7 @@ beforeAll(async () => {
   // Same client options as the segment API, which relies on array type inference.
   sql = postgres(database.url, { onnotice: () => undefined });
   await applyWorkbenchMigration(sql);
+  await applyGraphMigration(sql);
 }, 60_000);
 
 afterAll(async () => {

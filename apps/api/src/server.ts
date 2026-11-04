@@ -2,21 +2,24 @@ import { createServer } from 'node:http';
 
 import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 
+import { createAdmissionService } from './admission/postgres-admission.js';
 import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
 import { createPostgresAuditLog } from './audit/write.js';
-import { createRoleResolver, createGroupResolver } from './auth/directory.js';
-import { createIapVerifier } from './auth/iap.js';
 import { createPostgresApprovalStore } from './broker/approvals.js';
+import { admittedSkill } from './composition/admission.js';
+import { buildBackgroundLoops } from './composition/background.js';
+import { createDeliveryRoutes } from './composition/delivery.js';
+import { readWiring } from './composition/flags.js';
+import { buildOpsDashboard, buildQueuePublisher, buildTelemetry } from './composition/parts.js';
+import { prepareRoutines } from './composition/routines.js';
 import { loadConfig } from './config.js';
 import { createDevWorkspaceRuntime } from './connectors/dev-runtime.js';
 import { createOAuthFlow } from './credentials/flow.js';
 import { createPostgresCredentialStore } from './credentials/postgres.js';
-import { createHttpOAuthProvider } from './credentials/provider.js';
 import { openDatabase } from './db.js';
 import { createPostgresDispatchPort } from './ledger/postgres-dispatch.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
-import { createHttpDrive } from './retrieval/http-drive.js';
 import { ContextMismatch } from './retrieval/search.js';
 import { createPostgresOAuthConnectionsReader } from './routes/oauth-connections-read.js';
 import { createScheduleRuntime } from './scheduling/runtime.js';
@@ -26,8 +29,11 @@ import { createSkillRegistry } from './skills/registry.js';
 import { createTaskDispatcher } from './skills/task-dispatcher.js';
 import { taskSkillPolicy } from './skills/task-policy.js';
 import { createTicketReconciler } from './skills/ticket-receipts.js';
+import { buildProviderPorts } from './startup/ports.js';
+import { assertStartup } from './startup/providers.js';
 import { publishBundledCapabilities } from './suspension/bootstrap.js';
 import { createSuspensionEnforcer } from './suspension/enforcement.js';
+import { listOutstandingOperations } from './suspension/outstanding.js';
 import { createPostgresSuspensionLedger } from './suspension/postgres.js';
 import {
   authorizeResource,
@@ -42,32 +48,25 @@ import {
 import { createWorkbenchRuntime } from './workbench/runtime.js';
 
 import type { Caller } from './auth/iap.js';
+import type { RegisteredSkill } from './skills/incident.js';
 import type { SearchContext } from '@agent-works/domain';
 
+assertStartup(process.env);
+const wiring = readWiring(process.env);
+const telemetry = buildTelemetry(wiring);
 const config = loadConfig(process.env);
 const sql = await openDatabase(config.databaseUrl);
 const now = () => new Date();
-const drive = createHttpDrive({
-  baseUrl: config.driveUrl,
-  directoryUrl: config.directoryUrl,
-  workerToken: process.env.AW_DEV_STACK === '1' ? process.env.DRIVE_WORKER_TOKEN : undefined,
-  now,
-});
-const groups = createGroupResolver({ baseUrl: config.directoryUrl });
+const ports = buildProviderPorts(config, process.env, now);
+const { drive, groups, rolesFor, oauthUrl } = ports;
 const ledger = createPostgresLedgerPort(sql, now);
 const suspensionLedger = createPostgresSuspensionLedger(sql);
-const rolesFor = createRoleResolver({ baseUrl: config.directoryUrl });
-const oauthUrl = process.env.OAUTH_URL;
 const oauth =
-  oauthUrl === undefined
+  oauthUrl === undefined || ports.oauthProvider === undefined
     ? undefined
     : createOAuthFlow({
         ...createPostgresCredentialStore(sql),
-        provider: createHttpOAuthProvider(
-          oauthUrl,
-          config.oauthRedirectUri,
-          process.env.OAUTH_PUBLIC_URL,
-        ),
+        provider: ports.oauthProvider,
         ledger,
         now,
       });
@@ -88,8 +87,33 @@ await publishBundledCapabilities(suspensionLedger, baseline);
 const enforcement = createSuspensionEnforcer({
   ledger: suspensionLedger,
   emergencyAudit: emergencyAudit(ledger),
+  telemetry,
 });
-const verify = controlledVerify(createIapVerifier(config.iap), groups, enforcement);
+const admission =
+  wiring.admission === undefined
+    ? undefined
+    : await createAdmissionService({
+        sql,
+        leaseMs: wiring.admission.leaseMs,
+        now,
+        suspension: enforcement,
+      });
+const withAdmission = (skill: RegisteredSkill, model: string): RegisteredSkill =>
+  admission === undefined || wiring.admission === undefined
+    ? skill
+    : admittedSkill(
+        skill,
+        admission,
+        {
+          segmentId: wiring.admission.segmentId,
+          estimatedCostMicros: wiring.admission.estimatedCostMicros,
+          leaseMs: wiring.admission.leaseMs,
+          now,
+          teamsFor: groups,
+        },
+        model,
+      );
+const verify = controlledVerify(ports.iap, groups, enforcement);
 const workspace = (() => {
   if (process.env.AW_DEV_STACK === '1' && oauth !== undefined && oauthUrl !== undefined) {
     return createDevWorkspaceRuntime({
@@ -110,10 +134,12 @@ const workspace = (() => {
   }
   return undefined;
 })();
+const governed = (skill: RegisteredSkill, model: string): RegisteredSkill =>
+  withAdmission(controlledSkill(skill, enforcement, groups, model), model);
 const skills = createSkillRegistry([
-  controlledSkill(incidentSkill, enforcement, groups, config.incident?.model ?? 'gemini'),
-  ...(workspace ? [controlledSkill(workspace.taskSkill, enforcement, groups, 'gemini')] : []),
-  controlledSkill(workspace?.skill ?? createMeetingPrepSkill(), enforcement, groups, 'gemini'),
+  governed(incidentSkill, config.incident?.model ?? 'gemini'),
+  ...(workspace ? [governed(workspace.taskSkill, 'gemini')] : []),
+  governed(workspace?.skill ?? createMeetingPrepSkill(), 'gemini'),
 ]);
 if (workspace !== undefined) {
   await publishBundledCapabilities(suspensionLedger, [
@@ -148,7 +174,9 @@ const worker = createTaskDispatcher({
     config.incident === undefined ? undefined : createTicketReconciler(config.incident.ticketsUrl),
   onError: () => console.error('task dispatcher operation failed'),
 });
+const routines = await prepareRoutines(sql, process.env, now);
 const scheduling = await createScheduleRuntime({
+  guardAuthority: routines?.guard,
   sql,
   verify,
   dispatch,
@@ -158,6 +186,21 @@ const scheduling = await createScheduleRuntime({
   groups,
   now,
   configurationPath: process.env.AW_SCHEDULE_CONFIG,
+});
+const routineService = routines?.bind(scheduling);
+const internal =
+  wiring.delivery === undefined ? undefined : await createDeliveryRoutes(sql, wiring.delivery);
+const opsDashboard = wiring.opsDashboard
+  ? await buildOpsDashboard(sql, { verify, rolesFor, now })
+  : undefined;
+const background = await buildBackgroundLoops({
+  sql,
+  wiring,
+  now,
+  admission,
+  routines: routineService,
+  queue: wiring.outbox === undefined ? undefined : buildQueuePublisher(wiring.outbox),
+  onError: () => console.error('background operation failed'),
 });
 // Opt-in: only compose.p0.yaml sets WORKBENCH_ENABLED, so other deployments get no tables, routes or poller.
 const workbench =
@@ -173,6 +216,10 @@ const server = createServer(
     schedules: scheduling.routes,
     scheduleEvents: scheduling.events,
     admin: { ledger: suspensionLedger, rolesFor, now },
+    outstanding: () => listOutstandingOperations(sql, now()),
+    opsDashboard,
+    internal,
+    telemetry,
     drive,
     skills,
     dispatch,
@@ -222,6 +269,7 @@ const server = createServer(
 worker.start();
 scheduling.worker.start();
 workbench?.start();
+for (const loop of background) loop.start();
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
@@ -229,6 +277,7 @@ async function shutdown() {
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
   await worker.stop();
   await scheduling.worker.stop();
+  await Promise.all(background.map((loop) => loop.stop()));
   await workbench?.stop();
   await closed;
   await sql.end({ timeout: 5 });

@@ -38,11 +38,14 @@ export type ScheduleRuntimeOptions = {
   groups: (sub: string) => Promise<{ sub: string; groups: string[]; observedAt: string }>;
   now: () => Date;
   configurationPath?: string;
+  /** Wraps the sponsor-authority resolver, e.g. with the routine grant check. Absent keeps it as is. */
+  guardAuthority?: (base: AuthorityResolver) => AuthorityResolver;
 };
 export function createScheduleRuntime(options: ScheduleRuntimeOptions) {
   const config = readScheduleConfiguration(options.configurationPath);
   const store = createPostgresSchedulePort(options.sql);
-  const authority = runtimeAuthority(options, config);
+  const authority = (options.guardAuthority ?? ((base) => base))(runtimeAuthority(options, config));
+  const consent = createLocalConsentRegistry(config.consents);
   const keys = createLocalKeyRegistry(
     config.keys.map((key) =>
       key.algorithm === 'HS256'
@@ -68,7 +71,7 @@ export function createScheduleRuntime(options: ScheduleRuntimeOptions) {
   const scheduler = createScheduler({
     store,
     authority,
-    consent: createLocalConsentRegistry(config.consents),
+    consent,
     suspension: options.suspension,
     budget: schedulingBudget(options.sql),
     budgetPolicy: { task: limit, user: limit, mode: 'observe' },
@@ -93,6 +96,9 @@ export function createScheduleRuntime(options: ScheduleRuntimeOptions) {
     routes: { verify: options.verify, store, scheduler, authority },
     events: createEventIngestor({ store, scheduler, keys, now: options.now }),
     worker,
+    scheduler,
+    store,
+    consent,
   });
 }
 function runtimeAuthority(
