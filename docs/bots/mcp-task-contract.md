@@ -9,6 +9,8 @@ An accepted submission means the agent created or recognized a task. It never im
 
 `parseAgentRegistry(json, { allowLoopback })` takes an array of entries with exactly these fields.
 The segment owns the allowLoopback policy. Production startup passes `false`.
+`connectAgentTask(agent, { allowLoopback })` validates again before constructing its transport and defaults to `false`.
+Reference-agent callers must explicitly pass `allowLoopback: true` when connecting, even if the registry already permits loopback.
 The integration reads the JSON file named by `AW_BOT_MCP_AGENTS` and passes its parsed contents to this function.
 This module does not read environment variables or files.
 

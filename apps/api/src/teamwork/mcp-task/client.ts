@@ -87,14 +87,14 @@ function uncertain(error: unknown): SubmitOutcome {
 
 export async function connectAgentTask(
   agent: ApprovedAgent,
-  opts?: { fetch?: typeof fetch },
+  opts?: { fetch?: typeof fetch; allowLoopback?: boolean },
 ): Promise<AgentTaskClient> {
+  // Validate again because callers may construct ApprovedAgent without parsing a registry.
+  parseAgentRegistry([agent], { allowLoopback: opts?.allowLoopback ?? false });
   const transport = mcpHttpTransport(agent.endpoint, {
     allowedHosts: agent.allowedHosts,
     fetch: boundedFetch(opts?.fetch ?? fetch, agent.maxOutputBytes, agent.callTimeoutMs),
   });
-  // Validate again because callers may construct ApprovedAgent without parsing a registry.
-  parseAgentRegistry([agent], { allowLoopback: true });
   const client = new Client({ name: 'agent-works-task-client', version: '1.0.0' });
   const connectTimeout = AbortSignal.timeout(agent.callTimeoutMs);
   try {

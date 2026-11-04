@@ -58,7 +58,10 @@ async function fixture(options: Parameters<typeof startReferenceAgent>[0] = {}) 
     overrides: Partial<ApprovedAgent> = {},
     fetchOverride?: typeof fetch,
   ): Promise<AgentTaskClient> {
-    const client = await connectAgentTask({ ...agent, ...overrides }, { fetch: fetchOverride });
+    const client = await connectAgentTask(
+      { ...agent, ...overrides },
+      { fetch: fetchOverride, allowLoopback: true },
+    );
     cleanups.push(() => client.close());
     return client;
   }
@@ -232,6 +235,14 @@ describe('real Streamable HTTP lifecycle', () => {
 });
 
 describe('transport faults and bounds', () => {
+  it('rejects a directly constructed HTTP loopback agent by default before fetching', async () => {
+    const fake = vi.fn<typeof fetch>();
+    await expect(
+      connectAgentTask(config('http://127.0.0.1:4567/mcp'), { fetch: fake }),
+    ).rejects.toThrow('endpoint');
+    expect(fake).not.toHaveBeenCalled();
+  });
+
   it('rejects manifest changes before sending another tool call', async () => {
     const f = await fixture();
     let changed = false;
@@ -397,7 +408,7 @@ describe('transport faults and bounds', () => {
     );
     await expect(
       connectAgentTask({ ...config(), allowedHosts: ['elsewhere.internal'] }, { fetch: fake }),
-    ).rejects.toMatchObject({ code: 'mcp_host_not_allowed' });
+    ).rejects.toThrow('allowedHosts');
     expect(fake).not.toHaveBeenCalled();
     await expect(connectAgentTask(config(), { fetch: fake })).rejects.toMatchObject({
       code: 'mcp_redirect',
