@@ -720,6 +720,14 @@ describe('durable bot execution', () => {
     expect((await route(req)).status).toBe(403);
     const response = await route({ ...req, headers: { 'x-csrf-token': 'yes' } });
     expect(response.status).toBe(201);
+    const runId = (await sql<{ task_id: string }[]>`select task_id from tw_bot_runs`)[0].task_id;
+    const approval = (await runView(options, alice, runId)).approvals[0];
+    const stale = await route({
+      ...request({ decision: 'approve', actionDigest: 'stale' }),
+      headers: { 'x-csrf-token': 'yes' },
+      path: `/v1/teamwork/bot-runs/${runId}/approvals/${approval.id}`,
+    });
+    expect(stale.status).toBe(409);
     const get = await route({
       ...request({}),
       method: 'GET',

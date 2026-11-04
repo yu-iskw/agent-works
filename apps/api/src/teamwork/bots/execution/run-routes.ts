@@ -119,7 +119,7 @@ export function createBotRunRoutes(
         requestBody(
           z.strictObject({
             decision: z.enum(['approve', 'decline']),
-            actionDigest: z.string().regex(/^[a-f0-9]{64}$/),
+            actionDigest: z.string(),
           }),
           request,
         ),
@@ -151,7 +151,7 @@ export function createBotRunRoutes(
           requestBody(
             z.strictObject({
               outcome: z.enum(['succeeded', 'failed']),
-              note: z.string().trim().min(1).max(300),
+              note: z.string().max(300),
             }),
             request,
           ),
