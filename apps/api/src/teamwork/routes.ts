@@ -29,7 +29,10 @@ import {
   taskListQuerySchema,
   teammateCreateSchema,
   teammateUpdateSchema,
+  planContentSchema,
 } from '@agent-works/domain/teamwork';
+import { graphCasSchema } from '@agent-works/domain/teamwork-graph-contract';
+import * as z from 'zod';
 
 import { Unauthenticated, Unavailable } from '../auth/iap.js';
 import { headerValue } from '../http.js';
@@ -60,12 +63,14 @@ import { Conflict, audit } from './context.js';
 import { conversation, conversationPage, markRead, postToConversation } from './conversations.js';
 import { checkSources } from './diagnostics.js';
 import { GatewayDenied } from './gateway.js';
+import { reviseGraph } from './graph-revision.js';
 import {
   listConnectorInstallations,
   listMarketplace,
   marketplaceItem,
   mutateConnector,
 } from './marketplace.js';
+import { projectionRoutes } from './projection-route.js';
 import {
   cancelTask,
   createTask,
@@ -88,7 +93,6 @@ import {
 
 import type { Deps, Member, Reply, Request } from './context.js';
 import type { VerifyAssertion } from '../auth/iap.js';
-import type * as z from 'zod';
 
 const reply = (status: number, body: unknown): Reply => ({
   status,
@@ -274,6 +278,18 @@ function catalogRoutes(readiness: Readiness): readonly Entry[] {
     },
   ];
 }
+
+const graphReviseSchema = z.strictObject({ cas: graphCasSchema, content: planContentSchema });
+
+/** Edits the live graph under compare-and-swap; the member reviews the new revision before it runs. */
+const graphRevisionRoutes = (): readonly Entry[] => [
+  {
+    method: 'POST',
+    path: p(`/tasks/${uuid}/graph/revise`),
+    handle: async ({ deps: d, member, request }, [id]) =>
+      reply(200, { task: await reviseGraph(d, member, id, body(graphReviseSchema, request)) }),
+  },
+];
 
 const workRoutes = (): readonly Entry[] => [
   {
@@ -515,7 +531,13 @@ const marketplaceRoutes = (): readonly Entry[] => [
 ];
 
 export function createRoutes(deps: Deps, verify: VerifyAssertion, readiness: Readiness) {
-  const table = [...catalogRoutes(readiness), ...workRoutes(), ...marketplaceRoutes()];
+  const table = [
+    ...catalogRoutes(readiness),
+    ...workRoutes(),
+    ...marketplaceRoutes(),
+    ...projectionRoutes(),
+    ...graphRevisionRoutes(),
+  ];
 
   /**
    * Every request carries a short-lived member assertion minted by web for this segment's

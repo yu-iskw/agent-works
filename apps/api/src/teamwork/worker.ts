@@ -53,6 +53,7 @@ import {
   touchTask,
   withTask,
 } from './store.js';
+import { strictPlan } from './strict-plan.js';
 import { checkPlan, planDigest, synthesisSkill } from './tasks.js';
 
 import type { TeammateSkill } from './catalog.js';
@@ -330,44 +331,68 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     if (failure === undefined) throw error;
     return failTask(deps, task.id, 'planning', 'planning', failure);
   }
-  let proposal;
-  try {
-    proposal = parsePlan(raw.text);
-  } catch {
-    return failTask(deps, task.id, 'planning', 'planning', {
-      code: 'invalid_output',
-      message: modelRemediation.invalid_output,
-    });
-  }
-  const seen = new Set<string>();
-  const assignments = proposal.assignments
-    .filter((a) => roster.some((r) => r.id === a.teammateId))
-    .map((a) => ({
-      ...a,
-      sources: a.sources.filter(
-        (s) =>
-          // eslint-disable-next-line security/detect-object-injection
-          allowed.has(s) && (effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
+  let proposed: PlanContent;
+  if (deps.strictProposals === true) {
+    const verdict = strictPlan(raw.text, {
+      coordinatorId: coordinator.id,
+      roster: new Map(
+        roster.map((r) => [
+          r.id,
+          new Set(
+            [...allowed].filter((s) => effectiveFor.get(r.id)?.has(SOURCE_CAPABILITY[s]) ?? false),
+          ),
+        ]),
       ),
-    }))
-    .filter((a) => a.sources.length > 0)
-    .map((a, index) => {
-      const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
-      seen.add(key);
-      return { ...a, key };
+      now: deps.now().toISOString(),
     });
-  const keys = new Set(assignments.map((a) => a.key));
-  const linked = assignments.map((a) => ({
-    ...a,
-    dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
-  }));
-  const proposed: PlanContent = {
-    summary: proposal.summary || 'Coordinator plan',
-    // A cyclic proposal would never start; run it in parallel and let the member review that.
-    assignments: hasDependencyCycle(linked) ? linked.map((a) => ({ ...a, dependsOn: [] })) : linked,
-    synthesisOwner: task.result_owner,
-    expectedEffects: proposal.expectedEffects,
-  };
+    if (!verdict.ok)
+      return failTask(deps, task.id, 'planning', 'planning', {
+        code: 'invalid_output',
+        message: `${modelRemediation.invalid_output} (refused: ${verdict.reasons.join(', ')})`,
+      });
+    proposed = verdict.content;
+  } else {
+    let proposal;
+    try {
+      proposal = parsePlan(raw.text);
+    } catch {
+      return failTask(deps, task.id, 'planning', 'planning', {
+        code: 'invalid_output',
+        message: modelRemediation.invalid_output,
+      });
+    }
+    const seen = new Set<string>();
+    const assignments = proposal.assignments
+      .filter((a) => roster.some((r) => r.id === a.teammateId))
+      .map((a) => ({
+        ...a,
+        sources: a.sources.filter(
+          (s) =>
+            // eslint-disable-next-line security/detect-object-injection
+            allowed.has(s) && (effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
+        ),
+      }))
+      .filter((a) => a.sources.length > 0)
+      .map((a, index) => {
+        const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
+        seen.add(key);
+        return { ...a, key };
+      });
+    const keys = new Set(assignments.map((a) => a.key));
+    const linked = assignments.map((a) => ({
+      ...a,
+      dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
+    }));
+    proposed = {
+      summary: proposal.summary || 'Coordinator plan',
+      // A cyclic proposal would never start; run it in parallel and let the member review that.
+      assignments: hasDependencyCycle(linked)
+        ? linked.map((a) => ({ ...a, dependsOn: [] }))
+        : linked,
+      synthesisOwner: task.result_owner,
+      expectedEffects: proposal.expectedEffects,
+    };
+  }
   // A replan keeps completed work as it was done; the coordinator only decides what is left.
   const completed = completedNodes(await assignmentsFor(deps.sql, task.id));
   const content =
