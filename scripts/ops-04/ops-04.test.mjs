@@ -13,7 +13,10 @@ import { loadResults, proposeThresholds } from './propose-thresholds.mjs';
 import { runCampaign } from './run.mjs';
 
 const spec = (name) => JSON.parse(readFileSync(new URL(name, import.meta.url), 'utf8'));
-const distBuilt = existsSync(new URL('../../apps/api/dist/worker/sweeper.js', import.meta.url));
+const distBuilt = [
+  '../../apps/api/dist/worker/sweeper.js',
+  '../../agents/skills/incident-analysis/dist/deliver.js',
+].every((path) => existsSync(new URL(path, import.meta.url)));
 
 const exec = (id, over = {}) => ({
   id,

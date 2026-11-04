@@ -103,23 +103,22 @@ describe.skipIf(!live)('stop control on real PostgreSQL', () => {
     const receipts: string[] = [];
     let committed = false;
     let lateEffects = 0;
-    const workers = Array.from({ length: 16 }, (_, worker) =>
-      (async () => {
-        for (let step = 0; step < 400; step += 1) {
-          const afterCommit = committed;
-          try {
-            await enforcer.check({ ...testContext, taskId: `race-${worker}` }, 'tool');
-          } catch (error) {
-            if (error instanceof InvocationStopped) return 'stopped';
-            throw error;
-          }
-          if (afterCommit) lateEffects += 1;
-          receipts.push(`${worker}:${step}`);
-          await Promise.resolve();
+    const runWorker = async (worker: number): Promise<'stopped' | 'finished'> => {
+      for (let step = 0; step < 400; step += 1) {
+        const afterCommit = committed;
+        try {
+          await enforcer.check({ ...testContext, taskId: `race-${worker}` }, 'tool');
+        } catch (error) {
+          if (error instanceof InvocationStopped) return 'stopped';
+          throw error;
         }
-        return 'finished';
-      })(),
-    );
+        if (afterCommit) lateEffects += 1;
+        receipts.push(`${worker}:${step}`);
+        await Promise.resolve();
+      }
+      return 'finished';
+    };
+    const workers = Array.from({ length: 16 }, (_, worker) => runWorker(worker));
     await new Promise((resolve) => setTimeout(resolve, 20));
     await ledger.change(stop, 'operator', new Date());
     committed = true;
