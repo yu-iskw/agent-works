@@ -267,12 +267,9 @@ describe('google queue client', () => {
     await expect(client.post({ url: 'https://cloudtasks.test/x', body: '{}' })).resolves.toEqual({
       status: 200,
     });
-    expect(send).toHaveBeenCalledWith(
-      'https://cloudtasks.test/x',
-      expect.objectContaining({
-        headers: expect.objectContaining({ authorization: 'Bearer tok' }),
-      }),
-    );
+    const [url, init] = send.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://cloudtasks.test/x');
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer tok');
   });
 
   it('maps a rejected envelope to a permanent publish failure and 5xx to a retryable one', async () => {

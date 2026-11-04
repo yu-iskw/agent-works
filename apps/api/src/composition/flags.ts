@@ -4,7 +4,7 @@ import type { WorkerBudget } from '../worker/types.js';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-export type AdmissionWiring = {
+type AdmissionWiring = {
   readonly leaseMs: number;
   readonly segmentId: string;
   readonly estimatedCostMicros: number;
@@ -29,14 +29,14 @@ export type OutboxWiring = {
   readonly batch: number;
   readonly maxAttempts: number;
 };
-export type SweeperWiring = {
+type SweeperWiring = {
   readonly budget: WorkerBudget;
   readonly intervalMs: number;
   readonly redriveAfterMs: number;
   readonly maxRedrives: number;
   readonly limit: number;
 };
-export type ExecutionWorkerWiring = { readonly budget: WorkerBudget; readonly intervalMs: number };
+type ExecutionWorkerWiring = { readonly budget: WorkerBudget; readonly intervalMs: number };
 
 /** Every capability is absent unless its flag is exactly `on` and its required values are valid. */
 export type Wiring = {
@@ -65,6 +65,8 @@ const text = (env: Env, name: string): string | undefined =>
     .find(([key]) => key === name)?.[1]
     ?.trim() || undefined;
 
+const REQUIRED = 'is required';
+
 type Reader = {
   string(name: string): string;
   int(name: string, fallback?: number, min?: number): number;
@@ -77,11 +79,11 @@ function reader(env: Env, problems: string[]): Reader {
     return undefined as never;
   };
   return {
-    string: (name) => text(env, name) ?? need(name, 'is required'),
+    string: (name) => text(env, name) ?? need(name, REQUIRED),
     list: (name) => {
       const value = text(env, name);
       return value === undefined
-        ? need(name, 'is required')
+        ? need(name, REQUIRED)
         : value
             .split(',')
             .map((item) => item.trim())
@@ -89,7 +91,7 @@ function reader(env: Env, problems: string[]): Reader {
     },
     int: (name, fallback, min = 1) => {
       const value = text(env, name);
-      if (value === undefined) return fallback ?? need(name, 'is required');
+      if (value === undefined) return fallback ?? need(name, REQUIRED);
       const number = Number(value);
       return /^\d+$/.test(value) && Number.isSafeInteger(number) && number >= min
         ? number
@@ -112,74 +114,63 @@ function budget(read: Reader, env: Env): WorkerBudget {
   };
 }
 
-/**
- * Reads the wiring flags. A capability whose flag is `on` but whose required values are missing or
- * malformed makes the whole read throw: the process must not start half-configured.
- */
-export function readWiring(env: Env): Wiring {
-  const problems: string[] = [];
-  const read = reader(env, problems);
-  const wiring: Wiring = {
-    telemetry: on(env, 'AW_TELEMETRY'),
-    opsDashboard: on(env, 'AW_OPS_DASHBOARD'),
-    strictProposals: on(env, 'AW_STRICT_PROPOSALS'),
-    ...(on(env, 'AW_ADMISSION')
-      ? {
-          admission: {
-            leaseMs: read.int('AW_ADMISSION_LEASE_MS'),
-            segmentId: read.string('AW_ADMISSION_SEGMENT'),
-            estimatedCostMicros: read.int('AW_ADMISSION_ESTIMATE_MICROS', undefined, 0),
-            sweepMs: read.int('AW_ADMISSION_SWEEP_MS', 30_000),
-          },
-        }
-      : {}),
-    ...(on(env, 'AW_WORKER_DELIVERY')
-      ? {
-          delivery: {
-            workerUrl: read.string('AW_WORKER_URL'),
-            dispatcherEmails: read.list('AW_DISPATCHER_SA'),
-            budget: budget(read, env),
-          },
-        }
-      : {}),
-    ...(on(env, 'AW_OUTBOX_PUBLISHER')
-      ? {
-          outbox: {
-            queue: {
-              projectId: read.string('AW_QUEUE_PROJECT'),
-              location: read.string('AW_QUEUE_LOCATION'),
-              queue: read.string('AW_QUEUE_NAME'),
-              workerUrl: read.string('AW_WORKER_URL'),
-              oidcServiceAccountEmail: read.string('AW_QUEUE_OIDC_SA'),
-            },
-            owner: text(env, 'AW_OUTBOX_OWNER') ?? `outbox-${process.pid}`,
-            leaseMs: read.int('AW_OUTBOX_LEASE_MS'),
-            intervalMs: read.int('AW_OUTBOX_INTERVAL_MS', 1000),
-            batch: read.int('AW_OUTBOX_BATCH', 20),
-            maxAttempts: read.int('AW_OUTBOX_MAX_ATTEMPTS', 8),
-          },
-        }
-      : {}),
-    ...(on(env, 'AW_EXECUTION_SWEEPER')
-      ? {
-          sweeper: {
-            budget: budget(read, env),
-            intervalMs: read.int('AW_SWEEP_INTERVAL_MS', 30_000),
-            redriveAfterMs: read.int('AW_SWEEP_REDRIVE_AFTER_MS'),
-            maxRedrives: read.int('AW_SWEEP_MAX_REDRIVES', undefined, 0),
-            limit: read.int('AW_SWEEP_LIMIT', 100),
-          },
-        }
-      : {}),
-    ...(on(env, 'AW_EXECUTION_WORKER')
-      ? {
-          executionWorker: {
-            budget: budget(read, env),
-            intervalMs: read.int('AW_EXECUTION_WORKER_INTERVAL_MS', 1000),
-          },
-        }
-      : {}),
+function admission(env: Env, read: Reader): AdmissionWiring | undefined {
+  if (!on(env, 'AW_ADMISSION')) return undefined;
+  return {
+    leaseMs: read.int('AW_ADMISSION_LEASE_MS'),
+    segmentId: read.string('AW_ADMISSION_SEGMENT'),
+    estimatedCostMicros: read.int('AW_ADMISSION_ESTIMATE_MICROS', undefined, 0),
+    sweepMs: read.int('AW_ADMISSION_SWEEP_MS', 30_000),
   };
+}
+
+function delivery(env: Env, read: Reader): DeliveryWiring | undefined {
+  if (!on(env, 'AW_WORKER_DELIVERY')) return undefined;
+  return {
+    workerUrl: read.string('AW_WORKER_URL'),
+    dispatcherEmails: read.list('AW_DISPATCHER_SA'),
+    budget: budget(read, env),
+  };
+}
+
+function outbox(env: Env, read: Reader): OutboxWiring | undefined {
+  if (!on(env, 'AW_OUTBOX_PUBLISHER')) return undefined;
+  return {
+    queue: {
+      projectId: read.string('AW_QUEUE_PROJECT'),
+      location: read.string('AW_QUEUE_LOCATION'),
+      queue: read.string('AW_QUEUE_NAME'),
+      workerUrl: read.string('AW_WORKER_URL'),
+      oidcServiceAccountEmail: read.string('AW_QUEUE_OIDC_SA'),
+    },
+    owner: text(env, 'AW_OUTBOX_OWNER') ?? `outbox-${process.pid}`,
+    leaseMs: read.int('AW_OUTBOX_LEASE_MS'),
+    intervalMs: read.int('AW_OUTBOX_INTERVAL_MS', 1000),
+    batch: read.int('AW_OUTBOX_BATCH', 20),
+    maxAttempts: read.int('AW_OUTBOX_MAX_ATTEMPTS', 8),
+  };
+}
+
+function sweeper(env: Env, read: Reader): SweeperWiring | undefined {
+  if (!on(env, 'AW_EXECUTION_SWEEPER')) return undefined;
+  return {
+    budget: budget(read, env),
+    intervalMs: read.int('AW_SWEEP_INTERVAL_MS', 30_000),
+    redriveAfterMs: read.int('AW_SWEEP_REDRIVE_AFTER_MS'),
+    maxRedrives: read.int('AW_SWEEP_MAX_REDRIVES', undefined, 0),
+    limit: read.int('AW_SWEEP_LIMIT', 100),
+  };
+}
+
+function executionWorker(env: Env, read: Reader): ExecutionWorkerWiring | undefined {
+  if (!on(env, 'AW_EXECUTION_WORKER')) return undefined;
+  return {
+    budget: budget(read, env),
+    intervalMs: read.int('AW_EXECUTION_WORKER_INTERVAL_MS', 1000),
+  };
+}
+
+function crossChecks(env: Env, wiring: Wiring, problems: string[]): void {
   const workerUrl = text(env, 'AW_WORKER_URL');
   if (
     (wiring.delivery !== undefined || wiring.outbox !== undefined) &&
@@ -192,6 +183,26 @@ export function readWiring(env: Env): Wiring {
     text(env, 'AW_STANDING_GRANTS_O04_REF') === undefined
   )
     problems.push('AW_STANDING_GRANTS_O04_REF is required when AW_STANDING_GRANTS is on');
+}
+
+/**
+ * Reads the wiring flags. A capability whose flag is `on` but whose required values are missing or
+ * malformed makes the whole read throw: the process must not start half-configured.
+ */
+export function readWiring(env: Env): Wiring {
+  const problems: string[] = [];
+  const read = reader(env, problems);
+  const wiring: Wiring = {
+    telemetry: on(env, 'AW_TELEMETRY'),
+    opsDashboard: on(env, 'AW_OPS_DASHBOARD'),
+    strictProposals: on(env, 'AW_STRICT_PROPOSALS'),
+    admission: admission(env, read),
+    delivery: delivery(env, read),
+    outbox: outbox(env, read),
+    sweeper: sweeper(env, read),
+    executionWorker: executionWorker(env, read),
+  };
+  crossChecks(env, wiring, problems);
   if (problems.length > 0) throw new WiringConfigError([...new Set(problems)]);
   return wiring;
 }

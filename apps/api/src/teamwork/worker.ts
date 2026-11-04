@@ -331,68 +331,15 @@ async function plan(deps: Deps, job: Job): Promise<void> {
     if (failure === undefined) throw error;
     return failTask(deps, task.id, 'planning', 'planning', failure);
   }
-  let proposed: PlanContent;
-  if (deps.strictProposals === true) {
-    const verdict = strictPlan(raw.text, {
-      coordinatorId: coordinator.id,
-      roster: new Map(
-        roster.map((r) => [
-          r.id,
-          new Set(
-            [...allowed].filter((s) => effectiveFor.get(r.id)?.has(SOURCE_CAPABILITY[s]) ?? false),
-          ),
-        ]),
-      ),
-      now: deps.now().toISOString(),
-    });
-    if (!verdict.ok)
-      return failTask(deps, task.id, 'planning', 'planning', {
-        code: 'invalid_output',
-        message: `${modelRemediation.invalid_output} (refused: ${verdict.reasons.join(', ')})`,
-      });
-    proposed = verdict.content;
-  } else {
-    let proposal;
-    try {
-      proposal = parsePlan(raw.text);
-    } catch {
-      return failTask(deps, task.id, 'planning', 'planning', {
-        code: 'invalid_output',
-        message: modelRemediation.invalid_output,
-      });
-    }
-    const seen = new Set<string>();
-    const assignments = proposal.assignments
-      .filter((a) => roster.some((r) => r.id === a.teammateId))
-      .map((a) => ({
-        ...a,
-        sources: a.sources.filter(
-          (s) =>
-            // eslint-disable-next-line security/detect-object-injection
-            allowed.has(s) && (effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
-        ),
-      }))
-      .filter((a) => a.sources.length > 0)
-      .map((a, index) => {
-        const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
-        seen.add(key);
-        return { ...a, key };
-      });
-    const keys = new Set(assignments.map((a) => a.key));
-    const linked = assignments.map((a) => ({
-      ...a,
-      dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
-    }));
-    proposed = {
-      summary: proposal.summary || 'Coordinator plan',
-      // A cyclic proposal would never start; run it in parallel and let the member review that.
-      assignments: hasDependencyCycle(linked)
-        ? linked.map((a) => ({ ...a, dependsOn: [] }))
-        : linked,
-      synthesisOwner: task.result_owner,
-      expectedEffects: proposal.expectedEffects,
-    };
-  }
+  const drafted = draftProposal(deps, raw.text, {
+    coordinatorId: coordinator.id,
+    resultOwner: task.result_owner,
+    rosterIds: roster.map((r) => r.id),
+    allowed,
+    effectiveFor,
+  });
+  if ('failure' in drafted) return failTask(deps, task.id, 'planning', 'planning', drafted.failure);
+  const proposed = drafted.content;
   // A replan keeps completed work as it was done; the coordinator only decides what is left.
   const completed = completedNodes(await assignmentsFor(deps.sql, task.id));
   const content =
@@ -430,6 +377,88 @@ async function plan(deps: Deps, job: Job): Promise<void> {
       ],
     });
   });
+}
+
+type DraftContext = {
+  readonly coordinatorId: string;
+  readonly resultOwner: string;
+  readonly rosterIds: readonly string[];
+  readonly allowed: ReadonlySet<SourceKind>;
+  readonly effectiveFor: ReadonlyMap<string, ReadonlySet<Capability>>;
+};
+
+/** Strict mode denies a bad proposal whole; the default keeps the lenient parse that trims it. */
+function draftProposal(
+  deps: Deps,
+  text: string,
+  ctx: DraftContext,
+): { readonly content: PlanContent } | { readonly failure: { code: string; message: string } } {
+  const raw = { text };
+  if (deps.strictProposals === true) {
+    const verdict = strictPlan(raw.text, {
+      coordinatorId: ctx.coordinatorId,
+      roster: new Map(
+        ctx.rosterIds.map((id) => [
+          id,
+          new Set(
+            [...ctx.allowed].filter(
+              // eslint-disable-next-line security/detect-object-injection -- closed source union
+              (s) => ctx.effectiveFor.get(id)?.has(SOURCE_CAPABILITY[s]) ?? false,
+            ),
+          ),
+        ]),
+      ),
+      now: deps.now().toISOString(),
+    });
+    if (!verdict.ok)
+      return {
+        failure: {
+          code: 'invalid_output',
+          message: `${modelRemediation.invalid_output} (refused: ${verdict.reasons.join(', ')})`,
+        },
+      };
+    return { content: verdict.content };
+  } else {
+    let proposal;
+    try {
+      proposal = parsePlan(raw.text);
+    } catch {
+      return { failure: { code: 'invalid_output', message: modelRemediation.invalid_output } };
+    }
+    const seen = new Set<string>();
+    const assignments = proposal.assignments
+      .filter((a) => ctx.rosterIds.includes(a.teammateId))
+      .map((a) => ({
+        ...a,
+        sources: a.sources.filter(
+          (s) =>
+            ctx.allowed.has(s) &&
+            (ctx.effectiveFor.get(a.teammateId)?.has(SOURCE_CAPABILITY[s]) ?? false),
+        ),
+      }))
+      .filter((a) => a.sources.length > 0)
+      .map((a, index) => {
+        const key = seen.has(a.key) ? `${a.key.slice(0, 26)}-${index + 1}` : a.key;
+        seen.add(key);
+        return { ...a, key };
+      });
+    const keys = new Set(assignments.map((a) => a.key));
+    const linked = assignments.map((a) => ({
+      ...a,
+      dependsOn: a.dependsOn.filter((k) => keys.has(k) && k !== a.key),
+    }));
+    return {
+      content: {
+        summary: proposal.summary || 'Coordinator plan',
+        // A cyclic proposal would never start; run it in parallel and let the member review that.
+        assignments: hasDependencyCycle(linked)
+          ? linked.map((a) => ({ ...a, dependsOn: [] }))
+          : linked,
+        synthesisOwner: ctx.resultOwner,
+        expectedEffects: proposal.expectedEffects,
+      },
+    };
+  }
 }
 
 async function appendEventTx(

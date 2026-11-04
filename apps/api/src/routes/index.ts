@@ -2,8 +2,8 @@ import { analyticsRoutes } from '../analytics/registration.js';
 import { createMemoryTaskPorts } from '../ports/memory/task-ports.js';
 import { auditAdminDenials } from '../suspension/admin-denial.js';
 
-import { adminChangeRoutes } from './admin-change.js';
 import { requireAdmin } from './admin-auth.js';
+import { adminChangeRoutes } from './admin-change.js';
 import { adminReadRoutes } from './admin-read.js';
 import { approvalsDecideSlot } from './approvals-decide.js';
 import { approvalsReadSlot } from './approvals-read.js';
@@ -99,30 +99,7 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
       verify: deps.verify,
     });
   }
-  if (deps.admin !== undefined) {
-    const admin = { ...deps.admin, verify: deps.verify };
-    const { outstanding } = deps;
-    Object.assign(
-      table,
-      auditAdminDenials(
-        {
-          ...adminReadRoutes(admin),
-          ...adminChangeRoutes(admin),
-          ...(outstanding === undefined
-            ? {}
-            : {
-                'GET /v1/admin/outstanding': requireAdmin(admin, async () => ({
-                  status: 200,
-                  body: await outstanding(),
-                })),
-              }),
-        },
-        admin,
-      ),
-    );
-  }
-  if (deps.opsDashboard !== undefined) Object.assign(table, opsDashboardRoutes(deps.opsDashboard));
-  if (deps.internal !== undefined) Object.assign(table, deps.internal);
+  Object.assign(table, operatorRoutes(deps));
   Object.assign(
     table,
     governanceRoutes(deps),
@@ -150,6 +127,38 @@ export function createRouteTable(deps: RouteDeps, env: RouteEnv): Readonly<Recor
     table[`${slot.method} ${slot.path}`] = selectRoute(selected, env);
   }
   return table;
+}
+
+/** Admin, ops dashboard and service-to-service routes; each exists only when its dependency is supplied. */
+function operatorRoutes(deps: RouteDeps): Readonly<Record<string, Route>> {
+  return {
+    ...(deps.admin === undefined ? {} : adminRoutes(deps, deps.admin)),
+    ...(deps.opsDashboard === undefined ? {} : opsDashboardRoutes(deps.opsDashboard)),
+    ...deps.internal,
+  };
+}
+
+function adminRoutes(
+  deps: RouteDeps,
+  adminDeps: NonNullable<RouteDeps['admin']>,
+): Readonly<Record<string, Route>> {
+  const admin = { ...adminDeps, verify: deps.verify };
+  const { outstanding } = deps;
+  return auditAdminDenials(
+    {
+      ...adminReadRoutes(admin),
+      ...adminChangeRoutes(admin),
+      ...(outstanding === undefined
+        ? {}
+        : {
+            'GET /v1/admin/outstanding': requireAdmin(admin, async () => ({
+              status: 200,
+              body: await outstanding(),
+            })),
+          }),
+    },
+    admin,
+  );
 }
 
 export function matchSlot(method: string, pathname: string): PatternSlot | undefined {

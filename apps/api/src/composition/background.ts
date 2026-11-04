@@ -17,7 +17,7 @@ import type postgres from 'postgres';
 export type Loop = { start(): void; stop(): Promise<void> };
 
 /** What a real step needs. The process has none built in, so enabling the worker without one is refused. */
-export type ExecutionRuntime = {
+type ExecutionRuntime = {
   readonly gate: EffectGate;
   readonly handler: WorkerDeps['handler'];
 };

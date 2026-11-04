@@ -14,9 +14,9 @@ type SchedulerParts = Parameters<typeof createRoutineSchedules>[0];
 
 export type RoutineWiring = {
   /** Passed to the schedule runtime so every tick, claim and recheck also asks the grant. */
-  guard(base: AuthorityResolver): AuthorityResolver;
+  readonly guard: (base: AuthorityResolver) => AuthorityResolver;
   /** Called once the runtime exists; returns the service whose `sweep` the tick loop runs. */
-  bind(scheduler: SchedulerParts): RoutineService;
+  readonly bind: (scheduler: SchedulerParts) => RoutineService;
 };
 
 /**

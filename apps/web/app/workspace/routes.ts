@@ -7,9 +7,9 @@ import { readBody } from '../body.js';
 
 import { composeRoutes } from './compose-routes.js';
 import { csrfOk } from './csrf.js';
+import { GRAPH_ROUTES } from './graph-routes.js';
 import { securityHeaders } from './headers.js';
 import { listRoutes } from './list-routes.js';
-import { GRAPH_ROUTES } from './graph-routes.js';
 import {
   loadConversation,
   loadMe,

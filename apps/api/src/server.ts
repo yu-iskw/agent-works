@@ -2,21 +2,21 @@ import { createServer } from 'node:http';
 
 import { workspaceManifests } from '@agent-works/domain/workspace-tools';
 
+import { createAdmissionService } from './admission/postgres-admission.js';
 import { createScriptedRunner } from './agent/scripted-runner.js';
 import { createApp } from './app.js';
+import { createPostgresAuditLog } from './audit/write.js';
+import { createPostgresApprovalStore } from './broker/approvals.js';
 import { admittedSkill } from './composition/admission.js';
 import { buildBackgroundLoops } from './composition/background.js';
 import { createDeliveryRoutes } from './composition/delivery.js';
 import { readWiring } from './composition/flags.js';
 import { buildOpsDashboard, buildQueuePublisher, buildTelemetry } from './composition/parts.js';
 import { prepareRoutines } from './composition/routines.js';
-import { createPostgresAuditLog } from './audit/write.js';
-import { createPostgresApprovalStore } from './broker/approvals.js';
 import { loadConfig } from './config.js';
 import { createDevWorkspaceRuntime } from './connectors/dev-runtime.js';
 import { createOAuthFlow } from './credentials/flow.js';
 import { createPostgresCredentialStore } from './credentials/postgres.js';
-import { createAdmissionService } from './admission/postgres-admission.js';
 import { openDatabase } from './db.js';
 import { createPostgresDispatchPort } from './ledger/postgres-dispatch.js';
 import { createPostgresLedgerPort } from './ledger/postgres-ledger.js';
