@@ -464,6 +464,20 @@ describe('MCP server installation', () => {
     expect(refusals.map((row) => row.outcome)).toEqual(['not_available', 'not_available']);
   });
 
+  it('refuses enabling notes.write while Deps.mcp is unwired, even when the env allows it', async () => {
+    const d = withEnv(NOTES_ENV);
+    await bootstrapInstallations(d);
+    await expect(
+      mutateConnector(d, admin, 'notes', {
+        action: 'set_capabilities',
+        capabilities: ['notes.write'],
+        expectedGeneration: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'connector_not_available', status: 409 });
+    expect(await getInstallation(d, 'notes')).toBeUndefined();
+    expect(sorted(await segmentCapabilities(d))).not.toContain('notes.write');
+  });
+
   it('a row left from before the gate can be disabled but not re-enabled', async () => {
     const d = withEnv(NOTES_ENV);
     await bootstrapInstallations(wired(d));
