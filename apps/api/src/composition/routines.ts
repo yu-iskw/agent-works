@@ -1,5 +1,5 @@
-import { applyStandingGrantMigration } from '../authority-lifecycle/migration.js';
 import { readGrantActivation } from '../authority-lifecycle/lifecycle.js';
+import { applyStandingGrantMigration } from '../authority-lifecycle/migration.js';
 import { createPostgresGrantStore } from '../authority-lifecycle/postgres-store.js';
 import { applyRoutineMigration } from '../scheduling/routines/migration.js';
 import { createPostgresRoutineStore } from '../scheduling/routines/postgres-store.js';

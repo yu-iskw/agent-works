@@ -1,5 +1,5 @@
-import { createOutboxPublisher } from '../outbox/publisher.js';
 import { outboxReady } from '../outbox/migration.js';
+import { createOutboxPublisher } from '../outbox/publisher.js';
 import { createScheduleWorker } from '../scheduling/worker.js';
 import { workerReady } from '../worker/migration.js';
 import { createExecutionWorker } from '../worker/runner.js';

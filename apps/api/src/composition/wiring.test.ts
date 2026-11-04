@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { assertStartup, ProductionStartupRejected } from '../startup/providers.js';
 import { createMemorySuspensionLedger } from '../ports/memory/suspension-ledger.js';
+import { assertStartup, ProductionStartupRejected } from '../startup/providers.js';
 import { createSuspensionEnforcer } from '../suspension/enforcement.js';
 
 import { admittedSkill, AdmissionDenied } from './admission.js';
+import { buildBackgroundLoops } from './background.js';
 import { createDeliveryRoutes, DELIVERY_PATH } from './delivery.js';
 import { readWiring, WiringConfigError } from './flags.js';
 import { createGoogleQueueHttpClient, createOutboxQueuePublisher } from './google-queue.js';
-import { buildBackgroundLoops } from './background.js';
 import { buildQueuePublisher, buildTelemetry } from './parts.js';
 
 import type { AdmissionService } from '../admission/postgres-admission.js';

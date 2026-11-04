@@ -1,7 +1,7 @@
 import { createServiceIdentityPolicy } from '../auth/service-identity.js';
 import { headerValue } from '../http.js';
-import { createDeliveryHandler } from '../queue/worker-delivery.js';
 import { createRs256JwksVerifier } from '../queue/rs256-jwks-verifier.js';
+import { createDeliveryHandler } from '../queue/worker-delivery.js';
 import { createPostgresDeliveryStore } from '../worker/delivery-store.js';
 import { workerReady } from '../worker/migration.js';
 

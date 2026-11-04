@@ -4,7 +4,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { startDisposablePostgres } from '../ledger/disposable-postgres.js';
 import { createStarterTeam, seedCatalog } from '../teamwork/catalog.js';
-import { createScriptedModel } from '../teamwork/scripted-model.js';
 import { applyGraphMigration } from '../teamwork/graph-migration.js';
 import {
   alice,
@@ -14,12 +13,13 @@ import {
   segmentDeps,
 } from '../teamwork/graph-test-support.js';
 import { createRoutes } from '../teamwork/routes.js';
+import { createScriptedModel } from '../teamwork/scripted-model.js';
 import { createTask, taskDetail } from '../teamwork/tasks.js';
 import { applyWorkbenchMigration } from '../workbench/migration.js';
 
+import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
 import type { Deps } from '../teamwork/context.js';
 import type { ModelPort } from '../workbench/model-port.js';
-import type { DisposablePostgres } from '../ledger/disposable-postgres.js';
 
 let database: DisposablePostgres | undefined;
 let sql: postgres.Sql;
