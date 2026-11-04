@@ -1,17 +1,25 @@
-import { CONNECTOR_CATALOG, findConnector } from '@agent-works/domain/connector-catalog';
+import {
+  CONNECTOR_CATALOG,
+  MCP_SERVER_CATALOG,
+  findConnector,
+  findMcpServer,
+} from '@agent-works/domain/connector-catalog';
 import { WRITE_CAPABILITIES, compareSemver } from '@agent-works/domain/connector-cdk';
 import {
   installationViewSchema,
   marketplaceDetailSchema,
   marketplaceListingSchema,
 } from '@agent-works/domain/marketplace';
+import { CAPABILITY_PROVIDER } from '@agent-works/domain/teamwork';
 
 import { listTemplates } from './catalog.js';
 import { Conflict, audit } from './context.js';
 import {
   bootstrapInstallations,
+  findInstallable,
   getInstallation,
   listInstallations,
+  unwiredMcpServer,
   updateInstallation,
 } from './installations.js';
 
@@ -67,18 +75,40 @@ function installationView(row: Installation): InstallationView {
   });
 }
 
-function connectorListing(
+type InstallableKind = Extract<MarketplaceKind, 'connector' | 'mcp_server'>;
+
+/**
+ * Bootstrap creates a row only for a provider the env allowlist names. An MCP server with no row
+ * and no env-named capability can never be enabled, so it is coming soon. Connectors are unchanged.
+ */
+function listingStatus(
+  deps: Deps,
   manifest: ConnectorManifest,
   row: Installation | undefined,
+  kind: InstallableKind,
+): MarketplaceListing['status'] {
+  if (row !== undefined) return row.desired_state;
+  const envNamed = [...deps.config.capabilities].some(
+    // eslint-disable-next-line security/detect-object-injection
+    (capability) => CAPABILITY_PROVIDER[capability] === manifest.id,
+  );
+  return kind === 'mcp_server' && !envNamed ? 'coming_soon' : 'available';
+}
+
+function connectorListing(
+  deps: Deps,
+  manifest: ConnectorManifest,
+  row: Installation | undefined,
+  kind: InstallableKind = 'connector',
 ): MarketplaceListing {
   return marketplaceListingSchema.parse({
-    kind: 'connector',
+    kind,
     id: manifest.id,
     version: manifest.version,
     name: manifest.displayName,
     summary: manifest.summary,
     publisher: manifest.publisher,
-    status: row === undefined ? 'available' : row.desired_state,
+    status: listingStatus(deps, manifest, row, kind),
   });
 }
 
@@ -118,26 +148,44 @@ export async function listMarketplace(
   if (wants('connector')) {
     const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
     listings.push(
-      ...CONNECTOR_CATALOG.map((manifest) => connectorListing(manifest, rows.get(manifest.id))),
+      ...CONNECTOR_CATALOG.map((manifest) =>
+        connectorListing(deps, manifest, rows.get(manifest.id)),
+      ),
     );
   }
   if (wants('team_bot'))
     listings.push(
       ...(await listTemplates(deps, member)).map((template) => teamBotListing(template)),
     );
-  if (wants('mcp_server')) listings.push(comingSoonListing('mcp_server'));
+  if (wants('mcp_server')) {
+    if (MCP_SERVER_CATALOG.length === 0 || deps.mcp === undefined)
+      listings.push(comingSoonListing('mcp_server'));
+    else {
+      const rows = new Map((await listInstallations(deps)).map((row) => [row.item_id, row]));
+      listings.push(
+        ...MCP_SERVER_CATALOG.map((manifest) =>
+          connectorListing(deps, manifest, rows.get(manifest.id), 'mcp_server'),
+        ),
+      );
+    }
+  }
   if (wants('a2a_agent')) listings.push(comingSoonListing('a2a_agent'));
   return listings;
 }
 
-async function connectorDetail(deps: Deps, id: string): Promise<MarketplaceDetail | undefined> {
-  const manifest = findConnector(id);
+/** An MCP server is shown with the connector-shaped detail: same capabilities and installation. */
+async function connectorDetail(
+  deps: Deps,
+  kind: InstallableKind,
+  id: string,
+): Promise<MarketplaceDetail | undefined> {
+  const manifest = kind === 'connector' ? findConnector(id) : findMcpServer(id);
   if (manifest === undefined) return undefined;
   const row = await getInstallation(deps, id);
   const active = row?.desired_state === 'enabled';
   return marketplaceDetailSchema.parse({
-    kind: 'connector',
-    listing: connectorListing(manifest, row),
+    kind,
+    listing: connectorListing(deps, manifest, row, kind),
     capabilities: manifest.capabilities.map((capability) => ({
       id: capability.id,
       access: WRITE_CAPABILITIES.has(capability.id) ? 'write' : 'read',
@@ -156,7 +204,9 @@ export async function marketplaceItem(
   kind: MarketplaceKind,
   id: string,
 ): Promise<MarketplaceDetail | undefined> {
-  if (kind === 'connector') return connectorDetail(deps, id);
+  if (kind === 'connector') return connectorDetail(deps, kind, id);
+  if (kind === 'mcp_server' && MCP_SERVER_CATALOG.length > 0 && deps.mcp !== undefined)
+    return connectorDetail(deps, kind, id);
   if (kind === 'team_bot') {
     const template = (await listTemplates(deps, member)).find((candidate) => candidate.id === id);
     if (template === undefined) return undefined;
@@ -169,7 +219,12 @@ export async function marketplaceItem(
   }
   // eslint-disable-next-line security/detect-object-injection
   if (COMING_SOON[kind].id !== id) return undefined;
-  return marketplaceDetailSchema.parse({ kind, listing: comingSoonListing(kind) });
+  const listing = comingSoonListing(kind);
+  return marketplaceDetailSchema.parse(
+    kind === 'a2a_agent'
+      ? { kind, listing }
+      : { kind, listing, capabilities: [], installation: null },
+  );
 }
 
 export async function listConnectorInstallations(deps: Deps): Promise<readonly InstallationView[]> {
@@ -185,6 +240,20 @@ async function installedRow(deps: Deps, id: string): Promise<Installation | unde
 }
 
 /**
+ * A row left from before the gate may still be disabled. Nothing else changes an MCP server while
+ * `Deps.mcp` is unwired.
+ */
+async function refuseWhileUnwired(
+  deps: Deps,
+  id: string,
+  input: ConnectorAction,
+  refuse: Refuse,
+): Promise<void> {
+  if (unwiredMcpServer(deps, id) && input.action !== 'disable')
+    await refuse(new Conflict('connector_not_available', 409), 'not_available');
+}
+
+/**
  * Admin mutation; the caller has already run `requireAdmin`. The enabled set must sit inside the
  * manifest and the segment env allowlist, so enabling a read capability can never add a write one,
  * and the write is a compare-and-swap on `generation`.
@@ -194,7 +263,7 @@ export async function mutateConnector(
   member: Member,
   id: string,
   input: ConnectorAction,
-  manifests: ManifestLookup = findConnector,
+  manifests: ManifestLookup = findInstallable,
 ): Promise<InstallationView> {
   const manifest = manifests(id);
   if (manifest === undefined) throw new Conflict('not_found', 404);
@@ -212,6 +281,7 @@ export async function mutateConnector(
     });
     throw error;
   };
+  await refuseWhileUnwired(deps, id, input, refuse);
   const row = await installedRow(deps, id);
   if (row === undefined)
     return refuse(new Conflict('connector_not_available', 409), 'not_available');

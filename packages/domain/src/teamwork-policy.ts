@@ -1,7 +1,13 @@
-import { CAPABILITIES, CAPABILITY_PROVIDER, SOURCE_CAPABILITY } from './teamwork.js';
+import {
+  CAPABILITIES,
+  CAPABILITY_PROVIDER,
+  CONNECTIONLESS_PROVIDERS,
+  SOURCE_CAPABILITY,
+} from './teamwork.js';
 
 import type { Capability, CapabilityState, SourceKind } from './teamwork.js';
 
+/** Providers a member connects through OAuth; connectionless providers never appear here. */
 export type Provider = 'google' | 'github';
 
 export type CapabilityInputs = {
@@ -28,7 +34,10 @@ export function capabilityStates(inputs: CapabilityInputs): readonly CapabilityS
     // A capability with no provider is granted to every teammate the segment allows it for.
     const requested = provider === null || inputs.teammate.has(capability);
     const permitted = inputs.segment.has(capability) && inputs.member.has(capability);
-    const connected = provider === null || inputs.connected.has(provider);
+    const connected =
+      provider === null ||
+      CONNECTIONLESS_PROVIDERS.has(provider) ||
+      inputs.connected.has(provider as Provider);
     const inTask = inputs.task === undefined || inputs.task.has(capability);
     const effective = requested && permitted && connected && inTask;
     return { capability, requested, permitted, connected, effective, reason: reason() };

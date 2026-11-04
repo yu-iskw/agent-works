@@ -2,6 +2,7 @@ import type { SegmentConfig } from './config.js';
 import type { ModelGate } from './model.js';
 import type { SourcePort } from './sources/port.js';
 import type { Sealer } from '@agent-works/domain/sealer';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { IncomingHttpHeaders } from 'node:http';
 import type postgres from 'postgres';
 
@@ -22,6 +23,8 @@ export type Deps = {
   readonly now: () => Date;
   readonly newId: () => string;
   readonly fetch: typeof fetch;
+  /** Opens one transport to the first-party MCP server; absent means MCP calls are refused. */
+  readonly mcp?: () => Promise<Transport>;
 };
 
 export type Tx = postgres.TransactionSql;

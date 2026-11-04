@@ -137,4 +137,38 @@ describe('installations', () => {
     expect(sorted(await segmentCapabilities(beta.deps))).toEqual(sorted(new Set(all)));
     expect(sorted(await segmentCapabilities(alpha.deps))).not.toEqual(sorted(new Set(all)));
   });
+
+  it('drops notes.* while Deps.mcp is unwired, even when the env allows them', async () => {
+    const notes: readonly Capability[] = ['notes.read', 'notes.write'];
+    const unwired: Deps = {
+      ...beta.deps,
+      config: { ...beta.deps.config, capabilities: new Set([...all, ...notes]) },
+    };
+    expect(sorted(await segmentCapabilities(unwired))).toEqual(sorted(new Set(all)));
+    const wired: Deps = { ...unwired, mcp: () => Promise.reject(new Error('unused')) };
+    expect(sorted(await segmentCapabilities(wired))).toEqual(sorted(new Set([...all, ...notes])));
+  });
+
+  it('creates no row for an MCP server while Deps.mcp is unwired, even when the env allows notes.*', async () => {
+    const gamma = await segment('gamma', [...all, 'notes.read', 'notes.write']);
+    try {
+      const itemIds = async () =>
+        (
+          await gamma.sql<
+            { item_id: string }[]
+          >`select item_id from tw_installations order by item_id`
+        ).map((row) => row.item_id);
+      await bootstrapInstallations(gamma.deps);
+      expect(await itemIds()).toEqual(['github', 'google']);
+      expect(await getInstallation(gamma.deps, 'notes')).toBeUndefined();
+
+      await bootstrapInstallations({
+        ...gamma.deps,
+        mcp: () => Promise.reject(new Error('unused')),
+      });
+      expect(await itemIds()).toEqual(['github', 'google', 'notes']);
+    } finally {
+      await gamma.stop();
+    }
+  }, 120_000);
 });

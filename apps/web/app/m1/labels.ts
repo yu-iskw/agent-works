@@ -140,6 +140,8 @@ export const CAPABILITY: Record<Capability, string> = {
   'bigquery.query': 'Query BigQuery (read-only)',
   'github.read': 'Read GitHub',
   'files.read': 'Read files you attached',
+  'notes.read': 'Search team notes',
+  'notes.write': 'Append to team notes (with approval)',
 };
 
 export const STATEMENT: Record<StatementKind, string> = {

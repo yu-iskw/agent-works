@@ -13,6 +13,7 @@ import { createStarterTeam, seedCatalog } from './catalog.js';
 import { readSegmentConfig } from './config.js';
 import { invoke, publishThroughGateway, readThroughGateway } from './gateway.js';
 import { bootstrapInstallations, updateInstallation } from './installations.js';
+import { connectInProcess, createNotesServer } from './mcp-notes-server.js';
 import { createModelGate } from './model.js';
 import { createScriptedModel } from './scripted-model.js';
 import { createFixtureSources } from './sources/fixture.js';
@@ -408,5 +409,119 @@ describe('segment gateway', () => {
       readThroughGateway(segment({ members: 'bob@local.test' }), alice, call),
     ).rejects.toMatchObject({ code: 'not_entitled' });
     expect(stats.reads + stats.tokens).toBe(0);
+  });
+});
+
+describe('notes MCP through the gateway', () => {
+  const NOTE = 'Budget review moved to Friday';
+
+  const withNotes = (d: Deps, mcp?: Deps['mcp']): Deps => ({
+    ...d,
+    config: {
+      ...d.config,
+      capabilities: new Set<Capability>([...d.config.capabilities, 'notes.read', 'notes.write']),
+    },
+    ...(mcp === undefined ? {} : { mcp }),
+  });
+
+  const inProcess = (server = createNotesServer([NOTE])): Deps['mcp'] => {
+    return () => connectInProcess(server);
+  };
+
+  async function notesTask(d: Deps) {
+    await bootstrapInstallations(d);
+    const started = await startTask(d);
+    await sql`
+      update tw_assignments set capabilities = ${sql.json(['drive.read', 'notes.read', 'notes.write'])}
+      where id = ${started.assignmentId}
+    `;
+    return started;
+  }
+
+  const search = (d: Deps, ids: { taskId: string; assignmentId: string }, query = 'budget') =>
+    invoke(d, alice, { tool: 'notes.search', ...ids, input: { query } });
+  const append = (d: Deps, ids: { taskId: string; assignmentId: string }, text = 'new note') =>
+    invoke(d, alice, { tool: 'notes.append', ...ids, input: { text } });
+  const denials = () =>
+    sql<{ outcome: string }[]>`select outcome from tw_audit where action = 'gateway.denied'`;
+
+  it('returns notes read through the in-process server as wrapped source data', async () => {
+    const d = withNotes(segment(), inProcess());
+    const ids = await notesTask(d);
+    const { value, data } = await search(d, ids);
+    expect(value).toEqual({ matches: 1 });
+    expect(data).toHaveLength(1);
+    expect(JSON.parse(data[0] ?? '')).toMatchObject({ kind: 'source-data', authority: 'none' });
+    expect(data[0]).toContain(NOTE);
+  });
+
+  it('refuses an append while the capability is disabled and never reaches the server', async () => {
+    const server = createNotesServer([NOTE]);
+    const d = withNotes(segment(), inProcess(server));
+    const ids = await notesTask(d);
+    await updateInstallation(d, {
+      id: 'notes',
+      expectedGeneration: 1,
+      actor: alice.email,
+      action: 'installation.set_capabilities',
+      change: { capabilities: ['notes.read'] },
+    });
+    await expect(append(d, ids)).rejects.toMatchObject({ code: 'capability_disabled' });
+    expect((await search(d, ids, 'new')).value).toEqual({ matches: 0 });
+    expect((await denials()).map((row) => row.outcome)).toEqual(['capability_disabled']);
+  });
+
+  it('refuses an enabled append because policy mcp-write-v1 has no approval path yet', async () => {
+    const d = withNotes(segment(), inProcess());
+    const ids = await notesTask(d);
+    await expect(append(d, ids)).rejects.toMatchObject({ code: 'approval_invalid' });
+    expect((await search(d, ids, 'new')).value).toEqual({ matches: 0 });
+  });
+
+  it('denies a read once the notes server is disabled', async () => {
+    const d = withNotes(segment(), inProcess());
+    const ids = await notesTask(d);
+    await updateInstallation(d, {
+      id: 'notes',
+      expectedGeneration: 1,
+      actor: alice.email,
+      action: 'installation.disable',
+      change: { desiredState: 'disabled' },
+    });
+    await expect(search(d, ids)).rejects.toMatchObject({ code: 'capability_disabled' });
+  });
+
+  it('refuses a server that advertises a tool outside the pinned manifest', async () => {
+    const rogue = createNotesServer([NOTE]);
+    rogue.registerTool(
+      'notes.delete',
+      { description: 'Delete everything.', annotations: { readOnlyHint: false } },
+      () => ({ content: [{ type: 'text' as const, text: 'gone' }] }),
+    );
+    const d = withNotes(segment(), inProcess(rogue));
+    const ids = await notesTask(d);
+    const failure = await search(d, ids).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: 'mcp_manifest_mismatch' });
+    expect(JSON.stringify(failure)).not.toContain(NOTE);
+    expect((await denials()).map((row) => row.outcome)).toEqual(['mcp_manifest_mismatch']);
+  });
+
+  it('refuses without a transport, and hides upstream failure text', async () => {
+    const bare = withNotes(segment());
+    const ids = await notesTask(bare);
+    await expect(search(bare, ids)).rejects.toMatchObject({ code: 'capability_disabled' });
+
+    const broken = withNotes(segment(), () =>
+      Promise.reject(new Error('connect ECONNREFUSED internal-notes.example:9000')),
+    );
+    const failure = await search(broken, ids).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: 'mcp_unavailable' });
+    expect((failure as Error).message).not.toContain('internal-notes');
+    expect((failure as { reason: string }).reason).not.toContain('internal-notes');
+    expect(JSON.stringify(await denials())).not.toContain('internal-notes');
+    expect((await denials()).map((row) => row.outcome)).toEqual([
+      'capability_disabled',
+      'mcp_unavailable',
+    ]);
   });
 });

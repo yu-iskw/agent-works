@@ -5,9 +5,10 @@ version. The example adds `github.readIssue` to `github` as version `1.1.0`. It 
 illustrative and not in the catalog.
 
 The catalog is closed on purpose. `connectorManifestSchema` accepts only the providers
-`google` and `github`, and only capabilities named in `CAPABILITY_PROVIDER`
-(`packages/domain/src/teamwork.ts`). A new capability or provider is a larger change. See
-[Beyond a new tool](#beyond-a-new-tool).
+`google`, `github` and `notes`, and only capabilities named in `CAPABILITY_PROVIDER`
+(`packages/domain/src/teamwork.ts`). `notes` is the first-party MCP server. A new capability
+or provider is a larger change. See [Beyond a new tool](#beyond-a-new-tool) and
+[MCP servers](#mcp-servers).
 
 `packages/domain/src/connector-docs.test.ts` parses the manifest and the handler map below,
 so a copy of this page that no longer validates fails CI.
@@ -15,9 +16,9 @@ so a copy of this page that no longer validates fails CI.
 ## Steps
 
 1. **Pick the capability and its side effect.** The tool joins an existing capability.
-   `docs.publish` is the only write capability (`WRITE_CAPABILITIES`). Every tool under a
-   read capability must have side effect `READ`, and every tool under a write capability
-   must not. The schema rejects a mismatch.
+   `docs.publish` and `notes.write` are the write capabilities (`WRITE_CAPABILITIES`). Every
+   tool under a read capability must have side effect `READ`, and every tool under a write
+   capability must not. The schema rejects a mismatch.
 2. **Write the tool manifest.** Add it to the connector in
    `packages/domain/src/connector-catalog.ts` with the local `tool()` helper. It expands to
    the JSON below. Tool names are unique across the connector.
@@ -26,9 +27,9 @@ so a copy of this page that no longer validates fails CI.
 4. **Pin the hash.** Run `pnpm --filter @agent-works/domain test`. The failing assertion in
    `connector-catalog.test.ts` prints the new `connectorContentHash`. Add one line for the
    version to `PUBLISHED_CONNECTOR_HASHES`. Never edit a line for a published version.
-   The catalog holds one manifest per connector, and that test expects exactly one pin per
-   catalog entry. Keeping `1.0.0` next to `1.1.0` (so `rollback` has a target) needs the
-   listing and that test updated first. See [Marketplace](marketplace.md#known-limitations).
+   That test expects exactly one pin per manifest in `CONNECTOR_CATALOG` and
+   `MCP_SERVER_CATALOG`. Keeping `1.0.0` next to `1.1.0` (so `rollback` has a target) needs
+   the listing and that test updated first. See [Marketplace](marketplace.md#known-limitations).
 5. **Add the handler** to `HANDLERS` in `apps/api/src/teamwork/gateway.ts`. Use
    `toolHandler` with a strict Zod schema. Never accept a member, segment or token in the
    input. The gateway supplies the token.
@@ -161,7 +162,8 @@ The handler runs only after these checks pass on that call:
 - `capabilityStates` is effective for the member, teammate and task;
 - the input parsed against the strict schema;
 - for a tool whose manifest requires approval, the `wb_approvals` digest and revision
-  match. Only the segment policy `segment-publish-v1` is wired. Any other policy denies.
+  match. Only the segment policy `segment-publish-v1` is wired. Any other policy denies,
+  so an MCP write (policy `mcp-write-v1`) is refused.
 
 ## Beyond a new tool
 
@@ -174,6 +176,38 @@ change in the decision boundary is a `manage-adr` Challenge, not an in-place edi
 | New provider             | `connectorProviderSchema`, the `TokenSource` provider type, and the connection and OAuth flow                                                                    |
 | Flagship broker tool     | The manifest in `packages/domain/src/workspace-tools.ts` and one entry in `createWorkspaceRegistry` (`apps/api/src/connectors/ports.ts`)                         |
 | Out-of-process connector | `runtime.artifactDigest` in the manifest, and a real `RuntimeManager`. Not built; see the runbook.                                                               |
+| New MCP server           | `MCP_SERVER_CATALOG`, the provider id, and the gateway transport. See [MCP servers](#mcp-servers).                                                               |
+
+## MCP servers
+
+An MCP server is a manifest in `MCP_SERVER_CATALOG` with `transport: 'mcp'`. The `notes`
+server is the only one. It sits apart from `CONNECTOR_CATALOG`, so the native connector
+catalog and its listing do not change when a server is added. The adapter's guarantees are in
+[Marketplace](marketplace.md#what-the-adapter-guarantees).
+
+Until `Deps.mcp` is set, the marketplace lists MCP servers as `coming_soon`, bootstrap creates
+no row, and install or enable is refused. Setting `Deps.mcp` is what makes the server
+installable.
+
+To add one:
+
+1. **Write the manifest.** Put it in `MCP_SERVER_CATALOG`. Build each tool with the
+   `mcpTool()` helper in `connector-catalog.ts`. Its `executor` must be `mcp://<id>/<tool>`,
+   and the tool name is the name the server exposes. The schema rejects any other executor.
+2. **Add the provider.** Add the id to `connectorProviderSchema`, and widen the `satisfies`
+   type on `CAPABILITY_PROVIDER` in `packages/domain/src/teamwork.ts`. The OAuth `Provider`
+   type stays `google` and `github`.
+3. **Keep it opt-in.** `DEFAULT_SEGMENT_CAPABILITIES` leaves out only the provider `notes`.
+   Extend that filter for a new provider, or its capabilities join the default set.
+4. **Skip OAuth only when no member account is needed.** Add the provider to
+   `CONNECTIONLESS_PROVIDERS` only in that case.
+5. **Pin the hash.** Add one `PUBLISHED_CONNECTOR_HASHES` line, as for a connector.
+6. **Wire the gateway.** Pins come from the manifest. `callNotes` in
+   `apps/api/src/teamwork/gateway.ts` shows the pattern. `Deps.mcp` is one transport factory,
+   so a second server needs its own factory first. Wiring `Deps.mcp` also makes the server
+   installable.
+7. **Keep writes refused.** A write tool needs an approval policy the gateway accepts.
+   Until one exists, the gateway denies the write before its handler runs.
 
 ## Check your work
 

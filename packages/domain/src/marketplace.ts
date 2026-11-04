@@ -97,12 +97,18 @@ export const connectorCapabilityViewSchema = z.strictObject({
 });
 
 export const marketplaceDetailSchema = z.discriminatedUnion('kind', [
-  z.strictObject({
-    kind: z.literal('connector'),
-    listing: marketplaceListingSchema,
-    capabilities: z.array(connectorCapabilityViewSchema),
-    installation: installationViewSchema.nullable(),
-  }),
+  /** An MCP server is activated and mutated like a connector, so it shares the connector detail. */
+  z
+    .strictObject({
+      kind: z.enum(['connector', 'mcp_server']),
+      listing: marketplaceListingSchema,
+      capabilities: z.array(connectorCapabilityViewSchema),
+      installation: installationViewSchema.nullable(),
+    })
+    .refine((detail) => detail.listing.kind === detail.kind, {
+      path: ['listing', 'kind'],
+      message: 'The listing kind must match the detail kind.',
+    }),
   z.strictObject({
     kind: z.literal('team_bot'),
     listing: marketplaceListingSchema,
@@ -110,7 +116,7 @@ export const marketplaceDetailSchema = z.discriminatedUnion('kind', [
     capabilityRequests: z.array(capabilitySchema),
   }),
   z.strictObject({
-    kind: z.enum(['mcp_server', 'a2a_agent']),
+    kind: z.literal('a2a_agent'),
     listing: marketplaceListingSchema,
   }),
 ]);

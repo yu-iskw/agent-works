@@ -1,4 +1,4 @@
-import { findConnector } from '@agent-works/domain/connector-catalog';
+import { findConnector, findMcpServer } from '@agent-works/domain/connector-catalog';
 import { DESIRED_STATES, OBSERVED_STATES } from '@agent-works/domain/marketplace';
 import { CAPABILITY_PROVIDER, capabilitySchema } from '@agent-works/domain/teamwork';
 import * as z from 'zod';
@@ -6,9 +6,24 @@ import * as z from 'zod';
 import { audit } from './context.js';
 
 import type { Deps } from './context.js';
+import type { ManifestLookup } from './runtime-manager.js';
 import type { Capability } from '@agent-works/domain/teamwork';
 
 export const BOOTSTRAP_ACTOR = 'system:bootstrap';
+
+/** Everything an admin can install: native connectors and MCP servers share one installation table. */
+export const findInstallable: ManifestLookup = (id, version) =>
+  findConnector(id, version) ?? findMcpServer(id, version);
+
+/**
+ * An MCP server cannot run without `Deps.mcp`, so it is not installable: no row is bootstrapped and
+ * the marketplace lists it as coming soon. Setting `Deps.mcp` lifts the hold.
+ */
+export function unwiredMcpServer(deps: Deps, id: string): boolean {
+  return (
+    deps.mcp === undefined && findConnector(id) === undefined && findMcpServer(id) !== undefined
+  );
+}
 
 const capabilityListSchema = z.array(capabilitySchema);
 
@@ -44,7 +59,9 @@ export async function getInstallation(deps: Deps, id: string): Promise<Installat
 /**
  * The env allowlist narrowed by activation, read on every call so an admin change applies without a
  * restart. A provider with no row keeps its env capabilities (a segment that has not bootstrapped
- * yet behaves as before); a row only ever removes. `files.read` has no provider and stays env-only.
+ * yet behaves as before); a row only ever removes. While `Deps.mcp` is unwired an MCP server offers
+ * nothing, env or row alike, so the marketplace's coming-soon listing matches the gateway.
+ * `files.read` has no provider and stays env-only.
  */
 export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capability>> {
   const rows = await deps.sql<
@@ -64,6 +81,7 @@ export async function segmentCapabilities(deps: Deps): Promise<ReadonlySet<Capab
       // eslint-disable-next-line security/detect-object-injection
       const provider = CAPABILITY_PROVIDER[capability];
       if (provider === null) return true;
+      if (unwiredMcpServer(deps, provider)) return false;
       const row = byProvider.get(provider);
       return (
         row === undefined ||
@@ -86,8 +104,8 @@ export async function bootstrapInstallations(deps: Deps): Promise<void> {
       byProvider.set(provider, [...(byProvider.get(provider) ?? []), capability]);
   }
   for (const [provider, capabilities] of byProvider) {
-    const manifest = findConnector(provider);
-    if (manifest === undefined) continue;
+    const manifest = findInstallable(provider);
+    if (manifest === undefined || unwiredMcpServer(deps, provider)) continue;
     await deps.sql.begin(async (tx) => {
       const inserted = await tx`
         insert into tw_installations (item_kind, item_id, version, capabilities, desired_state,
