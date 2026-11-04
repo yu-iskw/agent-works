@@ -2,7 +2,6 @@ import type { SegmentConfig } from './config.js';
 import type { ModelGate } from './model.js';
 import type { SourcePort } from './sources/port.js';
 import type { Sealer } from '@agent-works/domain/sealer';
-// eslint-disable-next-line import-x/no-unresolved -- the SDK ships wildcard subpath exports the lint resolver cannot follow
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { IncomingHttpHeaders } from 'node:http';
 import type postgres from 'postgres';
