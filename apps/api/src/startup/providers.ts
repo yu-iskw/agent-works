@@ -52,6 +52,11 @@ function readStartupMode(env: Env): StartupMode {
 
 const loopbackSuffixes = ['.localhost', '.test', '.local', '.example'];
 
+function hasValue(env: Env, name: string): boolean {
+  const value = envValue(env, name);
+  return value !== undefined && value.trim() !== '';
+}
+
 function parse(value: string | undefined): URL | undefined {
   if (value === undefined || value.trim() === '') return undefined;
   try {
@@ -112,10 +117,31 @@ function persistence(env: Env): ProviderReport {
     : { name, status: 'real', detail: 'DATABASE_URL' };
 }
 
+/**
+ * The redirect may be the loopback callback reached through `gcloud run services proxy`.
+ * Only plain http on localhost or 127.0.0.1 is admitted here; every other redirect needs https and a non-local host.
+ */
+function redirectState(value: string | undefined): UrlState {
+  const url = parse(value);
+  if (url?.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'))
+    return 'real';
+  return urlState(value);
+}
+
 function oauth(env: Env, devStack: boolean): ProviderReport {
   const name = 'oauth-credentials';
-  const vars = ['OAUTH_URL', 'OAUTH_REDIRECT_URI'];
-  const base = fromUrls(name, vars, env, devStack);
+  const list = 'OAUTH_URL, OAUTH_REDIRECT_URI';
+  const state = combine([
+    urlState(envValue(env, 'OAUTH_URL')),
+    redirectState(envValue(env, 'OAUTH_REDIRECT_URI')),
+  ]);
+  let base: ProviderReport;
+  if (state === 'missing') base = { name, status: 'missing', detail: `set ${list}` };
+  else if (state === 'local' || devStack)
+    base = { name, status: LOCAL_FAKE, detail: `${list} must be https and non-local` };
+  else if (!hasValue(env, 'GOOGLE_OAUTH_CLIENT_ID') || !hasValue(env, 'OAUTH_HOSTED_DOMAIN'))
+    base = { name, status: 'missing', detail: 'set GOOGLE_OAUTH_CLIENT_ID, OAUTH_HOSTED_DOMAIN' };
+  else base = { name, status: 'real', detail: list };
   const publicUrl = env.OAUTH_PUBLIC_URL;
   if (base.status === 'real' && publicUrl !== undefined && urlState(publicUrl) !== 'real')
     return { name, status: LOCAL_FAKE, detail: 'OAUTH_PUBLIC_URL must be https and non-local' };

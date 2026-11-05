@@ -27,6 +27,8 @@ const productionBase = {
   IAP_AUDIENCE: '/projects/1/global/backendServices/2',
   OAUTH_URL: 'https://oauth.example.com',
   OAUTH_REDIRECT_URI: 'https://app.example.com/oauth/callback',
+  GOOGLE_OAUTH_CLIENT_ID: '123-client.apps.googleusercontent.com',
+  OAUTH_HOSTED_DOMAIN: 'dr-ubie.com',
 };
 const workerUrl = 'https://api.example.com/internal/deliveries';
 const deliveryEnv = {

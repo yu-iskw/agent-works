@@ -91,7 +91,7 @@ async function complete(
   }
   const taken = await deps.grants.consume(callback.state);
   if (taken === undefined) throw new OAuthDenied(oauthFailure.stateMismatch);
-  const issued = await deps.provider.exchange(callback);
+  const issued = await deps.provider.exchange(callback, subject);
   if (issued.provider !== grant.provider || issued.subject !== grant.subject) {
     throw new OAuthDenied(oauthFailure.rejected);
   }

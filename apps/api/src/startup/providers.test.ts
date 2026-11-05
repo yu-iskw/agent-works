@@ -16,6 +16,8 @@ const realEnv = {
   IAP_AUDIENCE: '/projects/1/global/backendServices/2',
   OAUTH_URL: 'https://oauth.example.com',
   OAUTH_REDIRECT_URI: 'https://app.example.com/oauth/callback',
+  GOOGLE_OAUTH_CLIENT_ID: '123-client.apps.googleusercontent.com',
+  OAUTH_HOSTED_DOMAIN: 'dr-ubie.com',
 } as const;
 
 const localEnv = {
@@ -63,7 +65,23 @@ describe('production startup', () => {
     ['authority-persistence', { DATABASE_URL: undefined }, 'missing'],
     ['oauth-credentials', { OAUTH_URL: undefined }, 'missing'],
     ['oauth-credentials', { OAUTH_REDIRECT_URI: undefined }, 'missing'],
+    ['oauth-credentials', { GOOGLE_OAUTH_CLIENT_ID: undefined }, 'missing'],
+    ['oauth-credentials', { OAUTH_HOSTED_DOMAIN: '  ' }, 'missing'],
     ['oauth-credentials', { OAUTH_URL: 'http://fake-oauth:8087' }, 'local-fake'],
+    [
+      'oauth-credentials',
+      { OAUTH_REDIRECT_URI: 'http://app.example.com/oauth/callback' },
+      'local-fake',
+    ],
+    ['oauth-credentials', { OAUTH_REDIRECT_URI: 'http://fake-web/oauth/callback' }, 'local-fake'],
+    [
+      'oauth-credentials',
+      {
+        OAUTH_URL: 'http://localhost:8087',
+        OAUTH_REDIRECT_URI: 'http://localhost:8080/oauth/callback',
+      },
+      'local-fake',
+    ],
     ['required-config', { IAP_AUDIENCE: undefined }, 'missing'],
     ['required-config', { PORT: '99999' }, 'missing'],
     [
@@ -79,6 +97,18 @@ describe('production startup', () => {
       error.reports.every((report) => report.name === name || report.name === 'required-config'),
     ).toBe(true);
   });
+
+  it.each(['http://localhost:8080/oauth/callback', 'http://127.0.0.1:8080/oauth/callback'])(
+    'admits the loopback proxy callback %s as the redirect only',
+    (redirect) => {
+      expect(() => assertStartup({ ...realEnv, OAUTH_REDIRECT_URI: redirect })).not.toThrow();
+      expect(
+        classifyProviders({ ...realEnv, OAUTH_REDIRECT_URI: redirect }).find(
+          (r) => r.name === 'oauth-credentials',
+        )?.status,
+      ).toBe('real');
+    },
+  );
 
   it('rejects real incident ticketing while its receipts are process-local', () => {
     const error = rejected({

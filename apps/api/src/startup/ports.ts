@@ -5,6 +5,7 @@ import { createHttpOAuthProvider } from '../credentials/provider.js';
 import { createHttpDrive } from '../retrieval/http-drive.js';
 
 import type { Config } from '../config.js';
+import type { GoogleSignIn } from '../credentials/provider.js';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -25,7 +26,21 @@ export function buildProviderPorts(config: Config, env: Env, now: () => Date) {
     oauthProvider:
       oauthUrl === undefined
         ? undefined
-        : createHttpOAuthProvider(oauthUrl, config.oauthRedirectUri, env.OAUTH_PUBLIC_URL),
+        : createHttpOAuthProvider(
+            oauthUrl,
+            config.oauthRedirectUri,
+            env.OAUTH_PUBLIC_URL,
+            googleSignIn(env),
+          ),
     runner: (model?: string) => createScriptedRunner({ baseUrl: config.llmUrl, model }),
   };
+}
+
+/** Google sign-in settings are non-secret. The client secret stays with aw-tool-broker. */
+function googleSignIn(env: Env): GoogleSignIn | undefined {
+  const clientId = env.GOOGLE_OAUTH_CLIENT_ID;
+  const hostedDomain = env.OAUTH_HOSTED_DOMAIN;
+  if (clientId === undefined || clientId.trim() === '') return undefined;
+  if (hostedDomain === undefined || hostedDomain.trim() === '') return undefined;
+  return { clientId, hostedDomain };
 }

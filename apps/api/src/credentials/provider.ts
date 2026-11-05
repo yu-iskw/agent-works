@@ -6,20 +6,35 @@ import type { OAuthCallback, OAuthConnection, OAuthStart } from '@agent-works/do
 
 export interface OAuthProvider {
   authorizationUrl(subject: string, start: OAuthStart): string;
-  exchange(callback: OAuthCallback): Promise<OAuthConnection>;
+  exchange(callback: OAuthCallback, subject: string): Promise<OAuthConnection>;
   read(tokenRef: string): Promise<OAuthConnection>;
   revoke(tokenRef: string): Promise<OAuthConnection>;
 }
 
+/** Production sign-in: the browser goes straight to Google and the broker holds the client secret. */
+export type GoogleSignIn = {
+  readonly clientId: string;
+  readonly hostedDomain: string;
+};
+
 type Reply = { readonly status: number; readonly body: unknown };
 
+const googleAuthorizeUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+
+/**
+ * Without `google`, the provider speaks the fake broker contract used by local and e2e stacks.
+ * With `google`, it speaks the aw-tool-broker contract: the broker exchanges the code and returns
+ * connection metadata only, so no token is expected in the response.
+ */
 export function createHttpOAuthProvider(
   baseUrl: string,
   redirectUri: string,
   authorizationBaseUrl = baseUrl,
+  google?: GoogleSignIn,
 ): OAuthProvider {
   return {
     authorizationUrl(subject, start) {
+      if (google !== undefined) return googleAuthorizationUrl(google, redirectUri, start);
       const url = new URL('/oauth/authorize', authorizationBaseUrl);
       url.search = new URLSearchParams({
         response_type: 'code',
@@ -33,8 +48,15 @@ export function createHttpOAuthProvider(
       }).toString();
       return url.toString();
     },
-    exchange(callback) {
-      return post(baseUrl, '/oauth/token', callback).then(issued);
+    exchange(callback, subject) {
+      if (google === undefined) return post(baseUrl, '/oauth/token', callback).then(issued);
+      return post(baseUrl, '/oauth/token', {
+        provider: callback.provider,
+        code: callback.code,
+        codeVerifier: callback.codeVerifier,
+        redirectUri,
+        subject,
+      }).then(connectionOnly);
     },
     read(tokenRef) {
       return get(baseUrl, `/oauth/tokens/${encodeURIComponent(tokenRef)}`).then(connectionOnly);
@@ -43,6 +65,23 @@ export function createHttpOAuthProvider(
       return post(baseUrl, '/oauth/revoke', { tokenRef }).then(connectionOnly);
     },
   };
+}
+
+function googleAuthorizationUrl(google: GoogleSignIn, redirectUri: string, start: OAuthStart) {
+  const url = new URL(googleAuthorizeUrl);
+  url.search = new URLSearchParams({
+    client_id: google.clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: ['openid', 'email', start.scope].join(' '),
+    state: start.state,
+    code_challenge: start.codeChallenge,
+    code_challenge_method: start.codeChallengeMethod,
+    access_type: 'offline',
+    prompt: 'consent',
+    hd: google.hostedDomain,
+  }).toString();
+  return url.toString();
 }
 
 function issued(reply: Reply): OAuthConnection {
