@@ -20,6 +20,13 @@ type SkillRow = {
 };
 
 export function createSkillPackageStore(sql: postgres.Sql) {
+  /**
+   * Where each package version was found by this process's sync. Provenance rows are immutable and
+   * keep the first path ever seen, which goes stale when the app moves (new image layout or
+   * checkout); resolution reloads from the current location, falling back to the stored one (CR-06).
+   */
+  const located = new Map<string, string>();
+  const locationKey = (packageId: string, version: string) => `${packageId}@${version}`;
   return {
     async persist(
       report: LoadReport,
@@ -33,6 +40,7 @@ export function createSkillPackageStore(sql: postgres.Sql) {
         throw new Error('invalid_package');
       const manifest = report.manifest;
       const digest = report.digest;
+      located.set(locationKey(manifest.name, manifest.version), provenance.path);
       return sql.begin(async (tx) => {
         const inserted =
           await tx`insert into tw_skill_packages (package_id, version, digest, manifest, report, provenance)
@@ -72,7 +80,9 @@ export function createSkillPackageStore(sql: postgres.Sql) {
       const pkg = rows.find((row) => row.version === ref.version);
       if (!pkg) return { ok: false, code: 'unknown_version' };
       if (pkg.digest !== ref.digest) return { ok: false, code: 'digest_mismatch' };
-      const current = await loadPluginDirectory(pkg.provenance.path);
+      const current = await loadPluginDirectory(
+        located.get(locationKey(ref.packageId, ref.version)) ?? pkg.provenance.path,
+      );
       if (current.digest !== pkg.digest) return { ok: false, code: 'digest_mismatch' };
       if (pkg.state !== 'activated') return { ok: false, code: 'not_activated' };
       const skills = await sql<

@@ -88,3 +88,37 @@ it('persists immutable versions, activation and digest-pinned resolution', async
     await Promise.all(rootsToRemove.map((path) => rm(path, { recursive: true, force: true })));
   }
 }, 120000);
+
+it('resolves from the location this process synced after the app moved (CR-06)', async () => {
+  const db = await startDisposablePostgres();
+  const sql = postgres(db.url, { onnotice: () => undefined });
+  const original = await mkdtemp(join(tmpdir(), 'curated-old-'));
+  const moved = await mkdtemp(join(tmpdir(), 'curated-new-'));
+  try {
+    const source = fileURLToPath(new URL('./curated/brief-writer/', import.meta.url));
+    await cp(source, join(original, 'brief-writer'), { recursive: true });
+    await cp(source, join(moved, 'brief-writer'), { recursive: true });
+    await applySkillPackagesMigration(sql);
+    const first = createSkillPackageStore(sql);
+    const [synced] = await syncCuratedPackages({ store: first, root: original });
+    expect(synced?.status).toBe('loaded');
+    const manifest = synced?.report.manifest;
+    if (!manifest || !synced.report.digest) throw new Error('loaded package');
+    await first.activate(manifest.name, manifest.version, 'test');
+    // The old location disappears; a new process syncs the same package from its new location.
+    await rm(original, { recursive: true, force: true });
+    const next = createSkillPackageStore(sql);
+    expect((await syncCuratedPackages({ store: next, root: moved }))[0]?.status).toBe('unchanged');
+    const resolved = await next.resolve({
+      packageId: manifest.name,
+      version: manifest.version,
+      digest: synced.report.digest,
+      name: 'summarize-findings',
+    });
+    expect(resolved.ok).toBe(true);
+  } finally {
+    await rm(moved, { recursive: true, force: true });
+    await sql.end({ timeout: 1 });
+    await db.stop();
+  }
+}, 60_000);
