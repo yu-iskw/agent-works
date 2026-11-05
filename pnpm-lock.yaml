@@ -130,6 +130,18 @@ importers:
         specifier: 4.1.12
         version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
 
+  apps/tool-broker:
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.12
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@24.19.1)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
+
   apps/web:
     dependencies:
       '@agent-works/domain':

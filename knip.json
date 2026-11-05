@@ -30,6 +30,10 @@
         "!artifacts/**"
       ]
     },
+    "apps/tool-broker": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "apps/api": {
       "entry": [
         "src/server.ts",
