@@ -76,7 +76,7 @@ it('builds a provider consent URL with state and PKCE', () => {
 
 const googleSignIn = {
   clientId: '123-client.apps.googleusercontent.com',
-  hostedDomain: 'dr-ubie.com',
+  hostedDomain: 'company.example',
 };
 
 it('sends the browser to Google with offline access and the hosted-domain hint', () => {
@@ -106,7 +106,7 @@ it('sends the browser to Google with offline access and the hosted-domain hint',
     code_challenge_method: 'S256',
     access_type: 'offline',
     prompt: 'consent',
-    hd: 'dr-ubie.com',
+    hd: 'company.example',
   });
 });
 

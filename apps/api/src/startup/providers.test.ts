@@ -17,7 +17,7 @@ const realEnv = {
   OAUTH_URL: 'https://oauth.example.com',
   OAUTH_REDIRECT_URI: 'https://app.example.com/oauth/callback',
   GOOGLE_OAUTH_CLIENT_ID: '123-client.apps.googleusercontent.com',
-  OAUTH_HOSTED_DOMAIN: 'dr-ubie.com',
+  OAUTH_HOSTED_DOMAIN: 'company.example',
 } as const;
 
 const localEnv = {
