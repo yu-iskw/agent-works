@@ -15,6 +15,8 @@ import type { BotDefinition, ScheduleSpec } from '@agent-works/domain';
 import type postgres from 'postgres';
 
 export const BOT_EVENTS_PATH = '/v1/teamwork/bot-events';
+const SCHEDULE_ACTION = 'bot.trigger.schedule';
+const EVENT_ACTION = 'bot.trigger.event';
 
 type ActiveBot = {
   teammate_id: string;
@@ -33,6 +35,8 @@ export type TickReport = {
   denied: number;
   deferred: number;
   missedDueToCapacity: number;
+  /** Triggers whose evaluation threw; each is audited and the tick moves on (CR-04). */
+  failed: number;
 };
 type Dependencies = {
   sql: postgres.Sql;
@@ -110,65 +114,147 @@ export function createBotTriggers(deps: Dependencies) {
       denied: 0,
       deferred: 0,
       missedDueToCapacity: 0,
+      failed: 0,
     };
     for (const bot of await activeBots(deps.sql)) {
-      const definition = botDefinitionSchema.parse(bot.definition);
-      for (const [index, trigger] of definition.triggers.entries()) {
+      const definition = botDefinitionSchema.safeParse(bot.definition);
+      if (!definition.success) {
+        report.failed++;
+        await triggerFailed(bot, SCHEDULE_ACTION, { revision: bot.revision });
+        continue;
+      }
+      for (const [index, trigger] of definition.data.triggers.entries()) {
         if (trigger.kind !== 'schedule') continue;
-        await deps.sql.begin(async (tx) => {
-          await tx`insert into tw_bot_trigger_cursors (teammate_id, revision, trigger_index, cursor_at) values (${bot.teammate_id}, ${bot.revision}, ${index}, ${bot.published_at}) on conflict do nothing`;
-          const [cursor] = await tx<
-            { cursor_at: Date; pending_at: Date | null }[]
-          >`select cursor_at, pending_at from tw_bot_trigger_cursors where teammate_id = ${bot.teammate_id} and revision = ${bot.revision} and trigger_index = ${index} for update`;
-          const active =
-            await tx`select 1 from tw_bots where teammate_id = ${bot.teammate_id} and active_revision = ${bot.revision}`;
-          if (active.length === 0) return;
-          const now = deps.now();
-          const timing = spec(trigger);
-          let slot = cursor.pending_at?.toISOString();
-          if (slot) {
-            const next = dueSlot(
-              { ...timing, allowedWindow: allDay, misfire: 'catch-up-once' },
-              slot,
-              now,
-            );
-            if (next && now.getTime() > Date.parse(next)) {
-              report.missedDueToCapacity++;
+        // One bot's failure never stops the others' schedules (CR-04).
+        await deps.sql
+          .begin(async (tx) => {
+            await tx`insert into tw_bot_trigger_cursors (teammate_id, revision, trigger_index, cursor_at) values (${bot.teammate_id}, ${bot.revision}, ${index}, ${bot.published_at}) on conflict do nothing`;
+            const [cursor] = await tx<
+              { cursor_at: Date; pending_at: Date | null }[]
+            >`select cursor_at, pending_at from tw_bot_trigger_cursors where teammate_id = ${bot.teammate_id} and revision = ${bot.revision} and trigger_index = ${index} for update`;
+            const active =
+              await tx`select 1 from tw_bots where teammate_id = ${bot.teammate_id} and active_revision = ${bot.revision}`;
+            if (active.length === 0) return;
+            const now = deps.now();
+            const timing = spec(trigger);
+            let slot = cursor.pending_at?.toISOString();
+            if (slot) {
+              const next = dueSlot(
+                { ...timing, allowedWindow: allDay, misfire: 'catch-up-once' },
+                slot,
+                now,
+              );
+              if (next && now.getTime() > Date.parse(next)) {
+                report.missedDueToCapacity++;
+                await audit(auditDeps, tx, {
+                  ownerSub: bot.owner_sub,
+                  action: SCHEDULE_ACTION,
+                  outcome: 'missed_due_to_capacity',
+                  detail: { revision: bot.revision, triggerIndex: index, slot },
+                });
+                slot = dueSlot(timing, cursor.cursor_at.toISOString(), now);
+              }
+            } else slot = dueSlot(timing, cursor.cursor_at.toISOString(), now);
+            let pending: string | null = null;
+            if (slot) {
+              const ref = `schedule:${bot.revision}:${index}:${slot}`;
+              const result = await deps.startBotRun({
+                teammateId: bot.teammate_id,
+                expectedRevision: bot.revision,
+                trigger: { kind: 'schedule', ref, scheduledFor: slot },
+                initiatedBy: `schedule:${bot.teammate_id}`,
+                clientRequestId: randomUUID(),
+              });
+              report[result.kind]++;
+              if (result.kind === 'deferred') pending = slot;
               await audit(auditDeps, tx, {
                 ownerSub: bot.owner_sub,
-                action: 'bot.trigger.schedule',
-                outcome: 'missed_due_to_capacity',
+                taskId:
+                  result.kind === 'started' || result.kind === 'duplicate' ? result.taskId : null,
+                action: SCHEDULE_ACTION,
+                outcome: auditOutcome(result),
                 detail: { revision: bot.revision, triggerIndex: index, slot },
               });
-              slot = dueSlot(timing, cursor.cursor_at.toISOString(), now);
             }
-          } else slot = dueSlot(timing, cursor.cursor_at.toISOString(), now);
-          let pending: string | null = null;
-          if (slot) {
-            const ref = `schedule:${bot.revision}:${index}:${slot}`;
-            const result = await deps.startBotRun({
-              teammateId: bot.teammate_id,
-              expectedRevision: bot.revision,
-              trigger: { kind: 'schedule', ref, scheduledFor: slot },
-              initiatedBy: `schedule:${bot.teammate_id}`,
-              clientRequestId: randomUUID(),
+            await tx`update tw_bot_trigger_cursors set cursor_at = greatest(cursor_at, ${now}), pending_at = ${pending} where teammate_id = ${bot.teammate_id} and revision = ${bot.revision} and trigger_index = ${index}`;
+          })
+          .catch(async (error: unknown) => {
+            report.failed++;
+            await triggerFailed(bot, SCHEDULE_ACTION, {
+              revision: bot.revision,
+              triggerIndex: index,
+              error: error instanceof Error ? error.name : 'unknown',
             });
-            report[result.kind]++;
-            if (result.kind === 'deferred') pending = slot;
-            await audit(auditDeps, tx, {
-              ownerSub: bot.owner_sub,
-              taskId:
-                result.kind === 'started' || result.kind === 'duplicate' ? result.taskId : null,
-              action: 'bot.trigger.schedule',
-              outcome: auditOutcome(result),
-              detail: { revision: bot.revision, triggerIndex: index, slot },
-            });
-          }
-          await tx`update tw_bot_trigger_cursors set cursor_at = greatest(cursor_at, ${now}), pending_at = ${pending} where teammate_id = ${bot.teammate_id} and revision = ${bot.revision} and trigger_index = ${index}`;
-        });
+          });
       }
     }
     return report;
+  }
+  async function triggerFailed(
+    bot: ActiveBot,
+    action: string,
+    detail: Readonly<Record<string, string | number | boolean | null>>,
+  ) {
+    const log = deps.log as Partial<Pick<Console, 'error'>> | undefined;
+    log?.error?.(
+      JSON.stringify({
+        level: 'error',
+        component: 'bot-triggers',
+        action,
+        teammateId: bot.teammate_id,
+      }),
+    );
+    await audit(auditDeps, deps.sql, { ownerSub: bot.owner_sub, action, outcome: 'error', detail });
+  }
+  function listens(bot: ActiveBot, event: SignedEvent): boolean {
+    const definition = botDefinitionSchema.safeParse(bot.definition);
+    return (
+      definition.success &&
+      definition.data.triggers.some(
+        (trigger) =>
+          trigger.kind === 'event' &&
+          trigger.source === event.source &&
+          trigger.eventType === event.triggerId,
+      )
+    );
+  }
+  async function startForEvent(
+    bot: ActiveBot,
+    event: SignedEvent,
+    payload: unknown,
+  ): Promise<EventRun> {
+    const ref = `event:${event.source}:${event.eventId}`;
+    let result: Awaited<ReturnType<StartBotRun>>;
+    try {
+      result = await deps.startBotRun({
+        teammateId: bot.teammate_id,
+        expectedRevision: bot.revision,
+        trigger: { kind: 'event', ref, source: event.source, eventType: event.triggerId, payload },
+        initiatedBy: ref,
+        clientRequestId: randomUUID(),
+      });
+    } catch (error) {
+      // Deferred: the sender's retry starts this bot, and the bots already started dedupe (CR-04).
+      await triggerFailed(bot, EVENT_ACTION, {
+        source: event.source,
+        eventId: event.eventId,
+        error: error instanceof Error ? error.name : 'unknown',
+      });
+      return { teammateId: bot.teammate_id, outcome: 'deferred' };
+    }
+    const outcome = result.kind === 'denied' ? 'ignored' : result.kind;
+    const taskId =
+      result.kind === 'started' || result.kind === 'duplicate' ? result.taskId : undefined;
+    await audit(auditDeps, deps.sql, {
+      ownerSub: bot.owner_sub,
+      taskId,
+      action: EVENT_ACTION,
+      outcome: auditOutcome(result),
+      detail: { source: event.source, eventId: event.eventId, eventType: event.triggerId },
+    });
+    return taskId
+      ? { teammateId: bot.teammate_id, outcome, taskId }
+      : { teammateId: bot.teammate_id, outcome };
   }
   async function ingest(event: SignedEvent): Promise<IngestResult> {
     let payload: unknown;
@@ -177,47 +263,14 @@ export function createBotTriggers(deps: Dependencies) {
     } catch (error) {
       await audit(auditDeps, deps.sql, {
         ownerSub: null,
-        action: 'bot.trigger.event',
+        action: EVENT_ACTION,
         outcome: error instanceof Error ? error.message : 'invalid_event',
       });
       throw error;
     }
     const runs: EventRun[] = [];
-    for (const bot of await activeBots(deps.sql)) {
-      const definition = botDefinitionSchema.parse(bot.definition);
-      if (
-        !definition.triggers.some(
-          (trigger) =>
-            trigger.kind === 'event' &&
-            trigger.source === event.source &&
-            trigger.eventType === event.triggerId,
-        )
-      )
-        continue;
-      const ref = `event:${event.source}:${event.eventId}`;
-      const result = await deps.startBotRun({
-        teammateId: bot.teammate_id,
-        expectedRevision: bot.revision,
-        trigger: { kind: 'event', ref, source: event.source, eventType: event.triggerId, payload },
-        initiatedBy: ref,
-        clientRequestId: randomUUID(),
-      });
-      const outcome = result.kind === 'denied' ? 'ignored' : result.kind;
-      const taskId =
-        result.kind === 'started' || result.kind === 'duplicate' ? result.taskId : undefined;
-      runs.push(
-        taskId
-          ? { teammateId: bot.teammate_id, outcome, taskId }
-          : { teammateId: bot.teammate_id, outcome },
-      );
-      await audit(auditDeps, deps.sql, {
-        ownerSub: bot.owner_sub,
-        taskId,
-        action: 'bot.trigger.event',
-        outcome: auditOutcome(result),
-        detail: { source: event.source, eventId: event.eventId, eventType: event.triggerId },
-      });
-    }
+    for (const bot of await activeBots(deps.sql))
+      if (listens(bot, event)) runs.push(await startForEvent(bot, event, payload));
     const outcome =
       (['started', 'deferred', 'duplicate', 'ignored'] as const).find((value) =>
         runs.some((run) => run.outcome === value),

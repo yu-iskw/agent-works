@@ -23,6 +23,7 @@ let now: Date;
 let defer = false;
 let revisionChanged = false;
 let expectedRevisions: (number | undefined)[] = [];
+let throwFor: string | undefined;
 const key = {
   id: 'key',
   source: 'source',
@@ -67,6 +68,7 @@ const definition: BotDefinition = {
 };
 const start: StartBotRun = async ({ teammateId, trigger, expectedRevision }) => {
   expectedRevisions.push(expectedRevision);
+  if (teammateId === throwFor) throw new Error('start_failed');
   if (revisionChanged) return { kind: 'denied', code: 'revision_changed' };
   if (defer) return { kind: 'deferred', code: 'bot_cap' };
   if (trigger.kind === 'manual') throw new Error('unexpected manual');
@@ -115,8 +117,59 @@ beforeEach(async () => {
   defer = false;
   revisionChanged = false;
   expectedRevisions = [];
+  throwFor = undefined;
 });
 describe('bot triggers', () => {
+  it('one bot failing never stops other bots on a tick or an event (CR-04)', async () => {
+    const deps = segmentDeps(sql);
+    const other = (await createStarterTeam(deps, alice)).at(-1)?.id;
+    if (other === undefined || other === id) throw new Error('second teammate');
+    const triggers = [
+      ...definition.triggers,
+      { kind: 'event' as const, source: key.source, eventType: 'changed' },
+    ];
+    await publish(triggers, '2026-01-01T00:00:00.000Z');
+    await sql`insert into tw_bots (teammate_id, owner_sub, updated_at) values (${other}, ${alice.sub}, now())`;
+    await sql`insert into tw_bot_revisions (teammate_id, revision, definition, digest, state, source, created_by, created_at, published_by, published_at)
+      values (${other}, 1, ${sql.json({ ...definition, triggers })}, ${'a'.repeat(64)}, 'published', 'api', ${alice.sub}, '2026-01-01T00:00:00.000Z', ${alice.sub}, '2026-01-01T00:00:00.000Z')`;
+    await sql`update tw_bots set active_revision = 1 where teammate_id = ${other}`;
+    now = new Date('2026-01-02T00:00:00.000Z');
+    for (const failing of [id, other]) {
+      throwFor = failing;
+      await sql`truncate trigger_test_runs`;
+      await sql`delete from tw_bot_trigger_cursors`;
+      const report = await service().tick();
+      expect(report).toMatchObject({ started: 1, failed: 1 });
+      expect(await sql`select teammate_id from trigger_test_runs`).toEqual([
+        { teammate_id: failing === id ? other : id },
+      ]);
+    }
+    expect(
+      await sql`select 1 from tw_audit where action = 'bot.trigger.schedule' and outcome = 'error'`,
+    ).toHaveLength(2);
+    // Event: the failing bot is deferred for the sender's retry; the other bot still starts.
+    throwFor = id;
+    await sql`truncate trigger_test_runs`;
+    const unsigned = {
+      triggerId: 'changed',
+      source: key.source,
+      eventId: 'isolation',
+      timestamp: now.toISOString(),
+      keyId: key.id,
+      body: Buffer.from('{"value":1}'),
+    };
+    const result = await service().ingest({
+      ...unsigned,
+      signature: createHmac('sha256', key.secret).update(signedEventBytes(unsigned)).digest('hex'),
+    });
+    expect(result.outcome).toBe('started');
+    expect(result.runs).toEqual(
+      expect.arrayContaining([
+        { teammateId: id, outcome: 'deferred' },
+        expect.objectContaining({ teammateId: other, outcome: 'started' }),
+      ]),
+    );
+  });
   it('fires Tokyo slots once across concurrent ticks and does not backfill a new revision', async () => {
     await publish(definition.triggers, '2026-01-01T00:00:00.000Z');
     now = new Date('2026-01-02T00:00:00.000Z');
