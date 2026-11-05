@@ -27,6 +27,7 @@ Propose replacing the PostgreSQL authority persistence with Firestore behind the
 - Atomic multi-document updates use Firestore transactions. Row claims use transactions with a lease field and an expiry instead of `SKIP LOCKED`. Idempotent writes use document IDs derived from the idempotency key.
 - The production guard for `authority-persistence` accepts a Firestore project and database id instead of `DATABASE_URL`. A local in-memory or emulator adapter stays for dev and e2e.
 - SQL migrations are retired per module. Schema versions become document fields checked at read time.
+- Local development and the e2e stack use SQLite behind the same ports. Production uses Firestore only. SQLite is never used in a deployed environment.
 - Delivery is phased: the outbox and scheduling claim first (highest concurrency risk), then ledger and dispatch, then memory, finops, model routing and teamwork.
 
 ## Consequences
@@ -42,5 +43,6 @@ Harder or riskier:
 - The restore drill, analytics queries and any SQL reporting need rewriting. Point-in-time recovery must be re-verified against Firestore's backup and restore options.
 - Decision-changing risk: ADR 0004's context says a new persistence engine is out of scope. Accepting this record requires that context to be updated first.
 - Every existing `ON CONFLICT` and `SKIP LOCKED` path needs a tested equivalent. Until then, production stays blocked on `authority-persistence`.
+- SQLite and Firestore differ in transaction, locking and type behavior. Dev and e2e can pass where production fails. The same contract test suite must run against both adapters before acceptance.
 
 Not decided here: whether to keep Cloud SQL as an alternative. The Cloud SQL module and its PSC endpoint remain in the repository as an unused option until a human accepts or rejects this record.
