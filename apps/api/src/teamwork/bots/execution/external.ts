@@ -41,11 +41,7 @@ export function createExternalHandler(
   const { deps } = options;
   const { owned, delay } = lease;
   const { advance, release } = graph;
-  async function stillOwned(job: BotJob) {
-    const rows =
-      await deps.sql`select 1 from tw_jobs where id=${job.id} and lease_token=${job.lease_token} and state='running' and lease_until > now()`;
-    return rows.length > 0;
-  }
+  const stillOwned = (job: BotJob) => lease.valid(deps.sql, job);
   async function stopExternal(
     job: BotJob,
     state: Delegation,

@@ -143,9 +143,7 @@ export function createStepHandler(options: ExecutionOptions, ports: Ports) {
     if (denied === 'cancel_requested') return cancelSettled(job);
     if (denied) return settle(job, { status: 'failed', code: denied });
     if (!state.fresh) return settle(job, { status: 'failed', code: 'worker_lost' });
-    const valid =
-      await deps.sql`select 1 from tw_jobs where id=${job.id} and lease_token=${job.lease_token} and state='running' and lease_until > now()`;
-    if (!valid.length) return;
+    if (!(await lease.valid(deps.sql, job))) return;
     await settle(job, {
       status: 'succeeded',
       output: await produce(options, run, step, definition),
