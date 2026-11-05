@@ -452,14 +452,21 @@ export async function validateBotDefinition(
   context: BotValidationContext,
 ): Promise<readonly BotDiagnostic[]> {
   const parsed = parseBotProposal(input);
-  if (!parsed.success) return parsed.diagnostics;
+  return parsed.success ? catalogDiagnostics(parsed.definition, context) : parsed.diagnostics;
+}
+
+/** Checks a definition that already parsed against the segment catalog and registries. */
+export async function catalogDiagnostics(
+  definition: BotDefinition,
+  context: BotValidationContext,
+): Promise<readonly BotDiagnostic[]> {
   const diagnostics: BotDiagnostic[] = [];
   const capabilities = new Set(
-    parsed.definition.workflow.steps
+    definition.workflow.steps
       .filter((step) => step.kind === 'connector_read')
       .map((step) => step.capability),
   );
-  for (const [index, step] of parsed.definition.workflow.steps.entries()) {
+  for (const [index, step] of definition.workflow.steps.entries()) {
     if (step.kind === 'connector_read')
       diagnostics.push(...connectorDiagnostics(step, index, context));
     if (

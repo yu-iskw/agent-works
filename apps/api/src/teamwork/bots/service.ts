@@ -1,8 +1,4 @@
-import {
-  canonicalPayloadSha256,
-  parseBotProposal,
-  validateBotDefinition,
-} from '@agent-works/domain';
+import { canonicalPayloadSha256, catalogDiagnostics, parseBotProposal } from '@agent-works/domain';
 
 import { Conflict, audit } from '../context.js';
 import { segmentCapabilities } from '../installations.js';
@@ -43,7 +39,7 @@ export function createBotService(
   async function validated(input: unknown): Promise<ValidatedBotDefinition> {
     const parsed = parseBotProposal(input);
     if (!parsed.success) throw new InvalidBotDefinition(parsed.diagnostics);
-    const diagnostics = await validateBotDefinition(parsed.definition, await context());
+    const diagnostics = await catalogDiagnostics(parsed.definition, await context());
     if (diagnostics.length > 0) throw new InvalidBotDefinition(diagnostics);
     return parsed.definition as ValidatedBotDefinition;
   }
