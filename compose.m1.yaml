@@ -56,6 +56,12 @@ x-segment-env: &segment-env
   AW_SECRETS_FILE: /run/aw-m1/m1.env
   AW_KEY_DIR: /data/keys
   AW_ASSERTION_JWKS_URL: http://web:8081/internal/jwks
+  AW_BOT_WORKFLOWS: ${AW_M1_BOT_WORKFLOWS:-off}
+  AW_BOT_MCP_AGENTS: ${AW_M1_BOT_MCP_AGENTS:-}
+  AW_BOT_MCP_ALLOW_LOOPBACK: ${AW_M1_BOT_MCP_ALLOW_LOOPBACK:-off}
+  AW_BOT_ACTIVATE_CURATED: ${AW_M1_BOT_ACTIVATE_CURATED:-}
+  AW_BOT_EVENT_KEYS: ${AW_M1_BOT_EVENT_KEYS:-}
+  AW_BOT_TRIGGER_TICK_MS: ${AW_M1_BOT_TRIGGER_TICK_MS:-60000}
 
 services:
   # One-shot: copy the checkout (read-only mount) into the m1-app volume, install, build, exit.
@@ -160,6 +166,46 @@ services:
       builder:
         condition: service_completed_successfully
       keys-init:
+        condition: service_completed_successfully
+
+  reference-alpha:
+    profiles: [bots]
+    image: aw-m1:local
+    user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
+    working_dir: /app
+    volumes: [m1-app:/app:ro]
+    command:
+      - node
+      - --input-type=module
+      - -e
+      - >-
+        import { startReferenceAgent } from './apps/api/dist/teamwork/mcp-task/reference-agent-server.js'; await startReferenceAgent({ port: 9097, completionMs: 30000 });
+    networks:
+      default:
+        aliases: [api-alpha]
+      alpha:
+    depends_on:
+      builder:
+        condition: service_completed_successfully
+
+  reference-beta:
+    profiles: [bots]
+    image: aw-m1:local
+    user: '${HOST_UID:-1000}:${HOST_GID:-1000}'
+    working_dir: /app
+    volumes: [m1-app:/app:ro]
+    command:
+      - node
+      - --input-type=module
+      - -e
+      - >-
+        import { startReferenceAgent } from './apps/api/dist/teamwork/mcp-task/reference-agent-server.js'; await startReferenceAgent({ port: 9097, completionMs: 30000 });
+    networks:
+      default:
+        aliases: [api-beta]
+      beta:
+    depends_on:
+      builder:
         condition: service_completed_successfully
 
   # BFF: Google sign-in, sessions, segment registry, CSRF, server-rendered pages. Port 8080 is

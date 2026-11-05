@@ -33,6 +33,7 @@ function createTaskServer(
   res: ServerResponse,
   opts: ReferenceOptions,
   calls: string[],
+  submitCounts: Map<string, number>,
 ) {
   const server = new McpServer({ name: 'local-reference-task-agent', version: '1.0.0' });
   function register(
@@ -53,6 +54,7 @@ function createTaskServer(
   }
   register('task.submit', submitInputSchema.shape, async (args) => {
     const input = submitInputSchema.parse(args);
+    submitCounts.set(input.idempotencyKey, (submitCounts.get(input.idempotencyKey) ?? 0) + 1);
     const directive = referenceDirective(input.instruction);
     if (directive === 'tool-error') return toolError();
     const outcome = agent.submit(input);
@@ -97,8 +99,17 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 export async function startReferenceAgent(opts: ReferenceOptions = {}) {
   const agent = createReferenceAgent(opts);
   const calls: string[] = [];
+  const submitCounts = new Map<string, number>();
   const active = new Set<McpServer>();
   async function handle(req: IncomingMessage, res: ServerResponse) {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    if (req.method === 'GET' && url.pathname === '/test/submit-count') {
+      const key = url.searchParams.get('key');
+      if (!key) return void res.writeHead(400).end();
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ count: submitCounts.get(key) ?? 0 }));
+      return;
+    }
     if (req.url !== '/mcp') {
       res.writeHead(404).end();
       return;
@@ -107,7 +118,7 @@ export async function startReferenceAgent(opts: ReferenceOptions = {}) {
       res.writeHead(405).end();
       return;
     }
-    const server = createTaskServer(agent, res, opts, calls);
+    const server = createTaskServer(agent, res, opts, calls, submitCounts);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

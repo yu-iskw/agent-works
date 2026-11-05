@@ -1,0 +1,13 @@
+services:
+  api-alpha:
+    networks: !reset []
+    network_mode: service:reference-alpha
+    depends_on:
+      reference-alpha:
+        condition: service_started
+  api-beta:
+    networks: !reset []
+    network_mode: service:reference-beta
+    depends_on:
+      reference-beta:
+        condition: service_started

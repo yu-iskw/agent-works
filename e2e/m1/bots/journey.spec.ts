@@ -1,28 +1,9 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-import { ensureStarterTeam, signInLocal, teammateId } from '../helpers.js';
+import { openBot, requestDesign } from './helpers.js';
 
 import type { Locator, Page } from '@playwright/test';
-
-async function openBot(page: Page): Promise<string> {
-  const stack = await page.request.get('/sign-in').catch(() => undefined);
-  test.skip(stack === undefined || !stack.ok(), 'AW_BOT_WORKFLOWS stack is not reachable.');
-  await signInLocal(page);
-  await ensureStarterTeam(page, 'alpha');
-  const id = await teammateId(page, 'alpha', 'Coordinator');
-  await page.goto(`/s/alpha/bots/${id}`);
-  test.skip(
-    await page.getByRole('heading', { name: 'Bot workflows unavailable' }).isVisible(),
-    'AW_BOT_WORKFLOWS stack is not enabled.',
-  );
-  return id;
-}
-
-async function requestDesign(page: Page, message: string): Promise<void> {
-  await page.getByLabel('Your request').fill(message);
-  await page.getByRole('button', { name: 'Send design request' }).click();
-}
 
 test('design, reject malformed, refuse stale publication, publish and operate a run', async ({
   page,
@@ -34,7 +15,9 @@ test('design, reject malformed, refuse stale publication, publish and operate a 
   await expect(page.getByRole('heading', { name: 'Changes needed' })).toBeVisible();
   await requestDesign(page, 'Make a research brief');
   await expect(page.getByRole('heading', { name: /Review draft revision/ })).toBeVisible();
-  await expect(page.getByText('Data sent externally', { exact: false })).toBeVisible();
+  await expect(
+    page.getByText('Data sent externally to Local reference research agent'),
+  ).toBeVisible();
   await expect(page.getByText('Asia/Tokyo', { exact: false })).toBeVisible();
   const other = await context.newPage();
   await other.goto(`/s/alpha/bots/${id}`);
@@ -48,15 +31,18 @@ test('design, reject malformed, refuse stale publication, publish and operate a 
   await expect(page.getByRole('heading', { name: 'Bot run' })).toBeVisible();
   await expect(async () => {
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible({
+      timeout: 3000,
+    });
   }).toPass({ timeout: 120_000, intervals: [2000] });
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(async () => {
     await page.reload();
-    await expect(page.getByText('completed', { exact: true })).toBeVisible();
+    await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: 120_000, intervals: [2000] });
   await expect(page.getByRole('heading', { name: 'Result' })).toBeVisible();
-  await expect(page.getByText(/Cost completeness:/)).toBeVisible();
+  await expect(page.getByText(/Cost completeness: (partial|unknown)/)).toBeVisible();
+  await expect(page.getByText(/Estimated: unknown/)).toBeVisible();
   await other.close();
 });
 
@@ -68,6 +54,17 @@ async function tabTo(page: Page, target: Locator): Promise<void> {
   throw new Error('Control could not be reached by keyboard');
 }
 
+async function assertAccessible(page: Page): Promise<void> {
+  const result = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    result.violations.filter(
+      (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+    ),
+  ).toEqual([]);
+}
+
 test('the critical path is keyboard operable and passes axe', async ({ page }) => {
   test.setTimeout(180_000);
   await openBot(page);
@@ -77,26 +74,34 @@ test('the critical path is keyboard operable and passes axe', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Send design request' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: /Review draft revision/ })).toBeVisible();
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    .analyze();
-  expect(
-    result.violations.filter(
-      (violation) => violation.impact === 'critical' || violation.impact === 'serious',
-    ),
-  ).toEqual([]);
+  await assertAccessible(page);
   await tabTo(page, page.getByRole('button', { name: 'Confirm and publish this revision' }));
-  await page.keyboard.press('Enter');
+  await Promise.all([
+    page.waitForURL(/\/s\/alpha\/bots\/[0-9a-f-]+$/),
+    page.keyboard.press('Enter'),
+  ]);
+  await expect(page.getByRole('heading', { name: /Review draft revision/ })).toHaveCount(0);
   await tabTo(page, page.getByRole('button', { name: 'Start run' }));
+  await expect(page.getByRole('button', { name: 'Start run' })).toBeFocused();
   await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Bot run' })).toBeVisible();
   await expect(async () => {
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible({
+      timeout: 3000,
+    });
   }).toPass({ timeout: 120_000, intervals: [2000] });
   await tabTo(page, page.getByRole('button', { name: 'Approve', exact: true }));
-  await page.keyboard.press('Enter');
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().includes('/approvals/') && response.request().method() === 'POST',
+    ),
+    page.keyboard.press('Enter'),
+  ]);
   await expect(async () => {
     await page.reload();
-    await expect(page.getByText('completed', { exact: true })).toBeVisible();
+    await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: 120_000, intervals: [2000] });
+  await assertAccessible(page);
 });

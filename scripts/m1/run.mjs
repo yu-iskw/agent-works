@@ -12,8 +12,8 @@
 //   node scripts/m1/run.mjs restart              kill a segment API mid-assignment, restart everything, verify recovery
 //   node scripts/m1/run.mjs evidence [--index-only]   mock-stack journeys with video, plus an evidence index
 //   node scripts/m1/run.mjs verify               every M1 machine gate; non-zero on any failure
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,8 +26,17 @@ const PROJECTS = {
   live: { name: 'aw-m1', port: '8280' },
   'local-test': { name: 'aw-m1-local', port: '8281' },
   ux: { name: 'aw-m1-ux', port: '8282' },
+  bots: { name: 'aw-m1-bots', port: '8283' },
 };
-const composeFor = (mode) => ['compose', '-f', 'compose.m1.yaml', '-p', PROJECTS[mode].name];
+const composeFor = (mode) => [
+  'compose',
+  '-f',
+  'compose.m1.yaml',
+  ...(mode === 'bots' ? ['-f', 'scripts/m1/compose-bots.yaml'] : []),
+  '-p',
+  PROJECTS[mode].name,
+  ...(mode === 'bots' ? ['--profile', 'bots'] : []),
+];
 const compose = composeFor('live');
 const artifacts = 'artifacts/m1';
 const secretsDir = process.env.AW_M1_SECRETS_DIR ?? join(homedir(), '.config/agent-works-m1');
@@ -73,6 +82,19 @@ const MODES = {
     AW_M1_FIXTURE_FAULTS: '1',
     AW_M1_E2E_MODE: '0',
     AW_M1_LLM_MODE: 'scripted',
+  },
+  bots: {
+    AW_M1_IDENTITY: 'local-test',
+    AW_M1_SOURCE_MODE: 'fixture',
+    AW_M1_FIXTURE_FAULTS: '0',
+    AW_M1_E2E_MODE: '0',
+    AW_M1_LLM_MODE: 'scripted',
+    AW_M1_BOT_WORKFLOWS: 'on',
+    AW_M1_BOT_MCP_AGENTS: '/run/aw-m1/bot-agents.json',
+    AW_M1_BOT_MCP_ALLOW_LOOPBACK: 'on',
+    AW_M1_BOT_ACTIVATE_CURATED: 'brief-writer',
+    AW_M1_BOT_EVENT_KEYS: '/run/aw-m1/bot-event-keys.json',
+    AW_M1_BOT_TRIGGER_TICK_MS: '1000',
   },
   'local-test': {
     AW_M1_IDENTITY: 'local-test',
@@ -259,6 +281,7 @@ function up(mode) {
       '600',
       '--force-recreate',
       ...appServices,
+      ...(mode === 'bots' ? ['reference-alpha', 'reference-beta'] : []),
     ],
     env,
   );
@@ -277,9 +300,44 @@ function up(mode) {
 function currentEnv(mode) {
   const env = { ...baseEnv, ...MODES[mode], AW_M1_PORT: PROJECTS[mode].port };
   if (mode !== 'live') {
-    const empty = join(process.env.TMPDIR ?? '/tmp', 'aw-m1-no-secrets');
+    const empty = join(
+      process.env.TMPDIR ?? '/tmp',
+      mode === 'bots' ? 'aw-m1-bots-test-only' : 'aw-m1-no-secrets',
+    );
     mkdirSync(empty, { recursive: true });
     writeFileSync(join(empty, 'e2e-session.secret'), '');
+    if (mode === 'bots') {
+      writeFileSync(
+        join(empty, 'bot-agents.json'),
+        JSON.stringify([
+          {
+            agentId: 'reference-research-agent',
+            displayName: 'Local reference research agent',
+            protocol: 'mcp',
+            contract: 'aw.task.v1',
+            endpoint: 'http://127.0.0.1:9097/mcp',
+            allowedHosts: ['127.0.0.1:9097'],
+            supports: { cancel: true, lookupByIdempotencyKey: true, reportsCost: true },
+            maxInputBytes: 65536,
+            maxOutputBytes: 65536,
+            callTimeoutMs: 5000,
+            dataClassification: 'INTERNAL',
+          },
+        ]),
+      );
+      // Fixed development-only key. Never use for live services.
+      writeFileSync(
+        join(empty, 'bot-event-keys.json'),
+        JSON.stringify([
+          {
+            id: 'm1-bots-test-only',
+            source: 'm1-test',
+            algorithm: 'HS256',
+            secretBase64: Buffer.from('m1-bots-development-only-test-key').toString('base64'),
+          },
+        ]),
+      );
+    }
     env.AW_M1_SECRETS_DIR = empty;
   }
   return env;
@@ -325,7 +383,14 @@ function test() {
 }
 
 function playwright(project, suite, extra = [], vars = {}) {
-  const mode = project === 'live' ? 'live' : project === 'ux' ? 'ux' : 'local-test';
+  const mode =
+    project === 'live'
+      ? 'live'
+      : project === 'ux'
+        ? 'ux'
+        : project === 'bots'
+          ? 'bots'
+          : 'local-test';
   // Each Compose project has its own node_modules volumes; a no-op when already installed.
   if (toolbox('pnpm install --frozen-lockfile >/dev/null', mode) !== 0) return 1;
   return (
@@ -343,7 +408,7 @@ function playwright(project, suite, extra = [], vars = {}) {
         'node_modules/.bin/playwright',
         'test',
         '-c',
-        'e2e/m1',
+        project === 'bots' ? 'e2e/m1/bots/playwright.config.mjs' : 'e2e/m1',
         `--project=${project}`,
         ...extra,
       ],
@@ -353,9 +418,48 @@ function playwright(project, suite, extra = [], vars = {}) {
 }
 
 function e2e(project) {
-  const started = up(project === 'live' ? 'live' : 'local-test');
+  const mode = project === 'live' ? 'live' : project === 'bots' ? 'bots' : 'local-test';
+  if (
+    mode === 'bots' &&
+    (MODES.bots.AW_M1_LLM_MODE !== 'scripted' || MODES.bots.AW_M1_IDENTITY !== 'local-test')
+  )
+    throw new Error('Bots suite requires scripted model and local-test identity');
+  if (mode === 'bots') {
+    const reset = docker(
+      [...composeFor(mode), 'down', '--volumes', '--remove-orphans'],
+      currentEnv(mode),
+    );
+    if (reset.status !== 0) return reset.status ?? 1;
+  }
+  const started = up(mode);
   if (started !== 0) return started;
-  return playwright(project, project);
+  if (mode !== 'bots') return playwright(project, project);
+  const safety = docker(
+    [
+      ...composeFor(mode),
+      'exec',
+      '-T',
+      'api-alpha',
+      'node',
+      '-e',
+      "process.exit(process.env.LLM_MODE === 'scripted' && process.env.AW_IDENTITY === 'local-test' && process.env.AW_SOURCE_MODE === 'fixture' ? 0 : 1)",
+    ],
+    currentEnv(mode),
+  );
+  if (safety.status !== 0) return safety.status ?? 1;
+  mkdirSync(artifacts, { recursive: true });
+  for (const file of ['bot-control-request.json', 'bot-control-result.json']) {
+    rmSync(join(artifacts, file), { force: true });
+  }
+  const control = spawn(process.execPath, ['scripts/m1/bot-restart.mjs'], {
+    env: currentEnv(mode),
+    stdio: 'inherit',
+  });
+  try {
+    return playwright(project, project);
+  } finally {
+    control.kill();
+  }
 }
 
 /** One UI review round on the scripted-model stack: key-journey video plus screens at 375/768/1440. */
@@ -473,7 +577,9 @@ switch (command) {
     code = test();
     break;
   case 'e2e':
-    code = e2e(args[0] === 'live' ? 'live' : 'local');
+    // Load the bot browser configuration before resetting the disposable stack.
+    if (args[0] === 'bots') await import('../../e2e/m1/bots/playwright.config.mjs');
+    code = e2e(args[0] === 'live' ? 'live' : args[0] === 'bots' ? 'bots' : 'local');
     break;
   case 'ux':
     code = ux(args[0] ?? '1');
