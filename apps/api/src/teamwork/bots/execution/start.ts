@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { BOT_RUN_TERMINAL, botRunStatusSchema } from '@agent-works/domain';
+
 import { Conflict } from '../../context.js';
 
 import { grantValid, recheck } from './recheck.js';
@@ -106,13 +108,8 @@ async function admit(
   run: RunRow,
   input: StartBotRunInput,
 ): Promise<StartBotRunResult | undefined> {
-  const limits = run.definition.limits;
-  await options.admission.setLimit('bot', run.teammate_id, {
-    maxConcurrent: limits.maxConcurrentRunsPerBot,
-  });
-  await options.admission.setLimit('member', run.owner_sub, {
-    maxConcurrent: limits.maxConcurrentRunsPerUser,
-  });
+  // Deployment admission policy is applied as configured and never rewritten from a definition;
+  // the definition's own ceilings narrow it inside commitRun (T7-02).
   const result = await options.admission.admit({
     executionId: run.task_id,
     botId: run.teammate_id,
@@ -147,6 +144,30 @@ async function insertRun(options: ExecutionOptions, tx: Tx, run: RunRow, input: 
     if (root) await queueStep(deps, tx, run.task_id, root.id);
   }
 }
+const ACTIVE_RUN_STATUSES = botRunStatusSchema.options.filter(
+  (status) => !BOT_RUN_TERMINAL.has(status),
+);
+/**
+ * The definition's concurrency ceilings, checked inside the transaction that inserts the run: the
+ * bot row lock (taken first) serializes starts of one bot and the owner lock those of one owner,
+ * so counts cannot race. They can only narrow the deployment's admission policy.
+ */
+async function definitionCeiling(
+  tx: Tx,
+  run: RunRow,
+): Promise<'bot_cap' | 'member_cap' | undefined> {
+  await tx`select pg_advisory_xact_lock(7035, hashtext(${run.owner_sub}))`;
+  const [counts] = await tx<{ bot: number; member: number }[]>`
+    select count(*) filter (where r.teammate_id = ${run.teammate_id})::int as bot,
+      count(*)::int as member
+    from tw_bot_runs r join wb_tasks t on t.id = r.task_id
+    where r.owner_sub = ${run.owner_sub} and t.status in ${tx(ACTIVE_RUN_STATUSES)}
+  `;
+  const { maxConcurrentRunsPerBot, maxConcurrentRunsPerUser } = run.definition.limits;
+  if (counts.bot >= maxConcurrentRunsPerBot) return 'bot_cap';
+  if (counts.member >= maxConcurrentRunsPerUser) return 'member_cap';
+  return undefined;
+}
 async function commitRun(
   options: ExecutionOptions,
   run: RunRow,
@@ -178,6 +199,14 @@ async function commitRun(
     ).at(0);
     if (duplicate) {
       result = { kind: 'duplicate', taskId: duplicate.task_id };
+      return;
+    }
+    const ceiling = await definitionCeiling(tx, run);
+    if (ceiling) {
+      result =
+        input.trigger.kind === 'manual'
+          ? { kind: 'denied', code: 'admission_denied' }
+          : { kind: 'deferred', code: ceiling };
       return;
     }
     if (run.grant_id) {

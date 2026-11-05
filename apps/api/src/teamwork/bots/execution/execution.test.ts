@@ -487,6 +487,40 @@ describe('durable bot execution', () => {
     ]);
     expect(await sql`select 1 from tw_bot_runs`).toHaveLength(1);
   });
+  it('a definition never widens or rewrites deployment admission policy (T7-02)', async () => {
+    const def = definition('per_run');
+    def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };
+    await publish(def);
+    await options.admission.setLimit('member', alice.sub, { maxConcurrent: 1, maxCostMicros: 0 });
+    await options.admission.setLimit('bot', teammateId, { maxConcurrent: 1, maxCostMicros: 0 });
+    const input = { teammateId, trigger: { kind: 'manual' as const }, initiatedBy: alice.sub };
+    const first = await createStartBotRun(options)({ ...input, clientRequestId: randomUUID() });
+    const second = await createStartBotRun(options)({ ...input, clientRequestId: randomUUID() });
+    expect(first.kind).toBe('started');
+    expect(second).toEqual({ kind: 'denied', code: 'admission_denied' });
+    expect(await options.admission.inFlight('member', alice.sub)).toBe(1);
+    expect(
+      await sql`select scope_kind, max_concurrent, max_cost_micros::int as max_cost_micros from admission_limits order by scope_kind`,
+    ).toEqual([
+      { scope_kind: 'bot', max_concurrent: 1, max_cost_micros: 0 },
+      { scope_kind: 'member', max_concurrent: 1, max_cost_micros: 0 },
+    ]);
+  });
+  it('the definition ceiling applies per owner across bots without admission policy rows', async () => {
+    const def = definition('per_run');
+    def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 1 };
+    await publish(def);
+    const input = { teammateId, trigger: { kind: 'manual' as const }, initiatedBy: alice.sub };
+    expect(
+      (await createStartBotRun(options)({ ...input, clientRequestId: randomUUID() })).kind,
+    ).toBe('started');
+    expect(await createStartBotRun(options)({ ...input, clientRequestId: randomUUID() })).toEqual({
+      kind: 'denied',
+      code: 'admission_denied',
+    });
+    expect(await sql`select 1 from admission_limits`).toHaveLength(0);
+    expect(await options.admission.inFlight('bot', teammateId)).toBe(1);
+  });
   it('trigger delivery is idempotent and admission denial defers background work', async () => {
     await publish();
     const input = {
