@@ -515,13 +515,32 @@ describe('durable bot execution', () => {
       }),
     ).toEqual({ kind: 'deferred', code: 'bot_cap' });
   });
-  it('holder lease expiry releases admission and ends an abandoned wait', async () => {
+  it('a lapsed lease re-admits a live run, and fails it only when capacity is gone (CR-05)', async () => {
     await publish(definition('per_run'));
-    const id = await start();
+    const live = await start();
     clock += 300_001;
     await execution.recover();
-    expect((await runView(options, alice, id)).status).toBe('failed');
-    expect(await options.admission.inFlight('bot', teammateId)).toBe(0);
+    expect((await runView(options, alice, live)).status).toBe('waiting_approval');
+    expect(await options.admission.inFlight('bot', teammateId)).toBe(1);
+    // The lease lapses again, and before recovery the bot's only slot goes to other work.
+    await options.admission.setLimit('bot', teammateId, { maxConcurrent: 1 });
+    clock += 300_001;
+    await options.admission.sweepExpired();
+    const other = await options.admission.admit({
+      executionId: randomUUID(),
+      botId: teammateId,
+      memberId: alice.sub,
+      segmentId: options.deps.config.segment,
+      windowKey: 'test',
+      estimatedCostMicros: 0,
+    });
+    expect(other.admitted).toBe(true);
+    await execution.recover();
+    expect(await runView(options, alice, live)).toMatchObject({
+      status: 'failed',
+      lastError: expect.objectContaining({ code: 'admission_expired' }),
+    });
+    expect(await options.admission.inFlight('bot', teammateId)).toBe(1);
   });
   it('active standing grant works and maxRuns excludes a second run', async () => {
     await publish(definition('standing_grant'));
