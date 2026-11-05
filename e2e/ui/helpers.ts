@@ -99,7 +99,7 @@ export type SeededHistory = {
  * Inserts `count` teamwork tasks for alice straight into the segment database, every third one
  * with an artifact revision, plus one running task with an open question so the Teammates row
  * shows Working and Needs you. Rows are labelled with the `ui-seed` title prefix and keyed by
- * deterministic ids, so running it twice changes nothing. No model is called: `llm_mode` is `stub`.
+ * deterministic ids, so running it again restores the seeded state. No model is called: `llm_mode` is `stub`.
  */
 export async function seedHistory(count = 120): Promise<SeededHistory> {
   const sql = db('alpha');
@@ -107,6 +107,12 @@ export async function seedHistory(count = 120): Promise<SeededHistory> {
     select id, conversation_id from tw_teammates
     where owner_sub = ${ALICE} and not archived order by created_at limit 1`;
   if (teammate === undefined) throw new Error('seedHistory needs alice to have a starter team');
+  const resultOwner = await coordinator('alpha');
+  // Re-seeding restores the seeded state, so every seeded task resets the same failure and owner fields.
+  const reseedTask =
+    () => sql`on conflict (id) do update set status = excluded.status, error_code = null,
+    error_message = null, failed_stage = null, result_owner = excluded.result_owner,
+    scope = excluded.scope, updated_at = excluded.updated_at`;
   const base = Date.parse('2026-10-01T00:00:00.000Z');
   const taskIds: string[] = [];
   const resultTaskIds: string[] = [];
@@ -124,7 +130,7 @@ export async function seedHistory(count = 120): Promise<SeededHistory> {
         ${`${SEED_PREFIX} objective ${n}`}, ${status}, 1, 'stub', 'ui-seed', 'teamwork', 'alpha',
         'research_brief', 'manual', ${teammate.id}, ${teammate.conversation_id},
         ${sql.json(scope(`${SEED_PREFIX} ${n}`))}, ${withResult ? 1 : 0}, ${at}, ${at})
-      on conflict (id) do update set scope = excluded.scope`;
+      ${reseedTask()}`;
     if (!withResult) continue;
     resultTaskIds.push(id);
     const digest = '0'.repeat(52) + String(n).padStart(12, '0');
@@ -157,9 +163,9 @@ export async function seedHistory(count = 120): Promise<SeededHistory> {
       latest_revision, created_at, updated_at)
     values (${runningTaskId}, ${ALICE}, 'alice@local.test', ${seedId(4, 0)}, ${`${SEED_PREFIX} running task`},
       ${`${SEED_PREFIX} running`}, 'running', 1, 'stub', 'ui-seed', 'teamwork', 'alpha',
-      'research_brief', 'manual', ${teammate.id}, ${teammate.conversation_id},
+      'research_brief', 'manual', ${resultOwner.id}, ${teammate.conversation_id},
       ${sql.json(scope(`${SEED_PREFIX} running`))}, 0, ${now}, ${now})
-    on conflict (id) do update set scope = excluded.scope, updated_at = excluded.updated_at`;
+    ${reseedTask()}`;
   const attentionTaskId = seedId(3, 1);
   await sql`
     insert into wb_tasks (id, owner_sub, owner_email, client_request_id, title, objective, status, version,
@@ -167,9 +173,9 @@ export async function seedHistory(count = 120): Promise<SeededHistory> {
       latest_revision, created_at, updated_at)
     values (${attentionTaskId}, ${ALICE}, 'alice@local.test', ${seedId(4, 1)}, ${`${SEED_PREFIX} question task`},
       ${`${SEED_PREFIX} question`}, 'needs_input', 1, 'stub', 'ui-seed', 'teamwork', 'alpha',
-      'research_brief', 'manual', ${teammate.id}, ${teammate.conversation_id},
+      'research_brief', 'manual', ${resultOwner.id}, ${teammate.conversation_id},
       ${sql.json(scope(`${SEED_PREFIX} question`))}, 0, ${now}, ${now})
-    on conflict (id) do update set scope = excluded.scope, updated_at = excluded.updated_at`;
+    ${reseedTask()}`;
   // Re-seeding keeps these rows the newest of their kind, so bounded lists still show them.
   await sql`
     insert into tw_inbox (id, owner_sub, task_id, kind, ref, summary, state, created_at)

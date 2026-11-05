@@ -216,6 +216,22 @@ describe('dependency transitions and failure propagation', { timeout: 90_000 }, 
     await drain(d);
     expect((await nodes(taskId)).map((n) => n.status)).toEqual(['succeeded', 'succeeded']);
   });
+
+  it('fails a running task with zero assignments on restart recovery without synthesizing', async () => {
+    const d = segmentDeps(sql);
+    const { taskId } = await proposedTask(d, 'Which feature-flag service should we adopt?');
+    await sql`delete from tw_assignments where task_id = ${taskId}`;
+    await sql`update wb_tasks set status = 'running' where id = ${taskId}`;
+    expect((await taskDetail(d, alice, taskId))!.task.status).toBe('running');
+
+    expect(await recoverGraphs(d)).toBe(1);
+    const detail = (await taskDetail(d, alice, taskId))!;
+    expect(detail.task.status).toBe('failed');
+    const queuedSynthesis = await sql<{ id: string }[]>`
+      select id from tw_jobs where task_id = ${taskId} and kind = 'synthesis'
+    `;
+    expect(queuedSynthesis).toHaveLength(0);
+  });
 });
 
 describe('single owner', { timeout: 90_000 }, () => {

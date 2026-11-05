@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PROPOSAL_POLICY,
+  formatProposalRefusal,
   parseProposalText,
   validateProposal,
 } from './coordinator-proposal.js';
@@ -218,5 +219,34 @@ describe('coordinator proposal validation', () => {
       ];
       expect(reasons(plan(mixed))).toEqual(['unknown_bot', 'dangling_edge', 'grant_widening']);
     });
+  });
+
+  it.each(['bad_key', 'compliance-security-freshness-audit'])(
+    'names the field path and reason when assignment key %s violates the contract',
+    (key) => {
+      const verdict = validateProposal(plan([node(key)]), ctx);
+      expect(verdict.ok).toBe(false);
+      if (!verdict.ok) {
+        expect(verdict.reasons).toEqual(['schema']);
+        expect(formatProposalRefusal(verdict)).toContain('assignments.0.key');
+      }
+    },
+  );
+
+  it('names the root when the proposal is not an object at all', () => {
+    const verdict = validateProposal(undefined, ctx);
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(formatProposalRefusal(verdict)).toContain('(root)');
+  });
+
+  it('accepts strict-valid plans with lowercase kebab keys within 31 characters', () => {
+    const valid = validateProposal(plan([node('feature-flag-eval'), node('security-audit')]), ctx);
+    expect(valid.ok).toBe(true);
+    if (valid.ok) {
+      expect(valid.content.assignments.map((a) => a.key)).toEqual([
+        'feature-flag-eval',
+        'security-audit',
+      ]);
+    }
   });
 });

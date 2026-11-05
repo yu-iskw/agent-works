@@ -177,7 +177,9 @@ export function planRequest(input: {
       'Propose a plan only. Do not do the work and do not dispatch anything: the member reviews',
       'and approves the plan first. Use 2 or 3 specialists from the roster whose work can run in',
       'parallel, each with a bounded brief and deliverable. Use only roster IDs and only the',
-      'allowed sources. Leave dependsOn empty unless one assignment truly needs another.',
+      'allowed sources. Assignment keys must match ^[a-z][a-z0-9-]{0,30}$ (lowercase letters,',
+      'digits, hyphens; start with a letter; at most 31 chars). Leave dependsOn empty unless',
+      'one assignment truly needs another.',
       UNTRUSTED,
       'Return only JSON.',
     ].join(' '),
@@ -206,7 +208,12 @@ export function planRequest(input: {
           items: {
             type: 'OBJECT',
             properties: {
-              key: S,
+              key: {
+                type: 'STRING',
+                pattern: '^[a-z][a-z0-9-]{0,30}$',
+                description:
+                  'Unique assignment key: lowercase letters, digits, hyphens; start with a letter; max 31 chars.',
+              },
               teammateId: S,
               brief: S,
               deliverable: S,
