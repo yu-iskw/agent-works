@@ -86,7 +86,7 @@ export type ApprovalRow = {
 export type BotJob = { id: number; task_id: string | null; ref: string; lease_token: string };
 export const ADMIN_TRANSITIONS = {
   step: { failed: ['ready'], outcome_uncertain: ['succeeded', 'failed'] },
-  run: { failed: ['running'] },
+  run: { failed: ['running'], outcome_uncertain: ['failed'] },
 } as const;
 const MAX_OUTPUT_BYTES = 32_768;
 export function boundedText(value: unknown): string {

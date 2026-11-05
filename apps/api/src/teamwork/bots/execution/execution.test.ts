@@ -943,13 +943,91 @@ describe('durable bot execution', () => {
   it('pins the explicit admin transitions', () => {
     expect(ADMIN_TRANSITIONS).toEqual({
       step: { failed: ['ready'], outcome_uncertain: ['succeeded', 'failed'] },
-      run: { failed: ['running'] },
+      run: { failed: ['running'], outcome_uncertain: ['failed'] },
     });
   });
 });
 
 // Regressions for the independent milestone review (ledger/review-final.md).
 describe('bot execution review regressions', () => {
+  it('retrying a declined checkpoint asks again and the run can complete (CR-02)', async () => {
+    await publish(definition('checkpoints_only'));
+    const id = await start();
+    const first = (await reachCheckpoint(id)).approvals[0];
+    await commands.approve(alice, id, first.id, {
+      decision: 'decline',
+      actionDigest: first.actionDigest,
+    });
+    const declined = await runView(options, alice, id);
+    expect(declined.status).toBe('failed');
+    expect(declined.actions.canRetry).toEqual(['checkpoint']);
+    await commands.retry(alice, id, 'checkpoint');
+    await drain();
+    await approve(id);
+    await drain();
+    expect(await runView(options, alice, id)).toMatchObject({
+      status: 'completed',
+      lastError: null,
+    });
+  });
+  it('resolving an uncertain step as failed ends the run failed and allows retry (CR-03)', async () => {
+    approved.supports.lookupByIdempotencyKey = false;
+    options.registry = parseAgentRegistry([approved], { allowLoopback: true });
+    execution = registerBotExecution(options);
+    commands = createRunCommands(options, execution);
+    await publish(definition('checkpoints_only', '[reference:drop-submit] unknown'));
+    const id = await start();
+    await drain();
+    expect((await runView(options, alice, id)).status).toBe('outcome_uncertain');
+    await commands.resolve(alice, id, 'delegate', { outcome: 'failed', note: 'Remote never ran' });
+    const resolved = await runView(options, alice, id);
+    expect(resolved).toMatchObject({
+      status: 'failed',
+      lastError: expect.objectContaining({ code: 'resolved_by_owner' }),
+    });
+    expect(resolved.actions.canRetry).toEqual(['delegate']);
+    await commands.retry(alice, id, 'delegate');
+    expect((await runView(options, alice, id)).status).toBe('running');
+  });
+  it('a losing concurrent retry leaves exactly one reservation and the winner keeps it (CR-07)', async () => {
+    await publish(definition('per_run'));
+    const id = await start();
+    await sql`update tw_jobs set state='cancelled' where task_id=${id}`;
+    await sql`update tw_bot_steps set status='failed',error_code='worker_lost' where task_id=${id} and step_id='read'`;
+    await sql`update wb_tasks set status='failed' where id=${id}`;
+    await options.admission.release(id, 'failed');
+    const outcomes = await Promise.allSettled([
+      commands.retry(alice, id, 'read'),
+      commands.retry(alice, id, 'read'),
+    ]);
+    expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+    expect((await runView(options, alice, id)).status).toBe('running');
+    expect(await options.admission.inFlight('bot', teammateId)).toBe(1);
+  });
+  it('retry reopens the run like a normal move: event, version and inbox (CR-08)', async () => {
+    await publish(definition('per_run'));
+    const id = await start();
+    await sql`update tw_jobs set state='cancelled' where task_id=${id}`;
+    await sql`update tw_bot_steps set status='failed',error_code='worker_lost' where task_id=${id} and step_id='read'`;
+    await sql`update wb_tasks set status='failed' where id=${id}`;
+    await sql`insert into tw_inbox (id, owner_sub, task_id, kind, ref, summary, state, created_at)
+      values (${randomUUID()}, ${alice.sub}, ${id}, 'failed', 'run:failed', 'Bot run failed', 'open', now())`;
+    await options.admission.release(id, 'failed');
+    const [{ version: before }] = await sql<
+      { version: number }[]
+    >`select version from wb_tasks where id=${id}`;
+    await commands.retry(alice, id, 'read');
+    const [{ version: after }] = await sql<
+      { version: number }[]
+    >`select version from wb_tasks where id=${id}`;
+    expect(after).toBeGreaterThan(before);
+    expect(await sql`select state from tw_inbox where task_id=${id} and ref='run:failed'`).toEqual([
+      { state: 'resolved' },
+    ]);
+    expect(
+      await sql`select 1 from wb_events where task_id=${id} and type='bot.running'`,
+    ).not.toHaveLength(0);
+  });
   it('more concurrent starts than pool connections all settle (CR-01)', async () => {
     const def = definition('per_run');
     def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };

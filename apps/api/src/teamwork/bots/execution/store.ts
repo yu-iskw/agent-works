@@ -7,6 +7,8 @@ import {
 
 import { appendEvent } from '../../store.js';
 
+import { ADMIN_TRANSITIONS } from './types.js';
+
 import type { ApprovalRow, Db, RunRow, StepRow } from './types.js';
 import type { Deps, Tx } from '../../context.js';
 import type { BotRunStatus, BotStep, BotStepStatus } from '@agent-works/domain';
@@ -54,6 +56,34 @@ export async function moveRun(
 ): Promise<void> {
   if (status === run.status) return;
   if (!canTransition('run', run.status, status)) throw new Error('invalid_run_transition');
+  await applyRunMove(deps, tx, run, status, code);
+}
+/**
+ * An owner's administrative move out of a terminal state (retry, resolve), allowed only by
+ * ADMIN_TRANSITIONS. It records the same event, version and inbox changes as a normal move, and a
+ * reopened run's terminal inbox item is resolved (CR-08).
+ */
+export async function moveRunAdmin(
+  deps: Deps,
+  tx: Tx,
+  run: RunRow,
+  status: BotRunStatus,
+  code: string | null = null,
+): Promise<void> {
+  const allowed: Partial<Record<BotRunStatus, readonly BotRunStatus[]>> = ADMIN_TRANSITIONS.run;
+  // eslint-disable-next-line security/detect-object-injection -- run.status is a closed union
+  if (!allowed[run.status]?.includes(status)) throw new Error('invalid_run_transition');
+  if (!BOT_RUN_TERMINAL.has(status))
+    await tx`update tw_inbox set state = 'resolved', resolved_at = ${deps.now()} where task_id = ${run.task_id} and state = 'open' and ref like 'run:%'`;
+  await applyRunMove(deps, tx, run, status, code);
+}
+async function applyRunMove(
+  deps: Deps,
+  tx: Tx,
+  run: RunRow,
+  status: BotRunStatus,
+  code: string | null,
+): Promise<void> {
   await tx`update wb_tasks set status = ${status}, error_code = ${code}, error_message = ${code}, updated_at = ${deps.now()}, version = version + 1 where id = ${run.task_id}`;
   await tx`update tw_bot_runs set updated_at = ${deps.now()}, started_at = coalesce(started_at, ${deps.now()}),
     finished_at = ${BOT_RUN_TERMINAL.has(status) ? deps.now() : null} where task_id = ${run.task_id}`;
