@@ -18,6 +18,7 @@ import { attachmentItems, attachmentsByIds } from './attachments.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
+import { formatProposalRefusal } from './coordinator-proposal.js';
 import { GatewayDenied, publishThroughGateway, readThroughGateway } from './gateway.js';
 import {
   blockedDependents,
@@ -418,7 +419,7 @@ function draftProposal(
       return {
         failure: {
           code: 'invalid_output',
-          message: `${modelRemediation.invalid_output} (refused: ${verdict.reasons.join(', ')})`,
+          message: `${modelRemediation.invalid_output} (refused: ${formatProposalRefusal(verdict)})`,
         },
       };
     return { content: verdict.content };
@@ -1482,7 +1483,8 @@ async function quarantine(deps: Deps, job: Job): Promise<void> {
  * Restart recovery for the task graph. Committed rows are the only state, so a coordinator that died
  * between steps left a graph that is correct but may have nothing in flight: a task still `running`
  * with no open assignment job and no running node. Settling it queues the jobs that are due, fails
- * the dependents of a lost prerequisite, or moves the task to the member. Returns how many it settled.
+ * the dependents of a lost prerequisite, or moves the task to the member. A task with no live assignment
+ * fails with `empty_graph` instead, since there is nothing to synthesize. Returns how many it settled.
  */
 export async function recoverGraphs(deps: Deps): Promise<number> {
   const stuck = await deps.sql<{ id: string }[]>`
@@ -1492,7 +1494,29 @@ export async function recoverGraphs(deps: Deps): Promise<number> {
         and j.state in ('queued', 'running'))
       and not exists (select 1 from tw_assignments a where a.task_id = t.id and a.status = 'running')
   `;
-  for (const { id } of stuck) await settleTask(deps, id);
+  for (const { id } of stuck) {
+    const needsSettle = await withTask(deps, undefined, id, async (tx, task) => {
+      const live = (await assignmentsFor(tx, id)).filter(
+        (a) => a.status !== 'superseded' && a.status !== 'cancelled',
+      );
+      if (live.length > 0) return true;
+      if (await settleCancel(deps, tx, task)) return false;
+      if (task.status !== 'running') return false;
+      await moveTask(deps, tx, task, {
+        to: 'failed',
+        events: [
+          {
+            type: 'task.failed',
+            summary: 'no assignments to recover',
+            detail: { code: 'empty_graph' },
+          },
+        ],
+        error: { code: 'empty_graph', message: 'no assignments to recover' },
+      });
+      return false;
+    });
+    if (needsSettle) await settleTask(deps, id);
+  }
   return stuck.length;
 }
 

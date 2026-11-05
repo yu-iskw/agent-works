@@ -67,7 +67,12 @@ const REASON_ORDER = [
 ] as const;
 type ProposalReason = (typeof REASON_ORDER)[number];
 
-type ProposalFinding = { readonly reason: ProposalReason; readonly key: string | null };
+type ProposalFinding = {
+  readonly reason: ProposalReason;
+  readonly key: string | null;
+  readonly path?: string;
+  readonly message?: string;
+};
 
 export type ProposalVerdict =
   | {
@@ -182,7 +187,7 @@ const finding = (reason: ProposalReason, key: string | null = null): ProposalFin
 });
 
 function refusal(findings: readonly ProposalFinding[]): ProposalVerdict {
-  const unique = new Map(findings.map((f) => [`${f.reason}\u0000${f.key ?? ''}`, f]));
+  const unique = new Map(findings.map((f) => [[f.reason, f.key, f.path].join('\u0000'), f]));
   const ordered = [...unique.values()].sort(
     (a, b) =>
       REASON_ORDER.indexOf(a.reason) - REASON_ORDER.indexOf(b.reason) ||
@@ -200,7 +205,12 @@ function schemaFindings(error: z.ZodError): ProposalFinding[] {
     (issue) =>
       issue.code === 'unrecognized_keys' && issue.keys.some((key) => APPROVAL_WORDS.test(key)),
   );
-  return bypass ? [finding('schema'), finding('approval_bypass')] : [finding('schema')];
+  const findings = error.issues.map((issue) => ({
+    ...finding('schema'),
+    path: issue.path.join('.'),
+    message: issue.message,
+  }));
+  return bypass ? [...findings, finding('approval_bypass')] : findings;
 }
 
 function rosterFindings(nodes: readonly Node[], ctx: ProposalContext): ProposalFinding[] {
@@ -275,4 +285,14 @@ export function validateProposal(raw: unknown, ctx: ProposalContext): ProposalVe
   return content.success
     ? { ok: true, content: content.data, childGrants: grants }
     : refusal(schemaFindings(content.error));
+}
+
+export function formatProposalRefusal(verdict: Extract<ProposalVerdict, { ok: false }>): string {
+  const details = verdict.findings.flatMap((f) =>
+    f.reason === 'schema' && f.path !== undefined
+      ? [`${f.path || '(root)'}: ${f.message ?? ''}`]
+      : [],
+  );
+  const schema = details.length > 0 ? `schema (${details.join(', ')})` : 'schema';
+  return verdict.reasons.map((reason) => (reason === 'schema' ? schema : reason)).join(', ');
 }
