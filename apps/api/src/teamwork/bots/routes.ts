@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { Conflict } from '../context.js';
 
 import { designBot, emptyBotDesignCatalog } from './design.js';
+import { requestBody } from './execution/run-routes.js';
 import { createBotService, InvalidBotDefinition } from './service.js';
 
 import type { BotDesignCatalog } from './design.js';
@@ -37,13 +38,6 @@ const design = z.strictObject({
   message: z.string().trim().min(1).max(2000),
   base: confirmation.nullable(),
 });
-function body<T>(schema: z.ZodType<T>, request: Request): T {
-  try {
-    return schema.parse(JSON.parse(request.body.toString('utf8')) as unknown);
-  } catch {
-    throw new Conflict('invalid_request', 400);
-  }
-}
 export function createBotRoutes(
   deps: Deps,
   service = createBotService(deps),
@@ -79,13 +73,13 @@ export function createBotRoutes(
   });
   return [
     route('POST', '/design', (member, request, [id]) =>
-      designBot(deps, service, catalog, member, id, body(design, request)),
+      designBot(deps, service, catalog, member, id, requestBody(design, request)),
     ),
     route(
       'POST',
       '/drafts',
       async (member, request, [id]) => {
-        const input = body(draft, request);
+        const input = requestBody(draft, request);
         return {
           revision: await service.createDraft(member, id, input.definition, {
             source: input.source,
@@ -99,7 +93,7 @@ export function createBotRoutes(
       'POST',
       '/drafts/revise',
       async (member, request, [id]) => {
-        const input = body(revise, request);
+        const input = requestBody(revise, request);
         return { revision: await service.reviseDraft(member, id, input, input.definition) };
       },
       201,
@@ -108,7 +102,7 @@ export function createBotRoutes(
       preview: await service.previewDraft(member, id),
     })),
     route('POST', '/publish', async (member, request, [id]) => ({
-      revision: await service.publish(member, id, body(confirmation, request)),
+      revision: await service.publish(member, id, requestBody(confirmation, request)),
     })),
     route('GET', '/active', async (member, _request, [id]) => {
       const revision = await service.getActive(member, id);
