@@ -7,10 +7,10 @@ import { verifyEventSignature } from '../../../scheduling/signature.js';
 import { dueSlot } from '../../../scheduling/time.js';
 import { audit } from '../../context.js';
 
-import type { StartBotRun } from './types.js';
 import type { SigningKey } from '../../../scheduling/keys.js';
 import type { SignedEvent } from '../../../scheduling/signature.js';
 import type { Deps, Request, Reply } from '../../context.js';
+import type { StartBotRun } from '../execution/start.js';
 import type { BotDefinition, ScheduleSpec } from '@agent-works/domain';
 import type postgres from 'postgres';
 

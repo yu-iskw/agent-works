@@ -13,7 +13,7 @@ import { applyBotsMigration } from '../migration.js';
 
 import { createBotTriggers } from './index.js';
 
-import type { StartBotRun } from './types.js';
+import type { StartBotRun } from '../execution/start.js';
 import type { BotDefinition } from '@agent-works/domain';
 
 let db: Awaited<ReturnType<typeof startDisposablePostgres>>;
