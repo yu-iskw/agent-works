@@ -100,10 +100,10 @@ it('resolves from the location this process synced after the app moved (CR-06)',
     await cp(source, join(moved, 'brief-writer'), { recursive: true });
     await applySkillPackagesMigration(sql);
     const first = createSkillPackageStore(sql);
-    const [synced] = await syncCuratedPackages({ store: first, root: original });
+    const synced = (await syncCuratedPackages({ store: first, root: original })).at(0);
     expect(synced?.status).toBe('loaded');
     const manifest = synced?.report.manifest;
-    if (!manifest || !synced.report.digest) throw new Error('loaded package');
+    if (!synced || !manifest || !synced.report.digest) throw new Error('loaded package');
     await first.activate(manifest.name, manifest.version, 'test');
     // The old location disappears; a new process syncs the same package from its new location.
     await rm(original, { recursive: true, force: true });
