@@ -14,7 +14,7 @@ import type { GrantStore, StoredGrant } from './store.js';
 export type BrokerDeps = {
   readonly store: GrantStore;
   readonly google: GoogleClient;
-  /** Google accounts must belong to this hosted domain, for example dr-ubie.com. */
+  /** Google accounts must belong to this hosted domain, for example company.example. */
   readonly allowedDomain: string;
   readonly newTokenRef: () => string;
   readonly now: () => Date;
