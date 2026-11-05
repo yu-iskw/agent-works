@@ -51,6 +51,19 @@ describe('production startup', () => {
     );
   });
 
+  it('accepts Vertex with a real LLM_URL and its project, location and model set', () => {
+    const env = {
+      ...realEnv,
+      LLM_PROVIDER: 'vertex',
+      LLM_URL: 'https://us-central1-aiplatform.googleapis.com',
+      VERTEX_PROJECT: 'proj-1',
+      VERTEX_LOCATION: 'us-central1',
+      LLM_MODEL: 'gemini-2.5-flash',
+    };
+    expect(() => assertStartup(env)).not.toThrow();
+    expect(classifyProviders(env).find((report) => report.name === 'model')?.status).toBe('real');
+  });
+
   it.each([
     ['identity', { IAP_JWKS_URL: 'http://fake-iap:8081/jwks' }, 'local-fake'],
     ['identity', { IAP_JWKS_URL: undefined }, 'missing'],
@@ -64,6 +77,28 @@ describe('production startup', () => {
     ['oauth-credentials', { OAUTH_URL: undefined }, 'missing'],
     ['oauth-credentials', { OAUTH_REDIRECT_URI: undefined }, 'missing'],
     ['oauth-credentials', { OAUTH_URL: 'http://fake-oauth:8087' }, 'local-fake'],
+    [
+      'model',
+      {
+        LLM_PROVIDER: 'vertex',
+        LLM_URL: 'https://us-central1-aiplatform.googleapis.com',
+        VERTEX_PROJECT: undefined,
+        VERTEX_LOCATION: 'us-central1',
+        LLM_MODEL: 'gemini-2.5-flash',
+      },
+      'missing',
+    ],
+    [
+      'model',
+      {
+        LLM_PROVIDER: 'vertex',
+        LLM_URL: 'https://us-central1-aiplatform.googleapis.com',
+        VERTEX_PROJECT: 'proj-1',
+        VERTEX_LOCATION: 'us-central1',
+        LLM_MODEL: undefined,
+      },
+      'missing',
+    ],
     ['required-config', { IAP_AUDIENCE: undefined }, 'missing'],
     ['required-config', { PORT: '99999' }, 'missing'],
     [

@@ -122,6 +122,17 @@ function oauth(env: Env, devStack: boolean): ProviderReport {
   return base;
 }
 
+/** Vertex needs its project, location and model in addition to a real LLM_URL. */
+function model(env: Env, devStack: boolean): ProviderReport {
+  const base = fromUrls('model', ['LLM_URL'], env, devStack);
+  if (envValue(env, 'LLM_PROVIDER') !== 'vertex' || base.status !== 'real') return base;
+  const required = ['VERTEX_PROJECT', 'VERTEX_LOCATION', 'LLM_MODEL'];
+  const absent = required.filter((name) => (envValue(env, name) ?? '').trim() === '');
+  if (absent.length > 0)
+    return { name: 'model', status: 'missing', detail: `set ${absent.join(', ')}` };
+  return base;
+}
+
 function requiredConfig(env: Env): ProviderReport {
   const name = 'required-config';
   try {
@@ -185,7 +196,7 @@ export function classifyProviders(env: Env): readonly ProviderReport[] {
   const devStack = env.AW_DEV_STACK === '1';
   return [
     fromUrls('identity', ['IAP_JWKS_URL'], env, devStack),
-    fromUrls('model', ['LLM_URL'], env, devStack),
+    model(env, devStack),
     fromUrls('source-storage', ['DRIVE_URL', 'DIRECTORY_URL'], env, devStack),
     persistence(env),
     oauth(env, devStack),

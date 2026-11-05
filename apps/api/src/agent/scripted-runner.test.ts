@@ -78,6 +78,57 @@ it('returns a stopped answer and only the sources named in it', async () => {
   });
 });
 
+it('calls the Vertex generateContent path with a bearer token and no key', async () => {
+  const seen: { url: string; authorization: string | null }[] = [];
+  const runner = createScriptedRunner({
+    baseUrl: 'https://us-central1-aiplatform.googleapis.com',
+    model: 'gemini-2.5-flash',
+    vertex: {
+      project: 'proj-1',
+      location: 'us-central1',
+      accessToken: () => Promise.resolve('token-abc'),
+    },
+    fetch: (url, init) => {
+      const headers = new Headers(init?.headers);
+      seen.push({ url: new Request(url).url, authorization: headers.get('authorization') });
+      return Promise.resolve(
+        jsonResponse({
+          candidates: [
+            {
+              content: { parts: [{ text: 'Follow the triage steps in the Triage runbook.' }] },
+              finishReason: 'STOP',
+            },
+          ],
+        }),
+      );
+    },
+  });
+  await runner.run({ question, sources });
+  expect(seen).toEqual([
+    {
+      url: 'https://us-central1-aiplatform.googleapis.com/v1/projects/proj-1/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent',
+      authorization: 'Bearer token-abc',
+    },
+  ]);
+});
+
+it('fails closed when the access token cannot be obtained', async () => {
+  const runner = createScriptedRunner({
+    baseUrl: 'https://us-central1-aiplatform.googleapis.com',
+    model: 'gemini-2.5-flash',
+    vertex: {
+      project: 'proj-1',
+      location: 'us-central1',
+      accessToken: () => Promise.reject(new Error('no metadata')),
+    },
+    fetch: () => Promise.reject(new Error('must not be called without a token')),
+  });
+  await expect(runner.run({ question, sources })).rejects.toMatchObject({
+    name: 'RunnerError',
+    message: 'llm auth',
+  });
+});
+
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,

@@ -13,11 +13,21 @@ type GenerateContentRequest = {
   }[];
 };
 
+export type VertexOptions = {
+  readonly project: string;
+  readonly location: string;
+  readonly accessToken: () => Promise<string>;
+};
+
 export type ScriptedRunnerOptions = {
   readonly baseUrl: string;
   readonly model?: string;
   readonly fetch?: typeof fetch;
+  /** Set for Vertex AI: uses the Vertex generateContent path with a Bearer token instead of the plain Gemini path. */
+  readonly vertex?: VertexOptions;
 };
+
+type Endpoint = { readonly url: URL; readonly headers: Readonly<Record<string, string>> };
 
 const answerSchema = z.object({
   candidates: z
@@ -38,7 +48,8 @@ export function createScriptedRunner(options: ScriptedRunnerOptions): AgentRunne
   return {
     async run(input) {
       await (input.beforeModelCall ?? beforeModelCall)(model);
-      return generate(load, options.baseUrl, model, input);
+      const endpoint = await endpointFor(options, model);
+      return generate(load, endpoint, input);
     },
   };
 }
@@ -51,17 +62,39 @@ function buildGenerateContentRequest(input: RunnerInput): GenerateContentRequest
   return { contents: [{ role: 'user', parts: [{ text }] }] };
 }
 
+async function endpointFor(options: ScriptedRunnerOptions, model: string): Promise<Endpoint> {
+  if (options.vertex === undefined) {
+    return {
+      url: new URL(`/v1beta/models/${model}:generateContent`, options.baseUrl),
+      headers: {},
+    };
+  }
+  const { project, location, accessToken } = options.vertex;
+  let token: string;
+  try {
+    token = await accessToken();
+  } catch (error) {
+    throw new RunnerError('llm auth', { cause: error });
+  }
+  return {
+    url: new URL(
+      `/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`,
+      options.baseUrl,
+    ),
+    headers: { authorization: `Bearer ${token}` },
+  };
+}
+
 async function generate(
   load: typeof fetch,
-  baseUrl: string,
-  model: string,
+  endpoint: Endpoint,
   input: RunnerInput,
 ): Promise<RunnerOutput> {
   let response: Response;
   try {
-    response = await load(new URL(`/v1beta/models/${model}:generateContent`, baseUrl), {
+    response = await load(endpoint.url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...endpoint.headers },
       body: JSON.stringify(buildGenerateContentRequest(input)),
     });
   } catch (error) {
