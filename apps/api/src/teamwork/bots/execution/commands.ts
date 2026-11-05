@@ -3,6 +3,7 @@ import { BOT_RUN_TERMINAL } from '@agent-works/domain';
 import { audit, Conflict } from '../../context.js';
 
 import { recheck } from './recheck.js';
+import { definitionCeiling } from './start.js';
 import {
   approvalsFor,
   checkpointDigest,
@@ -126,6 +127,9 @@ export function createRunCommands(
           throw new Conflict('retry_not_allowed');
         const denial = await recheck(options, run);
         if (denial) throw new Conflict(denial, 403);
+        // A retry makes the run active again, so the definition's ceilings apply as on a start
+        // (T8-02). Checked before admission so a denial leaves no reservation behind.
+        if (await definitionCeiling(tx, run)) throw new Conflict('admission_denied');
         await deps.sql`update admission_reservations set state='expired' where execution_id=${taskId} and state='failed'`;
         const admitted = await options.admission.admit({
           executionId: taskId,

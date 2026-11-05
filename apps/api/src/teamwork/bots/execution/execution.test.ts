@@ -44,7 +44,7 @@ import type { ExecutionOptions } from './types.js';
 import type { Caller } from '../../../auth/iap.js';
 import type { Member, Request } from '../../context.js';
 import type { ApprovedAgent } from '../../mcp-task/index.js';
-import type { BotDefinition } from '@agent-works/domain';
+import type { BotDefinition, BotStep } from '@agent-works/domain';
 
 let database: Awaited<ReturnType<typeof startDisposablePostgres>>;
 let agent: Awaited<ReturnType<typeof startReferenceAgent>>;
@@ -950,6 +950,23 @@ describe('durable bot execution', () => {
 
 // Regressions for the independent milestone review (ledger/review-final.md).
 describe('bot execution review regressions', () => {
+  it('retry honours the definition ceilings like a start (T8-02)', async () => {
+    const def = definition('per_run');
+    def.limits = { ...def.limits, maxConcurrentRunsPerBot: 1, maxConcurrentRunsPerUser: 1 };
+    await publish(def);
+    const a = await start();
+    await sql`update tw_jobs set state='cancelled' where task_id=${a}`;
+    await sql`update tw_bot_steps set status='failed',error_code='worker_lost' where task_id=${a} and step_id='read'`;
+    await sql`update wb_tasks set status='failed' where id=${a}`;
+    await options.admission.release(a, 'failed');
+    const b = await start();
+    await expect(commands.retry(alice, a, 'read')).rejects.toMatchObject({
+      code: 'admission_denied',
+    });
+    expect((await runView(options, alice, a)).status).toBe('failed');
+    expect((await runView(options, alice, b)).status).toBe('waiting_approval');
+    expect(await options.admission.inFlight('member', alice.sub)).toBe(1);
+  });
   it('reports bot runs in the inbox with their task kind (T7-04)', async () => {
     await publish(definition('per_run'));
     const id = await start();
@@ -958,57 +975,94 @@ describe('bot execution review regressions', () => {
       expect.objectContaining({ kind: 'approval', taskKind: 'bot', state: 'open' }),
     ]);
   });
-  it('a checkpoint waits for the sibling inputs it binds, then the join completes (T7-03)', async () => {
-    const def = definition('checkpoints_only');
-    def.workflow.steps = [
-      {
-        id: 'read',
-        title: 'Read',
-        kind: 'connector_read',
-        dependsOn: [],
-        capability: 'drive.read',
-        query: 'Research notes',
-      },
-      {
-        id: 'approval',
-        title: 'Review',
-        kind: 'approval',
-        dependsOn: ['read'],
-        prompt: 'Approve?',
-      },
-      {
-        id: 'read2',
-        title: 'Second read',
-        kind: 'connector_read',
-        dependsOn: ['read'],
-        capability: 'drive.read',
-        query: 'Research notes',
-      },
-      {
-        id: 'result',
-        title: 'Result',
-        kind: 'result',
-        dependsOn: ['approval', 'read2'],
-        from: 'read2',
-      },
-    ];
-    await publish(def);
-    const id = await start();
-    await drain();
-    const waiting = await runView(options, alice, id);
-    expect(waiting.status).toBe('waiting_approval');
-    expect(waiting.steps.find((s) => s.stepId === 'read2')?.status).toBe('succeeded');
-    await approve(id);
-    await drain();
-    const done = await runView(options, alice, id);
-    expect(done.lastError).toBeNull();
-    expect(done.status).toBe('completed');
-    expect(done.steps.map((s) => [s.stepId, s.status])).toEqual([
-      ['read', 'succeeded'],
-      ['approval', 'succeeded'],
-      ['read2', 'succeeded'],
-      ['result', 'succeeded'],
+  it('checkpoints approve only upstream data; sibling inputs are refused at publish (T7-03, T8-01, T8-03)', async () => {
+    const read = (id: string, dependsOn: string[]) => ({
+      id,
+      title: id,
+      kind: 'connector_read' as const,
+      dependsOn,
+      capability: 'drive.read' as const,
+      query: 'Research notes',
+    });
+    const approval = (id: string, dependsOn: string[]) => ({
+      id,
+      title: id,
+      kind: 'approval' as const,
+      dependsOn,
+      prompt: `${id}?`,
+    });
+    const result = (dependsOn: string[], from: string) => ({
+      id: 'result',
+      title: 'Result',
+      kind: 'result' as const,
+      dependsOn,
+      from,
+    });
+    const withSteps = (steps: BotStep[]) => {
+      const def = definition('checkpoints_only');
+      def.workflow.steps = steps;
+      return def;
+    };
+    // T7-03: the checkpoint would bind read2 before it exists.
+    const sibling = withSteps([
+      read('read', []),
+      approval('approval', ['read']),
+      read('read2', ['read']),
+      result(['approval', 'read2'], 'read2'),
     ]);
+    // T8-03: a root checkpoint followed by a step that uses another root.
+    const root = withSteps([
+      approval('approval', []),
+      read('read', []),
+      result(['approval', 'read'], 'read'),
+    ]);
+    for (const def of [sibling, root])
+      await expect(
+        options.service.createDraft(alice, teammateId, def, { source: 'api' }),
+      ).rejects.toMatchObject({
+        diagnostics: [expect.objectContaining({ code: 'checkpoint_input_not_upstream' })],
+      });
+    // The corrected branch/join: the checkpoint follows the data it approves, then completes.
+    await publish(
+      withSteps([
+        read('read', []),
+        read('read2', ['read']),
+        approval('approval', ['read', 'read2']),
+        result(['approval', 'read2'], 'read2'),
+      ]),
+    );
+    const joined = await start();
+    await drain();
+    await approve(joined);
+    await drain();
+    expect(await runView(options, alice, joined)).toMatchObject({
+      status: 'completed',
+      lastError: null,
+    });
+    // T8-01: two sibling checkpoints before one step neither deadlock nor go stale.
+    await publish(
+      withSteps([
+        read('read', []),
+        approval('a', ['read']),
+        approval('b', ['read']),
+        read('after', ['a', 'b']),
+        result(['after'], 'after'),
+      ]),
+    );
+    const twin = await start();
+    const pending = async () =>
+      (await runView(options, alice, twin)).approvals.filter((x) => x.state === 'pending');
+    // Steps run one at a time, so the checkpoints are requested in turn; each is approvable.
+    for (let round = 0; round < 2; round += 1) {
+      await drain();
+      expect(await pending()).toHaveLength(1);
+      await approve(twin);
+    }
+    await drain();
+    expect(await runView(options, alice, twin)).toMatchObject({
+      status: 'completed',
+      lastError: null,
+    });
   });
   it('a definition never widens or rewrites deployment admission policy (T7-02)', async () => {
     const def = definition('per_run');

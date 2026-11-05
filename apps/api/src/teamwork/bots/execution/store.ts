@@ -1,4 +1,9 @@
-import { BOT_RUN_TERMINAL, canTransition, canonicalPayloadSha256 } from '@agent-works/domain';
+import {
+  BOT_RUN_TERMINAL,
+  canTransition,
+  canonicalPayloadSha256,
+  stepDataInputs,
+} from '@agent-works/domain';
 
 import { appendEvent } from '../../store.js';
 
@@ -112,33 +117,14 @@ export function inputFor(run: RunRow, stepId: string, steps: readonly StepRow[])
     inputRefs(step).map((id) => [id, steps.find((s) => s.step_id === id)?.output ?? null]),
   );
 }
-function downstreamOf(run: RunRow, stepId: string): Set<string> {
-  const after = new Set<string>();
-  const queue = [stepId];
-  for (let id = queue.shift(); id !== undefined; id = queue.shift())
-    for (const s of run.definition.workflow.steps)
-      if (s.dependsOn.includes(id) && !after.has(s.id)) {
-        after.add(s.id);
-        queue.push(s.id);
-      }
-  return after;
-}
 /**
- * The inputs a checkpoint approves: every input of the steps that depend on it directly, except the
- * checkpoint itself and anything produced after it. The checkpoint becomes ready only once all of
- * them have settled, so normal execution cannot change what the owner approved (T7-03).
+ * A checkpoint binds the task, revision digest, the definitions of the steps that directly follow
+ * it and the exact data those steps will use. Validation guarantees that data is produced upstream
+ * of the checkpoint, so it has settled when the checkpoint is created and cannot change before the
+ * steps run (T7-03, T8-01, T8-03).
  */
-export function checkpointPrerequisites(run: RunRow, stepId: string): ReadonlySet<string> {
-  const after = downstreamOf(run, stepId);
-  return new Set(
-    run.definition.workflow.steps
-      .filter((s) => s.dependsOn.includes(stepId))
-      .flatMap((s) => inputRefs(s))
-      .filter((id) => id !== stepId && !after.has(id)),
-  );
-}
 export function checkpointDigest(run: RunRow, stepId: string, steps: readonly StepRow[]): string {
-  const bound = checkpointPrerequisites(run, stepId);
+  const byId = new Map(run.definition.workflow.steps.map((s) => [s.id, s]));
   return canonicalPayloadSha256({
     taskId: run.task_id,
     stepId,
@@ -148,9 +134,10 @@ export function checkpointDigest(run: RunRow, stepId: string, steps: readonly St
       .map((s) => ({
         step: s,
         input: Object.fromEntries(
-          inputRefs(s)
-            .filter((id) => bound.has(id))
-            .map((id) => [id, steps.find((row) => row.step_id === id)?.output ?? null]),
+          stepDataInputs(s, byId).map((id) => [
+            id,
+            steps.find((row) => row.step_id === id)?.output ?? null,
+          ]),
         ),
       })),
   });

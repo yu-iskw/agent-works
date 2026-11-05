@@ -122,6 +122,7 @@ export type BotDiagnosticCode =
   | 'result_count'
   | 'result_not_sink'
   | 'unreachable_step'
+  | 'checkpoint_input_not_upstream'
   | 'capability_not_allowed'
   | 'unsupported_connector'
   | 'unknown_agent'
@@ -265,6 +266,38 @@ function dependencyDiagnostics(
   }
   return diagnostics;
 }
+/** The step outputs a step consumes, as execution reads them. Approval steps carry no data. */
+export function stepDataInputs(step: BotStep, byId: ReadonlyMap<string, BotStep>): string[] {
+  const refs =
+    'inputs' in step ? step.inputs : step.kind === 'result' ? [step.from] : step.dependsOn;
+  return refs.filter((ref) => byId.get(ref)?.kind !== 'approval');
+}
+/**
+ * A checkpoint approves the exact data its next steps will use, so that data must exist when the
+ * owner is asked: every data input of a step that directly follows a checkpoint has to be upstream
+ * of the checkpoint. Otherwise the approval could bind a value that changes later, or execution
+ * would have to wait on siblings and could deadlock (T7-03, T8-01, T8-03).
+ */
+function checkpointDiagnostics(steps: readonly BotStep[], graph: WorkflowGraph): BotDiagnostic[] {
+  const diagnostics: BotDiagnostic[] = [];
+  for (const checkpoint of steps.filter((step) => step.kind === 'approval')) {
+    const upstream = ancestors(graph, checkpoint.id);
+    for (const [index, step] of steps.entries()) {
+      if (!step.dependsOn.includes(checkpoint.id)) continue;
+      for (const ref of stepDataInputs(step, graph.byId))
+        if (!upstream.has(ref))
+          diagnostics.push(
+            stepDiagnostic(
+              'checkpoint_input_not_upstream',
+              index,
+              'dependsOn',
+              `Step ${step.id} uses ${ref}, which checkpoint ${checkpoint.id} cannot approve because it is not upstream. Add ${ref} to the checkpoint's dependsOn.`,
+            ),
+          );
+    }
+  }
+  return diagnostics;
+}
 function resultDiagnostics(steps: readonly BotStep[], graph: WorkflowGraph): BotDiagnostic[] {
   const diagnostics: BotDiagnostic[] = [];
   const results = steps.filter((step) => step.kind === 'result');
@@ -304,6 +337,7 @@ function graphDiagnostics(definition: BotDefinition): BotDiagnostic[] {
     ...diagnostics,
     ...steps.flatMap((step, index) => dependencyDiagnostics(step, index, graph)),
     ...resultDiagnostics(steps, graph),
+    ...checkpointDiagnostics(steps, graph),
   ];
 }
 

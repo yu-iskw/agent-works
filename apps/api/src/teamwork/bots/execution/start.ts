@@ -152,10 +152,12 @@ const ACTIVE_RUN_STATUSES = botRunStatusSchema.options.filter(
  * bot row lock (taken first) serializes starts of one bot and the owner lock those of one owner,
  * so counts cannot race. They can only narrow the deployment's admission policy.
  */
-async function definitionCeiling(
+export async function definitionCeiling(
   tx: Tx,
   run: RunRow,
 ): Promise<'bot_cap' | 'member_cap' | undefined> {
+  // Lock order everywhere: the bot row, then the owner. A caller may already hold the bot row.
+  await tx`select 1 from tw_bots where teammate_id = ${run.teammate_id} for update`;
   await tx`select pg_advisory_xact_lock(7035, hashtext(${run.owner_sub}))`;
   const [counts] = await tx<{ bot: number; member: number }[]>`
     select count(*) filter (where r.teammate_id = ${run.teammate_id})::int as bot,

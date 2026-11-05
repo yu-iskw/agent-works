@@ -168,6 +168,54 @@ describe('bot definition boundary', () => {
       }),
     ).toEqual(['unsupported_connector']);
   });
+  it('requires checkpoint-approved data to be upstream of the checkpoint (T7-03, T8-01, T8-03)', async () => {
+    const check = (id: string, dependsOn: string[]): BotStep => ({
+      id,
+      title: id,
+      kind: 'approval',
+      dependsOn,
+      prompt: `${id}?`,
+    });
+    const second = { ...read, id: 'read2', dependsOn: ['read'] };
+    // A sibling read consumed after the checkpoint, and a root checkpoint, are refused.
+    expect(
+      await codes(
+        definition([
+          read,
+          check('approval', ['read']),
+          second,
+          { ...result, dependsOn: ['approval', 'read2'], from: 'read2' },
+        ]),
+      ),
+    ).toEqual(['checkpoint_input_not_upstream']);
+    expect(
+      await codes(
+        definition([check('approval', []), read, { ...result, dependsOn: ['approval', 'read'] }]),
+      ),
+    ).toEqual(['checkpoint_input_not_upstream']);
+    // Data upstream of the checkpoint, and checkpoints that only gate other checkpoints, are valid.
+    expect(
+      await codes(
+        definition([
+          read,
+          second,
+          check('approval', ['read', 'read2']),
+          { ...result, dependsOn: ['approval', 'read2'], from: 'read2' },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      await codes(
+        definition([
+          read,
+          check('a', ['read']),
+          check('b', ['read']),
+          { ...read, id: 'after', dependsOn: ['a', 'b'] },
+          { ...result, dependsOn: ['after'], from: 'after' },
+        ]),
+      ),
+    ).toEqual([]);
+  });
   it('checks segment policy and the approved registry', async () => {
     expect(await codes(definition(), { ...context, segmentCapabilities: new Set() })).toContain(
       'capability_not_allowed',
