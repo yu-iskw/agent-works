@@ -4,7 +4,7 @@ Date: 2026-11-05
 
 ## Status
 
-Proposed
+Rejected (2026-11-05). The operator rejected this proposal and keeps PostgreSQL for production. The private database path for production remains open; see the consequences of rejection below.
 
 ## Context
 
@@ -44,5 +44,7 @@ Harder or riskier:
 - Decision-changing risk: ADR 0004's context says a new persistence engine is out of scope. Accepting this record requires that context to be updated first.
 - Every existing `ON CONFLICT` and `SKIP LOCKED` path needs a tested equivalent. Until then, production stays blocked on `authority-persistence`.
 - SQLite and Firestore differ in transaction, locking and type behavior. Dev and e2e can pass where production fails. The same contract test suite must run against both adapters before acceptance.
+
+Consequences of rejection: production keeps a PostgreSQL `DATABASE_URL` and needs a private database that satisfies the dev rule against global IP addresses. Cloud SQL with Private Service Connect is blocked on Service Directory rights for `aw-tf-dev`, and the global-range alternative is ruled out. A new decision is required for that path.
 
 Not decided here: whether to keep Cloud SQL as an alternative. The Cloud SQL module and its PSC endpoint remain in the repository as an unused option until a human accepts or rejects this record.
