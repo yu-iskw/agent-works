@@ -538,7 +538,7 @@ describe('durable bot execution', () => {
     await execution.recover();
     expect(await runView(options, alice, live)).toMatchObject({
       status: 'failed',
-      lastError: expect.objectContaining({ code: 'admission_expired' }),
+      lastError: { code: 'admission_expired' },
     });
     expect(await options.admission.inFlight('bot', teammateId)).toBe(1);
   });
@@ -1002,7 +1002,7 @@ describe('bot execution review regressions', () => {
     const resolved = await runView(options, alice, id);
     expect(resolved).toMatchObject({
       status: 'failed',
-      lastError: expect.objectContaining({ code: 'resolved_by_owner' }),
+      lastError: { code: 'resolved_by_owner' },
     });
     expect(resolved.actions.canRetry).toEqual(['delegate']);
     await commands.retry(alice, id, 'delegate');
