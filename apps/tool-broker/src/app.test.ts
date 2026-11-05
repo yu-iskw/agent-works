@@ -17,9 +17,9 @@ function idToken(claims: Record<string, unknown>): string {
 
 const goodClaims = {
   sub: 'g-1',
-  email: 'alice@dr-ubie.com',
+  email: 'alice@company.example',
   email_verified: true,
-  hd: 'dr-ubie.com',
+  hd: 'company.example',
 };
 
 type Route = { status: number; body: unknown };
@@ -63,7 +63,7 @@ function makeDeps(mock: ReturnType<typeof googleFetch>) {
   const deps: BrokerDeps = {
     store,
     google,
-    allowedDomain: 'dr-ubie.com',
+    allowedDomain: 'company.example',
     newTokenRef: () => `grant-${++sequence}`,
     now: () => new Date('2026-11-05T00:00:00.000Z'),
   };
