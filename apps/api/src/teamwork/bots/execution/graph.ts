@@ -1,7 +1,7 @@
 import { BOT_RUN_TERMINAL } from '@agent-works/domain';
 
 import { costView } from './cost.js';
-import { moveRun, moveStep, queueStep, stepsFor } from './store.js';
+import { checkpointPrerequisites, moveRun, moveStep, queueStep, stepsFor } from './store.js';
 
 import type { ExecutionOptions, RunRow, StepRow } from './types.js';
 import type { Tx } from '../../context.js';
@@ -34,9 +34,13 @@ export function createBotGraph(options: ExecutionOptions) {
   async function releaseDependencies(tx: Tx, run: RunRow, steps: StepRow[]) {
     for (const step of steps.filter((s) => s.status === 'pending')) {
       const definition = run.definition.workflow.steps.find((s) => s.id === step.step_id);
-      const ready = definition?.dependsOn.every(
-        (id) => steps.find((s) => s.step_id === id)?.status === 'succeeded',
-      );
+      const settled = (id: string) => steps.find((s) => s.step_id === id)?.status === 'succeeded';
+      // A checkpoint also waits for the sibling inputs it binds (T7-03).
+      const ready =
+        definition !== undefined &&
+        definition.dependsOn.every(settled) &&
+        (definition.kind !== 'approval' ||
+          [...checkpointPrerequisites(run, definition.id)].every(settled));
       if (!ready) continue;
       if (missingOutput(run, step, steps))
         await moveStep(deps, tx, step, 'blocked', 'resolved_without_output');

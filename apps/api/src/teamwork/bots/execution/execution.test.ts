@@ -487,6 +487,58 @@ describe('durable bot execution', () => {
     ]);
     expect(await sql`select 1 from tw_bot_runs`).toHaveLength(1);
   });
+  it('a checkpoint waits for the sibling inputs it binds, then the join completes (T7-03)', async () => {
+    const def = definition('checkpoints_only');
+    def.workflow.steps = [
+      {
+        id: 'read',
+        title: 'Read',
+        kind: 'connector_read',
+        dependsOn: [],
+        capability: 'drive.read',
+        query: 'Research notes',
+      },
+      {
+        id: 'approval',
+        title: 'Review',
+        kind: 'approval',
+        dependsOn: ['read'],
+        prompt: 'Approve?',
+      },
+      {
+        id: 'read2',
+        title: 'Second read',
+        kind: 'connector_read',
+        dependsOn: ['read'],
+        capability: 'drive.read',
+        query: 'Research notes',
+      },
+      {
+        id: 'result',
+        title: 'Result',
+        kind: 'result',
+        dependsOn: ['approval', 'read2'],
+        from: 'read2',
+      },
+    ];
+    await publish(def);
+    const id = await start();
+    await drain();
+    const waiting = await runView(options, alice, id);
+    expect(waiting.status).toBe('waiting_approval');
+    expect(waiting.steps.find((s) => s.stepId === 'read2')?.status).toBe('succeeded');
+    await approve(id);
+    await drain();
+    const done = await runView(options, alice, id);
+    expect(done.lastError).toBeNull();
+    expect(done.status).toBe('completed');
+    expect(done.steps.map((s) => [s.stepId, s.status])).toEqual([
+      ['read', 'succeeded'],
+      ['approval', 'succeeded'],
+      ['read2', 'succeeded'],
+      ['result', 'succeeded'],
+    ]);
+  });
   it('a definition never widens or rewrites deployment admission policy (T7-02)', async () => {
     const def = definition('per_run');
     def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };

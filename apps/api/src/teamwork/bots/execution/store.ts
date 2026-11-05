@@ -4,7 +4,7 @@ import { appendEvent } from '../../store.js';
 
 import type { ApprovalRow, Db, RunRow, StepRow } from './types.js';
 import type { Deps, Tx } from '../../context.js';
-import type { BotRunStatus, BotStepStatus } from '@agent-works/domain';
+import type { BotRunStatus, BotStep, BotStepStatus } from '@agent-works/domain';
 
 export async function loadRun(db: Db, taskId: string, lock = false): Promise<RunRow | undefined> {
   return (
@@ -102,23 +102,57 @@ export function capabilities(definition: RunRow['definition']) {
     ),
   ].sort();
 }
+function inputRefs(step: BotStep): readonly string[] {
+  return 'inputs' in step ? step.inputs : step.kind === 'result' ? [step.from] : step.dependsOn;
+}
 export function inputFor(run: RunRow, stepId: string, steps: readonly StepRow[]): unknown {
   const step = run.definition.workflow.steps.find((s) => s.id === stepId);
   if (!step) throw new Error('missing_step');
-  const refs =
-    'inputs' in step ? step.inputs : step.kind === 'result' ? [step.from] : step.dependsOn;
   return Object.fromEntries(
-    refs.map((id) => [id, steps.find((s) => s.step_id === id)?.output ?? null]),
+    inputRefs(step).map((id) => [id, steps.find((s) => s.step_id === id)?.output ?? null]),
+  );
+}
+function downstreamOf(run: RunRow, stepId: string): Set<string> {
+  const after = new Set<string>();
+  const queue = [stepId];
+  for (let id = queue.shift(); id !== undefined; id = queue.shift())
+    for (const s of run.definition.workflow.steps)
+      if (s.dependsOn.includes(id) && !after.has(s.id)) {
+        after.add(s.id);
+        queue.push(s.id);
+      }
+  return after;
+}
+/**
+ * The inputs a checkpoint approves: every input of the steps that depend on it directly, except the
+ * checkpoint itself and anything produced after it. The checkpoint becomes ready only once all of
+ * them have settled, so normal execution cannot change what the owner approved (T7-03).
+ */
+export function checkpointPrerequisites(run: RunRow, stepId: string): ReadonlySet<string> {
+  const after = downstreamOf(run, stepId);
+  return new Set(
+    run.definition.workflow.steps
+      .filter((s) => s.dependsOn.includes(stepId))
+      .flatMap((s) => inputRefs(s))
+      .filter((id) => id !== stepId && !after.has(id)),
   );
 }
 export function checkpointDigest(run: RunRow, stepId: string, steps: readonly StepRow[]): string {
+  const bound = checkpointPrerequisites(run, stepId);
   return canonicalPayloadSha256({
     taskId: run.task_id,
     stepId,
     digest: run.digest,
     next: run.definition.workflow.steps
       .filter((s) => s.dependsOn.includes(stepId))
-      .map((s) => ({ step: s, input: inputFor(run, s.id, steps) })),
+      .map((s) => ({
+        step: s,
+        input: Object.fromEntries(
+          inputRefs(s)
+            .filter((id) => bound.has(id))
+            .map((id) => [id, steps.find((row) => row.step_id === id)?.output ?? null]),
+        ),
+      })),
   });
 }
 export async function createApproval(
