@@ -17,6 +17,12 @@ export const READ_CAPABILITIES: ReadonlySet<Capability> = new Set([
   'files.read',
   'notes.read',
 ]);
+/**
+ * Read capabilities a bot step cannot use yet. `bigquery.query` needs a metrics comparison scope
+ * that the step contract does not carry, so it is refused at validation instead of failing at run
+ * time (T7-05).
+ */
+export const BOT_UNSUPPORTED_CONNECTORS: ReadonlySet<Capability> = new Set(['bigquery.query']);
 function validVersionIdentifiers(value: string, prerelease: boolean): boolean {
   return value
     .split('.')
@@ -117,6 +123,7 @@ export type BotDiagnosticCode =
   | 'result_not_sink'
   | 'unreachable_step'
   | 'capability_not_allowed'
+  | 'unsupported_connector'
   | 'unknown_agent'
   | 'unknown_package'
   | 'unknown_version'
@@ -349,6 +356,33 @@ async function skillDiagnostics(
   return [];
 }
 
+function connectorDiagnostics(
+  step: Extract<BotStep, { kind: 'connector_read' }>,
+  index: number,
+  context: BotValidationContext,
+): BotDiagnostic[] {
+  const found: BotDiagnostic[] = [];
+  if (BOT_UNSUPPORTED_CONNECTORS.has(step.capability))
+    found.push(
+      stepDiagnostic(
+        'unsupported_connector',
+        index,
+        'capability',
+        'This connector cannot be used in a bot step yet.',
+      ),
+    );
+  if (!context.segmentCapabilities.has(step.capability))
+    found.push(
+      stepDiagnostic(
+        'capability_not_allowed',
+        index,
+        'capability',
+        'Capability is not enabled in this segment.',
+      ),
+    );
+  return found;
+}
+
 /** No state changes. Catalog ports describe the server's current approved snapshot. */
 export async function validateBotDefinition(
   input: unknown,
@@ -363,15 +397,8 @@ export async function validateBotDefinition(
       .map((step) => step.capability),
   );
   for (const [index, step] of parsed.definition.workflow.steps.entries()) {
-    if (step.kind === 'connector_read' && !context.segmentCapabilities.has(step.capability))
-      diagnostics.push(
-        stepDiagnostic(
-          'capability_not_allowed',
-          index,
-          'capability',
-          'Capability is not enabled in this segment.',
-        ),
-      );
+    if (step.kind === 'connector_read')
+      diagnostics.push(...connectorDiagnostics(step, index, context));
     if (
       step.kind === 'mcp_delegate' &&
       context.approvedAgents.get(step.agent.agentId) === undefined

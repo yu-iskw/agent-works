@@ -159,6 +159,15 @@ describe('bot definition boundary', () => {
   ] satisfies [string, BotStep[]][])('rejects invalid graphs with %s', async (code, steps) => {
     expect(await codes(definition(steps))).toContain(code);
   });
+  it('refuses a BigQuery bot step even when the segment allows the capability (T7-05)', async () => {
+    const bigquery = { ...read, capability: 'bigquery.query' as const };
+    expect(
+      await codes(definition([bigquery, { ...result, from: 'read' }]), {
+        ...context,
+        segmentCapabilities: new Set(['bigquery.query']),
+      }),
+    ).toEqual(['unsupported_connector']);
+  });
   it('checks segment policy and the approved registry', async () => {
     expect(await codes(definition(), { ...context, segmentCapabilities: new Set() })).toContain(
       'capability_not_allowed',

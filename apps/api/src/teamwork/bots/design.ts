@@ -1,4 +1,4 @@
-import { parseBotProposal } from '@agent-works/domain';
+import { BOT_UNSUPPORTED_CONNECTORS, parseBotProposal } from '@agent-works/domain';
 
 import { ModelError } from '../../workbench/model-port.js';
 import { Conflict } from '../context.js';
@@ -99,7 +99,9 @@ export async function designBot(
           prompt: JSON.stringify({
             message: input.message,
             currentDraft: input.base === null ? null : latest?.definition,
-            allowedCapabilities: [...capabilities],
+            allowedCapabilities: [...capabilities].filter(
+              (capability) => !BOT_UNSUPPORTED_CONNECTORS.has(capability),
+            ),
             approvedAgents: catalog.agents(),
             activatedSkills: skills,
           }),

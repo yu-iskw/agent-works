@@ -53,4 +53,5 @@ Status of every row: **NOT_RUN / AWAITING_OPERATOR**. Owners are assigned by the
 
 - minimatch 10.2.5 (GHSA-g3hv-75wg-m249) is a pre-existing, dev-only advisory reached through eslint. Overriding to 11.x clears `pnpm lint:security` but breaks `pnpm lint:eslint` because `eslint-plugin-import-x` (all released versions) needs minimatch 10's `makeRe`. Per the user's decision it is fixed in a separate follow-up (an import-x release that supports minimatch 11, or a reviewed patch). Gate L reports LOCAL_BLOCKED on this one item.
 - Model pricing for bot steps is `unknown` because the existing price table is a placeholder; a finite bot budget therefore refuses further paid steps once an unknown cost is recorded.
+- `bigquery.query` cannot be used in a bot step yet (validation reports `unsupported_connector`): the step contract has no metrics comparison scope, which the existing BigQuery adapter requires.
 - A2A, dynamic planning, bot sharing and agent credentials are explicit extension boundaries, not implemented.
