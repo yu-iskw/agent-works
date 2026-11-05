@@ -83,7 +83,6 @@ export async function moveRunAdmin(
   code: string | null = null,
 ): Promise<void> {
   const allowed: Partial<Record<BotRunStatus, readonly BotRunStatus[]>> = ADMIN_TRANSITIONS.run;
-  // eslint-disable-next-line security/detect-object-injection -- run.status is a closed union
   if (!allowed[run.status]?.includes(status)) throw new Error('invalid_run_transition');
   if (!BOT_RUN_TERMINAL.has(status))
     await tx`update tw_inbox set state = 'resolved', resolved_at = ${deps.now()} where task_id = ${run.task_id} and state = 'open' and ref like 'run:%'`;

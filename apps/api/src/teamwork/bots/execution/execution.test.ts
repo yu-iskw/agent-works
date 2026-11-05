@@ -1047,6 +1047,79 @@ describe('bot execution review regressions', () => {
       await sql`select 1 from wb_events where task_id=${id} and type='bot.running'`,
     ).not.toHaveLength(0);
   });
+  it('rollback cleanup cannot release a later retry reservation (CR-07)', async () => {
+    const def = definition('per_run');
+    def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };
+    await publish(def);
+    const id = await start();
+    await sql`update tw_jobs set state='cancelled' where task_id=${id}`;
+    await sql`update tw_bot_steps set status='failed',error_code='worker_lost' where task_id=${id} and step_id='read'`;
+    await sql`update wb_tasks set status='failed' where id=${id}`;
+    await options.admission.release(id, 'failed');
+    await options.admission.setLimit('member', alice.sub, { maxConcurrent: 1 });
+    await sql`create function reject_retry() returns trigger language plpgsql as $$ begin
+      if old.status = 'failed' and new.status = 'ready' then raise exception 'forced_retry_rollback'; end if;
+      return new; end $$`;
+    await sql`create trigger reject_retry before update on tw_bot_steps for each row execute function reject_retry()`;
+    let resumeCleanup: () => void = () => undefined;
+    let reachedCleanup: () => void = () => undefined;
+    const cleanupGate = new Promise<void>((resolve) => {
+      resumeCleanup = resolve;
+    });
+    const cleanupReached = new Promise<void>((resolve) => {
+      reachedCleanup = resolve;
+    });
+    const release = options.admission.release.bind(options.admission);
+    options.admission.release = async (executionId, outcome, cost) => {
+      if (executionId === id && outcome === 'failed') {
+        reachedCleanup();
+        await cleanupGate;
+      }
+      return release(executionId, outcome, cost);
+    };
+    try {
+      const losing = commands.retry(alice, id, 'read').catch((error: unknown) => error);
+      await Promise.race([cleanupReached, losing]);
+      await sql`drop trigger reject_retry on tw_bot_steps`;
+      await commands.retry(alice, id, 'read');
+      resumeCleanup();
+      expect(await losing).toMatchObject({ code: 'P0001' });
+      expect((await runView(options, alice, id)).status).toBe('running');
+      expect(await options.admission.inFlight('member', alice.sub)).toBe(1);
+      expect(
+        await createStartBotRun(options)({
+          teammateId,
+          trigger: { kind: 'manual' },
+          initiatedBy: alice.sub,
+          clientRequestId: randomUUID(),
+        }),
+      ).toEqual({ kind: 'denied', code: 'admission_denied' });
+    } finally {
+      resumeCleanup();
+      options.admission.release = release;
+      await sql`drop trigger if exists reject_retry on tw_bot_steps`;
+      await sql`drop function reject_retry()`;
+    }
+  });
+  it('retry cannot reopen a run that lost its admission before commit (CR-07)', async () => {
+    await publish(definition('per_run'));
+    const id = await start();
+    await sql`update tw_jobs set state='cancelled' where task_id=${id}`;
+    await sql`update tw_bot_steps set status='failed',error_code='worker_lost' where task_id=${id} and step_id='read'`;
+    await sql`update wb_tasks set status='failed' where id=${id}`;
+    await options.admission.release(id, 'failed');
+    const admit = options.admission.admit.bind(options.admission);
+    options.admission.admit = async (request) => {
+      const result = await admit(request);
+      await options.admission.release(request.executionId, 'failed');
+      return result;
+    };
+    await expect(commands.retry(alice, id, 'read')).rejects.toMatchObject({
+      code: 'admission_denied',
+    });
+    expect((await runView(options, alice, id)).status).toBe('failed');
+    expect(await options.admission.inFlight('member', alice.sub)).toBe(0);
+  });
   it('more concurrent starts than pool connections all settle (CR-01)', async () => {
     const def = definition('per_run');
     def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };

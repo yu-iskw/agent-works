@@ -156,6 +156,9 @@ export function createRunCommands(
           if (step.attempt !== before.attempt) throw new Conflict('stale_step');
           // A retry makes the run active again, so the definition's ceilings apply (T8-02).
           if (await definitionCeiling(tx, run)) throw new Conflict('admission_denied');
+          const reservation = await tx`select 1 from admission_reservations
+            where execution_id=${taskId} and state='active' and expires_at > ${deps.now()} for update`;
+          if (!reservation.length) throw new Conflict('admission_denied');
           const updated =
             await tx`update tw_bot_steps set status = ${ADMIN_TRANSITIONS.step.failed[0]}, attempt = attempt + 1, owner_token = null, idempotency_key = null,
         cost_history=case when kind='mcp_delegate' and idempotency_key is not null then cost_history || jsonb_build_array(jsonb_build_object('attempt',attempt,'cost',coalesce(cost,'{"basis":"unknown"}'::jsonb))) else cost_history end,
@@ -177,10 +180,13 @@ export function createRunCommands(
           settled = run;
         });
       } catch (error) {
-        // Every attempt shares the run's execution id, so a concurrent retry that won owns this
-        // reservation now; release it only while the run is still failed.
-        if ((await loadRun(deps.sql, taskId))?.status === 'failed')
-          await options.admission.release(taskId, 'failed');
+        await deps.sql.begin(async (tx) => {
+          const run = await loadRun(tx, taskId, true);
+          if (run?.status !== 'failed') return;
+          await tx`update admission_reservations
+            set state='failed', finished_at=${deps.now()}, cost_micros=estimated_cost_micros
+            where execution_id=${taskId} and state in ('active','expired')`;
+        });
         throw error;
       }
       if (settled) await execution.release(settled);
