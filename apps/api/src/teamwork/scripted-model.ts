@@ -181,6 +181,7 @@ function botDesignResponse(prompt: string): unknown {
     activatedSkills: { packageId: string; version: string; digest: string; name: string }[];
   };
   if (input.message.includes('[malformed]')) return { malformed: true };
+  const event = /\[event:([^:\]]+):([^\]]+)\]/.exec(input.message);
   const skill = input.activatedSkills.find(
     (item) => item.packageId === 'brief-writer' && item.name === 'summarize-findings',
   );
@@ -229,7 +230,9 @@ function botDesignResponse(prompt: string): unknown {
             agentId: 'reference-research-agent',
             protocol: input.message.includes('[a2a]') ? 'a2a' : 'mcp',
           },
-          instruction: 'Review the findings.',
+          instruction: input.message.includes('[slow-agent]')
+            ? '[reference:slow-submit] Review the findings.'
+            : 'Review the findings.',
           inputs: ['brief'],
           timeoutSeconds: 60,
         },
@@ -257,6 +260,7 @@ function botDesignResponse(prompt: string): unknown {
         timing: { kind: 'cron', expression: '0 9 * * *' },
         missedRun: 'skip',
       },
+      ...(event ? [{ kind: 'event', source: event[1], eventType: event[2] }] : []),
     ],
     approvals: { mode: 'checkpoints_only' },
     limits: {
