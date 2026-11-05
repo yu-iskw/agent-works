@@ -162,7 +162,7 @@ const plan = (version: number, state: PlanView['state']): PlanView => ({
 const anchor = (
   id: string,
   minutes: number,
-  kind: NonNullable<MessageView['card']>['kind'],
+  kind: Exclude<NonNullable<MessageView['card']>['kind'], 'bot_draft'>,
   ref: string | undefined,
   taskId = 'task-1',
 ): MessageView =>

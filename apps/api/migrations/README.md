@@ -49,4 +49,17 @@ Every migration below is opt-in. Each is applied on demand by the module named i
 | 0029   | `graph_execution`    | `teamwork/graph-migration.ts`         | 7017 | AGT-01, teamwork runtime              |
 | 0030   | `routines`           | `scheduling/routines/migration.ts`    | 7030 | SCH-04, needs 0024                    |
 
-`workerReady` applies 0013, 0026, 0027 and 0028 as needed. `0031` is unused.
+`workerReady` applies 0013, 0026, 0027 and 0028 as needed.
+
+## Teammate bots (0031 onward)
+
+Opt-in like the table above: each is applied only when `AW_BOT_WORKFLOWS=on` in the teamwork segment.
+
+| Number | Name             | Applied by                                        | Lock | Used by                                                           |
+| ------ | ---------------- | ------------------------------------------------- | ---- | ----------------------------------------------------------------- |
+| 0031   | `bots`           | `teamwork/bots/migration.ts`                      | 7017 | Bot revisions and run contracts, `AW_BOT_WORKFLOWS`               |
+| 0032   | `skill_packages` | `teamwork/skill-packages/migration.ts`            | 7017 | Curated skill package records                                     |
+| 0033   | `bot_execution`  | `teamwork/bots/migration.ts` (with 0031)          | 7017 | Durable execution results, deadlines, owner binding and step cost |
+| 0034   | `bot_triggers`   | `teamwork/bots/migration.ts` (with 0031 and 0033) | 7017 | Bot schedule cursors                                              |
+
+The next free number is `0035`.

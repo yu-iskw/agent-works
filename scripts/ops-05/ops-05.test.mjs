@@ -116,14 +116,14 @@ describe('evidence bundle', () => {
     bundle = buildBundle({ ...base, imageDigests: [digest], securityInput: securityRecord });
   });
 
-  it('binds sha, digests, all 30 migrations, configs, corpus and invariant map', () => {
+  it('binds sha, digests, all 34 migrations, configs, corpus and invariant map', () => {
     expect(bundle).toMatchObject({ sourceSha: sha, imageDigests: [digest], missingBindings: [] });
     expect(bundle.label).toBe('offline');
     expect(bundle.notAReleaseApproval).toBe(true);
     expect(bundle.migrations).toMatchObject({
-      count: 30,
+      count: 34,
       first: '0001',
-      last: '0030',
+      last: '0034',
       contiguous: true,
     });
     const gateConfig = bundle.configRevisions.find((c) => c.path === 'evals/gate-config.json');
@@ -236,8 +236,8 @@ describe('migration completeness', () => {
     expect(result.problems).toHaveLength(1);
   });
 
-  it('matches the real directory: 0001 to 0030', () => {
-    expect(migrationEntries(root)).toMatchObject({ count: 30, contiguous: true, last: '0030' });
+  it('matches the real directory: 0001 to 0034', () => {
+    expect(migrationEntries(root)).toMatchObject({ count: 34, contiguous: true, last: '0034' });
   });
 });
 

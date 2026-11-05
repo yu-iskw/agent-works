@@ -45,6 +45,7 @@
     "m1:test": "node scripts/m1/run.mjs test",
     "m1:e2e": "node scripts/m1/run.mjs e2e local && node scripts/m1/run.mjs e2e live",
     "m1:e2e:local": "node scripts/m1/run.mjs e2e local",
+    "m1:e2e:bots": "node scripts/m1/run.mjs e2e bots",
     "m1:e2e:live": "node scripts/m1/run.mjs e2e live",
     "m1:ux": "node scripts/m1/run.mjs ux",
     "m1:restart": "node scripts/m1/run.mjs restart",

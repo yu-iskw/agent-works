@@ -174,7 +174,107 @@ function artifactResponse(request: GenerateRequest, evidence: readonly Evidence[
   };
 }
 
+function botDesignResponse(prompt: string): unknown {
+  const input = JSON.parse(prompt) as {
+    message: string;
+    currentDraft: unknown;
+    activatedSkills: { packageId: string; version: string; digest: string; name: string }[];
+  };
+  if (input.message.includes('[malformed]')) return { malformed: true };
+  const event = /\[event:([^:\]]+):([^\]]+)\]/.exec(input.message);
+  const skill = input.activatedSkills.find(
+    (item) => item.packageId === 'brief-writer' && item.name === 'summarize-findings',
+  );
+  return {
+    apiVersion: 'agent-works.bot/v1',
+    name: 'Research brief',
+    purpose: 'Prepare a research brief.',
+    planning: { mode: 'fixed' },
+    workflow: {
+      steps: [
+        {
+          id: 'read',
+          title: input.currentDraft === null ? 'Read files' : 'Read updated files',
+          kind: 'connector_read',
+          dependsOn: [],
+          capability: 'files.read',
+          query: 'Find relevant files',
+        },
+        {
+          id: 'brief',
+          title: 'Summarize findings',
+          kind: 'skill',
+          dependsOn: ['read'],
+          skill:
+            skill === undefined
+              ? {
+                  packageId: 'brief-writer',
+                  version: '1.0.0',
+                  digest: '0'.repeat(64),
+                  name: 'summarize-findings',
+                }
+              : {
+                  packageId: skill.packageId,
+                  version: skill.version,
+                  digest: skill.digest,
+                  name: skill.name,
+                },
+          inputs: ['read'],
+        },
+        {
+          id: 'research',
+          title: 'Research references',
+          kind: 'mcp_delegate',
+          dependsOn: ['brief'],
+          agent: {
+            agentId: 'reference-research-agent',
+            protocol: input.message.includes('[a2a]') ? 'a2a' : 'mcp',
+          },
+          instruction: input.message.includes('[slow-agent]')
+            ? '[reference:slow-submit] Review the findings.'
+            : 'Review the findings.',
+          inputs: ['brief'],
+          timeoutSeconds: 60,
+        },
+        {
+          id: 'approval',
+          title: 'Approve result',
+          kind: 'approval',
+          dependsOn: ['research'],
+          prompt: 'Approve this research brief?',
+        },
+        {
+          id: 'result',
+          title: 'Send result',
+          kind: 'result',
+          dependsOn: ['approval'],
+          from: 'research',
+        },
+      ],
+    },
+    triggers: [
+      { kind: 'manual' },
+      {
+        kind: 'schedule',
+        timezone: 'Asia/Tokyo',
+        timing: { kind: 'cron', expression: '0 9 * * *' },
+        missedRun: 'skip',
+      },
+      ...(event ? [{ kind: 'event', source: event[1], eventType: event[2] }] : []),
+    ],
+    approvals: { mode: 'checkpoints_only' },
+    limits: {
+      maxConcurrentRunsPerBot: 1,
+      maxConcurrentRunsPerUser: 1,
+      runTimeoutMinutes: 60,
+      maxCostMicros: null,
+    },
+    result: { destination: 'inbox' },
+  };
+}
+
 function respond(request: GenerateRequest): unknown {
+  if (request.system.startsWith('BOT_DESIGN:')) return botDesignResponse(request.prompt);
   const schema = JSON.stringify(request.jsonSchema ?? {});
   const evidence = evidenceIn(request.prompt);
   if (schema.includes('"expectedEffects"')) return planResponse(request.prompt);

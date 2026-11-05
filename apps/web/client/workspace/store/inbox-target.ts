@@ -2,6 +2,8 @@
 // (`plan:<v>`, `approval:<id>`, `revision:<n>`, ...), so the panel is read from the ref and the
 // task panel is the fallback for refs without a dedicated view.
 
+import { botRunPath } from '../../../shared/route.js';
+
 import type { InboxRow } from '../../../shared/contract.js';
 import type { PanelRoute } from '../../../shared/route.js';
 
@@ -42,4 +44,15 @@ export function inboxPanel(item: Pick<InboxRow, 'kind' | 'taskId' | 'ref'>): Pan
 
   const target = TARGETS[item.kind]?.(item.taskId, { head, value });
   return target ?? { kind: 'task', taskId: item.taskId };
+}
+
+/**
+ * A bot run has no workspace panel: its inbox items open the server-rendered run page, where its
+ * approvals, cancel, retry and result live (T8-04). Teamwork items return undefined and open a panel.
+ */
+export function inboxPage(
+  segment: string,
+  item: Pick<InboxRow, 'taskKind' | 'taskId'>,
+): string | undefined {
+  return item.taskKind === 'bot' ? botRunPath(segment, item.taskId) : undefined;
 }

@@ -135,6 +135,16 @@
       "types": "./src/sealer.ts",
       "development": "./src/sealer.ts",
       "import": "./dist/sealer.js"
+    },
+    "./bot-definition": {
+      "types": "./src/bot-definition.ts",
+      "development": "./src/bot-definition.ts",
+      "import": "./dist/bot-definition.js"
+    },
+    "./bot-run": {
+      "types": "./src/bot-run.ts",
+      "development": "./src/bot-run.ts",
+      "import": "./dist/bot-run.js"
     }
   },
   "scripts": {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { inboxPanel } from './inbox-target.js';
+import { inboxPage, inboxPanel } from './inbox-target.js';
 
 const TASK = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const APPROVAL = '99999999-8888-4777-8666-555555555555';
@@ -37,5 +37,13 @@ describe('inboxPanel', () => {
       { kind: 'approval' as const, ref: 'approval:not-a-uuid' },
     ])
       expect(inboxPanel({ ...item, taskId: TASK })).toEqual({ kind: 'task', taskId: TASK });
+  });
+});
+
+describe('inboxPage', () => {
+  it('sends bot run items to their run page and keeps teamwork items in the workspace (T8-04)', () => {
+    const taskId = '11111111-1111-4111-8111-111111111111';
+    expect(inboxPage('alpha', { taskKind: 'bot', taskId })).toBe(`/s/alpha/bot-runs/${taskId}`);
+    expect(inboxPage('alpha', { taskKind: 'teamwork', taskId })).toBeUndefined();
   });
 });

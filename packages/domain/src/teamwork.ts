@@ -649,12 +649,29 @@ export type MessageCardKind = (typeof MESSAGE_CARD_KINDS)[number];
  * anchors (`plan:2`, `approval:<id>`), or `revision:<n>` for a result; rows written before the
  * UI milestone have none.
  */
-export const messageCardSchema = z.strictObject({
-  kind: z.enum(MESSAGE_CARD_KINDS),
-  taskId: id,
-  title: text,
-  ref: z.string().optional(),
-});
+export const messageCardSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.enum(MESSAGE_CARD_KINDS),
+    taskId: id,
+    title: text,
+    ref: z.string().optional(),
+  }),
+  z
+    .strictObject({
+      kind: z.literal('bot_draft'),
+      teammateId: id,
+      revision: z.number().int().positive().nullable(),
+      digest: sha256DigestSchema.nullable(),
+      title: text,
+      outcome: z.enum(['draft', 'needs_changes']),
+      ref: z.never().optional(),
+    })
+    .refine((card) =>
+      card.outcome === 'draft'
+        ? card.revision !== null && card.digest !== null
+        : card.revision === null && card.digest === null,
+    ),
+]);
 export type MessageCard = z.infer<typeof messageCardSchema>;
 
 export const messageViewSchema = z.strictObject({
@@ -686,6 +703,8 @@ export const inboxItemSchema = z.strictObject({
   id,
   kind: inboxKindSchema,
   taskId: id,
+  /** Where the item opens: a teamwork task page or a bot run page. */
+  taskKind: z.enum(['teamwork', 'bot']),
   taskTitle: text,
   ref: text,
   summary: text,

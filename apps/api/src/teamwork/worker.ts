@@ -15,6 +15,7 @@ import { createScheduleWorker } from '../scheduling/worker.js';
 import { ModelError, modelRemediation } from '../workbench/model-port.js';
 
 import { attachmentItems, attachmentsByIds } from './attachments.js';
+import { botExecutionFor, handleBotJob } from './bots/execution/engine.js';
 import { capabilitiesFor, teammateSkills } from './catalog.js';
 import { connectedProviders, oncePerProvider, tokenSource } from './connections.js';
 import { audit } from './context.js';
@@ -81,7 +82,7 @@ import type { SupportSource } from '@agent-works/domain/teamwork-evidence';
 type Job = {
   id: number;
   task_id: string | null;
-  kind: 'plan' | 'assignment' | 'synthesis' | 'publish' | 'reply';
+  kind: 'plan' | 'assignment' | 'synthesis' | 'publish' | 'reply' | 'bot_step';
   ref: string;
   attempts: number;
   lease_token: string;
@@ -108,8 +109,9 @@ async function claim(deps: Deps): Promise<Job | undefined> {
       lease_until = now() + make_interval(secs => ${LEASE_SECONDS}), updated_at = now()
     where id = (
       select id from tw_jobs
-      where (state = 'queued' and (run_after is null or run_after <= ${deps.now()}))
-        or (state = 'running' and lease_until < now())
+      where ((state = 'queued' and (run_after is null or run_after <= ${deps.now()}))
+        or (state = 'running' and lease_until < now()))
+        and (kind <> 'bot_step' or ${botExecutionFor(deps) !== undefined})
       order by created_at limit 1 for update skip locked
     )
     returning id, task_id, kind, ref, attempts, lease_token
@@ -118,16 +120,19 @@ async function claim(deps: Deps): Promise<Job | undefined> {
 }
 
 async function renewLease(deps: Deps, job: Job): Promise<void> {
-  await deps.sql`
+  const renewed = await deps.sql`
     update tw_jobs set lease_until = now() + make_interval(secs => ${LEASE_SECONDS}), updated_at = now()
-    where id = ${job.id} and lease_token = ${job.lease_token} and state = 'running'
+    where id = ${job.id} and lease_token = ${job.lease_token} and state = 'running' returning 1
   `;
+  if (job.kind === 'bot_step' && job.task_id !== null && renewed.length > 0)
+    await botExecutionFor(deps)?.renew(job.task_id);
 }
 
 async function finish(deps: Deps, job: Job): Promise<void> {
   await deps.sql`
     update tw_jobs set state = 'done', lease_until = null, updated_at = now()
     where id = ${job.id} and lease_token = ${job.lease_token}
+      and (${job.kind} <> 'bot_step' or state = 'running')
   `;
 }
 
@@ -1429,6 +1434,7 @@ const HANDLERS: Record<Job['kind'], (deps: Deps, job: Job) => Promise<void>> = {
   synthesis: synthesize,
   publish,
   reply,
+  bot_step: handleBotJob,
 };
 
 async function quarantineAssignment(deps: Deps, ref: string): Promise<void> {
@@ -1452,6 +1458,7 @@ async function quarantineAssignment(deps: Deps, ref: string): Promise<void> {
 
 /** An unexpected error must end the subject, or the next claim re-spends model calls forever. */
 async function quarantine(deps: Deps, job: Job): Promise<void> {
+  if (job.kind === 'bot_step') return handleBotJob(deps, job);
   if (job.kind === 'assignment') return quarantineAssignment(deps, job.ref);
   if (job.kind === 'reply') {
     // A failed reply is the conversation's problem; the task it may mention is untouched.
@@ -1517,7 +1524,7 @@ export async function recoverGraphs(deps: Deps): Promise<number> {
     });
     if (needsSettle) await settleTask(deps, id);
   }
-  return stuck.length;
+  return stuck.length + ((await botExecutionFor(deps)?.recover()) ?? 0);
 }
 
 export type Worker = { start(): void; stop(): Promise<void>; drain(): Promise<void> };
@@ -1525,8 +1532,13 @@ export type Worker = { start(): void; stop(): Promise<void>; drain(): Promise<vo
 /** `concurrency` independent claim loops; each runs one job at a time, so at most N model calls fly. */
 export function createWorker(deps: Deps, onError: (error: unknown) => void, pollMs = 400): Worker {
   let stopping = false;
+  let lastBotRecovery = 0;
 
   async function runOne(): Promise<boolean> {
+    if (botExecutionFor(deps) && Date.now() - lastBotRecovery > 10_000) {
+      lastBotRecovery = Date.now();
+      await botExecutionFor(deps)?.recover();
+    }
     const job = await claim(deps);
     if (job === undefined) return false;
     // A long step keeps its lease, so no other loop claims the job and runs it a second time.
@@ -1538,7 +1550,8 @@ export function createWorker(deps: Deps, onError: (error: unknown) => void, poll
     );
     try {
       // Assignments report repeated crashes themselves (startAssignment); other kinds stop here.
-      if (job.kind !== 'assignment' && job.attempts > MAX_JOB_ATTEMPTS) await quarantine(deps, job);
+      if (job.kind !== 'assignment' && job.kind !== 'bot_step' && job.attempts > MAX_JOB_ATTEMPTS)
+        await quarantine(deps, job);
       else await HANDLERS[job.kind](deps, job);
     } catch (error) {
       onError(error);
