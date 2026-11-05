@@ -119,6 +119,7 @@ export type BotDiagnosticCode =
   | 'dangling_reference'
   | 'reference_not_earlier'
   | 'input_not_dependency'
+  | 'approval_not_data'
   | 'result_count'
   | 'result_not_sink'
   | 'unreachable_step'
@@ -237,6 +238,38 @@ function referenceDiagnostics(step: BotStep, index: number, graph: WorkflowGraph
   }
   return diagnostics;
 }
+function inputDiagnostics(
+  step: BotStep,
+  index: number,
+  graph: WorkflowGraph,
+  dependencies: ReadonlySet<string>,
+): BotDiagnostic[] {
+  const field = step.kind === 'result' ? 'from' : 'inputs';
+  const inputs = step.kind === 'result' ? [step.from] : 'inputs' in step ? step.inputs : [];
+  return inputs.flatMap((ref) => [
+    // Approvals gate work but produce no data: a dependency, never a data source (T9-01).
+    ...(graph.byId.get(ref)?.kind === 'approval'
+      ? [
+          stepDiagnostic(
+            'approval_not_data',
+            index,
+            field,
+            `Step ${ref} is an approval and produces no data. Use the step whose output it approves.`,
+          ),
+        ]
+      : []),
+    ...(dependencies.has(ref)
+      ? []
+      : [
+          stepDiagnostic(
+            'input_not_dependency',
+            index,
+            field,
+            `Input ${ref} must be a dependency or its ancestor.`,
+          ),
+        ]),
+  ]);
+}
 function dependencyDiagnostics(
   step: BotStep,
   index: number,
@@ -252,18 +285,7 @@ function dependencyDiagnostics(
     diagnostics.push(
       stepDiagnostic('duplicate_reference', index, 'dependsOn', 'Dependencies must be unique.'),
     );
-  const inputs = step.kind === 'result' ? [step.from] : 'inputs' in step ? step.inputs : [];
-  for (const ref of inputs) {
-    if (!dependencies.has(ref))
-      diagnostics.push(
-        stepDiagnostic(
-          'input_not_dependency',
-          index,
-          step.kind === 'result' ? 'from' : 'inputs',
-          `Input ${ref} must be a dependency or its ancestor.`,
-        ),
-      );
-  }
+  diagnostics.push(...inputDiagnostics(step, index, graph, dependencies));
   return diagnostics;
 }
 /** The step outputs a step consumes, as execution reads them. Approval steps carry no data. */

@@ -216,6 +216,45 @@ describe('bot definition boundary', () => {
       ),
     ).toEqual([]);
   });
+  it('refuses an approval as a data source (T9-01)', async () => {
+    const check: BotStep = {
+      id: 'approval',
+      title: 'Review',
+      kind: 'approval',
+      dependsOn: [],
+      prompt: 'Approve?',
+    };
+    expect(
+      await codes(definition([check, { ...result, dependsOn: ['approval'], from: 'approval' }])),
+    ).toContain('approval_not_data');
+    expect(
+      await codes(
+        definition([
+          read,
+          { ...check, dependsOn: ['read'] },
+          {
+            id: 'use',
+            title: 'Use',
+            kind: 'skill',
+            dependsOn: ['approval'],
+            inputs: ['approval'],
+            skill: pin,
+          },
+          { ...result, dependsOn: ['use'], from: 'use' },
+        ]),
+      ),
+    ).toContain('approval_not_data');
+    // An approval stays a valid dependency when the data comes from the step it approves.
+    expect(
+      await codes(
+        definition([
+          read,
+          { ...check, dependsOn: ['read'] },
+          { ...result, dependsOn: ['approval'], from: 'read' },
+        ]),
+      ),
+    ).toEqual([]);
+  });
   it('checks segment policy and the approved registry', async () => {
     expect(await codes(definition(), { ...context, segmentCapabilities: new Set() })).toContain(
       'capability_not_allowed',
