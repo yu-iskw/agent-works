@@ -25,6 +25,12 @@ export type BotSource = {
 };
 export type BotConfirmation = { readonly revision: number; readonly digest: string };
 type ContextProvider = () => Promise<BotValidationContext>;
+declare const validatedBrand: unique symbol;
+/**
+ * A definition that passed server validation. Validation reads the catalog through the pool, so it
+ * runs before any locked transaction; only a validated definition may be stored inside one (CR-01).
+ */
+export type ValidatedBotDefinition = BotDefinition & { readonly [validatedBrand]: true };
 
 export function createBotService(
   deps: Deps,
@@ -34,12 +40,17 @@ export function createBotService(
     skills: { resolve: () => Promise.resolve({ ok: false, code: 'unknown_package' }) },
   }),
 ) {
-  async function validated(input: unknown): Promise<BotDefinition> {
+  async function validated(input: unknown): Promise<ValidatedBotDefinition> {
     const parsed = parseBotProposal(input);
     if (!parsed.success) throw new InvalidBotDefinition(parsed.diagnostics);
     const diagnostics = await validateBotDefinition(parsed.definition, await context());
     if (diagnostics.length > 0) throw new InvalidBotDefinition(diagnostics);
-    return parsed.definition;
+    return parsed.definition as ValidatedBotDefinition;
+  }
+  async function previewDefinition(definition: ValidatedBotDefinition) {
+    const preview = await previewBot(definition, await context());
+    if (!preview.success) throw new InvalidBotDefinition(preview.diagnostics);
+    return preview.preview;
   }
   async function insert(
     tx: Tx,
@@ -89,10 +100,10 @@ export function createBotService(
     await requireOwner(outer, member, teammateId, true);
     return action(outer);
   }
-  function createDraft(
+  function insertDraft(
     member: Member,
     teammateId: string,
-    definition: unknown,
+    definition: ValidatedBotDefinition,
     source: BotSource,
     outer?: Tx,
   ) {
@@ -103,7 +114,7 @@ export function createBotService(
       async (tx) => {
         const latest = await latestRevision(tx, teammateId);
         if (latest?.state === 'draft') throw new Conflict('draft_exists');
-        return insert(tx, member, teammateId, await validated(definition), {
+        return insert(tx, member, teammateId, definition, {
           ...source,
           revision: (latest?.revision ?? 0) + 1,
         });
@@ -111,14 +122,14 @@ export function createBotService(
       outer,
     );
   }
-  // Existing callers use positional arguments; a caller transaction is optional.
+  // Positional arguments match the existing callers.
   // eslint-disable-next-line max-params
-  function reviseDraft(
+  function insertRevision(
     member: Member,
     teammateId: string,
     cas: { readonly baseRevision: number; readonly baseDigest: string },
-    definition: unknown,
-    source: BotSource = { source: 'api' },
+    definition: ValidatedBotDefinition,
+    source: BotSource,
     outer?: Tx,
   ) {
     assertWritable(member);
@@ -134,10 +145,9 @@ export function createBotService(
           latest.digest !== cas.baseDigest
         )
           throw new Conflict('stale_confirmation');
-        const next = await validated(definition);
         if (latest.state === 'draft')
           await tx`update tw_bot_revisions set state = 'discarded' where teammate_id = ${teammateId} and revision = ${latest.revision}`;
-        return insert(tx, member, teammateId, next, {
+        return insert(tx, member, teammateId, definition, {
           ...source,
           revision: latest.revision + 1,
         });
@@ -145,31 +155,56 @@ export function createBotService(
       outer,
     );
   }
-  function previewDraft(member: Member, teammateId: string, outer?: Tx) {
-    return inBot(
-      member,
-      teammateId,
-      async (tx) => {
-        const row = await latestRevision(tx, teammateId);
-        if (row?.state !== 'draft') throw new Conflict('not_found', 404);
-        const preview = await previewBot(row.definition, await context());
-        if (!preview.success) throw new InvalidBotDefinition(preview.diagnostics);
-        return { revision: row.revision, ...preview.preview };
-      },
-      outer,
-    );
+  async function createDraft(
+    member: Member,
+    teammateId: string,
+    definition: unknown,
+    source: BotSource,
+  ) {
+    assertWritable(member);
+    await requireOwner(deps.sql, member, teammateId);
+    return insertDraft(member, teammateId, await validated(definition), source);
+  }
+  async function reviseDraft(
+    member: Member,
+    teammateId: string,
+    cas: { readonly baseRevision: number; readonly baseDigest: string },
+    definition: unknown,
+    source: BotSource = { source: 'api' },
+  ) {
+    assertWritable(member);
+    await requireOwner(deps.sql, member, teammateId);
+    return insertRevision(member, teammateId, cas, await validated(definition), source);
+  }
+  async function previewDraft(member: Member, teammateId: string) {
+    await requireOwner(deps.sql, member, teammateId);
+    const row = await latestRevision(deps.sql, teammateId);
+    if (row?.state !== 'draft') throw new Conflict('not_found', 404);
+    return {
+      revision: row.revision,
+      ...(await previewDefinition(await validated(row.definition))),
+    };
   }
   return {
+    validate: validated,
+    previewDefinition,
     createDraft,
     reviseDraft,
     previewDraft,
-    publish: (member: Member, teammateId: string, confirmation: BotConfirmation) => {
+    /** Inside a caller's transaction: the definition must already be validated (no pool use). */
+    createDraftInTx: insertDraft,
+    reviseDraftInTx: insertRevision,
+    publish: async (member: Member, teammateId: string, confirmation: BotConfirmation) => {
       assertWritable(member);
+      // Validate before locking (CR-01). The digest is the canonical hash of the definition, so the
+      // CAS on revision and digest under the lock proves the locked row is the one validated here.
+      await requireOwner(deps.sql, member, teammateId);
+      const reviewed = assertConfirmation(await latestRevision(deps.sql, teammateId), confirmation);
+      const definition = await validated(reviewed.definition);
+      if (canonicalPayloadSha256(definition) !== confirmation.digest)
+        throw new Conflict('stale_confirmation');
       return withBot(deps, member, teammateId, async (tx) => {
         const row = assertConfirmation(await latestRevision(tx, teammateId), confirmation);
-        const definition = await validated(row.definition);
-        if (canonicalPayloadSha256(definition) !== confirmation.digest)
-          throw new Conflict('stale_confirmation');
         await tx`update tw_bot_revisions set state = 'superseded' where teammate_id = ${teammateId} and state = 'published'`;
         const published = (
           await tx<

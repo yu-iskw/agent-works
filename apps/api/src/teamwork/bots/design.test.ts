@@ -192,6 +192,29 @@ describe('conversation design', () => {
       }),
     );
   }, 30_000);
+  it('more concurrent design requests than pool connections all settle (CR-01)', async () => {
+    const [free] = await sql<{ id: string }[]>`
+      select t.id from tw_teammates t where t.owner_sub = ${alice.sub}
+        and not exists (select 1 from tw_bots b where b.teammate_id = t.id)
+      order by t.created_at limit 1
+    `;
+    const outcomes = await Promise.allSettled(
+      Array.from({ length: 16 }, () =>
+        designBot(deps, service, catalog, alice, free.id, {
+          clientRequestId: randomUUID(),
+          message: 'Create a brief',
+          base: null,
+        }),
+      ),
+    );
+    expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      outcomes.every(
+        (o) => o.status === 'fulfilled' || (o.reason as { code?: string }).code === 'draft_exists',
+      ),
+    ).toBe(true);
+    expect(await service.listRevisions(alice, free.id)).toHaveLength(1);
+  }, 30_000);
   it('refuses read-only members before calling the model', async () => {
     const readonly = {
       ...deps,
