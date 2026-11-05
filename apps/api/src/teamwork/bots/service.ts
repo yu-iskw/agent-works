@@ -75,6 +75,10 @@ export function createBotService(
       throw new Conflict('stale_confirmation');
     return row;
   }
+  /** Read-only members may view bots but never change a definition or activate one (T7-01). */
+  function assertWritable(member: Member): void {
+    if (deps.config.readOnlyMembers.has(member.email)) throw new Conflict('read_only_member', 403);
+  }
   async function inBot<T>(
     member: Member,
     teammateId: string,
@@ -92,6 +96,7 @@ export function createBotService(
     source: BotSource,
     outer?: Tx,
   ) {
+    assertWritable(member);
     return inBot(
       member,
       teammateId,
@@ -116,6 +121,7 @@ export function createBotService(
     source: BotSource = { source: 'api' },
     outer?: Tx,
   ) {
+    assertWritable(member);
     return inBot(
       member,
       teammateId,
@@ -157,8 +163,9 @@ export function createBotService(
     createDraft,
     reviseDraft,
     previewDraft,
-    publish: (member: Member, teammateId: string, confirmation: BotConfirmation) =>
-      withBot(deps, member, teammateId, async (tx) => {
+    publish: (member: Member, teammateId: string, confirmation: BotConfirmation) => {
+      assertWritable(member);
+      return withBot(deps, member, teammateId, async (tx) => {
         const row = assertConfirmation(await latestRevision(tx, teammateId), confirmation);
         const definition = await validated(row.definition);
         if (canonicalPayloadSha256(definition) !== confirmation.digest)
@@ -180,7 +187,8 @@ export function createBotService(
           detail: { teammateId, revision: row.revision, digest: row.digest },
         });
         return revisionView(published);
-      }),
+      });
+    },
     async getActive(member: Member, teammateId: string) {
       await requireOwner(deps.sql, member, teammateId);
       const row = (

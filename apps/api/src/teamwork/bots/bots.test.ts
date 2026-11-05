@@ -502,6 +502,43 @@ describe('preview and authenticated bot routes', () => {
       400,
     );
   });
+  it('refuses draft, revise and publish from a read-only member (T7-01)', async () => {
+    const handle = router();
+    const created = await handle(
+      request('POST', '/drafts', { definition: definition(), source: 'api' }),
+    );
+    expect(created.status).toBe(201);
+    const draft = (created.body as { revision: { revision: number; digest: string } }).revision;
+    // The segment config is read-only by type; the test owns this instance.
+    const readOnly = deps.config.readOnlyMembers as Set<string>;
+    readOnly.add(alice.email);
+    try {
+      expect(
+        await handle(request('POST', '/drafts', { definition: definition(), source: 'api' })),
+      ).toMatchObject({ status: 403, body: { error: 'read_only_member' } });
+      expect(
+        await handle(
+          request('POST', '/drafts/revise', {
+            baseRevision: draft.revision,
+            baseDigest: draft.digest,
+            definition: definition(),
+          }),
+        ),
+      ).toMatchObject({ status: 403, body: { error: 'read_only_member' } });
+      expect(
+        await handle(
+          request('POST', '/publish', { revision: draft.revision, digest: draft.digest }),
+        ),
+      ).toMatchObject({ status: 403, body: { error: 'read_only_member' } });
+      expect((await handle(request('GET', '/revisions'))).status).toBe(200);
+    } finally {
+      readOnly.delete(alice.email);
+    }
+    expect(await sql`select revision, state from tw_bot_revisions order by revision`).toEqual([
+      { revision: draft.revision, state: 'draft' },
+    ]);
+    expect(await sql`select active_revision from tw_bots`).toEqual([{ active_revision: null }]);
+  });
   it('exposes draft, preview, publication, revision history, active revision and export', async () => {
     const handle = router();
     expect(
