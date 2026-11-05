@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { BOT_RUN_TERMINAL, botRunStatusSchema } from '@agent-works/domain';
+import { BOT_RUN_ACTIVE } from '@agent-works/domain';
 
 import { Conflict } from '../../context.js';
 
@@ -144,9 +144,6 @@ async function insertRun(options: ExecutionOptions, tx: Tx, run: RunRow, input: 
     if (root) await queueStep(deps, tx, run.task_id, root.id);
   }
 }
-const ACTIVE_RUN_STATUSES = botRunStatusSchema.options.filter(
-  (status) => !BOT_RUN_TERMINAL.has(status),
-);
 /**
  * The definition's concurrency ceilings, checked inside the transaction that inserts the run: the
  * bot row lock (taken first) serializes starts of one bot and the owner lock those of one owner,
@@ -163,7 +160,7 @@ export async function definitionCeiling(
     select count(*) filter (where r.teammate_id = ${run.teammate_id})::int as bot,
       count(*)::int as member
     from tw_bot_runs r join wb_tasks t on t.id = r.task_id
-    where r.owner_sub = ${run.owner_sub} and t.status in ${tx(ACTIVE_RUN_STATUSES)}
+    where r.owner_sub = ${run.owner_sub} and t.status in ${tx(BOT_RUN_ACTIVE)}
   `;
   const { maxConcurrentRunsPerBot, maxConcurrentRunsPerUser } = run.definition.limits;
   if (counts.bot >= maxConcurrentRunsPerBot) return 'bot_cap';

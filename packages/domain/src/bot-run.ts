@@ -75,6 +75,16 @@ export const BOT_STEP_TERMINAL: ReadonlySet<BotStepStatus> = new Set([
   'outcome_uncertain',
   'blocked',
 ]);
+/** Non-terminal run statuses: the runs that hold capacity and that recovery revisits. */
+export const BOT_RUN_ACTIVE: readonly BotRunStatus[] = botRunStatusSchema.options.filter(
+  (status) => !BOT_RUN_TERMINAL.has(status),
+);
+/** Step statuses that have not started work and are settled together on decline, denial or cancel. */
+export const BOT_STEP_OPEN: ReadonlySet<BotStepStatus> = new Set([
+  'pending',
+  'ready',
+  'waiting_approval',
+]);
 export function canTransition(kind: 'run', from: BotRunStatus, to: BotRunStatus): boolean;
 export function canTransition(kind: 'step', from: BotStepStatus, to: BotStepStatus): boolean;
 export function canTransition(kind: 'run' | 'step', from: string, to: string): boolean {

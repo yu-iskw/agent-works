@@ -1,5 +1,6 @@
 import {
   BOT_RUN_TERMINAL,
+  BOT_STEP_TERMINAL,
   canTransition,
   canonicalPayloadSha256,
   stepDataInputs,
@@ -106,7 +107,7 @@ export async function moveStep(
 ): Promise<void> {
   if (!canTransition('step', step.status, status)) throw new Error('invalid_step_transition');
   await tx`update tw_bot_steps set status = ${status}, error_code = ${code}, terminal_reason = ${code}, updated_at = ${deps.now()},
-    finished_at = ${['succeeded', 'failed', 'cancelled', 'outcome_uncertain', 'blocked'].includes(status) ? deps.now() : null}
+    finished_at = ${BOT_STEP_TERMINAL.has(status) ? deps.now() : null}
     where task_id = ${step.task_id} and step_id = ${step.step_id} and status = ${step.status}`;
   step.status = status;
   step.error_code = code;

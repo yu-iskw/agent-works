@@ -1,4 +1,4 @@
-import { BOT_RUN_TERMINAL } from '@agent-works/domain';
+import { BOT_RUN_TERMINAL, BOT_STEP_OPEN } from '@agent-works/domain';
 
 import { audit, Conflict } from '../../context.js';
 
@@ -57,7 +57,7 @@ export function createRunCommands(
   }
   async function denyApproval(tx: Tx, run: RunRow, code: string) {
     for (const step of (await stepsFor(tx, run.task_id)).filter((s) =>
-      ['pending', 'ready', 'waiting_approval'].includes(s.status),
+      BOT_STEP_OPEN.has(s.status),
     )) {
       const status =
         step.status === 'waiting_approval' && code === 'declined' ? 'failed' : 'blocked';
@@ -114,7 +114,7 @@ export function createRunCommands(
         await moveRun(deps, tx, run, 'cancel_requested');
         await tx`update wb_approvals set state = 'void' where task_id = ${taskId} and state = 'pending'`;
         for (const step of await stepsFor(tx, taskId)) {
-          if (['pending', 'ready', 'waiting_approval'].includes(step.status))
+          if (BOT_STEP_OPEN.has(step.status))
             await moveStep(deps, tx, step, 'cancelled', 'cancel_requested');
           if (step.status === 'waiting_external' || step.status === 'running') {
             await queueStep(deps, tx, taskId, step.step_id);

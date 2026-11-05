@@ -1,4 +1,4 @@
-import { BOT_RUN_TERMINAL } from '@agent-works/domain';
+import { BOT_RUN_ACTIVE, BOT_RUN_TERMINAL, BOT_STEP_OPEN } from '@agent-works/domain';
 
 import { recheck } from './recheck.js';
 import { approvalsFor, loadRun, moveRun, moveStep, queueStep, stepsFor } from './store.js';
@@ -14,9 +14,7 @@ export function createBotRecovery(
   const { deps } = options;
   async function deny(tx: Tx, run: RunRow, steps: StepRow[], denial: string | null) {
     const code = denial ?? 'approval_expired';
-    for (const step of steps.filter((s) =>
-      ['pending', 'ready', 'waiting_approval'].includes(s.status),
-    ))
+    for (const step of steps.filter((s) => BOT_STEP_OPEN.has(s.status)))
       await moveStep(deps, tx, step, 'blocked', code);
     if (!steps.some((s) => s.status === 'running' || s.status === 'waiting_external'))
       await moveRun(deps, tx, run, 'failed', code);
@@ -66,7 +64,7 @@ export function createBotRecovery(
     const rows = await deps.sql<
       { task_id: string }[]
     >`select r.task_id from tw_bot_runs r join wb_tasks t on t.id = r.task_id
-      where t.status in ('queued','running','waiting_external','waiting_approval','cancel_requested')`;
+      where t.status in ${deps.sql(BOT_RUN_ACTIVE)}`;
     for (const { task_id: taskId } of rows)
       try {
         await recoverRun(taskId, expired.has(taskId));
