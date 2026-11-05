@@ -2,6 +2,8 @@
 // (`plan:<v>`, `approval:<id>`, `revision:<n>`, ...), so the panel is read from the ref and the
 // task panel is the fallback for refs without a dedicated view.
 
+import { botRunPath } from '../../../shared/route.js';
+
 import type { InboxRow } from '../../../shared/contract.js';
 import type { PanelRoute } from '../../../shared/route.js';
 
@@ -52,7 +54,5 @@ export function inboxPage(
   segment: string,
   item: Pick<InboxRow, 'taskKind' | 'taskId'>,
 ): string | undefined {
-  return item.taskKind === 'bot'
-    ? `/s/${encodeURIComponent(segment)}/bot-runs/${encodeURIComponent(item.taskId)}`
-    : undefined;
+  return item.taskKind === 'bot' ? botRunPath(segment, item.taskId) : undefined;
 }

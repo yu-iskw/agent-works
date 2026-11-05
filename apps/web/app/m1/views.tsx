@@ -1,3 +1,4 @@
+import { botRunPath } from '../../shared/route.js';
 import { Fragment, h } from '../html.js';
 import { Icon } from '../workbench/icons.js';
 
@@ -64,7 +65,7 @@ export const segPath = (segment: Segment | string, path = '') =>
 /** An inbox item opens its bot run page or its teamwork task page (T7-04). */
 const inboxHref = (segment: Segment | string, item: InboxItem, anchor = '') =>
   item.taskKind === 'bot'
-    ? segPath(segment, `/bot-runs/${item.taskId}`)
+    ? botRunPath(typeof segment === 'string' ? segment : segment.id, item.taskId)
     : segPath(segment, `/tasks/${item.taskId}${anchor}`);
 
 export const TEAMMATES_PATH = '/teammates';

@@ -165,3 +165,7 @@ export const conversationRoute = (segment: string, teammate: string): Route => (
 /** True when both routes show the same conversation, whatever panel or surface is open. */
 export const sameConversation = (a: Route, b: Route): boolean =>
   a.segment === b.segment && a.teammate === b.teammate;
+
+/** The server-rendered page of a bot run; bot inbox items open here from every inbox (T7-04, T8-04). */
+export const botRunPath = (segment: string, taskId: string): string =>
+  `/s/${encodeURIComponent(segment)}/bot-runs/${encodeURIComponent(taskId)}`;
