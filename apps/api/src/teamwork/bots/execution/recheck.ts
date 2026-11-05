@@ -99,17 +99,13 @@ export async function recheck(options: ExecutionOptions, run: RunRow): Promise<s
 async function staleCheckpoint(options: ExecutionOptions, run: RunRow) {
   const approvals = await approvalsFor(options.deps.sql, run.task_id);
   const steps = await stepsFor(options.deps.sql, run.task_id);
-  if (
-    approvals.some(
-      (a) =>
-        a.subject === 'bot_checkpoint' &&
-        a.state === 'approved' &&
-        a.step_id &&
-        checkpointDigest(run, a.step_id, steps) !== a.payload_sha256,
-    )
-  )
-    return true;
-  return false;
+  return approvals.some(
+    (a) =>
+      a.subject === 'bot_checkpoint' &&
+      a.state === 'approved' &&
+      a.step_id !== null &&
+      checkpointDigest(run, a.step_id, steps) !== a.payload_sha256,
+  );
 }
 
 async function admissionExpired(options: ExecutionOptions, run: RunRow) {
@@ -118,13 +114,11 @@ async function admissionExpired(options: ExecutionOptions, run: RunRow) {
       { state: string; expires_at: Date }[]
     >`select state,expires_at from admission_reservations where execution_id=${run.task_id}`
   ).at(0);
-  if (
-    reservation &&
+  return (
+    reservation !== undefined &&
     (reservation.state === 'expired' ||
       (reservation.state === 'active' && reservation.expires_at <= options.deps.now()))
-  )
-    return true;
-  return false;
+  );
 }
 
 async function grantBudget(
