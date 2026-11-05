@@ -5,7 +5,7 @@ import { api as paths } from '../../../shared/contract.js';
 import { conversationRoute } from '../../../shared/route.js';
 import { SegmentMismatch } from '../api.js';
 
-import { inboxPanel } from './inbox-target.js';
+import { inboxPage, inboxPanel } from './inbox-target.js';
 import { resultKey } from './lists.js';
 import { teammateForTask } from './selectors.js';
 
@@ -58,6 +58,8 @@ export type ListEffectsDeps = {
   readonly api: Api;
   readonly router: Router;
   readonly debounce: (run: () => void) => void;
+  /** Full-page navigation, for items that open outside the workspace. */
+  readonly assign: (url: string) => void;
 };
 
 export function createListEffects(deps: ListEffectsDeps): {
@@ -126,6 +128,8 @@ export function createListEffects(deps: ListEffectsDeps): {
 
   async function openInboxItem(item: InboxRow): Promise<void> {
     select('inbox', item.id);
+    const page = inboxPage(segment, item);
+    if (page !== undefined) return deps.assign(page);
     const panel = inboxPanel(item);
     const known = peek().lists.work.items.find((task) => task.id === item.taskId);
     if (known !== undefined) return openTask(known, panel);

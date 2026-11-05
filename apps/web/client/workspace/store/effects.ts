@@ -220,6 +220,7 @@ export function createEffects(deps: EffectsDeps): Effects {
     api,
     router,
     debounce: debounce(clock, SEARCH_DEBOUNCE_MS),
+    assign: deps.assign,
   });
 
   function scheduleSidebar(): void {
