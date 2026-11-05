@@ -34,6 +34,17 @@ export async function approvalsFor(db: Db, taskId: string): Promise<ApprovalRow[
     ApprovalRow[]
   >`select * from wb_approvals where task_id = ${taskId} order by requested_at, id`;
 }
+/** The admission request for a run; start, retry and recovery admit the same execution (task id). */
+export function admissionRequest(run: RunRow, segmentId: string) {
+  return {
+    executionId: run.task_id,
+    botId: run.teammate_id,
+    memberId: run.owner_sub,
+    segmentId,
+    windowKey: run.created_at.toISOString().slice(0, 10),
+    estimatedCostMicros: 0,
+  };
+}
 export async function event(deps: Deps, tx: Tx, taskId: string, code: string): Promise<void> {
   await appendEvent(deps, tx, taskId, { type: `bot.${code}`, summary: code });
 }

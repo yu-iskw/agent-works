@@ -5,7 +5,7 @@ import { BOT_RUN_ACTIVE } from '@agent-works/domain';
 import { Conflict } from '../../context.js';
 
 import { grantValid, recheck } from './recheck.js';
-import { createApproval, event, loadRun, moveRun, queueStep } from './store.js';
+import { admissionRequest, createApproval, event, loadRun, moveRun, queueStep } from './store.js';
 
 import type { ExecutionOptions, RunRow } from './types.js';
 import type { Tx } from '../../context.js';
@@ -110,20 +110,17 @@ async function admit(
 ): Promise<StartBotRunResult | undefined> {
   // Deployment admission policy is applied as configured and never rewritten from a definition;
   // the definition's own ceilings narrow it inside commitRun (T7-02).
-  const result = await options.admission.admit({
-    executionId: run.task_id,
-    botId: run.teammate_id,
-    memberId: run.owner_sub,
-    segmentId: options.deps.config.segment,
-    windowKey: run.created_at.toISOString().slice(0, 10),
-    estimatedCostMicros: 0,
-  });
+  const result = await options.admission.admit(admissionRequest(run, options.deps.config.segment));
   if (result.admitted) return;
-  const code = ['bot_cap', 'segment_cap', 'cost_budget'].find((c) => c === result.reason);
   if (input.trigger.kind === 'manual') return { kind: 'denied', code: 'admission_denied' };
-  if (code === 'bot_cap' || code === 'segment_cap' || code === 'cost_budget')
-    return { kind: 'deferred', code };
-  return { kind: 'deferred', code: 'member_cap' };
+  const reason = result.reason;
+  return {
+    kind: 'deferred',
+    code:
+      reason === 'bot_cap' || reason === 'segment_cap' || reason === 'cost_budget'
+        ? reason
+        : 'member_cap',
+  };
 }
 async function insertRun(options: ExecutionOptions, tx: Tx, run: RunRow, input: StartBotRunInput) {
   const { deps } = options;
@@ -215,7 +212,7 @@ async function commitRun(
     // Only this transaction's connection is used while it holds locks (CR-01): authority and the
     // grant's chain and budget were checked just before, and every step rechecks them. Under the
     // grant row lock, revocation, expiry and the run count are rechecked so maxRuns cannot race.
-    if (run.grant_id && maxRuns !== undefined) {
+    if (maxRuns !== undefined) {
       const state = (
         await tx<{ live: boolean; used: number }[]>`
         select (g.revoked_at is null and g.expires_at > ${deps.now()}) as live,

@@ -33,6 +33,5 @@ export function createBotExecution(options: ExecutionOptions) {
     ...graph,
     renew: (taskId: string) => options.admission.renew(taskId),
     handle: createStepHandler(options, { lease, graph, prepare, settle, delegate }),
-    pollMs: options.pollMs ?? 2000,
   };
 }

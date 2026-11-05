@@ -1,7 +1,15 @@
 import { BOT_RUN_ACTIVE, BOT_RUN_TERMINAL, BOT_STEP_OPEN } from '@agent-works/domain';
 
 import { recheck } from './recheck.js';
-import { approvalsFor, loadRun, moveRun, moveStep, queueStep, stepsFor } from './store.js';
+import {
+  admissionRequest,
+  approvalsFor,
+  loadRun,
+  moveRun,
+  moveStep,
+  queueStep,
+  stepsFor,
+} from './store.js';
 
 import type { createBotExecution } from './engine.js';
 import type { ExecutionOptions, RunRow, StepRow } from './types.js';
@@ -24,14 +32,7 @@ export function createBotRecovery(
    * the run keeps its place unless the capacity has since gone to other work (CR-05).
    */
   async function readmit(run: RunRow): Promise<boolean> {
-    const result = await options.admission.admit({
-      executionId: run.task_id,
-      botId: run.teammate_id,
-      memberId: run.owner_sub,
-      segmentId: deps.config.segment,
-      windowKey: run.created_at.toISOString().slice(0, 10),
-      estimatedCostMicros: 0,
-    });
+    const result = await options.admission.admit(admissionRequest(run, deps.config.segment));
     return result.admitted;
   }
   async function recoverRun(taskId: string, swept: boolean) {

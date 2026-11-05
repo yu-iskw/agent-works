@@ -5,6 +5,7 @@ import { audit, Conflict } from '../../context.js';
 import { recheck } from './recheck.js';
 import { definitionCeiling } from './start.js';
 import {
+  admissionRequest,
   approvalsFor,
   checkpointDigest,
   event,
@@ -142,14 +143,9 @@ export function createRunCommands(
       // Admission uses its own connections, so it runs before the transaction (CR-01); if the
       // transaction then fails, the reservation goes back to the run's terminal state (CR-07).
       await deps.sql`update admission_reservations set state='expired' where execution_id=${taskId} and state='failed'`;
-      const admitted = await options.admission.admit({
-        executionId: taskId,
-        botId: initial.teammate_id,
-        memberId: initial.owner_sub,
-        segmentId: deps.config.segment,
-        windowKey: initial.created_at.toISOString().slice(0, 10),
-        estimatedCostMicros: 0,
-      });
+      const admitted = await options.admission.admit(
+        admissionRequest(initial, deps.config.segment),
+      );
       if (!admitted.admitted) throw new Conflict('admission_denied');
       let settled: RunRow | undefined;
       try {
