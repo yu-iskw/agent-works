@@ -703,6 +703,8 @@ export const inboxItemSchema = z.strictObject({
   id,
   kind: inboxKindSchema,
   taskId: id,
+  /** Where the item opens: a teamwork task page or a bot run page. */
+  taskKind: z.enum(['teamwork', 'bot']),
   taskTitle: text,
   ref: text,
   summary: text,

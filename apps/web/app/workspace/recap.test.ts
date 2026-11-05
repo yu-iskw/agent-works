@@ -14,6 +14,7 @@ const item = (
   id: id(n),
   kind,
   taskId: id(100 + n),
+  taskKind: 'teamwork',
   taskTitle: `task ${n}`,
   ref: 'plan:1',
   summary: `summary ${n}`,

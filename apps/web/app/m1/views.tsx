@@ -61,6 +61,12 @@ export function Time(props: { readonly iso: string | null }): Html | null {
 export const segPath = (segment: Segment | string, path = '') =>
   `/s/${typeof segment === 'string' ? segment : segment.id}${path}`;
 
+/** An inbox item opens its bot run page or its teamwork task page (T7-04). */
+const inboxHref = (segment: Segment | string, item: InboxItem, anchor = '') =>
+  item.taskKind === 'bot'
+    ? segPath(segment, `/bot-runs/${item.taskId}`)
+    : segPath(segment, `/tasks/${item.taskId}${anchor}`);
+
 export const TEAMMATES_PATH = '/teammates';
 export const NEW_TASK_PATH = '/tasks/new';
 
@@ -400,10 +406,7 @@ export function InboxPage(props: {
                       />
                     </span>
                     <div>
-                      <a
-                        class="title"
-                        href={segPath(ctx.segment, `/tasks/${item.taskId}#decision`)}
-                      >
+                      <a class="title" href={inboxHref(ctx.segment, item, '#decision')}>
                         {item.taskTitle}
                       </a>
                       <p class="muted">
@@ -415,10 +418,7 @@ export function InboxPage(props: {
                       </p>
                     </div>
                     <div class="row">
-                      <a
-                        class="btn btn-sm"
-                        href={segPath(ctx.segment, `/tasks/${item.taskId}#decision`)}
-                      >
+                      <a class="btn btn-sm" href={inboxHref(ctx.segment, item, '#decision')}>
                         Open
                       </a>
                       {item.kind === 'completed' ? (
@@ -444,7 +444,7 @@ export function InboxPage(props: {
           <ul class="task-list">
             {resolved.map((item) => (
               <li class="task-item">
-                <a class="task-title" href={segPath(ctx.segment, `/tasks/${item.taskId}`)}>
+                <a class="task-title" href={inboxHref(ctx.segment, item)}>
                   {item.taskTitle}
                 </a>
                 <span class="badge badge-neutral">{item.state}</span>

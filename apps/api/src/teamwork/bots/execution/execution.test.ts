@@ -26,6 +26,7 @@ import {
   createSkillPackageStore,
   syncCuratedPackages,
 } from '../../skill-packages/index.js';
+import { inbox } from '../../tasks.js';
 import { createWorker } from '../../worker.js';
 import { applyBotsMigration } from '../migration.js';
 import { createBotService } from '../service.js';
@@ -949,6 +950,14 @@ describe('durable bot execution', () => {
 
 // Regressions for the independent milestone review (ledger/review-final.md).
 describe('bot execution review regressions', () => {
+  it('reports bot runs in the inbox with their task kind (T7-04)', async () => {
+    await publish(definition('per_run'));
+    const id = await start();
+    const items = await inbox(options.deps, alice);
+    expect(items.filter((item) => item.taskId === id)).toEqual([
+      expect.objectContaining({ kind: 'approval', taskKind: 'bot', state: 'open' }),
+    ]);
+  });
   it('a checkpoint waits for the sibling inputs it binds, then the join completes (T7-03)', async () => {
     const def = definition('checkpoints_only');
     def.workflow.steps = [

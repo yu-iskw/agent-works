@@ -1414,6 +1414,7 @@ type InboxRow = {
   id: string;
   kind: InboxItem['kind'];
   task_id: string;
+  task_kind: InboxItem['taskKind'];
   title: string;
   ref: string;
   summary: string;
@@ -1426,6 +1427,7 @@ const inboxItem = (row: InboxRow): InboxItem => ({
   id: row.id,
   kind: row.kind,
   taskId: row.task_id,
+  taskKind: row.task_kind,
   taskTitle: row.title,
   ref: row.ref,
   summary: row.summary,
@@ -1437,7 +1439,7 @@ const inboxItem = (row: InboxRow): InboxItem => ({
 /** The M1 inbox page: everything open, then the last week's resolved items. */
 export async function inbox(deps: Deps, member: Member): Promise<readonly InboxItem[]> {
   const rows = await deps.sql<InboxRow[]>`
-    select i.id, i.kind, i.task_id, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
+    select i.id, i.kind, i.task_id, t.kind as task_kind, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
     from tw_inbox i join wb_tasks t on t.id = i.task_id
     where i.owner_sub = ${member.sub} and (i.state = 'open' or i.resolved_at > now() - interval '7 days')
     order by i.state = 'open' desc, i.created_at desc limit 200
@@ -1454,7 +1456,7 @@ export async function listInbox(
   const sql = deps.sql;
   const cursor = cursorOf(query.cursor);
   const rows = await sql<InboxRow[]>`
-    select i.id, i.kind, i.task_id, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
+    select i.id, i.kind, i.task_id, t.kind as task_kind, t.title, i.ref, i.summary, i.state, i.created_at, i.resolved_at
     from tw_inbox i join wb_tasks t on t.id = i.task_id
     where i.owner_sub = ${member.sub}
     ${query.state === 'open' ? sql`and i.state = 'open'` : sql`and i.state <> 'open'`}

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { BotPage, Preview, RunPage } from './bot-views.js';
+import { InboxPage } from './views.js';
 
 import type { BotPreview, BotRun } from './api.js';
 import type { PageCtx } from './views.js';
+import type { InboxItem } from '@agent-works/domain/teamwork';
 
 const ctx: PageCtx = {
   session: {
@@ -168,5 +170,36 @@ describe('bot views', () => {
       'Estimated: unknown',
     ])
       expect(html).toContain(value);
+  });
+  it('links bot inbox items to their run page and teamwork items to their task (T7-04)', () => {
+    const item = (
+      taskKind: InboxItem['taskKind'],
+      taskId: string,
+      state: InboxItem['state'],
+    ): InboxItem => ({
+      id: `${taskId.slice(0, -1)}9`,
+      kind: 'approval',
+      taskId,
+      taskKind,
+      taskTitle: `${taskKind} work`,
+      ref: 'ref',
+      summary: 'Needs a decision',
+      state,
+      createdAt: '2026-11-05T00:00:00.000Z',
+      resolvedAt: state === 'open' ? null : '2026-11-05T01:00:00.000Z',
+    });
+    const bot = '11111111-1111-4111-8111-111111111111';
+    const task = '22222222-2222-4222-8222-222222222222';
+    const { html } = InboxPage({
+      ctx,
+      items: [
+        item('bot', bot, 'open'),
+        item('teamwork', task, 'open'),
+        item('bot', bot, 'resolved'),
+      ],
+    });
+    expect(html).toContain(`/s/alpha/bot-runs/${bot}`);
+    expect(html).not.toContain(`/s/alpha/tasks/${bot}`);
+    expect(html).toContain(`/s/alpha/tasks/${task}#decision`);
   });
 });
