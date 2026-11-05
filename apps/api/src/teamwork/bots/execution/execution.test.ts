@@ -950,6 +950,20 @@ describe('durable bot execution', () => {
 
 // Regressions for the independent milestone review (ledger/review-final.md).
 describe('bot execution review regressions', () => {
+  it('more concurrent starts than pool connections all settle (CR-01)', async () => {
+    const def = definition('per_run');
+    def.limits = { ...def.limits, maxConcurrentRunsPerBot: 5, maxConcurrentRunsPerUser: 5 };
+    await publish(def);
+    const input = { teammateId, trigger: { kind: 'manual' as const }, initiatedBy: alice.sub };
+    const results = await Promise.all(
+      Array.from({ length: 24 }, () =>
+        createStartBotRun(options)({ ...input, clientRequestId: randomUUID() }),
+      ),
+    );
+    expect(results.filter((r) => r.kind === 'started')).toHaveLength(5);
+    expect(results.filter((r) => r.kind === 'denied')).toHaveLength(19);
+    expect(await options.admission.inFlight('bot', teammateId)).toBe(5);
+  }, 20_000);
   it('retry honours the definition ceilings like a start (T8-02)', async () => {
     const def = definition('per_run');
     def.limits = { ...def.limits, maxConcurrentRunsPerBot: 1, maxConcurrentRunsPerUser: 1 };

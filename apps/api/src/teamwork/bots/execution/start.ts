@@ -176,6 +176,10 @@ async function commitRun(
   input: StartBotRunInput,
 ): Promise<StartBotRunResult> {
   const { deps } = options;
+  const maxRuns = run.grant_id
+    ? (await options.grants.get(run.grant_id))?.limits.budget.inferenceSteps
+    : undefined;
+  if (run.grant_id && maxRuns === undefined) return { kind: 'denied', code: 'grant_invalid' };
   let result: StartBotRunResult = {
     kind: 'started',
     taskId: run.task_id,
@@ -211,13 +215,19 @@ async function commitRun(
           : { kind: 'deferred', code: ceiling };
       return;
     }
-    if (run.grant_id) {
-      await tx`select 1 from tw_standing_grants where grant_id=${run.grant_id} for update`;
-      const grant = await options.grants.get(run.grant_id);
-      if (!grant || !(await grantValid(options, run, grant, true)))
-        throw new Conflict('grant_invalid', 403);
+    // Only this transaction's connection is used while it holds locks (CR-01): authority and the
+    // grant's chain and budget were checked just before, and every step rechecks them. Under the
+    // grant row lock, revocation, expiry and the run count are rechecked so maxRuns cannot race.
+    if (run.grant_id && maxRuns !== undefined) {
+      const state = (
+        await tx<{ live: boolean; used: number }[]>`
+        select (g.revoked_at is null and g.expires_at > ${deps.now()}) as live,
+          (select count(*)::int from tw_bot_runs r where r.grant_id = g.grant_id) as used
+        from tw_standing_grants g where g.grant_id = ${run.grant_id} for update of g
+      `
+      ).at(0);
+      if (!state?.live || state.used + 1 > maxRuns) throw new Conflict('grant_invalid', 403);
     }
-    await assertAuthority(options, run);
     await insertRun(options, tx, run, input);
   });
   if (!(await loadRun(deps.sql, run.task_id)))
@@ -247,9 +257,8 @@ export function createStartBotRun(options: ExecutionOptions): StartBotRun {
       throw error;
     }
   };
-  return (input) =>
-    options.deps.sql.begin(async (tx) => {
-      await tx`select pg_advisory_xact_lock(7033,hashtext(${input.teammateId}))`;
-      return start(input);
-    });
+  // No outer transaction: holding one pooled connection while the start opens more could exhaust
+  // the pool under concurrent starts (CR-01). commitRun serializes one bot's starts under its row
+  // lock and rechecks duplicates and ceilings there; a losing start releases its reservation.
+  return start;
 }
