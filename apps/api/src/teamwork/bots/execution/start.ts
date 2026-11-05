@@ -5,10 +5,11 @@ import { BOT_RUN_ACTIVE } from '@agent-works/domain';
 import { Conflict } from '../../context.js';
 
 import { grantValid, recheck } from './recheck.js';
-import { admissionRequest, createApproval, event, loadRun, moveRun, queueStep } from './store.js';
+import { admissionRequest, createApproval, event, moveRun, queueStep } from './store.js';
 
 import type { ExecutionOptions, RunRow } from './types.js';
 import type { Tx } from '../../context.js';
+import type { StandingGrant } from '@agent-works/domain/standing-grant-contract';
 
 export type BotTrigger =
   | { kind: 'manual' }
@@ -93,12 +94,13 @@ async function pinnedRun(options: ExecutionOptions, input: StartBotRunInput): Pr
   if (!triggerDeclared(run, input.trigger)) throw new Conflict('trigger_not_declared', 403);
   return run;
 }
+/** The run's standing grant, if its mode needs one; the caller keeps it for the commit's checks. */
 async function chooseGrant(options: ExecutionOptions, run: RunRow) {
-  if (run.approval_mode !== 'standing_grant') return;
+  if (run.approval_mode !== 'standing_grant') return undefined;
   for (const grant of await options.grants.list({ sponsor: run.owner_sub })) {
     if (await grantValid(options, run, grant, true)) {
       run.grant_id = grant.grantId;
-      return;
+      return grant;
     }
   }
   throw new Conflict('grant_invalid', 403);
@@ -168,12 +170,10 @@ async function commitRun(
   options: ExecutionOptions,
   run: RunRow,
   input: StartBotRunInput,
+  grant: StandingGrant | undefined,
 ): Promise<StartBotRunResult> {
   const { deps } = options;
-  const maxRuns = run.grant_id
-    ? (await options.grants.get(run.grant_id))?.limits.budget.inferenceSteps
-    : undefined;
-  if (run.grant_id && maxRuns === undefined) return { kind: 'denied', code: 'grant_invalid' };
+  const maxRuns = grant?.limits.budget.inferenceSteps;
   let result: StartBotRunResult = {
     kind: 'started',
     taskId: run.task_id,
@@ -224,8 +224,10 @@ async function commitRun(
     }
     await insertRun(options, tx, run, input);
   });
-  if (!(await loadRun(deps.sql, run.task_id)))
-    await options.admission.release(run.task_id, 'cancelled');
+  // Nothing was inserted unless the result is `started`, so give the reservation back. The
+  // transaction callback reassigns `result`, which flow analysis cannot see, hence the widening.
+  const settled: StartBotRunResult = result as StartBotRunResult;
+  if (settled.kind !== 'started') await options.admission.release(run.task_id, 'cancelled');
   return result;
 }
 export function createStartBotRun(options: ExecutionOptions): StartBotRun {
@@ -239,12 +241,12 @@ export function createStartBotRun(options: ExecutionOptions): StartBotRun {
         >`select task_id from tw_bot_runs where teammate_id=${run.teammate_id} and trigger_ref=${run.trigger_ref}`
       ).at(0);
       if (duplicate) return { kind: 'duplicate', taskId: duplicate.task_id };
-      await chooseGrant(options, run);
+      const grant = await chooseGrant(options, run);
       await assertAuthority(options, run);
       const denial = await admit(options, run, input);
       if (denial) return denial;
       reserved = run;
-      return await commitRun(options, run, input);
+      return await commitRun(options, run, input, grant);
     } catch (error) {
       if (reserved) await options.admission.release(reserved.task_id, 'cancelled');
       if (error instanceof Conflict) return { kind: 'denied', code: error.code };
