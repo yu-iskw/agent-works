@@ -174,12 +174,13 @@ async function commitRun(
 ): Promise<StartBotRunResult> {
   const { deps } = options;
   const maxRuns = grant?.limits.budget.inferenceSteps;
-  let result: StartBotRunResult = {
+  // Typed as the union so flow analysis does not narrow it: the transaction callback reassigns it.
+  let result = {
     kind: 'started',
     taskId: run.task_id,
     revision: run.revision,
     digest: run.digest,
-  };
+  } as StartBotRunResult;
   await deps.sql.begin(async (tx) => {
     const locked = await tx<
       { active_revision: number | null }[]
@@ -224,10 +225,8 @@ async function commitRun(
     }
     await insertRun(options, tx, run, input);
   });
-  // Nothing was inserted unless the result is `started`, so give the reservation back. The
-  // transaction callback reassigns `result`, which flow analysis cannot see, hence the widening.
-  const settled: StartBotRunResult = result as StartBotRunResult;
-  if (settled.kind !== 'started') await options.admission.release(run.task_id, 'cancelled');
+  // Nothing was inserted unless the result is `started`, so give the reservation back.
+  if (result.kind !== 'started') await options.admission.release(run.task_id, 'cancelled');
   return result;
 }
 export function createStartBotRun(options: ExecutionOptions): StartBotRun {
