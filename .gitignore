@@ -175,6 +175,7 @@ artifacts/m1/**/*.png
 artifacts/m1/**/*.webm
 artifacts/m1/**/*.zip
 artifacts/m1/restart-state.json
+artifacts/m1/bot-control-result.json
 artifacts/m1/*.png
 artifacts/m1/*.webm
 artifacts/m1/*.zip
