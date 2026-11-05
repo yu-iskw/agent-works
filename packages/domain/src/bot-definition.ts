@@ -278,25 +278,32 @@ export function stepDataInputs(step: BotStep, byId: ReadonlyMap<string, BotStep>
  * of the checkpoint. Otherwise the approval could bind a value that changes later, or execution
  * would have to wait on siblings and could deadlock (T7-03, T8-01, T8-03).
  */
+function notUpstream(
+  checkpoint: BotStep,
+  step: BotStep,
+  index: number,
+  graph: WorkflowGraph,
+): BotDiagnostic[] {
+  const upstream = ancestors(graph, checkpoint.id);
+  return stepDataInputs(step, graph.byId)
+    .filter((ref) => !upstream.has(ref))
+    .map((ref) =>
+      stepDiagnostic(
+        'checkpoint_input_not_upstream',
+        index,
+        'dependsOn',
+        `Step ${step.id} uses ${ref}, which checkpoint ${checkpoint.id} cannot approve because it is not upstream. Add ${ref} to the checkpoint's dependsOn.`,
+      ),
+    );
+}
 function checkpointDiagnostics(steps: readonly BotStep[], graph: WorkflowGraph): BotDiagnostic[] {
-  const diagnostics: BotDiagnostic[] = [];
-  for (const checkpoint of steps.filter((step) => step.kind === 'approval')) {
-    const upstream = ancestors(graph, checkpoint.id);
-    for (const [index, step] of steps.entries()) {
-      if (!step.dependsOn.includes(checkpoint.id)) continue;
-      for (const ref of stepDataInputs(step, graph.byId))
-        if (!upstream.has(ref))
-          diagnostics.push(
-            stepDiagnostic(
-              'checkpoint_input_not_upstream',
-              index,
-              'dependsOn',
-              `Step ${step.id} uses ${ref}, which checkpoint ${checkpoint.id} cannot approve because it is not upstream. Add ${ref} to the checkpoint's dependsOn.`,
-            ),
-          );
-    }
-  }
-  return diagnostics;
+  return steps
+    .filter((step) => step.kind === 'approval')
+    .flatMap((checkpoint) =>
+      steps.flatMap((step, index) =>
+        step.dependsOn.includes(checkpoint.id) ? notUpstream(checkpoint, step, index, graph) : [],
+      ),
+    );
 }
 function resultDiagnostics(steps: readonly BotStep[], graph: WorkflowGraph): BotDiagnostic[] {
   const diagnostics: BotDiagnostic[] = [];
