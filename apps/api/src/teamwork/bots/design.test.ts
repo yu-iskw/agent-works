@@ -172,6 +172,25 @@ describe('conversation design', () => {
     expect(
       await sql`select id from tw_messages where conversation_id = (select conversation_id from tw_teammates where id = ${teammateId}) and card->>'kind' = 'bot_draft'`,
     ).toHaveLength(4);
+    const controlled = await designBot(deps, service, catalog, alice, teammateId, {
+      clientRequestId: randomUUID(),
+      message: '[event:m1-test:changed] [slow-agent]',
+      base: { revision: revised.revision, digest: revised.digest },
+    });
+    expect(controlled.outcome).toBe('draft');
+    if (controlled.outcome !== 'draft') throw new Error('expected controlled draft');
+    const exported = await service.exportRevision(alice, teammateId, controlled.revision);
+    expect(exported.definition.triggers).toContainEqual({
+      kind: 'event',
+      source: 'm1-test',
+      eventType: 'changed',
+    });
+    expect(exported.definition.workflow.steps).toContainEqual(
+      expect.objectContaining({
+        kind: 'mcp_delegate',
+        instruction: '[reference:slow-submit] Review the findings.',
+      }),
+    );
   }, 30_000);
   it('refuses read-only members before calling the model', async () => {
     const readonly = {
