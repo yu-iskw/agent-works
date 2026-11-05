@@ -16,5 +16,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /out ./
 USER node
+# Any HTTP response (including 404) proves the server is listening. Cloud Run uses its own probes.
+HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/').then(()=>process.exit(0),()=>process.exit(1))"
 # Cloud Run injects PORT (8080); server.ts reads it from the environment.
 CMD ["node", "dist/server.js"]
