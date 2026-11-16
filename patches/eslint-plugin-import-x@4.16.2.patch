@@ -1,0 +1,11 @@
+diff --git a/lib/rules/no-internal-modules.js b/lib/rules/no-internal-modules.js
+index cf3696278157c4a5b2623ed634ef367387b042bc..502226d3b145ca3e03a97692769800e42ee258da 100644
+--- a/lib/rules/no-internal-modules.js
++++ b/lib/rules/no-internal-modules.js
+@@ -1,4 +1,5 @@
+-import { makeRe } from 'minimatch';
++import { Minimatch } from 'minimatch';
++const makeRe = p => { const mm = new Minimatch(p); return { test: s => mm.match(s) }; };
+ import { importType, createRule, moduleVisitor, resolve, } from '../utils/index.js';
+ function normalizeSep(somePath) {
+     return somePath.split('\\').join('/');

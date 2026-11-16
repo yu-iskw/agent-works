@@ -53,3 +53,15 @@ overrides:
   '@humanfs/node': 0.16.8
   # GHSA-w5hq-g745-h8pq fixed in 11.1.1. gaxios 6 pulls uuid 9.
   uuid: 11.1.1
+  # GHSA-3gg2-335m-rxc6, GHSA-46wx-v44x-9hh2, GHSA-4h7h-rv7c-7m2v, GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq fixed in 4.13.16
+  hono: 4.13.16
+  # GHSA-jpvv-r467-5p4w, GHSA-qv5m-9pm6-hqp3 fixed in 2.1.6
+  '@hono/node-server': 2.1.6
+  # GHSA-g3hv-75wg-m249 fixed in 11.0.1+. eslint, @eslint/config-array, typescript-estree, sonarjs and
+  # eslint-plugin-import-x all declare ^10 (eslint 10.15.0 and config-array 0.23.6 declare ^11). Remove once none do.
+  minimatch: 11.0.5
+
+# minimatch 11 dropped makeRe, so import-x 4.16.2 would not load. import-x 4.18 supports minimatch 11 but sorts ../ before ./
+# for type imports (189 import-x/order errors). Drop this patch when adopting import-x ^4.18 and reformatting imports.
+patchedDependencies:
+  eslint-plugin-import-x@4.16.2: patches/eslint-plugin-import-x@4.16.2.patch
