@@ -2,24 +2,77 @@
   "probe": "model",
   "issue": 108,
   "evidenceKind": "synthetic-offline",
+  "liveEvidence": "operator-partial",
   "validation": "UNVERIFIED",
   "verdict": "DEFER",
   "live": {
-    "date": "unverified",
-    "region": "unverified",
+    "date": "2026-10-15",
+    "source": "https://github.com/yu-iskw/agent-works/issues/108#issuecomment-6187325519",
+    "region": "asia-northeast1 regional endpoint; global endpoint for comparison",
     "maturity": "unverified",
-    "product": "unverified",
-    "api": "unverified",
+    "product": "Vertex AI",
+    "api": "generateContent",
+    "apiVersion": "unverified",
+    "publisher": "google",
+    "modelVersions": "aliases, not pinned versions",
     "processingRegion": "unverified",
     "storageRegion": "unverified",
     "quotaSource": "unverified",
     "pricingSource": "unverified",
-    "latency": "unverified",
+    "latency": "small-n observations, not percentiles",
     "cost": "unverified",
     "iamBehavior": "unverified"
   },
+  "observations": [
+    {
+      "endpoint": "asia-northeast1",
+      "model": "gemini-2.5-flash",
+      "httpStatus": 200,
+      "n": 3,
+      "latencyMs": { "min": 586, "max": 717 }
+    },
+    {
+      "endpoint": "asia-northeast1",
+      "model": "gemini-2.5-pro",
+      "httpStatus": 200,
+      "n": 1,
+      "latencyMs": { "min": 1325, "max": 1325 }
+    },
+    {
+      "endpoint": "asia-northeast1",
+      "model": "gemini-3.8-flash",
+      "httpStatus": 404,
+      "n": 5,
+      "latencyMs": null
+    },
+    {
+      "endpoint": "asia-northeast1",
+      "model": "gemini-4-argon",
+      "httpStatus": 404,
+      "n": 1,
+      "latencyMs": null
+    },
+    {
+      "endpoint": "global",
+      "model": "gemini-3.8-flash",
+      "httpStatus": 200,
+      "n": 3,
+      "latencyMs": { "min": 1148, "max": 1662 }
+    },
+    {
+      "endpoint": "global",
+      "model": "gemini-4-argon",
+      "httpStatus": 200,
+      "n": 1,
+      "latencyMs": { "min": 2290, "max": 2290 }
+    }
+  ],
+  "globalOnlyModels": {
+    "models": ["gemini-3.8-flash", "gemini-4-argon"],
+    "status": "not available in asia-northeast1; global-only; residency exception required (ADR-0003 pins asia-northeast1)"
+  },
   "requestedRegion": "asia-northeast1",
-  "fallback": "Use a verified approved regional endpoint or evaluate an alternative deployment under RFC \u00a74.3; deny inference if no compliant model exists (\u00a76).",
+  "fallback": "Pending the unverified fields above, the pilot fallback is gemini-2.5-flash or gemini-2.5-pro on the asia-northeast1 regional endpoint. The policy layer must deny every other model, region and the global endpoint (RFC §6.4, §13.4).",
   "syntheticFixturesAreLiveEvidence": false,
   "operatorRunbook": "model.md"
 }
