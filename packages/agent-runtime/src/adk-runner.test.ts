@@ -114,6 +114,67 @@ describe('createAdkRunner', () => {
     }
   });
 
+  describe('error normalization', () => {
+    const answering: typeof fetch = () =>
+      Promise.resolve(Response.json({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+    const runnerWith = (beforeModelCall: (model: string) => Promise<void>, maxToolCalls = 4) =>
+      createAdkRunner({
+        model: new FetchLlm({ baseUrl: 'https://llm.test', fetch: answering }),
+        limits: limits({ maxToolCalls }),
+        beforeModelCall,
+      });
+    const input = { question: 'q', sources: [plainSource] };
+
+    it('a limit stop rejects as RunnerError', async () => {
+      await expect(runnerWith(noHook, 0).run(input)).rejects.toBeInstanceOf(RunnerError);
+    });
+
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- tests non-Error rejection
+    const rejectWith = (reason: unknown) => () => Promise.reject(reason);
+
+    it('a cancellation thrown by a hook keeps its RunnerError subtype', async () => {
+      class Cancelled extends RunnerError {}
+      const cancelled = new Cancelled('suspended');
+      await expect(runnerWith(rejectWith(cancelled)).run(input)).rejects.toBe(cancelled);
+    });
+
+    it('a non-Error thrown inside ADK rejects as RunnerError', async () => {
+      const rejection = runnerWith(rejectWith('boom')).run(input);
+      await expect(rejection).rejects.toBeInstanceOf(RunnerError);
+      await expect(rejection).rejects.toThrow('boom');
+    });
+
+    it('a model transport failure rejects as RunnerError', async () => {
+      const runner = createAdkRunner({
+        model: new FetchLlm({
+          baseUrl: 'https://llm.test',
+          fetch: () => Promise.reject(new Error('down')),
+        }),
+        limits: limits(),
+        beforeModelCall: noHook,
+      });
+      await expect(runner.run(input)).rejects.toThrow(new RunnerError('llm unreachable'));
+    });
+
+    it('a raw model error rejects as RunnerError', async () => {
+      const original = new Error('vertex 403');
+      class FailingLlm extends FetchLlm {
+        override async *generateContentAsync(): AsyncGenerator<never, void> {
+          await Promise.resolve();
+          throw original;
+        }
+      }
+      const runner = createAdkRunner({
+        model: new FailingLlm({ baseUrl: 'https://llm.test' }),
+        limits: limits(),
+        beforeModelCall: noHook,
+      });
+      const rejection = runner.run(input);
+      await expect(rejection).rejects.toBeInstanceOf(RunnerError);
+      await expect(rejection).rejects.toThrow('vertex 403');
+    });
+  });
+
   it('native-orchestration: ADK loop feeds the search functionResponse back to the model', async () => {
     const bodies: unknown[] = [];
     const replies = [

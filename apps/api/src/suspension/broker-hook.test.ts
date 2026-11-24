@@ -1,4 +1,4 @@
-import { POLICY_CLAUSES, canonicalPayloadSha256 } from '@agent-works/domain';
+import { canonicalPayloadSha256 } from '@agent-works/domain';
 import { decide } from '@agent-works/policy';
 import { expect, test, vi } from 'vitest';
 
@@ -31,7 +31,6 @@ const input: ExecuteInput = {
   approvalId: 'approval-1',
   actorSub: 'alice',
   traceId: 'trace-1',
-  facts: Object.fromEntries(POLICY_CLAUSES.map((clause) => [clause, true])),
 };
 async function world() {
   const control = createMemorySuspensionLedger();

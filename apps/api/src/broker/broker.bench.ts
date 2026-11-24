@@ -6,7 +6,6 @@ import { decide } from '@agent-works/policy';
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 
 import { createMemoryApprovalStore } from './approvals.js';
-import { allowedFacts } from './broker-harness.js';
 import { TICKET_TOOL, createBroker } from './broker.js';
 import { trustedTestResolver } from './test-authority.js';
 
@@ -64,7 +63,6 @@ export async function measureBroker(): Promise<number> {
       approvalId: `apr-${index}`,
       actorSub: 'alice',
       traceId: 'trace-bench',
-      facts: allowedFacts,
     });
     const elapsed = performance.now() - started;
     if (!result.ok || result.receipt !== `FAKE-${index + 1}`) {

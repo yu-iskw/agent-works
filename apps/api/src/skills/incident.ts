@@ -86,7 +86,7 @@ const { workloadCapability } = ticketCreateManifest.spec.permissions;
 
 /**
  * The broker's server-side authority: the verified session subject, with facts re-derived through
- * `reauthorize` on every resolution. The caller's `actorSub` and `facts` are only claims to compare.
+ * `reauthorize` on every resolution. The caller's `actorSub` is only a claim to compare.
  */
 export function sessionAuthority(
   request: TaskSubmit,
@@ -260,7 +260,6 @@ export function createIncidentSkill(
               approvalId,
               actorSub: authorized.caller.sub,
               traceId: accepted.traceId,
-              facts: binding.facts,
               signal,
             }),
             signal,

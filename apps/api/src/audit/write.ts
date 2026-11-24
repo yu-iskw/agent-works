@@ -1,5 +1,6 @@
 import { auditEventSchema } from '@agent-works/domain';
 
+import type { AskAudit, AuditRun, Audited } from '../application/ask/ports.js';
 import type { AuditEvent } from '@agent-works/domain';
 import type postgres from 'postgres';
 
@@ -10,20 +11,8 @@ export class AuditWriteError extends Error {
   }
 }
 
-type Produced<Reply> = {
-  readonly event: AuditEvent;
-  readonly reply: Reply;
-};
-
-type AskRunResult<Reply> =
-  { readonly kind: 'done'; readonly reply: Reply } | { readonly kind: 'conflict' };
-
-export interface AuditLog {
-  run<Reply>(
-    requestId: string,
-    execute: () => Promise<Produced<Reply>>,
-  ): Promise<AskRunResult<Reply>>;
-}
+/** The Postgres and memory audit logs implement the ask use case's audit port. */
+export type AuditLog = AskAudit;
 
 export type MemoryAuditLog = AuditLog & { rows(): readonly AuditEvent[] };
 
@@ -75,12 +64,12 @@ export function createPostgresAuditLog(sql: postgres.Sql): AuditLog {
 
 async function settle<Reply>(
   owned: boolean,
-  execute: () => Promise<Produced<Reply>>,
-  finishRun: (produced: Produced<Reply>) => Promise<void>,
+  execute: () => Promise<Audited<Reply>>,
+  finishRun: (produced: Audited<Reply>) => Promise<void>,
   releaseRun: () => Promise<void>,
-): Promise<AskRunResult<Reply>> {
+): Promise<AuditRun<Reply>> {
   if (!owned) return { kind: 'conflict' };
-  let produced: Produced<Reply>;
+  let produced: Audited<Reply>;
   try {
     produced = await execute();
   } catch (error) {

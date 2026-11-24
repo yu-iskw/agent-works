@@ -43,16 +43,18 @@ async function runBounded(
 ): Promise<RunnerOutput> {
   // ADK turns any callback or model throw into an error event; keep the original error to rethrow.
   const captured: { failure?: Error } = {};
-  const agent = buildAgent(options, input, captured);
-  const runner = new InMemoryRunner({ agent, appName: 'agent-runtime' });
-  return collectOutput(
-    runner.runEphemeral({
+  let events: AsyncGenerator<Event>;
+  try {
+    const agent = buildAgent(options, input, captured);
+    const runner = new InMemoryRunner({ agent, appName: 'agent-runtime' });
+    events = runner.runEphemeral({
       userId: 'runner',
       newMessage: { role: 'user', parts: [{ text: promptFor(input, memory) }] },
-    }),
-    input,
-    captured,
-  );
+    });
+  } catch (error) {
+    throw asRunnerError(error);
+  }
+  return collectOutput(events, input, captured);
 }
 
 function buildAgent(
@@ -110,12 +112,16 @@ async function collectOutput(
 ): Promise<RunnerOutput> {
   let answer: string | undefined;
   let tokens: TokenUsage | undefined;
-  for await (const event of events) {
-    if (event.errorCode !== undefined) {
-      throw captured.failure ?? new RunnerError(event.errorMessage ?? event.errorCode);
+  try {
+    for await (const event of events) {
+      if (event.errorCode !== undefined) {
+        throw captured.failure ?? new RunnerError(event.errorMessage ?? event.errorCode);
+      }
+      tokens = addTokens(tokens, event);
+      if (isFinalResponse(event) && getFunctionCalls(event).length === 0) answer = textOf(event);
     }
-    tokens = addTokens(tokens, event);
-    if (isFinalResponse(event) && getFunctionCalls(event).length === 0) answer = textOf(event);
+  } catch (error) {
+    throw captured.failure ?? asRunnerError(error);
   }
   if (answer === undefined) throw new RunnerError(budgetExceeded);
   return {
@@ -138,6 +144,12 @@ function addTokens(total: TokenUsage | undefined, event: Event): TokenUsage | un
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new RunnerError(String(error), { cause: error });
+}
+
+function asRunnerError(error: unknown): RunnerError {
+  if (error instanceof RunnerError) return error;
+  const message = error instanceof Error ? error.message : String(error);
+  return new RunnerError(message, { cause: error });
 }
 
 function promptFor(input: RunnerInput, memory?: string): string {

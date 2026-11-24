@@ -16,6 +16,12 @@ export default defineConfig({
         },
       },
       {
+        test: {
+          name: 'architecture',
+          include: ['tests/architecture/**/*.test.ts'],
+        },
+      },
+      {
         resolve: {
           alias: {
             '@agent-works/agent-runtime/port': fileURLToPath(

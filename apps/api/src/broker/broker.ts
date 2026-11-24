@@ -30,8 +30,6 @@ export type ExecuteInput = {
   /** A claim. It must equal the server-resolved subject, else the call is denied. */
   readonly actorSub: string;
   readonly traceId: string;
-  /** A claim. The server-resolved facts replace it. */
-  readonly facts: PolicyFacts;
   readonly signal?: AbortSignal;
 };
 

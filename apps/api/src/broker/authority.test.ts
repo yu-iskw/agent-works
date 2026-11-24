@@ -1,6 +1,6 @@
-import { canonicalPayloadSha256, ticketCreateManifest } from '@agent-works/domain';
+import { canonicalPayloadSha256, ticketCreateManifest, toolCallSchema } from '@agent-works/domain';
 import { decide } from '@agent-works/policy';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { createMemoryLedgerPort } from '../ports/memory/ledger-port.js';
 
@@ -10,7 +10,7 @@ import { TICKET_TOOL, createBroker } from './broker.js';
 
 import type { AuthorityResolution, AuthorityVerdict } from './authority.js';
 import type { ExecuteInput } from './broker.js';
-import type { Approval, Authority, OutboxEvent } from '@agent-works/domain';
+import type { Approval, Authority, OutboxEvent, ToolCall } from '@agent-works/domain';
 import type { DelegationAuthority } from '@agent-works/domain/delegation';
 import type { PolicyFacts } from '@agent-works/policy';
 
@@ -121,7 +121,6 @@ function rig(initial: Resolve = () => granted()) {
       approvalId: 'apr-1',
       actorSub: 'alice',
       traceId: 'trace-1',
-      facts: allow,
       ...patch,
     });
   return { store, state, events, call };
@@ -163,9 +162,10 @@ describe('owner positive controls', () => {
     expect(state.posts).toBe(1);
   });
 
-  it('takes policy facts from the server, so client facts cannot grant or withhold', async () => {
+  it('takes policy facts only from the server: a call carries no facts to claim', async () => {
+    expectTypeOf<ExecuteInput>().not.toHaveProperty('facts');
     const { call, state } = await seeded();
-    expect(await call({ facts: {} })).toMatchObject({ ok: true });
+    expect(await call()).toMatchObject({ ok: true });
     expect(state.posts).toBe(1);
   });
 
@@ -238,11 +238,11 @@ describe('denials never reach the provider', () => {
     expect(await store.read('apr-1')).toMatchObject({ executionsUsed: 0 });
   });
 
-  it('spoofed policy facts: the server denies whatever the client claims', async () => {
+  it('server-resolved facts deny, whatever else the call claims', async () => {
     const { call, state, events } = await seeded(() =>
       granted({ facts: { ...allow, user_or_service_has_resource_authority: false } }),
     );
-    expect(await call({ facts: allow })).toEqual({
+    expect(await call()).toEqual({
       ok: false,
       status: 422,
       code: 'POLICY_DENIED',
@@ -414,5 +414,29 @@ describe('required authority kind', () => {
   it('refuses an approved service workflow for a user-delegated tool', async () => {
     expect(await verdictFor(authority, 'delegated')).toMatchObject({ ok: true });
     expect(await verdictFor(workflow, 'delegated')).toMatchObject({ ok: false });
+  });
+});
+
+describe('ToolCall.authority alignment', () => {
+  type ResolvedAuthority = Extract<AuthorityResolution, { kind: 'granted' }>['authority'];
+  const toolCallAuthority = toolCallSchema.shape.authority;
+
+  it('executes on a granted authority that a ToolCall records unchanged', async () => {
+    expectTypeOf<ToolCall['authority']>().toEqualTypeOf<ResolvedAuthority>();
+    const { call, state } = await seeded();
+    expect(await call()).toMatchObject({ ok: true });
+    expect(state.posts).toBe(1);
+    expect(toolCallAuthority.parse(authority)).toEqual(authority);
+  });
+
+  it.each([
+    ['an unknown kind', { ...authority, kind: 'superuser' }],
+    ['a missing audit reference', { ...authority, auditRef: '' }],
+    ['an extra field', { ...authority, impersonate: 'bob' }],
+  ])('denies %s that a ToolCall could not record', async (_name, shape) => {
+    expect(toolCallAuthority.safeParse(shape).success).toBe(false);
+    const { call, state } = await seeded(() => granted({ authority: shape as Authority }));
+    expect(await call()).toEqual({ ok: false, status: 403, code: 'AUTHORITY_DENIED' });
+    expect(state.posts).toBe(0);
   });
 });
