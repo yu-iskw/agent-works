@@ -27,6 +27,12 @@ export class RunnerError extends Error {
   }
 }
 
+/**
+ * Single-execution contract: each `run` call is one bounded execution with its own usage counters
+ * and limits, sharing no state with other calls. It resolves with one answer or rejects. Runner,
+ * model, ADK, and limit failures reject as `RunnerError`. A hook's error is rethrown as-is, so a
+ * cancellation (a `RunnerError` subclass) keeps its type.
+ */
 export interface AgentRunner {
   run(input: RunnerInput): Promise<RunnerOutput>;
 }
