@@ -12,9 +12,17 @@ import {
   verifyBundle,
   writeBundle,
 } from './build-bundle.mjs';
+import { resolveRuns } from './lib/ci-results.mjs';
 import { formatMarkdown } from './lib/format.mjs';
 import { gateTasks } from './lib/gates.mjs';
-import { declaredStatus, localResult, planDir, resultCounts, scanTasks } from './lib/scan.mjs';
+import {
+  declaredStatus,
+  localResult,
+  planDir,
+  resultCounts,
+  scanTasks,
+  sha256,
+} from './lib/scan.mjs';
 import { parseSecurity } from './lib/security.mjs';
 import { renderGates } from './render-gates.mjs';
 import { renderDecisionStatus, renderOperatorIndex } from './render-index.mjs';
@@ -241,18 +249,18 @@ describe('migration completeness', () => {
   });
 });
 
-describe('stage gate records', () => {
-  const gateConfig = JSON.parse(readFileSync(join(root, 'evals/gate-config.json'), 'utf8'));
-  const metric = { numerator: 10, denominator: 10, value: 1 };
-  const score = {
-    evidence: 'offline-fakes-only',
-    realServicesGatePassed: false,
-    caseCount: 10,
-    security: { leaks: 0, unauthorizedExecutions: 0 },
-    metrics: Object.fromEntries(Object.keys(gateConfig.scoreFloors).map((name) => [name, metric])),
-    byAclGroup: {},
-  };
+const gateConfig = JSON.parse(readFileSync(join(root, 'evals/gate-config.json'), 'utf8'));
+const metric = { numerator: 10, denominator: 10, value: 1 };
+const score = {
+  evidence: 'offline-fakes-only',
+  realServicesGatePassed: false,
+  caseCount: 10,
+  security: { leaks: 0, unauthorizedExecutions: 0 },
+  metrics: Object.fromEntries(Object.keys(gateConfig.scoreFloors).map((name) => [name, metric])),
+  byAclGroup: {},
+};
 
+describe('stage gate records', () => {
   it('G1..G4 verdicts on the real tree are NO-GO or AWAITING_EVIDENCE, never GO', async () => {
     const gates = await renderGates({ root, input, score });
     for (const gate of ['G1', 'G2', 'G3', 'G4']) {
@@ -285,6 +293,158 @@ describe('stage gate records', () => {
       expect(readFileSync(join(opsDir, 'gates', `${gate}.md`), 'utf8')).toBe(
         await formatMarkdown(gates[gate].text, join(opsDir, 'gates', `${gate}.md`)),
       );
+  });
+});
+
+describe('CI test results', () => {
+  const at = Date.parse(base.generatedAt);
+  const invariants = JSON.parse(readFileSync(join(root, 'tools/evals/invariant-map.json'), 'utf8'));
+  const sec04 = invariants.invariants
+    .find((item) => item.id === 'SEC-04')
+    .deterministic.map((item) => item.file);
+  const vitestReport = (statuses, startTime = at - 60_000) => ({
+    startTime,
+    testResults: Object.entries(statuses).map(([file, status]) => {
+      const tests = [status].flat();
+      return {
+        name: join(root, file),
+        status: tests.includes('failed') ? 'failed' : 'passed',
+        assertionResults: tests.map((test) => ({ title: 'case', status: test })),
+      };
+    }),
+  });
+  const playwrightReport = (statuses, { startTime = at - 60_000, errors = [] } = {}) => ({
+    config: { rootDir: join(root, 'e2e') },
+    suites: Object.entries(statuses).map(([file, status]) => ({
+      title: file,
+      file,
+      specs: [{ title: 'case', file, tests: [{ status }] }],
+    })),
+    errors,
+    stats: { startTime: new Date(startTime).toISOString() },
+  });
+  const writeReports = (...bodies) => {
+    const dir = mkdtempSync(join(tmpdir(), 'ops05-ci-'));
+    return bodies.map((body, index) => {
+      const path = join(dir, `report-${index}.json`);
+      writeFileSync(path, typeof body === 'string' ? body : JSON.stringify(body));
+      return path;
+    });
+  };
+  const resolve = (reports, ciSha = sha) =>
+    resolveRuns(root, { ...base, ciResults: { sourceSha: ciSha, reports } });
+  const allPass = (files) => Object.fromEntries(files.map((file) => [file, 'passed']));
+
+  it('keeps explicit runs and records no CI provenance without ciResults', () => {
+    const explicit = { runs: { 'a.test.ts': 'PASS' }, ciResults: null };
+    expect(resolveRuns(root, { ...base, runs: explicit.runs })).toEqual(explicit);
+    expect(resolveRuns(root, { ...base, runs: explicit.runs, ciResults: null })).toEqual(explicit);
+    expect(() => resolve(undefined)).toThrow('ciResults.reports must be an array');
+  });
+
+  it('reads Vitest and Playwright reports: FAIL wins, flaky fails, any skip leaves a file untested', () => {
+    const reports = writeReports(
+      vitestReport({
+        'tools/evals/gate.test.mjs': 'passed',
+        'scripts/release-gate.test.mjs': 'passed',
+        'scripts/acl-01/acl-01.test.mjs': ['passed', 'skipped'],
+      }),
+      vitestReport({
+        'scripts/release-gate.test.mjs': 'failed',
+        'tools/evals/scorer.test.mjs': 'skipped',
+      }),
+      {
+        startTime: at - 60_000,
+        testResults: [
+          {
+            name: join(root, 'scripts/reconcile-audit.test.mjs'),
+            status: 'failed',
+            assertionResults: [],
+          },
+        ],
+      },
+      playwrightReport({
+        'security/approval.spec.ts': 'expected',
+        'adversarial/duplicate-delivery.spec.ts': 'flaky',
+        'security/retrieval.spec.ts': 'skipped',
+      }),
+      vitestReport({ '../outside/escape.test.ts': 'passed' }),
+    );
+    const { runs, ciResults } = resolve(reports);
+    expect(runs).toEqual({
+      'tools/evals/gate.test.mjs': 'PASS',
+      'scripts/release-gate.test.mjs': 'FAIL',
+      'scripts/reconcile-audit.test.mjs': 'FAIL',
+      'e2e/security/approval.spec.ts': 'PASS',
+      'e2e/adversarial/duplicate-delivery.spec.ts': 'FAIL',
+    });
+    expect(ciResults.reports.map((r) => [r.format, r.status, r.files])).toEqual([
+      ['vitest', 'INGESTED', 3],
+      ['vitest', 'INGESTED', 2],
+      ['vitest', 'INGESTED', 1],
+      ['playwright', 'INGESTED', 3],
+      ['vitest', 'EMPTY', 0],
+    ]);
+    expect(ciResults.reports[0].sha256).toBe(sha256(readFileSync(reports[0])));
+  });
+
+  it('adds nothing from a missing, unreadable, stale or errored report', () => {
+    const [fresh, unreadable, old, future, errored] = writeReports(
+      vitestReport(allPass(sec04)),
+      '{ not json',
+      vitestReport(allPass(sec04), at - 2 * 86_400_000),
+      vitestReport(allPass(sec04), at + 60_000),
+      playwrightReport(
+        { 'security/approval.spec.ts': 'expected' },
+        { errors: [{ message: 'SyntaxError in security/identity.forged.spec.ts' }] },
+      ),
+    );
+    const missing = join(dirname(fresh), 'absent.json');
+    const statuses = (result) => result.ciResults.reports.map((r) => r.status);
+    const local = resolve([missing, unreadable, old, future, errored]);
+    expect(local.runs).toEqual({});
+    expect(statuses(local)).toEqual(['MISSING', 'UNREADABLE', 'STALE', 'STALE', 'ERRORED']);
+    const otherCommit = resolve([fresh], 'c'.repeat(40));
+    expect(otherCommit.runs).toEqual({});
+    expect(statuses(otherCommit)).toEqual(['STALE']);
+  });
+
+  it('turns passing CI files into a PASS row while live rows stay UNTESTED and the gate NO-GO', async () => {
+    const [report] = writeReports(vitestReport(allPass(sec04)));
+    const ciResults = { sourceSha: sha, reports: [report] };
+    const { G1 } = await renderGates({ root, input: { ...input, ciResults }, score });
+    expect(G1.text).toMatch(/SEC-04:deterministic[^\n]*\| PASS \|/);
+    expect(G1.text).toMatch(/SEC-01:deterministic[^\n]*\| UNTESTED \|/);
+    expect(G1.text).toMatch(/SEC-04:live[^\n]*\| UNTESTED \|/);
+    expect(G1.text).toMatch(/G1:live:private-ingress[^\n]*AWAITING_OPERATOR/);
+    expect(G1.text).not.toContain('missing evidence: SEC-04:deterministic');
+    expect(G1.text).toContain(`${report}\`: INGESTED (vitest`);
+    expect(G1.verdict).toBe('NO-GO');
+  });
+
+  it('a failing CI file fails its invariant row and blocks the gate', async () => {
+    const [report] = writeReports(vitestReport({ ...allPass(sec04), [sec04[0]]: 'failed' }));
+    const ciResults = { sourceSha: sha, reports: [report] };
+    const { G1 } = await renderGates({ root, input: { ...input, ciResults }, score });
+    expect(G1.text).toMatch(/SEC-04:deterministic[^\n]*\| FAIL \|/);
+    expect(G1.text).toContain('security failure: SEC-04:deterministic');
+  });
+
+  it('binds the ingested runs and their provenance into the bundle digest', () => {
+    const [report] = writeReports(vitestReport(allPass(sec04)));
+    const withCi = buildBundle({
+      ...base,
+      securityInput: passing,
+      ciResults: { sourceSha: sha, reports: [report] },
+    });
+    expect(withCi.invariantMap.deterministicRuns).toEqual(
+      Object.fromEntries(sec04.map((file) => [file, 'PASS'])),
+    );
+    expect(withCi.ciResults.reports).toMatchObject([{ status: 'INGESTED', files: sec04.length }]);
+    expect(verifyBundle(withCi, root)).toEqual([]);
+    const without = buildBundle({ ...base, securityInput: passing });
+    expect(without.ciResults).toBeNull();
+    expect(without.bundleDigest).not.toBe(withCi.bundleDigest);
   });
 });
 

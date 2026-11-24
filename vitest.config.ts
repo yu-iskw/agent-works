@@ -12,7 +12,7 @@ export default defineConfig({
       {
         test: {
           name: 'scripts',
-          include: ['scripts/**/*.test.mjs'],
+          include: ['scripts/**/*.test.mjs', 'tools/**/*.test.mjs'],
         },
       },
       {

@@ -231,7 +231,7 @@ export function createRoutineService(deps: RoutineDeps) {
       const spec = scheduleSpecSchema.safeParse({
         ...proposal.spec,
         id: routineId,
-        consentRef: `grant:${grant.grantId}`,
+        consentRef: `grant:${grant.grantId}/routine:${routineId}`,
       });
       if (!spec.success) return { ok: false, code: 'INVALID_PROPOSAL' };
       const digest = scheduleHash(spec.data);

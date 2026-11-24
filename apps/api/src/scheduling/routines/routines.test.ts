@@ -177,7 +177,9 @@ describe.each(['memory', 'postgres'] as const)('agent-created routines (%s)', (k
     expect(result.routine.sponsor).toBe('alice');
     expect(result.routine.grantId).toBe(t.root.grantId);
     const row = await t.f.store.read('alice', result.routine.routineId);
-    expect(row?.spec.consentRef).toBe(`grant:${t.root.grantId}`);
+    expect(row?.spec.consentRef).toBe(
+      `grant:${t.root.grantId}/routine:${result.routine.routineId}`,
+    );
     t.f.clock.advance(10 * 60_000);
     await t.scheduler.tick();
     expect((await t.f.store.runs(result.routine.routineId)).length).toBe(1);
@@ -319,6 +321,61 @@ describe.each(['memory', 'postgres'] as const)('agent-created routines (%s)', (k
     expect(await t.propose('f4')).toEqual({ ok: false, code: 'FAN_OUT_EXCEEDED' });
     expect((await t.service.cancel(coordinator, ids[0])).ok).toBe(true);
     expect((await t.propose('f4')).ok).toBe(true);
+  });
+
+  it('keeps earlier sibling routines on one grant running after later ones are created', async () => {
+    const t = await setup(kind);
+    const ids: string[] = [];
+    for (const k of ['s1', 's2']) {
+      const r = await t.propose(k);
+      if (!r.ok) throw new Error(r.code);
+      ids.push(r.routine.routineId);
+    }
+    t.f.clock.advance(10 * 60_000);
+    await t.scheduler.tick();
+    for (const id of ids) {
+      expect((await t.f.store.read('alice', id))?.state).toBe('active');
+      expect(await t.f.store.runs(id)).toHaveLength(1);
+    }
+  });
+
+  it('schedules sibling routines whose creations interleave on one grant', async () => {
+    const t = await setup(kind);
+    let arrived = 0;
+    let release = (): void => {};
+    const bothConsented = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const svc = createRoutineService({
+      grants: t.grants,
+      routines: t.routines,
+      activation: ON,
+      now: t.f.clock.now,
+      schedules: createRoutineSchedules({
+        scheduler: {
+          async create(...a) {
+            arrived += 1;
+            if (arrived === 2) release();
+            await bothConsented;
+            return t.scheduler.create(...a);
+          },
+          change: (...a) => t.scheduler.change(...a),
+        },
+        store: t.f.store,
+        consent: t.f.consent,
+      }),
+    });
+    const ask = (key: string) =>
+      svc
+        .propose(coordinator, {
+          grantId: t.root.grantId,
+          idempotencyKey: key,
+          kind: 'recurring',
+          spec: proposalSpec(),
+        })
+        .finally(release);
+    const results = await Promise.all([ask('i1'), ask('i2')]);
+    expect(results.map((r) => (r.ok ? 'ok' : r.code))).toEqual(['ok', 'ok']);
   });
 
   it('treats a repeated creation request as the same routine', async () => {
