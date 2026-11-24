@@ -6,8 +6,6 @@ import { createAdkRunner, FetchLlm } from '@agent-works/agent-runtime';
 import { runnerLimitsSchema, skillManifestSchema } from '@agent-works/domain';
 import { createIncidents, createTicket, handlerFetch } from '@agent-works/fakes';
 
-import { beforeModelCall } from '../../../apps/api/src/suspension/runtime.js';
-
 import { deliverIncident } from './deliver.js';
 import { createSkillLlm } from './skill-llm.js';
 
@@ -197,7 +195,8 @@ function startStack(delayMs = 0): Stack {
   const runner = createAdkRunner({
     model: new FetchLlm({ baseUrl: llmUrl, fetch: route }),
     limits: runnerLimits,
-    beforeModelCall,
+    // The eval runs outside any API invocation, where the suspension gate admits every call.
+    beforeModelCall: () => Promise.resolve(),
   });
   return {
     skill: publishedSkill,

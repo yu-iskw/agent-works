@@ -10,9 +10,9 @@
     {
       "id": "0004",
       "file": "docs/adr/0004-application-core-and-adapter-boundaries.md",
-      "status": "Proposed"
+      "status": "Accepted"
     },
-    { "id": "0005", "file": "docs/adr/0005-agent-runtime-package.md", "status": "Proposed" },
+    { "id": "0005", "file": "docs/adr/0005-agent-runtime-package.md", "status": "Accepted" },
     {
       "id": "0006",
       "file": "docs/adr/0006-curated-marketplace-and-connector-gateway.md",

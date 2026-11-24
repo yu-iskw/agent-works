@@ -93,20 +93,10 @@ const NO_PACKAGE_CYCLES = 'no-package-cycles';
 
 /**
  * The minimal documented exception list. Every entry must still match an import, so a fixed
- * exception has to be removed from here. Rule `no-package-cycles` exempts one edge from cycle
- * detection.
+ * exception has to be removed from here. An entry for rule `no-package-cycles` exempts one edge
+ * from cycle detection.
  */
-export const exceptions: readonly Exception[] = [
-  {
-    rule: NO_PACKAGE_CYCLES,
-    from: 'agents/skills/incident-analysis/eval-run.ts',
-    specifier: '../../../apps/api/src/suspension/runtime.js',
-    reason:
-      'The incident eval binds the API suspension hook into its ADK runner, closing ' +
-      '@agent-works/api -> @agent-works/incident-analysis -> @agent-works/api. ' +
-      'Remove once the hook is injected by the caller instead of imported.',
-  },
-];
+export const exceptions: readonly Exception[] = [];
 
 /* eslint-disable security/detect-unsafe-regex -- runs over this repository's own sources */
 const importPattern =

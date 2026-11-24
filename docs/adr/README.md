@@ -6,3 +6,4 @@
 - [4. Application core and adapter boundaries](0004-application-core-and-adapter-boundaries.md)
 - [5. Agent runtime package](0005-agent-runtime-package.md)
 - [6. Curated marketplace and connector gateway](0006-curated-marketplace-and-connector-gateway.md)
+- [7. Dev C-06 ownership](0007-dev-c-06-ownership.md)

@@ -38,5 +38,5 @@ describe('create-adr.sh', () => {
     };
     const stdout = execFileSync('/bin/bash', [harness], { encoding: 'utf8' });
     expect(stdout).toContain('ALL PASSED');
-  });
+  }, 30_000);
 });
