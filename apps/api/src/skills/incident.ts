@@ -283,7 +283,7 @@ export function createIncidentSkill(
             kind:
               error instanceof AuthorizationDenied
                 ? 'revoked'
-                : deliveryFailure(deadline, execution?.signal),
+                : deliveryFailure(deadline, controller.signal.aborted, execution?.signal),
           };
         } finally {
           clearTimeout(timer);
@@ -352,10 +352,12 @@ async function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T
 
 function deliveryFailure(
   deadline: number,
+  timerFired: boolean,
   signal?: AbortSignal,
 ): 'cancelled' | 'timeout' | 'failed' {
   if (signal?.aborted) return 'cancelled';
-  return Date.now() >= deadline ? 'timeout' : 'failed';
+  // Node can run the deadline timer a millisecond before Date.now() reaches the deadline.
+  return timerFired || Date.now() >= deadline ? 'timeout' : 'failed';
 }
 function executionStopped(deadline: number, execution?: IncidentExecution): boolean {
   return (

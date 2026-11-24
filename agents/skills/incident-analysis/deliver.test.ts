@@ -102,6 +102,15 @@ describe('incident deadline', () => {
     expect(options?.signal?.aborted).toBe(true);
   });
 
+  it('reports a timeout when the deadline timer fires before the clock reaches the deadline', async () => {
+    fetchMock.mockReturnValue(hanging());
+    const result = deliverIncident(inputFor());
+    vi.setSystemTime(-1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(Date.now()).toBeLessThan(1000);
+    expect(await result).toEqual({ kind: 'timeout' });
+  });
+
   it('checks the deadline immediately before ticket invocation', async () => {
     const input = inputFor();
     vi.mocked(input.model.answer).mockImplementation(() => {
