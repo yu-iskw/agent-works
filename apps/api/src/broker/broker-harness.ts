@@ -10,7 +10,7 @@ import { applyApprovalsMigration, createPostgresApprovalStore } from './approval
 import { TICKET_TOOL, createBroker } from './broker.js';
 import { trustedTestResolver } from './test-authority.js';
 
-import type { Broker, ExecuteInput } from './broker.js';
+import type { Broker } from './broker.js';
 import type { Approval, PolicyClause } from '@agent-works/domain';
 import type { PolicyFacts } from '@agent-works/policy';
 import type { Sql } from 'postgres';
@@ -43,7 +43,8 @@ type ExecutePatch = {
   readonly toolRef?: string;
   readonly targetResource?: string;
   readonly payload?: unknown;
-  readonly facts?: ExecuteInput['facts'];
+  /** What the server-side resolver returns for this call; callers cannot claim facts. */
+  readonly resolvedFacts?: PolicyFacts;
 };
 
 export type ApprovalHarness = {
@@ -82,13 +83,13 @@ export async function createApprovalHarness(
       return inner.append(event);
     },
   };
-  let claimedFacts: PolicyFacts = allowedFacts;
+  let resolvedFacts: PolicyFacts = allowedFacts;
   const broker = createBroker({
     store,
     decide,
     ledger,
     approverAuthorized,
-    authorize: trustedTestResolver(() => claimedFacts),
+    authorize: trustedTestResolver(() => resolvedFacts),
     now: () => now,
     async postTicket(body, idempotencyKey) {
       if (!intended) postedEarly = true;
@@ -142,7 +143,7 @@ export async function createApprovalHarness(
       return store.read(id);
     },
     execute(patch = {}) {
-      claimedFacts = patch.facts ?? allowedFacts;
+      resolvedFacts = patch.resolvedFacts ?? allowedFacts;
       return broker.execute({
         id: patch.id ?? 'call-1',
         taskId: patch.taskId ?? 'tsk-1',
@@ -154,7 +155,6 @@ export async function createApprovalHarness(
         approvalId: patch.approvalId ?? 'apr-1',
         actorSub: patch.actorSub ?? 'alice',
         traceId: patch.traceId ?? 'trace-1',
-        facts: claimedFacts,
       });
     },
     posts: () => posts,

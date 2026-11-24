@@ -106,7 +106,6 @@ describe.each(['memory', 'postgres'])('standing authority through the broker on 
         approvalId: `apr-${taskId}`,
         actorSub: patch.actorSub ?? 'alice',
         traceId: 'trace-1',
-        facts: allow,
       });
     };
     const root = await lifecycle.issueRoot(owner, rootRequest());

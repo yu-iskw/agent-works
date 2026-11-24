@@ -180,7 +180,7 @@ it('policy-down does not call the tool', async () => {
   const harness = await createApprovalHarness(database.sql());
   try {
     await harness.save(harness.row());
-    const result = await harness.execute({ facts: {} });
+    const result = await harness.execute({ resolvedFacts: {} });
     expect(result).toEqual({ ok: false, status: 422, code: 'POLICY_DENIED' });
     expect(harness.posts()).toBe(0);
     expect(await harness.tickets()).toBe(0);
