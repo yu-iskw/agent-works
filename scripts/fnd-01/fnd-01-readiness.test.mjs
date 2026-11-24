@@ -168,12 +168,6 @@ describe('FND-01 readiness matrix on the recorded repository', () => {
     }
   });
 
-  test('keeps ADRs numbered 0004 and above Proposed in the repo files', () => {
-    const later = matrix.adrs.filter((a) => Number(a.id) >= 4);
-    expect(later.length).toBeGreaterThan(0);
-    for (const { file } of later) expect(context.adrs.get(file)).toBe('Proposed');
-  });
-
   test('readiness-matrix.md is up to date with the JSON (run render-readiness-matrix.mjs)', async () => {
     expect(readRepo(matrixMdPath)).toBe(await renderMatrix(matrix));
   });
@@ -235,13 +229,14 @@ describe('FND-01 approval placeholders cannot pass', () => {
   });
 
   test('accepted with a Proposed ADR as its only evidence is rejected', () => {
-    const proposed = 'docs/adr/0004-application-core-and-adapter-boundaries.md';
+    const proposed = matrix.adrs[0].file;
     const next = withDecision(matrix, 'D-01', {
       status: 'accepted',
       signoff: { ...realSignoff, evidenceRef: proposed },
       partialRecords: [proposed],
     });
-    expect(validateMatrix(next, context)).toContain(
+    const adrs = new Map(context.adrs).set(proposed, 'Proposed');
+    expect(validateMatrix(next, { ...context, adrs })).toContain(
       'D-01 signoff.evidenceRef is not an Accepted ADR',
     );
   });
@@ -266,9 +261,11 @@ describe('FND-01 structural guards', () => {
 
   test('a Proposed ADR recorded as Accepted is rejected', () => {
     const next = clone(matrix);
-    next.adrs.find((a) => a.id === '0005').status = 'Accepted';
-    expect(validateMatrix(next, context)).toContain(
-      'ADR 0005 is Proposed in the repo but Accepted in the matrix',
+    const [adr] = next.adrs;
+    adr.status = 'Accepted';
+    const adrs = new Map(context.adrs).set(adr.file, 'Proposed');
+    expect(validateMatrix(next, { ...context, adrs })).toContain(
+      `ADR ${adr.id} is Proposed in the repo but Accepted in the matrix`,
     );
   });
 

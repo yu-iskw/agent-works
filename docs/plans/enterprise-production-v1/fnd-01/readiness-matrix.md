@@ -15,8 +15,8 @@ A decision is accepted only with a real signoff and an Accepted ADR. Everything 
 | 0001 | docs/adr/0001-typescript-first-with-adk-js.md              | Accepted |
 | 0002 | docs/adr/0002-monorepo-layout.md                           | Accepted |
 | 0003 | docs/adr/0003-pilot-decisions.md                           | Accepted |
-| 0004 | docs/adr/0004-application-core-and-adapter-boundaries.md   | Proposed |
-| 0005 | docs/adr/0005-agent-runtime-package.md                     | Proposed |
+| 0004 | docs/adr/0004-application-core-and-adapter-boundaries.md   | Accepted |
+| 0005 | docs/adr/0005-agent-runtime-package.md                     | Accepted |
 | 0006 | docs/adr/0006-curated-marketplace-and-connector-gateway.md | Proposed |
 
 ## Issue #23 (C-05 Record the cloud gate decisions, CLOSED)

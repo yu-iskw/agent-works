@@ -1,6 +1,6 @@
 # Contract ownership: `packages/domain` exports
 
-Issue #170. This inventory says which `@agent-works/domain` exports are domain contracts that stay, and which are HTTP transport shapes that belong in `@agent-works/api-contract`. It follows the dependency rule in [ADR 0004](../adr/0004-application-core-and-adapter-boundaries.md) (Proposed). Domain stays free of transport. `api-contract` may depend on domain. Domain never imports `api-contract`; the architecture fitness test from #171 enforces that.
+Issue #170. This inventory says which `@agent-works/domain` exports are domain contracts that stay, and which are HTTP transport shapes that belong in `@agent-works/api-contract`. It follows the dependency rule in [ADR 0004](../adr/0004-application-core-and-adapter-boundaries.md). Domain stays free of transport. `api-contract` may depend on domain. Domain never imports `api-contract`; the architecture fitness test from #171 enforces that.
 
 Consumers were found by scanning imports across the workspace on 2026-11-24 (`apps/*`, `packages/*`, `agents/skills`, `e2e`, `tools`, `scripts`, `evals`).
 
