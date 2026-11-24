@@ -15,8 +15,9 @@ on:
 permissions:
   contents: read
 
+# Pull requests cancel superseded runs. Each main push keeps its own group, so its gate records render.
 concurrency:
-  group: offline-release-gates-${{ github.ref }}
+  group: offline-release-gates-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -89,3 +90,79 @@ jobs:
             e2e/adversarial/results/
           if-no-files-found: error
           retention-days: 7
+
+  # OPS-05: every main push renders G1..G4 from this commit's test results. Deterministic rows
+  # become PASS or FAIL; live and operator rows stay UNTESTED, so no record here is ever GO.
+  gate-records:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.0.5
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages the suites load
+        run: |
+          pnpm --filter @agent-works/api-contract build
+          pnpm --filter "@agent-works/cli..." build
+          pnpm --filter "@agent-works/api..." build
+          pnpm --filter @agent-works/fakes build
+          pnpm exec playwright install --with-deps chromium
+      # A failing test must reach the records as a FAIL row, so these steps never stop the job.
+      - name: Vitest suite with JSON report
+        continue-on-error: true
+        env:
+          RUN_HOLDOUT_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.include_holdout && '1' || '0' }}
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile.json=ci-results/vitest.json
+      - name: Security and adversarial specs with JSON report
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/ci-results/playwright.json
+        run: pnpm exec playwright test --config e2e/playwright.config.ts --project security --project adversarial --reporter=line,json
+      - name: Render gate records and evidence bundle
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p ci-results/gates
+          cat > ci-results/release-input.json <<EOF
+          {
+            "sourceSha": "$SOURCE_SHA",
+            "imageDigests": [],
+            "liveResults": [],
+            "generatedAt": "$(node -p 'new Date().toISOString()')",
+            "ciResults": {
+              "sourceSha": "$SOURCE_SHA",
+              "reports": ["ci-results/vitest.json", "ci-results/playwright.json"]
+            }
+          }
+          EOF
+          node scripts/ops-05/render-gates.mjs ci-results/release-input.json ci-results/gates | tee -a "$GITHUB_STEP_SUMMARY"
+          # Exits 1 when a report was not ingested, which would leave its rows UNTESTED.
+          node scripts/ops-05/build-bundle.mjs ci-results/release-input.json ci-results/bundle | tee ci-results/bundle.log
+      - name: Upload gate records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ops-05-gate-records-${{ github.sha }}
+          path: ci-results/
+          if-no-files-found: error
+          retention-days: 30

@@ -6,6 +6,7 @@ import { loadRuntime } from '../../tools/evals/runtime.mjs';
 import { scoreDataset } from '../../tools/evals/scorer.mjs';
 import { loadDataset } from '../../tools/evals/dataset.mjs';
 import { runStageGate } from '../ops-03/stage-gate.mjs';
+import { resolveRuns } from './lib/ci-results.mjs';
 import { formatMarkdown } from './lib/format.mjs';
 import {
   gateApprovalRoles,
@@ -106,8 +107,24 @@ const priorGateRow = (gate, verdict) =>
     ref: `${ops05}/gates/${gate}.md verdict ${verdict}`,
   });
 
-function appendix(gate, tasks, reasons) {
+function ciSection(gate, ciResults) {
+  if (ciResults === null) return [];
+  return [
+    `## ${gate} CI test results`,
+    '',
+    `Deterministic rows come from these CI reports for ${ciResults.sourceSha}. A missing, unreadable or stale report leaves its rows UNTESTED.`,
+    '',
+    ...ciResults.reports.map(
+      (report) =>
+        `- \`${report.path}\`: ${report.status}${report.format === null ? '' : ` (${report.format}, started ${report.startedAt ?? 'unknown'}, ${report.files} files)`}`,
+    ),
+    '',
+  ];
+}
+
+function appendix(gate, tasks, reasons, ciResults) {
   const lines = [
+    ...ciSection(gate, ciResults),
     `## ${gate} ${gateTitles[gate]}: local task statuses`,
     '',
     'Local means offline repository evidence. READY_FOR_REVIEW is not VALIDATED.',
@@ -158,6 +175,7 @@ export async function renderGates({ root, input, score }) {
       return [item.task, ok ? 'DEFER' : 'UNTESTED'];
     }),
   );
+  const tested = resolveRuns(root, input);
   const out = {};
   for (const gate of ['G1', 'G2', 'G3', 'G4']) {
     const tasks = scanTasks(root, gateTasks[gate], { evidenceOnly: ['ops-05'] });
@@ -173,7 +191,7 @@ export async function renderGates({ root, input, score }) {
       {
         sourceSha: input.sourceSha,
         imageDigests: input.imageDigests ?? [],
-        runs: input.runs ?? {},
+        runs: tested.runs,
         approvers: [],
         liveResults,
         gate: `${gate} ${gateTitles[gate]}`,
@@ -202,7 +220,7 @@ export async function renderGates({ root, input, score }) {
     out[gate] = {
       verdict: result.verdict,
       reasons,
-      text: `${text.trimEnd()}\n\n${appendix(gate, tasks, reasons)}`,
+      text: `${text.trimEnd()}\n\n${appendix(gate, tasks, reasons, tested.ciResults)}`,
     };
   }
   return out;
@@ -213,11 +231,17 @@ async function offlineScore() {
   return scoreDataset(dataset.cases, await (await loadRuntime()).runDataset(dataset.cases));
 }
 
-/** Usage: node scripts/ops-05/render-gates.mjs <input.json> <outDir>. Exit 0 never means GO. */
+/**
+ * Usage: node scripts/ops-05/render-gates.mjs <input.json> <outDir>. Exit 0 never means GO.
+ * The input is the build-bundle input; `ciResults` turns deterministic rows into PASS or FAIL.
+ */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const root = new URL('../../', import.meta.url).pathname.replace(/\/$/, '');
-    const input = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+    const input = {
+      generatedAt: new Date().toISOString(),
+      ...JSON.parse(readFileSync(process.argv[2], 'utf8')),
+    };
     const gates = await renderGates({ root, input, score: await offlineScore() });
     for (const [gate, result] of Object.entries(gates)) {
       const file = join(process.argv[3], `${gate}.md`);

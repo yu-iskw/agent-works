@@ -21,7 +21,7 @@ export function loadInvariantMap(url = mapUrl) {
   return JSON.parse(readFileSync(url, 'utf8'));
 }
 
-function isRepoRelative(file) {
+export function isRepoRelative(file) {
   return typeof file === 'string' && !isAbsolute(file) && !normalize(file).startsWith('..');
 }
 
