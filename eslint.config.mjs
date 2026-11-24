@@ -124,6 +124,7 @@ export default [
       'packages/**/*.config.ts',
       'apps/**/*.config.ts',
       'e2e/**/*.ts',
+      'tests/**/*.ts',
       'agents/skills/**/*.config.ts',
     ],
     ignores: ['**/dist/**'],
