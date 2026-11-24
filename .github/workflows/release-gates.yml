@@ -119,12 +119,9 @@ jobs:
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build packages the suites load
+      - name: Build workspace
         run: |
-          pnpm --filter @agent-works/api-contract build
-          pnpm --filter "@agent-works/cli..." build
-          pnpm --filter "@agent-works/api..." build
-          pnpm --filter @agent-works/fakes build
+          pnpm build
           pnpm exec playwright install --with-deps chromium
       # A failing test must reach the records as a FAIL row, so these steps never stop the job.
       - name: Vitest suite with JSON report

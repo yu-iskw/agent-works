@@ -109,12 +109,14 @@ export async function reconcileIncident(
 function createExecution(input: Pick<DeliverInput, 'deadline' | 'timeoutMs' | 'signal'>) {
   const deadline = input.deadline ?? Date.now() + input.timeoutMs;
   const controller = new AbortController();
-  const expire = () => controller.abort(new Error('incident deadline'));
+  const expired = new Error('incident deadline');
+  const expire = () => controller.abort(expired);
   const cancel = () => controller.abort(new Error('incident cancelled'));
   const timer = setTimeout(expire, Math.max(0, deadline - Date.now()));
   input.signal?.addEventListener('abort', cancel, { once: true });
+  const pastDeadline = () => !Number.isFinite(deadline) || Date.now() >= deadline;
   const check = () => {
-    if (!Number.isFinite(deadline) || Date.now() >= deadline) expire();
+    if (pastDeadline()) expire();
     if (input.signal?.aborted) cancel();
     controller.signal.throwIfAborted();
   };
@@ -122,7 +124,8 @@ function createExecution(input: Pick<DeliverInput, 'deadline' | 'timeoutMs' | 's
     deadline,
     signal: controller.signal,
     failure(): 'timeout' | 'cancelled' | 'failed' {
-      if (!Number.isFinite(deadline) || Date.now() >= deadline) return 'timeout';
+      // Node can run the deadline timer a millisecond before Date.now() reaches the deadline.
+      if (controller.signal.reason === expired || pastDeadline()) return 'timeout';
       return input.signal?.aborted ? 'cancelled' : 'failed';
     },
     async run<T>(operation: () => Promise<T>): Promise<T> {

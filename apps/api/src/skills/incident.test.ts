@@ -157,6 +157,32 @@ describe('incident adapter', () => {
     },
   );
 
+  it('reports a timeout when the deadline timer fires before the clock reaches the deadline', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation((_url, options) =>
+        options?.method === 'POST'
+          ? delayedReceipt({ id: 'ticket-1' }, options.signal)
+          : Promise.resolve(Response.json({ id: 'inc-1', title: 'Latency', note: 'Deployment' })),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const skill = createIncidentSkill(() => ({
+      incidentsUrl: 'https://incidents.test',
+      ticketsUrl: 'https://tickets.test',
+      model: { answer: () => Promise.resolve('summary') },
+    }));
+    await approveSkill(skill);
+    const first = skill
+      .dispatch(submission, accepted, authorizedCaller)
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(0);
+    vi.setSystemTime(Date.now() - 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(Date.now()).toBeLessThan(Date.parse(accepted.submittedAt) + 1000);
+    expect(await first).toBeInstanceOf(Unavailable);
+    expect(skill.result(accepted.taskId)).toEqual({ kind: 'timeout' });
+  });
+
   it('passes a fixed task deadline and cancellation signal', async () => {
     const deliver = vi
       .fn<(input: DeliverInput) => Promise<Delivery>>()
