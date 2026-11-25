@@ -2,9 +2,11 @@
 
 Verdict: **UNVERIFIED / DEFER**. This is a synthetic offline harness. It does not
 establish service availability, launch stage, IAM behavior or permission to deploy.
-Live date, actual region support and maturity are **unverified**. The selected
-pilot region is `asia-northeast1` under [ADR 0003](../../adr/0003-pilot-decisions.md).
-The fabricated `2000-01-01` timestamp identifies fixtures, not a live observation.
+A bounded operator probe on 2026-10-15 observed which models answer on which
+endpoint (see [Live evidence](#live-evidence-2026-10-15-operator-probe)). Launch
+stage, processing region and IAM stay **unverified**. The selected pilot region
+is `asia-northeast1` under [ADR 0003](../../adr/0003-pilot-decisions.md). The
+fabricated `2000-01-01` timestamp identifies fixtures, not a live observation.
 
 ## Evidence and scope
 
@@ -75,20 +77,53 @@ recordings. Logs contain safe reason codes, never evidence payloads.
    demonstrated control failures are NO-GO. Update only this probe's verdict
    after an authorized live evidence review, never the #20 summary here.
 
-## Fallback and remaining evidence
+## Live evidence (2026-10-15 operator probe)
 
-Use a verified approved regional endpoint or evaluate an alternative deployment under RFC §4.3; deny inference if no compliant model exists (§6).
+Source: the [operator comment on #108](https://github.com/yu-iskw/agent-works/issues/108#issuecomment-6187325519).
+An operator ran one short synthetic prompt per call in a sandbox project, with no
+enterprise data. Identities, project identifiers, prompt text and model outputs
+are left out.
 
-| Live evidence field          | Current value |
-| ---------------------------- | ------------- |
-| Observation date             | unverified    |
-| Product and API versions     | unverified    |
-| Actual region availability   | unverified    |
-| Processing/storage region    | unverified    |
-| Service maturity             | unverified    |
-| Quota and pricing references | unverified    |
-| Measured latency and cost    | unverified    |
-| IAM/control behavior         | unverified    |
+| Endpoint          | Model              | Result (n) | Latency (ms, observed) |
+| ----------------- | ------------------ | ---------- | ---------------------- |
+| `asia-northeast1` | `gemini-2.5-flash` | 200 ×3     | 586–717                |
+| `asia-northeast1` | `gemini-2.5-pro`   | 200 ×1     | 1325                   |
+| `asia-northeast1` | `gemini-3.8-flash` | 404 ×5     | —                      |
+| `asia-northeast1` | `gemini-4-argon`   | 404 ×1     | —                      |
+| `global`          | `gemini-3.8-flash` | 200 ×3     | 1148–1662              |
+| `global`          | `gemini-4-argon`   | 200 ×1     | 2290                   |
+
+Latency values are small-n observations, not percentiles.
+A 200 shows that the endpoint served the model, not where inference ran.
+
+`gemini-3.8-flash` and `gemini-4-argon` are **not available in `asia-northeast1`;
+global-only; residency exception required** (ADR 0003 pins `asia-northeast1`).
+
+| Live evidence field          | Current value                                   |
+| ---------------------------- | ----------------------------------------------- |
+| Observation date             | 2026-10-15                                      |
+| Product and API              | Vertex AI `generateContent`, publisher `google` |
+| API version                  | unverified                                      |
+| Model versions               | aliases, not pinned versions                    |
+| Processing/storage region    | unverified                                      |
+| Service maturity             | unverified                                      |
+| Quota and pricing references | unverified                                      |
+| Cost                         | unverified                                      |
+| IAM/control behavior         | unverified (`aw-api` runtime IAM not exercised) |
+
+The P0 discovery `GET` in [ACCEPTANCE_REPORT.md](../../p0/ACCEPTANCE_REPORT.md)
+reported launch stage GA for `gemini-3.8-flash` on `global` only. This probe did
+not establish launch stage for any model.
+
+## Fallback
+
+Pending the unverified rows above, the pilot fallback is `gemini-2.5-flash` or
+`gemini-2.5-pro` on the `asia-northeast1` regional endpoint. The policy layer
+must deny every other model, region and the global endpoint (RFC §6.4, §13.4).
+The service does not do this on its own: the global endpoint served both models
+that return 404 on `asia-northeast1`. The current compose defaults (`global` /
+`gemini-3.8-flash`) do not comply and need a recorded residency exception or a
+switch to the regional 2.5 pair (no tracking issue yet).
 
 The JSON verdict is an offline review artifact, not a #98 transcript. Synthetic
 results must not populate live measurement fields or imply GA. No production
