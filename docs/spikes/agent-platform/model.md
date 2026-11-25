@@ -4,8 +4,9 @@ Verdict: **UNVERIFIED / DEFER**. This is a synthetic offline harness. It does no
 establish service availability, launch stage, IAM behavior or permission to deploy.
 A bounded operator probe on 2026-10-15 observed which models answer on which
 endpoint (see [Live evidence](#live-evidence-2026-10-15-operator-probe)). Launch
-stage, processing region and IAM stay **unverified**. The selected pilot region
-is `asia-northeast1` under [ADR 0003](../../adr/0003-pilot-decisions.md). The
+stage, processing region and IAM stay **unverified**. [ADR 0003](../../adr/0003-pilot-decisions.md)
+pins the pilot to `asia-northeast1`. [ADR 0008](../../adr/0008-vertex-ai-region-and-model.md)
+(Proposed) would move Vertex inference to `global`. The
 fabricated `2000-01-01` timestamp identifies fixtures, not a live observation.
 
 ## Evidence and scope
@@ -62,8 +63,8 @@ recordings. Logs contain safe reason codes, never evidence payloads.
 2. Identify the exact product, SDK/version and API operations. Capture dated
    documentation references for actual Tokyo availability, observed maturity,
    quota and pricing. Record unsupported operations explicitly.
-3. Bind the exact approved model/version and regional endpoint; synthetic-model-v1 is a fixture label, never a deployable model.
-4. Verify inference processing location independently from endpoint hostname; reject disallowed models/regions and global fallback.
+3. Bind the exact approved model ID (the ID is the version) and the endpoint the binding ADR allows; log the response `modelVersion`. synthetic-model-v1 is a fixture label, never a deployable model.
+4. Verify inference processing location independently from endpoint hostname; reject models and endpoints the binding ADR does not allow, including a silent fallback to another endpoint.
 5. Force endpoint failure and confirm no policy bypass; redact sensitive prompt and tokens before writing evidence.
 6. Record tested request API, quota and pricing source, latency samples and measured cost where available. Do not invent numerical estimates.
 7. Strip credentials, user identifiers, emails, raw prompts and raw outputs before
@@ -96,33 +97,40 @@ are left out.
 Latency values are small-n observations, not percentiles.
 A 200 shows that the endpoint served the model, not where inference ran.
 
-`gemini-3.8-flash` and `gemini-4-argon` are **not available in `asia-northeast1`;
-global-only; residency exception required** (ADR 0003 pins `asia-northeast1`).
+On 2026-10-15, `gemini-3.8-flash` and `gemini-4-argon` returned 404 on
+`asia-northeast1` and 200 on `global`. This table is dated evidence. Since then:
+
+- `gemini-2.5-flash` and `gemini-2.5-pro` were retired on 2026-10-20
+  ([lifecycle](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)).
+- `gemini-3.8-flash` has been GA in `asia-northeast1` since 2026-11-09
+  ([release notes](https://docs.cloud.google.com/gemini-enterprise-agent-platform/release-notes)).
+  Nobody has probed it there.
 
 | Live evidence field          | Current value                                   |
 | ---------------------------- | ----------------------------------------------- |
 | Observation date             | 2026-10-15                                      |
 | Product and API              | Vertex AI `generateContent`, publisher `google` |
 | API version                  | unverified                                      |
-| Model versions               | aliases, not pinned versions                    |
+| Model versions               | model IDs; each ID is its only version          |
 | Processing/storage region    | unverified                                      |
 | Service maturity             | unverified                                      |
 | Quota and pricing references | unverified                                      |
 | Cost                         | unverified                                      |
 | IAM/control behavior         | unverified (`aw-api` runtime IAM not exercised) |
 
-The P0 discovery `GET` in [ACCEPTANCE_REPORT.md](../../p0/ACCEPTANCE_REPORT.md)
+On 2026-10-29, the P0 discovery `GET` in [ACCEPTANCE_REPORT.md](../../p0/ACCEPTANCE_REPORT.md)
 reported launch stage GA for `gemini-3.8-flash` on `global` only. This probe did
 not establish launch stage for any model.
 
 ## Fallback
 
-Pending the unverified rows above, the pilot fallback is `gemini-2.5-flash` or
-`gemini-2.5-pro` on the `asia-northeast1` regional endpoint. The policy layer
-must deny every other model, region and the global endpoint (RFC §6.4, §13.4).
-The service does not do this on its own: the global endpoint served both models
-that return 404 on `asia-northeast1`. The compose defaults now use the regional
-2.5 pair (`asia-northeast1` + `gemini-2.5-flash`).
+The old fallback, `gemini-2.5-flash` or `gemini-2.5-pro` on `asia-northeast1`,
+no longer exists, because both models were retired on 2026-10-20.
+[ADR 0008](../../adr/0008-vertex-ai-region-and-model.md) (Proposed) sets the
+model and endpoint. The policy layer must deny every model and endpoint that the
+binding ADR does not allow (RFC §6.4, §13.4). The service does not do this on its
+own: on 2026-10-15 the global endpoint served both models that returned 404 on
+`asia-northeast1`.
 
 The JSON verdict is an offline review artifact, not a #98 transcript. Synthetic
 results must not populate live measurement fields or imply GA. No production

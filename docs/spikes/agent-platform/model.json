@@ -14,7 +14,7 @@
     "api": "generateContent",
     "apiVersion": "unverified",
     "publisher": "google",
-    "modelVersions": "aliases, not pinned versions",
+    "modelVersions": "model IDs; each ID is its only version",
     "processingRegion": "unverified",
     "storageRegion": "unverified",
     "quotaSource": "unverified",
@@ -69,10 +69,10 @@
   ],
   "globalOnlyModels": {
     "models": ["gemini-3.8-flash", "gemini-4-argon"],
-    "status": "not available in asia-northeast1; global-only; residency exception required (ADR-0003 pins asia-northeast1)"
+    "status": "Observed 2026-10-15: 404 on asia-northeast1, 200 on global. gemini-3.8-flash is GA in asia-northeast1 since 2026-11-09 (https://docs.cloud.google.com/gemini-enterprise-agent-platform/release-notes); not probed there."
   },
   "requestedRegion": "asia-northeast1",
-  "fallback": "Pending the unverified fields above, the pilot fallback is gemini-2.5-flash or gemini-2.5-pro on the asia-northeast1 regional endpoint. The policy layer must deny every other model, region and the global endpoint (RFC §6.4, §13.4).",
+  "fallback": "gemini-2.5-flash and gemini-2.5-pro were retired 2026-10-20 (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions), so the old asia-northeast1 fallback is gone. ADR 0008 (Proposed) sets the model and endpoint. The policy layer must deny every model and endpoint the binding ADR does not allow (RFC §6.4, §13.4).",
   "syntheticFixturesAreLiveEvidence": false,
   "operatorRunbook": "model.md"
 }
