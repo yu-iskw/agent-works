@@ -12,12 +12,12 @@ the page or restarting the stack keeps the task, its events, the decision and th
 
 What is real and what is simulated:
 
-| Part              | Status                                                                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| LLM               | **Real.** Vertex AI `gemini-3.8-flash` in `your-gcp-project-id`, location `global`, through your Application Default Credentials. |
-| Google Drive read | **Simulated.** A deterministic fixture corpus with per-document readers (`apps/api/src/workbench/fixture-corpus.ts`).             |
-| Google Docs write | **Simulated.** A fixture Docs store (`wb_fixture_docs`) with idempotency keys. No real document is created.                       |
-| Identity          | **Local only.** A fake IAP proxy signs IAP-shaped JWTs for `alice` and `bob`.                                                     |
+| Part              | Status                                                                                                                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM               | **Real.** Vertex AI `gemini-2.5-flash` in `your-gcp-project-id`, location `asia-northeast1`, through your Application Default Credentials. A global-only model needs a recorded residency exception (ADR-0003). |
+| Google Drive read | **Simulated.** A deterministic fixture corpus with per-document readers (`apps/api/src/workbench/fixture-corpus.ts`).                                                                                           |
+| Google Docs write | **Simulated.** A fixture Docs store (`wb_fixture_docs`) with idempotency keys. No real document is created.                                                                                                     |
+| Identity          | **Local only.** A fake IAP proxy signs IAP-shaped JWTs for `alice` and `bob`.                                                                                                                                   |
 
 The UI labels every simulated surface ("Simulated Workspace", "Simulated write", "Fixture
 Drive"). Live Drive and Docs integration is pending and not claimed anywhere.
@@ -70,8 +70,8 @@ into the containers. Defaults are the authorised values.
 | Variable                      | Default               | Effect                                                                          |
 | ----------------------------- | --------------------- | ------------------------------------------------------------------------------- |
 | `AW_P0_GOOGLE_CLOUD_PROJECT`  | `your-gcp-project-id` | Vertex project                                                                  |
-| `AW_P0_GOOGLE_CLOUD_LOCATION` | `global`              | Vertex location (`gemini-3.8-flash` returns 404 in `us-central1`)               |
-| `AW_P0_VERTEX_MODEL_ID`       | `gemini-3.8-flash`    | Publisher model ID; set to empty to see the not-configured state                |
+| `AW_P0_GOOGLE_CLOUD_LOCATION` | `asia-northeast1`     | Vertex location (ADR-0003); global needs a recorded residency exception         |
+| `AW_P0_VERTEX_MODEL_ID`       | `gemini-2.5-flash`    | Publisher model ID; set to empty to see the not-configured state                |
 | `AW_P0_LLM_MODE`              | `vertex`              | `stub` selects the offline stub model (CI and fixture tests only)               |
 | `AW_P0_MAX_MODEL_CALLS`       | `150`                 | Hard cap on real Vertex requests sent; a non-integer value fails closed to 0    |
 | `AW_P0_FIXTURE_FAULTS`        | `0`                   | `1` enables `[fixture:…]` and `[stub:…]` fault markers for tests                |
@@ -174,7 +174,7 @@ flowchart LR
   API --> SVC[workbench service<br/>state machine]
   W[worker loop<br/>lease, concurrency 1] --> SVC
   W --> WS[fixture Workspace<br/>Drive read, Docs write]
-  W --> GATE[model gate] --> VX[Vertex AI<br/>gemini-3.8-flash]
+  W --> GATE[model gate] --> VX[Vertex AI<br/>gemini-2.5-flash]
   SVC --> PG[(Postgres<br/>wb_* tables)]
   WS --> PG
   ADC[(~/.config/gcloud<br/>read-only)] -.mounted only into.-> API
@@ -267,7 +267,7 @@ real double-submit token and origin). Another owner's task returns **404**, neve
 | Symptom                                                   | Fix                                                                                               |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Connections shows `adc_unavailable`                       | Run `gcloud auth application-default login`, then `pnpm p0:up`.                                   |
-| `model_not_found`                                         | Check `AW_P0_GOOGLE_CLOUD_LOCATION` is `global`; the model is not served in `us-central1`.        |
+| `model_not_found`                                         | Unset old model or location overrides. Global needs a recorded ADR-0003 residency exception.      |
 | `permission_denied` / `api_disabled` / `billing_disabled` | Grant `roles/aiplatform.user`, enable `aiplatform.googleapis.com`, or fix billing on the project. |
 | `budget_exhausted`                                        | Raise `AW_P0_MAX_MODEL_CALLS` deliberately.                                                       |
 | UI shows old code after a change                          | `pnpm p0:up` force-recreates app services; plain `docker compose up` does not restart them.       |

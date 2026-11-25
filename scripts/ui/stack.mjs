@@ -12,7 +12,7 @@ export const UI = Object.freeze({
   campaign: 'ui-2026-10',
   callsPerSegment: '300',
   concurrency: '2',
-  modelId: 'gemini-3.8-flash',
+  modelId: 'gemini-2.5-flash',
   llmMode: 'vertex',
 });
 

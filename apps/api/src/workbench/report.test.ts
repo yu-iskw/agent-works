@@ -122,24 +122,28 @@ describe('vertex adapter', () => {
     });
   });
 
-  it('asks for the requested thinking level and leaves it unset otherwise', async () => {
+  it.each([
+    ['gemini-3.8-flash', { thinkingLevel: 'low' }],
+    ['gemini-2.5-flash', { thinkingBudget: 1024 }],
+  ])('asks %s for low thinking and leaves it unset otherwise', async (modelId, expected) => {
     const sent: unknown[] = [];
     const ok = JSON.stringify({
-      modelVersion: 'gemini-3.8-flash',
+      modelVersion: modelId,
       candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{}' }] } }],
     });
-    const model = createVertexModel(config, {
-      authHeaders: () => Promise.resolve({}),
-      fetch: (_url, init) => {
-        sent.push(JSON.parse(init?.body as string));
-        return Promise.resolve(new Response(ok));
+    const model = createVertexModel(
+      { ...config, modelId },
+      {
+        authHeaders: () => Promise.resolve({}),
+        fetch: (_url, init) => {
+          sent.push(JSON.parse(init?.body as string));
+          return Promise.resolve(new Response(ok));
+        },
       },
-    });
+    );
     await model.generate({ system: 's', prompt: 'p', thinking: 'low' });
     await model.generate({ system: 's', prompt: 'p' });
-    expect(sent[0]).toMatchObject({
-      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
-    });
+    expect(sent[0]).toHaveProperty('generationConfig.thinkingConfig', expected);
     expect(sent[1]).not.toHaveProperty('generationConfig.thinkingConfig');
   });
 

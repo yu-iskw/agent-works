@@ -121,9 +121,8 @@ Pending the unverified rows above, the pilot fallback is `gemini-2.5-flash` or
 `gemini-2.5-pro` on the `asia-northeast1` regional endpoint. The policy layer
 must deny every other model, region and the global endpoint (RFC §6.4, §13.4).
 The service does not do this on its own: the global endpoint served both models
-that return 404 on `asia-northeast1`. The current compose defaults (`global` /
-`gemini-3.8-flash`) do not comply and need a recorded residency exception or a
-switch to the regional 2.5 pair (no tracking issue yet).
+that return 404 on `asia-northeast1`. The compose defaults now use the regional
+2.5 pair (`asia-northeast1` + `gemini-2.5-flash`).
 
 The JSON verdict is an offline review artifact, not a #98 transcript. Synthetic
 results must not populate live measurement fields or imply GA. No production
