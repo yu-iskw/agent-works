@@ -14,7 +14,7 @@ By Yu's decision (2026-10-30), M1 is **mock-only** apart from the model. Real si
 
 | Part                          | Status                                                                                                                                                                                                                                                                                                      |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                         | **Real.** Vertex AI `gemini-3.8-flash`, project `your-gcp-project-id`, location `global`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. The segment APIs have no stub, replay or fallback model.                                                                                 |
+| Model                         | **Real.** Vertex AI `gemini-2.5-flash`, project `your-gcp-project-id`, location `asia-northeast1`, through host ADC mounted read-only into `api-alpha` and `api-beta` only. A global-only model needs a recorded residency exception (ADR-0003). No stub, replay or fallback model.                         |
 | Member identity               | **Mock.** `alice@local.test` and `bob@local.test`, labelled "Mock identity" on every page. The segment APIs accept assertions only from the issuer matching their mode, so a mock identity can never pass as a Google one. The Google OpenID Connect code is built and unit-tested but not exercised in M1. |
 | Drive, Docs, BigQuery, GitHub | **Fixture or mock.** Sources are the seed files in `fixtures/m1/`, and every item says `FIXTURE (local seed file, not a live service)`. Publishing goes to a fixture document store labelled "not Google Docs". The Connections page says Google and GitHub are mocked.                                     |
 
@@ -55,7 +55,7 @@ flowchart LR
   BB --> PB[(pg-beta)]
   WEB --> PW[(pg-web<br/>sessions)]
   A & BB -->|member token| SRC[Drive / Docs / BigQuery / GitHub]
-  A & BB -->|ADC, read-only mount| VX[Vertex AI gemini-3.8-flash]
+  A & BB -->|ADC, read-only mount| VX[Vertex AI gemini-2.5-flash]
 ```
 
 - `packages/domain/src/teamwork*.ts` holds the shared model and pure rules: task and assignment transition tables, schemas, capability intersection, claim-support checks, revision diff, the portable-definition allowlist, and the inbox reducer.
@@ -99,7 +99,7 @@ Per-call output caps are 4096 tokens for plans, 6144 for contributions, 8192 for
 | Symptom                                   | Fix                                                                                           |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Model `adc_unavailable`                   | `gcloud auth application-default login`, then `pnpm m1:up`.                                   |
-| `model_not_found`                         | Location must be `global`; the model is not served in `us-central1`.                          |
+| `model_not_found`                         | Unset old model or location overrides. Global needs a recorded ADR-0003 residency exception.  |
 | `budget_exhausted`                        | The ledger cap was reached. Raising it is Yu's decision, never automatic.                     |
 | Connection shows `scopes_missing`         | Reconnect and keep every requested permission checked on Google's consent screen.             |
 | `connection_account_mismatch`             | Connect the same Google account you signed in with.                                           |

@@ -7,7 +7,7 @@ export type GenerateRequest = {
   /** Per-call output cap; the adapter's configured cap applies when unset. */
   readonly maxOutputTokens?: number;
   /**
-   * Gemini 3 counts thinking against the output cap and the timeout. Writing a whole artifact
+   * Gemini counts thinking against the output cap and the timeout. Writing a whole artifact
    * needs little deliberation, so those calls ask for low thinking.
    */
   readonly thinking?: 'low' | 'high';

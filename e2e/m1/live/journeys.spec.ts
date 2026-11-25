@@ -51,7 +51,7 @@ async function provenance(segment: Segment, taskId: string) {
   >`
     select distinct source_kind, source_id, source_revision, provenance from wb_evidence where task_id = ${taskId}`;
   expect(
-    calls.every((c) => c.model_version.startsWith('gemini-3.8-flash')),
+    calls.every((c) => c.model_version.startsWith('gemini-2.5-flash')),
     'every call answered by the requested model',
   ).toBe(true);
   expect(

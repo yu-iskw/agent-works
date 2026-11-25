@@ -84,6 +84,12 @@ type VertexBody = {
   readonly error?: { readonly status?: string; readonly message?: string };
 };
 
+/** Gemini 2.x takes a token budget for thinking; Gemini 3 takes a level. -1 lets 2.x choose. */
+function thinkingConfig(modelId: string, level: NonNullable<GenerateRequest['thinking']>) {
+  if (!modelId.startsWith('gemini-2.')) return { thinkingLevel: level };
+  return { thinkingBudget: level === 'low' ? 1024 : -1 };
+}
+
 function body(config: VertexConfig, request: GenerateRequest) {
   return {
     systemInstruction: { parts: [{ text: request.system }] },
@@ -96,7 +102,7 @@ function body(config: VertexConfig, request: GenerateRequest) {
       temperature: 0.2,
       ...(request.thinking === undefined
         ? {}
-        : { thinkingConfig: { thinkingLevel: request.thinking } }),
+        : { thinkingConfig: thinkingConfig(config.modelId, request.thinking) }),
       ...(request.jsonSchema === undefined
         ? {}
         : { responseMimeType: 'application/json', responseSchema: request.jsonSchema }),

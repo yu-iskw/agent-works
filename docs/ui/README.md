@@ -6,7 +6,7 @@ The binding contract is [`reference/IMPLEMENTATION_PROMPT.md`](reference/IMPLEME
 
 | Concern                | Mode                                                                                                                                                                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                  | Real Vertex AI `gemini-3.8-flash`, location `global`, from `api-alpha` and `api-beta` only. No scripted, stub or replayed model.                                                                                                          |
+| Model                  | Real Vertex AI `gemini-2.5-flash`, location `asia-northeast1`, from `api-alpha` and `api-beta` only. No scripted, stub or replayed model.                                                                                                 |
 | Identity               | Simulated. Mock members: `alice@local.test` and `bob@local.test` for tests, `carol@local.test` for visual baselines, and `review1@local.test` to `review3@local.test`, one clean account per usability session. The sign-in page says so. |
 | Sources                | Simulated. Fixture files from the repository, labelled as demo sources.                                                                                                                                                                   |
 | Google Docs publishing | Simulated. The fixture document store; no live write.                                                                                                                                                                                     |
@@ -62,7 +62,7 @@ Only names are ever printed, never values.
 
 ## Real-model setup
 
-- Project and location come from `AW_M1_GOOGLE_CLOUD_PROJECT` (default `your-gcp-project-id`) and `AW_M1_GOOGLE_CLOUD_LOCATION` (default `global`). `gemini-3.8-flash` is served from `global`.
+- Project and location come from `AW_M1_GOOGLE_CLOUD_PROJECT` (default `your-gcp-project-id`) and `AW_M1_GOOGLE_CLOUD_LOCATION` (default `asia-northeast1`, per ADR-0003). The default model is `gemini-2.5-flash`. A global-only model needs a recorded residency exception under ADR-0003.
 - The ADC identity needs `roles/aiplatform.user` on that project, and `aiplatform.googleapis.com` must be enabled.
 - The doctor checks the file exists and the mount expands; the smoke (`--vertex`) is the only check that proves the model answers, and it costs one call per segment. The runner records the served model version from the response and refuses another model family.
 - Browser suites read `LLM_MODE`, `VERTEX_MODEL_ID`, `AW_MODEL_CAMPAIGN` and the ADC presence from the running containers before starting and exit non-zero on any mismatch.
@@ -96,7 +96,7 @@ The ledger is `wb_model_calls` in each segment database. Migration `0020` adds a
 | `timeout` or `unreachable`              | Retry the task; check the container can reach `aiplatform.googleapis.com`.                                                              |
 | `budget_exhausted`                      | The 300-call campaign cap for that segment is reached. Raising it is an operator decision.                                              |
 | `wb_model_calls has no campaign column` | The running stack predates this branch. `pnpm ui:up` applies migration `0020`.                                                          |
-| `Refusing to run browser tests`         | The running containers are not on `LLM_MODE=vertex`, `gemini-3.8-flash` and campaign `ui-2026-10`. `pnpm ui:up` from this branch.       |
+| `Refusing to run browser tests`         | The running containers are not on `LLM_MODE=vertex`, `gemini-2.5-flash` and campaign `ui-2026-10`. `pnpm ui:up` from this branch.       |
 | `UI commands refuse AW_M1_LLM_MODE=...` | Unset it. Scripted mode belongs to `pnpm m1:ux` only.                                                                                   |
 | Toolbox fails with missing modules      | Another `pnpm install` is running in the same volumes; wait and retry.                                                                  |
 | ADC unreadable on Linux                 | The scripts pass `HOST_UID`/`HOST_GID`; export them when running Compose by hand.                                                       |
