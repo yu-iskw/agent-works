@@ -26,7 +26,7 @@ The `/port` entry point exports the port without loading ADK, so evaluation code
 - Dependency direction is one way. The package does not import `apps/api` or the CLI.
 - The ADK-specific types stay inside the package. The port uses framework-neutral types, consistent with ADR 0004.
 - Other frameworks can integrate by implementing `AgentRunner` or by emitting v1 observations.
-- This record stays Proposed until a human accepts it. The rationale is recorded here rather than in the spec, so the spec stays unchanged.
+- The rationale is recorded here rather than in the spec, so the spec stays unchanged.
 
 ## Alternatives considered
 
@@ -40,4 +40,4 @@ Rejected because the budget, tool-call and error mapping would diverge across th
 
 ## Validation
 
-This record remains Proposed until the package has passed the offline gate and its runner is shared by all three callers. If the package stops having at least three callers, or if its exception to A10 is no longer needed, amend or reject this record rather than keeping the package by default.
+This record was accepted on 2026-11-24 (#198). Its acceptance gate was that the package has passed the offline gate and its runner is shared by all three callers. The runner is now shared by `apps/api`, `tools/evals` and `agents/skills/incident-analysis`. If the package stops having at least three callers, or if its exception to A10 is no longer needed, amend or reject this record rather than keeping the package by default.

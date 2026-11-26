@@ -104,7 +104,7 @@ On 2026-10-15, `gemini-3.8-flash` and `gemini-4-argon` returned 404 on
   ([lifecycle](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)).
 - `gemini-3.8-flash` has been GA in `asia-northeast1` since 2026-11-09
   ([release notes](https://docs.cloud.google.com/gemini-enterprise-agent-platform/release-notes)).
-  Nobody has probed it there.
+  It still returned 404 there on 2026-11-26 ([probe](#live-evidence-2026-11-26-operator-probe)).
 
 | Live evidence field          | Current value                                   |
 | ---------------------------- | ----------------------------------------------- |
@@ -122,10 +122,40 @@ On 2026-10-29, the P0 discovery `GET` in [ACCEPTANCE_REPORT.md](../../p0/ACCEPTA
 reported launch stage GA for `gemini-3.8-flash` on `global` only. This probe did
 not establish launch stage for any model.
 
+## Live evidence (2026-11-26 operator probe)
+
+An operator ran one short synthetic prompt per call at 14:07 JST, with a small
+`maxOutputTokens`, Application Default Credentials and no enterprise data.
+Identities, project identifiers, prompt text and model outputs are left out.
+The operator's raw record is kept outside this repository.
+
+| Endpoint          | Model               | Request options        | Result          | Latency (ms, observed) | Response `modelVersion` |
+| ----------------- | ------------------- | ---------------------- | --------------- | ---------------------- | ----------------------- |
+| `global`          | `gemini-4-hydrogen` | `thinkingLevel: HIGH`  | 200             | 1443                   | `gemini-4-hydrogen`     |
+| `global`          | `gemini-4-hydrogen` | `thinkingLevel: LOW`   | 200             | 1992                   | `gemini-4-hydrogen`     |
+| `global`          | `gemini-4-hydrogen` | `thinkingLevel: "low"` | 200             | 1461                   | `gemini-4-hydrogen`     |
+| `global`          | `gemini-4-hydrogen` | `temperature: 0.2`     | 200             | 1444                   | `gemini-4-hydrogen`     |
+| `global`          | `gemini-3.8-flash`  | `thinkingLevel: HIGH`  | 200             | 2108                   | `gemini-3.8-flash`      |
+| `asia-northeast1` | `gemini-2.5-flash`  | default                | 200             | 663                    | `gemini-2.5-flash`      |
+| `asia-northeast1` | `gemini-3.8-flash`  | default                | 404 `NOT_FOUND` | 209                    | —                       |
+
+Each row is one call. Latency values are single observations, not percentiles.
+A 200 shows that the endpoint served the model, not where inference ran.
+
+- `gemini-4-hydrogen` accepted `thinkingLevel` in uppercase and lowercase.
+  Lowercase was not tried on `gemini-3.8-flash`.
+- `gemini-2.5-flash` still answered on `asia-northeast1`, although the
+  [lifecycle](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)
+  page lists its retirement on 2026-10-20.
+- `gemini-3.8-flash` still returned 404 on `asia-northeast1`, after its
+  2026-11-09 GA there in the release notes.
+
 ## Fallback
 
 The old fallback, `gemini-2.5-flash` or `gemini-2.5-pro` on `asia-northeast1`,
-no longer exists, because both models were retired on 2026-10-20.
+is retired: the lifecycle page lists both models as retired on 2026-10-20, even
+though `gemini-2.5-flash` still answered there on 2026-11-26
+([probe](#live-evidence-2026-11-26-operator-probe)).
 [ADR 0008](../../adr/0008-vertex-ai-region-and-model.md) (Proposed) sets the
 model and endpoint. The policy layer must deny every model and endpoint that the
 binding ADR does not allow (RFC §6.4, §13.4). The service does not do this on its

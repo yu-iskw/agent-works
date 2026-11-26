@@ -32,7 +32,7 @@ The ADK implementation translates between the application runner contract and AD
 
 Tool execution requested by an agent must use the same policy, authority, approval, suspension, idempotency, and audit controls as tool execution initiated by deterministic workflows. An ADK function/tool callback is not an authorization boundary.
 
-The API application is the composition root for the current modular monolith. The ADK implementation may initially remain physically inside `apps/api` while the boundary is established and tested; moving it to a dedicated workspace package requires demonstrated dependency or reuse value.
+The API application is the composition root for the current modular monolith. The ADK implementation may initially remain physically inside `apps/api` while the boundary is established and tested; moving it to a dedicated workspace package requires demonstrated dependency or reuse value. [ADR 0005](0005-agent-runtime-package.md) moved it to `packages/agent-runtime`.
 
 Managed Agent Runtime compatibility remains subject to C-02. This architectural boundary is not evidence that managed hosting has been validated.
 
