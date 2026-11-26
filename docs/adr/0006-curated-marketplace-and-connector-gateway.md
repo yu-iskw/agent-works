@@ -8,7 +8,7 @@ Proposed
 
 ## Context
 
-The platform needs curated marketplaces (connectors, team bots, MCP servers, A2A agents) and a way for workspace admins to govern which connector capabilities agents may use. Today the available capabilities are a static env allowlist (`AW_SEGMENT_CAPABILITIES`), snapshotted into `tw_assignments.capabilities` at dispatch. Source fetches and `docs.publish` do not recheck activation at call time. The flagship broker (`apps/api/src/connectors/broker.ts`) dispatches tools through a hard-coded `switch`.
+The platform needs curated marketplaces (connectors, team bots, MCP servers, A2A agents) and a way for workspace admins to govern which connector capabilities agents may use. When this record was written, the available capabilities were a static env allowlist (`AW_SEGMENT_CAPABILITIES`), snapshotted into `tw_assignments.capabilities` at dispatch. Source fetches and `docs.publish` did not recheck activation at call time. The flagship broker (`apps/api/src/connectors/broker.ts`) dispatched tools through a hard-coded `switch`.
 
 Existing pieces are reused rather than replaced: the teamwork skill and template catalog, `toolManifestSchema`, `capabilityStates`, `tokenSource` and sealed `tw_connections`, the segment `wb_approvals` and flagship approval stores, `tw_audit`, and the flagship broker's authorization order.
 

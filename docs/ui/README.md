@@ -91,7 +91,7 @@ The ledger is `wb_model_calls` in each segment database. Migration `0020` adds a
 | Model `adc_unavailable`                 | Same as above; the file expired or lives in another `GCLOUD_CONFIG_DIR`.                                                                |
 | `api_disabled`                          | Enable `aiplatform.googleapis.com` on the configured project.                                                                           |
 | `permission_denied`                     | Grant `roles/aiplatform.user` to the ADC identity on the project.                                                                       |
-| `model_not_found`                       | Location must be `global`. Changing the model is a decision for the operator; the runner refuses a substitute.                          |
+| `model_not_found`                       | Model retired or not served at this location. Changing the model is a decision for the operator; the runner refuses a substitute.       |
 | `rate_limited`                          | Quota. Wait and retry; the retry counts.                                                                                                |
 | `timeout` or `unreachable`              | Retry the task; check the container can reach `aiplatform.googleapis.com`.                                                              |
 | `budget_exhausted`                      | The 300-call campaign cap for that segment is reached. Raising it is an operator decision.                                              |

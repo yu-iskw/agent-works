@@ -7,3 +7,4 @@
 - [5. Agent runtime package](0005-agent-runtime-package.md)
 - [6. Curated marketplace and connector gateway](0006-curated-marketplace-and-connector-gateway.md)
 - [7. Dev C-06 ownership](0007-dev-c-06-ownership.md)
+- [8. Vertex AI region and model](0008-vertex-ai-region-and-model.md)
