@@ -589,7 +589,7 @@ async function assertExecution(
   );
   for (const a of assignments) {
     expect(a.status, a.key).toBe('succeeded');
-    expect(a.modelVersion, a.key).toMatch(/^gemini-2\.5-flash/);
+    expect(a.modelVersion, a.key).toBe('gemini-4-hydrogen');
     expect(a.responseId, a.key).toMatch(/\S/);
     if (planDecidedAt !== null)
       expect((a.startedAt ?? '') >= planDecidedAt, `${a.key} started after approval`).toBe(true);

@@ -6,7 +6,7 @@ A bounded operator probe on 2026-10-15 observed which models answer on which
 endpoint (see [Live evidence](#live-evidence-2026-10-15-operator-probe)). Launch
 stage, processing region and IAM stay **unverified**. [ADR 0003](../../adr/0003-pilot-decisions.md)
 pins the pilot to `asia-northeast1`. [ADR 0008](../../adr/0008-vertex-ai-region-and-model.md)
-(Proposed) would move Vertex inference to `global`. The
+(Accepted) moves Vertex inference to `global`. The
 fabricated `2000-01-01` timestamp identifies fixtures, not a live observation.
 
 ## Evidence and scope
@@ -156,7 +156,7 @@ The old fallback, `gemini-2.5-flash` or `gemini-2.5-pro` on `asia-northeast1`,
 is retired: the lifecycle page lists both models as retired on 2026-10-20, even
 though `gemini-2.5-flash` still answered there on 2026-11-26
 ([probe](#live-evidence-2026-11-26-operator-probe)).
-[ADR 0008](../../adr/0008-vertex-ai-region-and-model.md) (Proposed) sets the
+[ADR 0008](../../adr/0008-vertex-ai-region-and-model.md) (Accepted) sets the
 model and endpoint. The policy layer must deny every model and endpoint that the
 binding ADR does not allow (RFC §6.4, §13.4). The service does not do this on its
 own: on 2026-10-15 the global endpoint served both models that returned 404 on

@@ -1,7 +1,10 @@
 import { readVertexConfig } from '@agent-works/agent-runtime';
+import { isRequestedModel } from '@agent-works/domain/teamwork-evidence';
 
 import { ModelError } from './model-port.js';
 import { createVertexModel } from './vertex.js';
+
+import type { GenerateRequest } from './model-port.js';
 
 // G1 real-model check, run inside the api container: one bounded call through the production
 // adapter. Fails closed on stub mode, missing config, or a model other than the configured one.
@@ -16,9 +19,10 @@ const config = readVertexConfig(process.env);
 if ('missing' in config) fail('not_configured', { missing: config.missing });
 const model = createVertexModel({ ...config, maxOutputTokens: 256 });
 const transient = new Set(['timeout', 'unavailable', 'rate_limited', 'unreachable']);
-const request = {
+const request: GenerateRequest = {
   system: 'You are a connectivity check. Answer with one lowercase word.',
   prompt: 'Reply with: ok',
+  thinking: 'low',
 };
 let attempts = 1;
 try {
@@ -29,7 +33,7 @@ try {
     return model.generate(request);
   });
   if (model.mode !== 'vertex') fail('not_vertex');
-  if (!result.modelVersion.startsWith(config.modelId))
+  if (!isRequestedModel(config.modelId, result.modelVersion))
     fail('model_mismatch', { configuredModel: config.modelId, modelVersion: result.modelVersion });
   if (result.responseId === undefined) fail('no_response_id');
   console.log(

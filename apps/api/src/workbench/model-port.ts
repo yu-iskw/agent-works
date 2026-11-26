@@ -8,7 +8,7 @@ export type GenerateRequest = {
   readonly maxOutputTokens?: number;
   /**
    * Gemini counts thinking against the output cap and the timeout. Writing a whole artifact
-   * needs little deliberation, so those calls ask for low thinking.
+   * needs little deliberation, so those calls ask for low thinking. Unset means high (ADR 0008).
    */
   readonly thinking?: 'low' | 'high';
   /** The retrieved items the prompt describes; only the offline stub reads it. */
