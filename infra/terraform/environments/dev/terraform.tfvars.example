@@ -8,3 +8,17 @@ state_bucket = "PROJECT_ID-tfstate"
 terraform_service_account = "aw-tf-dev@PROJECT_ID.iam.gserviceaccount.com"
 # Supply reviewed digest-pinned images after foundations and manual secret versions.
 images = {}
+# aw-api calls Vertex AI on the global endpoint with gemini-4-hydrogen. ADR-0008
+# (docs/adr/0008-vertex-ai-region-and-model.md) is the recorded residency exception for model
+# calls only; Cloud Run, Cloud SQL, IAP and every other resource here stay in asia-northeast1.
+# Merge these keys into the rest of aw-api's env (DATABASE_URL, IAP_*, ...); deploy-dev.yml
+# refuses an aw-api without AW_MODE = "production".
+# service_env = {
+#   api = {
+#     AW_MODE               = "production"
+#     GOOGLE_CLOUD_PROJECT  = "PROJECT_ID"
+#     GOOGLE_CLOUD_LOCATION = "global"
+#     VERTEX_MODEL_ID       = "gemini-4-hydrogen"
+#     LLM_MODE              = "vertex"
+#   }
+# }

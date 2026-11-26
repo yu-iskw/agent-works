@@ -1,0 +1,154 @@
+# Copyright 2026 yu-iskw
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# yamllint disable rule:line-length rule:document-start rule:truthy rule:comments
+
+name: Build Dev Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (dev only)
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+      sha:
+        description: Full 40-hex commit SHA on origin/main to build
+        required: true
+        type: string
+
+permissions: read-all
+
+concurrency:
+  group: build-images-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  build-dev-images:
+    name: build-dev-images
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.environment == 'dev'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      api_image: ${{ steps.push.outputs.api_image }}
+      web_image: ${{ steps.push.outputs.web_image }}
+    env:
+      REGISTRY: asia-northeast1-docker.pkg.dev
+      TF_PROJECT_ID: ${{ vars.TF_PROJECT_ID }}
+      DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
+      BUILD_SHA: ${{ inputs.sha }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate inputs and check out the commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Refusing build: sha must be 40-char lowercase hex." >&2
+            exit 1
+          fi
+          if [[ -z "$TF_PROJECT_ID" || "$DEPLOYER_SA" != "aw-deployer@${TF_PROJECT_ID}.iam.gserviceaccount.com" ]]; then
+            echo "Refusing build: TF_PROJECT_ID must be set and DEPLOYER_SA must be aw-deployer@<TF_PROJECT_ID>.iam.gserviceaccount.com." >&2
+            exit 1
+          fi
+
+          if ! git cat-file -e "${BUILD_SHA}^{commit}" 2>/dev/null; then
+            echo "Refusing build: commit ${BUILD_SHA} not found." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$BUILD_SHA" origin/main; then
+            echo "Refusing build: ${BUILD_SHA} not on origin/main." >&2
+            exit 1
+          fi
+          if ! git cat-file -e "${BUILD_SHA}:Dockerfile" 2>/dev/null; then
+            echo "Refusing build: ${BUILD_SHA} predates the production Dockerfile." >&2
+            exit 1
+          fi
+
+          git checkout --detach "$BUILD_SHA"
+          if [[ "$(git rev-parse HEAD)" != "$BUILD_SHA" ]]; then
+            echo "Checkout verification failed." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud via WIF (aw-deployer)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+          project_id: ${{ vars.TF_PROJECT_ID }}
+
+      - name: Build and push linux/amd64 images, then resolve their digests
+        id: push
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "$REGISTRY" --quiet
+          repo="${REGISTRY}/${TF_PROJECT_ID}/aw-images"
+
+          for app in api web; do
+            tag="${repo}/aw-${app}:${BUILD_SHA}"
+            # aw-images tags are immutable, so a re-run for the same sha reuses the image already pushed.
+            if ! gcloud artifacts docker images describe "$tag" --project="$TF_PROJECT_ID" >/dev/null 2>&1; then
+              docker build --platform linux/amd64 --target "$app" --tag "$tag" .
+              docker push "$tag"
+            fi
+            digest="$(
+              gcloud artifacts docker images describe "$tag" \
+                --project="$TF_PROJECT_ID" \
+                --format='value(image_summary.digest)'
+            )"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Could not resolve a sha256 digest for ${tag} (got '${digest}')." >&2
+              exit 1
+            fi
+            echo "${app}_image=${repo}/aw-${app}@${digest}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Write the digest-pinned references to the job summary
+        shell: bash
+        env:
+          API_IMAGE: ${{ steps.push.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.push.outputs.web_image }}
+        run: |
+          {
+            echo "## Dev images for \`${BUILD_SHA}\`"
+            echo ""
+            echo "Pass these to **Deploy Dev** with \`sha\` = \`${BUILD_SHA}\`:"
+            echo ""
+            echo "| Input | Value |"
+            echo "| ----- | ----- |"
+            echo "| \`api_image\` | \`${API_IMAGE}\` |"
+            echo "| \`web_image\` | \`${WEB_IMAGE}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
