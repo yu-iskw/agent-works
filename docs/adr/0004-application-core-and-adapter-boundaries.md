@@ -10,7 +10,7 @@ Accepted
 
 RFC-001 adopts a TypeScript modular monolith and requires the platform to own task, approval, policy, artifact, and audit semantics independently of an LLM framework. The repository already separates domain, policy, API-contract, fakes, and infrastructure concerns in several places, but application orchestration and concrete infrastructure dependencies are also colocated in `apps/api`.
 
-For example, the ask route currently coordinates authentication, authorization, retrieval, runner selection, task persistence, audit construction, and HTTP serialization. The API package also directly depends on `@google/adk` and the PostgreSQL driver. Colocation is not itself a defect, but framework and transport details must not become business contracts.
+For example, when this record was written, the ask route coordinated authentication, authorization, retrieval, runner selection, task persistence, audit construction, and HTTP serialization, and the API package depended directly on `@google/adk` and the PostgreSQL driver. The ask orchestration now lives in `apps/api/src/application/ask/ask-use-case.ts`. `apps/api` reaches ADK only through `@agent-works/agent-runtime` and still depends on `postgres`. Colocation is not itself a defect, but framework and transport details must not become business contracts.
 
 A broad directory move would create churn without proving better boundaries. Microservices, multi-cloud portability, or a new persistence engine are not current requirements.
 
@@ -24,7 +24,7 @@ Extraction is evidence-driven. Start with representative use cases where current
 
 The first representative extraction should use the ask flow. Preserve API paths, task state transitions, audit behavior, persisted contracts, and security semantics while separating transport concerns from application orchestration.
 
-The agent runtime boundary follows ADR-0001. ADK is the preferred implementation, but ADK-specific types must not leak into application/domain contracts. A dedicated adapter package is optional and should be created only when dependency or reuse evidence justifies it.
+The agent runtime boundary follows ADR-0001. ADK is the preferred implementation, but ADK-specific types must not leak into application/domain contracts. A dedicated adapter package is optional and should be created only when dependency or reuse evidence justifies it. [ADR 0005](0005-agent-runtime-package.md) records that package, `packages/agent-runtime`.
 
 Tool execution uses the canonical authority model already owned by the domain. Do not introduce a parallel self-asserted execution-authority model. Broker execution must derive or validate actor/policy information from trusted authority and server-side state.
 
@@ -74,7 +74,7 @@ Rejected until portability becomes a concrete requirement.
 
 ## Validation
 
-This record remains Proposed until representative implementation work demonstrates that:
+This record was accepted on 2026-11-24 (#198). Its acceptance gate was that representative implementation work demonstrates that:
 
 1. at least one use case can execute against fake ports without HTTP, ADK, or a database driver;
 2. API and persisted behavior remain compatible;

@@ -23,7 +23,11 @@ Google now documents Vertex AI as Gemini Enterprise Agent Platform. The host is 
 - No Gemini 4 model offers ML processing in Japan. Requests to `global` may be processed in any Google Cloud location, with no data-residency guarantee ([data residency][residency]).
 - These models have no `-00N` versions. The model ID is the version ([model][hydrogen], [model][flash]).
 
-The [#108 probe](../spikes/agent-platform/model.md#live-evidence-2026-10-15-operator-probe) is dated evidence from 2026-10-15, before the retirement and the Tokyo GA. It got 200 for both 2.5 models on `asia-northeast1`. `gemini-3.8-flash` and `gemini-4-argon` returned 404 there and 200 on `global`. It did not probe Hydrogen. The P0 and M1 runs used `gemini-3.8-flash` on `global` (`docs/p0/PROGRESS.md`, `docs/m1/PROGRESS.md`).
+The [#108 probe](../spikes/agent-platform/model.md#live-evidence-2026-10-15-operator-probe) is dated evidence from 2026-10-15, before the retirement and the Tokyo GA. It got 200 for both 2.5 models on `asia-northeast1`. `gemini-3.8-flash` and `gemini-4-argon` returned 404 there and 200 on `global`. It did not probe Hydrogen.
+
+The [2026-11-26 probe](../spikes/agent-platform/model.md#live-evidence-2026-11-26-operator-probe) came after both. On `global`, `gemini-4-hydrogen` and `gemini-3.8-flash` returned 200. Hydrogen accepted `thinkingLevel` in uppercase and lowercase, and `temperature: 0.2`. On `asia-northeast1`, `gemini-2.5-flash` still returned 200 despite its listed retirement, and `gemini-3.8-flash` still returned 404. So the probe did not confirm that `gemini-2.5-flash` is gone, which the Accept probe in Consequences asks for.
+
+The P0 and M1 runs used `gemini-3.8-flash` on `global` (`docs/p0/PROGRESS.md`, `docs/m1/PROGRESS.md`).
 
 ## Decision
 

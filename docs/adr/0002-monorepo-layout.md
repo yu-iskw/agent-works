@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-RFC-001 section 14.3 draws `apps/web`, `apps/bff`, `services/`, `agents/`, `connectors/`, `contracts/`, `infra/terraform`, `policies/`, `runbooks/`, and `docs/adr/`. This repository uses a smaller layout. The tree today is the template, with one package at `packages/common`. This file is repository record 0002. It is not the RFC section 3 note labeled ADR-002.
+RFC-001 section 14.3 draws `apps/web`, `apps/bff`, `services/`, `agents/`, `connectors/`, `contracts/`, `infra/terraform`, `policies/`, `runbooks/`, and `docs/adr/`. This repository uses a smaller layout. When this record was written, the tree was the template, with one package at `packages/common`. This file is repository record 0002. It is not the RFC section 3 note labeled ADR-002.
 
 ## Decision
 
@@ -22,7 +22,7 @@ This record does not create those directories and does not move `packages/common
 
 A new app or package goes in one of the directories named above.
 
-`pnpm-workspace.yaml` still includes only `packages/*`. A later change adds `apps/*` when those apps exist.
+`pnpm-workspace.yaml` includes `packages/*`, `apps/*` and `agents/skills/*`.
 
 `packages/common` stays until a later change replaces it.
 
