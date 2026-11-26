@@ -6,6 +6,8 @@ Date: 2026-10-10
 
 Accepted
 
+Amended by [8. Vertex AI region and model](0008-vertex-ai-region-and-model.md)
+
 ## Context
 
 The operator answered the six Appendix F questions on 2026-10-11 and made the answers binding. This file is repository record 0003. It is not the RFC section 3 note labeled ADR-003.

@@ -4,9 +4,13 @@ Date: 2026-11-25
 
 ## Status
 
-Proposed
+Accepted
 
-Partly supersedes [ADR 0003](0003-pilot-decisions.md): only its **Region** pin, and only for Vertex AI inference.
+Amends [3. Pilot decisions](0003-pilot-decisions.md)
+
+The amendment covers only the **Region** pin of ADR 0003, and only for Vertex AI inference.
+
+Yu accepted this record on 2026-11-26 and took the [2026-11-26 probe](../spikes/agent-platform/model.md#live-evidence-2026-11-26-operator-probe) as the Accept probe, although it did not confirm that `gemini-2.5-flash` is gone.
 
 ## Context
 
@@ -46,19 +50,19 @@ Vertex AI inference uses the `global` endpoint.
 - Once accepted, this record is the "recorded residency exception" that the docs refer to.
 - The full model ID is the pin. Runs must log the response `modelVersion` and compare it with that ID.
 - `apps/api/src/model-routing/router.ts` denies `cross_region` when regions differ. It is not on the live Vertex path today. Whoever wires it in must allow `global`.
-- Accept requires a fresh probe:
+- Accept required a fresh probe. The 2026-11-26 probe ran all three, and Yu waived the third result (see Status):
   - `gemini-4-hydrogen` on `global`;
   - `gemini-3.8-flash` on `global`;
   - `gemini-2.5-flash` on `asia-northeast1`, to confirm that it is gone.
 
   The same run can probe `gemini-3.8-flash` on `asia-northeast1` for the residency option.
 
-- Follow-up code work, not made here:
-  - the compose defaults, which point at the retired `gemini-2.5-flash`. They need fixing whatever happens to this record;
+- Follow-up code work, made in the change that accepted this record:
+  - the compose defaults, which pointed at the retired `gemini-2.5-flash`;
   - the model expectations in `e2e/m1/live/journeys.spec.ts`, `e2e/p0/real-llm/flagship.spec.ts`, `e2e/ui/journeys/steps.ts` and `scripts/ui/stack.mjs`;
   - `docs/ui/ui.env.example`;
   - the residency and model rows in `docs/m1/README.md`, `docs/p0/README.md`, `docs/ui/README.md` and `docs/ui/ARCHITECTURE.md`;
-  - `apps/api/src/workbench/vertex.ts`. It must send `thinkingLevel` on every call (HIGH when a request sets none), because today a request without `thinking` sends none. Its `thinkingBudget` branch for Gemini 2.x can go.
+  - `apps/api/src/workbench/vertex.ts`. It now sends `thinkingLevel` on every call (HIGH when a request sets none). Before, a request without `thinking` sent none. Its `thinkingBudget` branch for Gemini 2.x is gone.
 - On Accept, link this record to ADR 0003 as an amendment (`adr link 8 Amends 3 "Amended by"`), the way ADR 0007 plans to. `create-adr.sh --proposes 3` would mark all of ADR 0003 Superseded.
 
 [lifecycle]: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions

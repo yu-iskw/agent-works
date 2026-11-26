@@ -55,7 +55,7 @@ apps/web/
 
 ## Real-model rule
 
-Every conversation reply, plan, contribution, synthesis and revision in local acceptance goes through the existing model gate to Vertex `gemini-2.5-flash` in `asia-northeast1` (ADR-0003; a global-only model needs a recorded residency exception). The UI milestone counts its calls under campaign `ui-2026-10` (migration `0020`), 300 per segment, concurrency 2 per segment. Real-model suites run one segment at a time, so at most two calls are in flight.
+Every conversation reply, plan, contribution, synthesis and revision in local acceptance goes through the existing model gate to Vertex `gemini-4-hydrogen` on `global` ([ADR-0008](../adr/0008-vertex-ai-region-and-model.md), the recorded residency exception to ADR-0003). The UI milestone counts its calls under campaign `ui-2026-10` (migration `0020`), 300 per segment, concurrency 2 per segment. Real-model suites run one segment at a time, so at most two calls are in flight.
 
 ## Reconciliation
 

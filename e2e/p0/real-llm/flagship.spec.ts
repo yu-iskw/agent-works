@@ -16,7 +16,7 @@ import {
 
 // Real Vertex AI. Fails closed: any sign of the stub, or a model other than the one the
 // operator authorised, fails the test instead of passing on a fixture.
-const expectedModel = process.env.P0_EXPECTED_MODEL ?? 'gemini-2.5-flash';
+const expectedModel = process.env.P0_EXPECTED_MODEL ?? 'gemini-4-hydrogen';
 
 test('readiness reports the real Vertex model', async ({ page }) => {
   await signIn(page);
@@ -64,7 +64,7 @@ test('flagship flow on real Gemini: prompt, evidence, draft, approval, one write
   const call = rows[0] ?? {};
   expect(call.mode).toBe('vertex');
   expect(call.model_id).toBe(expectedModel);
-  expect(String(call.model_version)).toContain(expectedModel);
+  expect(String(call.model_version)).toBe(expectedModel);
   expect(call.outcome).toBe('ok');
   expect(String(call.response_id ?? '')).not.toBe('');
 

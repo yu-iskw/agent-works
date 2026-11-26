@@ -77,14 +77,14 @@ describe('vertex adapter', () => {
   const config = {
     project: 'proj',
     location: 'global',
-    modelId: 'gemini-3.8-flash',
+    modelId: 'gemini-4-hydrogen',
     timeoutMs: 1000,
     maxOutputTokens: 64,
   };
 
   it('targets the global endpoint for the configured model', () => {
     expect(vertexEndpoint(config)).toBe(
-      'https://aiplatform.googleapis.com/v1/projects/proj/locations/global/publishers/google/models/gemini-3.8-flash:generateContent',
+      'https://aiplatform.googleapis.com/v1/projects/proj/locations/global/publishers/google/models/gemini-4-hydrogen:generateContent',
     );
     expect(vertexEndpoint({ ...config, location: 'us-central1' })).toContain(
       'https://us-central1-aiplatform.googleapis.com/',
@@ -122,29 +122,28 @@ describe('vertex adapter', () => {
     });
   });
 
-  it.each([
-    ['gemini-3.8-flash', { thinkingLevel: 'low' }],
-    ['gemini-2.5-flash', { thinkingBudget: 1024 }],
-  ])('asks %s for low thinking and leaves it unset otherwise', async (modelId, expected) => {
-    const sent: unknown[] = [];
+  it('always sends a thinking level: HIGH unless the call asks for low, never a budget', async () => {
+    type Sent = { generationConfig: { thinkingConfig: unknown } };
+    const sent: Sent[] = [];
     const ok = JSON.stringify({
-      modelVersion: modelId,
+      modelVersion: config.modelId,
       candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{}' }] } }],
     });
-    const model = createVertexModel(
-      { ...config, modelId },
-      {
-        authHeaders: () => Promise.resolve({}),
-        fetch: (_url, init) => {
-          sent.push(JSON.parse(init?.body as string));
-          return Promise.resolve(new Response(ok));
-        },
+    const model = createVertexModel(config, {
+      authHeaders: () => Promise.resolve({}),
+      fetch: (_url, init) => {
+        sent.push(JSON.parse(init?.body as string) as Sent);
+        return Promise.resolve(new Response(ok));
       },
-    );
-    await model.generate({ system: 's', prompt: 'p', thinking: 'low' });
+    });
     await model.generate({ system: 's', prompt: 'p' });
-    expect(sent[0]).toHaveProperty('generationConfig.thinkingConfig', expected);
-    expect(sent[1]).not.toHaveProperty('generationConfig.thinkingConfig');
+    await model.generate({ system: 's', prompt: 'p', thinking: 'low' });
+    await model.generate({ system: 's', prompt: 'p', thinking: 'high' });
+    expect(sent.map((body) => body.generationConfig.thinkingConfig)).toEqual([
+      { thinkingLevel: 'HIGH' },
+      { thinkingLevel: 'LOW' },
+      { thinkingLevel: 'HIGH' },
+    ]);
   });
 
   it('returns text and non-secret call metadata', async () => {
@@ -154,7 +153,7 @@ describe('vertex adapter', () => {
         Promise.resolve(
           new Response(
             JSON.stringify({
-              modelVersion: 'gemini-3.8-flash',
+              modelVersion: config.modelId,
               responseId: 'r1',
               candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{}' }] } }],
               usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 1 },
@@ -165,7 +164,7 @@ describe('vertex adapter', () => {
     const result = await model.generate({ system: 's', prompt: 'p' });
     expect(result).toMatchObject({
       text: '{}',
-      modelVersion: 'gemini-3.8-flash',
+      modelVersion: config.modelId,
       responseId: 'r1',
     });
     expect(model.mode).toBe('vertex');

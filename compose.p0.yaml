@@ -86,8 +86,8 @@ services:
       CLOUDSDK_CONFIG: /home/app/.config/gcloud
       GOOGLE_APPLICATION_CREDENTIALS: /home/app/.config/gcloud/application_default_credentials.json
       GOOGLE_CLOUD_PROJECT: ${AW_P0_GOOGLE_CLOUD_PROJECT:-your-gcp-project-id}
-      GOOGLE_CLOUD_LOCATION: ${AW_P0_GOOGLE_CLOUD_LOCATION:-asia-northeast1}
-      VERTEX_MODEL_ID: ${AW_P0_VERTEX_MODEL_ID-gemini-2.5-flash}
+      GOOGLE_CLOUD_LOCATION: ${AW_P0_GOOGLE_CLOUD_LOCATION:-global}
+      VERTEX_MODEL_ID: ${AW_P0_VERTEX_MODEL_ID-gemini-4-hydrogen}
       LLM_MODE: ${AW_P0_LLM_MODE:-vertex}
       WORKBENCH_MAX_MODEL_CALLS: ${AW_P0_MAX_MODEL_CALLS:-150}
       WORKSPACE_FIXTURE_FAULTS: ${AW_P0_FIXTURE_FAULTS:-0}
