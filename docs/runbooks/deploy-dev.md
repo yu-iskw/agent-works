@@ -65,6 +65,74 @@ the `dev` environment:
 | `DEPLOY_WIF_PROVIDER` | Yes      | Full Workload Identity Provider resource name from `identity/dev` |
 | `DEPLOYER_SA`         | Yes      | `aw-deployer@<TF_PROJECT_ID>.iam.gserviceaccount.com`             |
 
+## aw-api Vertex AI settings (ADR-0008)
+
+[ADR-0008](../adr/0008-vertex-ai-region-and-model.md) sends `aw-api` model
+calls to the Vertex AI `global` endpoint with `gemini-4-hydrogen`. It is the
+recorded residency exception for model calls only. Cloud Run, Cloud SQL, IAP,
+Artifact Registry and the other dev resources stay in `asia-northeast1`.
+
+Set these keys in `service_env.api` of the untracked operator `tfvars`
+(commented example in
+[`terraform.tfvars.example`](../../infra/terraform/environments/dev/terraform.tfvars.example)),
+next to the rest of the `aw-api` env (`DATABASE_URL`, `IAP_*` and so on):
+
+| Key                     | Value               |
+| ----------------------- | ------------------- |
+| `AW_MODE`               | `production`        |
+| `GOOGLE_CLOUD_PROJECT`  | `<TF_PROJECT_ID>`   |
+| `GOOGLE_CLOUD_LOCATION` | `global`            |
+| `VERTEX_MODEL_ID`       | `gemini-4-hydrogen` |
+| `LLM_MODE`              | `vertex`            |
+
+**Deploy Dev** refuses an `aw-api` without `AW_MODE = "production"`.
+`LLM_MODE = "stub"` selects the offline model, and no startup check or deploy
+guard rejects it, so keep it out of `dev`.
+
+## Building and pushing the images
+
+The root [`Dockerfile`](../../Dockerfile) has one runtime target per service.
+Each target is a `linux/amd64`, Node 24 image that holds only the app's
+`pnpm deploy --prod` output, runs as `node`, and listens on `$PORT`
+(Cloud Run sets it, default `8080`). No credentials are baked in.
+
+Trigger **Build Dev Images**
+([`.github/workflows/build-dev-images.yml`](../../.github/workflows/build-dev-images.yml))
+manually on `main` with `environment` = `dev` and `sha` = the 40-hex commit on
+`origin/main`. The workflow:
+
+1. Checks the `sha` format, that `DEPLOYER_SA` is
+   `aw-deployer@<TF_PROJECT_ID>.iam.gserviceaccount.com`, that `sha` is an
+   ancestor of `origin/main`, and that it has the root `Dockerfile`, then checks
+   out exactly that commit.
+2. Authenticates through WIF as `aw-deployer`, which holds
+   `roles/artifactregistry.writer` on `aw-images`
+   (`module.artifact_registry` in `infra/terraform/environments/dev/main.tf`).
+3. Builds `--target api` and `--target web` for `linux/amd64` and pushes them
+   as `aw-api:<sha>` and `aw-web:<sha>`. Tags in `aw-images` are immutable, so
+   a re-run for the same `sha` reuses the image that is already there.
+4. Reads each digest back from Artifact Registry and publishes the
+   `api_image` and `web_image` references
+   (`asia-northeast1-docker.pkg.dev/<TF_PROJECT_ID>/aw-images/aw-{api,web}@sha256:<64-hex>`)
+   as job outputs and in the job summary, ready for **Deploy Dev**.
+
+> **Blocked until the WIF mapping allows this workflow.** The `aw-github`
+> provider in `infra/terraform/modules/github_wif/main.tf` maps
+> `attribute.access` to `dev` only for
+> `.github/workflows/deploy-dev.yml@refs/heads/main`. Any other workflow gets
+> `denied` and cannot impersonate `aw-deployer`, so **Build Dev Images** fails
+> at the WIF step until that mapping also admits
+> `.github/workflows/build-dev-images.yml@refs/heads/main` and
+> `infra/terraform/identity/dev` is re-applied. That change widens who can act
+> as `aw-deployer`, so it needs its own reviewed change.
+
+To build the same images locally (for example on an operator workstation):
+
+```bash
+docker build --platform linux/amd64 --target api -t aw-api:local .
+docker build --platform linux/amd64 --target web -t aw-web:local .
+```
+
 ## How to choose and verify image digests
 
 Deployments accept **immutable `@sha256:<64-hex>` digests only** from the

@@ -1,0 +1,19 @@
+# Build context for the production Dockerfile. An allowlist, so .git, node_modules, .env files,
+# local credentials and run artifacts never reach the builder.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches/
+!apps/
+!packages/
+!agents/skills/
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.env*
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx

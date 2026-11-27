@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 import { skillManifestSchema, ticketCreateManifest } from '@agent-works/domain';
 import { isIncident, reconcileIncident } from '@agent-works/incident-analysis';
@@ -65,18 +66,17 @@ export type IncidentConfig = {
   readonly model: IncidentModel;
 };
 
+// Resolved through the package, not the repo layout, so the files are found in the deployed image too.
+const resolveSkillFile = createRequire(import.meta.url).resolve;
 /* eslint-disable security/detect-non-literal-fs-filename -- fixed paths to the bundled skill files */
 const skill = {
   manifest: skillManifestSchema.parse(
     JSON.parse(
-      readFileSync(
-        new URL('../../../../agents/skills/incident-analysis/manifest.json', import.meta.url),
-        'utf8',
-      ),
+      readFileSync(resolveSkillFile('@agent-works/incident-analysis/manifest.json'), 'utf8'),
     ) as unknown,
   ),
   prompt: readFileSync(
-    new URL('../../../../agents/skills/incident-analysis/prompts/analyze.md', import.meta.url),
+    resolveSkillFile('@agent-works/incident-analysis/prompts/analyze.md'),
     'utf8',
   ),
 };

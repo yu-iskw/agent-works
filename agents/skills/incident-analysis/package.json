@@ -6,7 +6,9 @@
     ".": {
       "types": "./deliver.ts",
       "import": "./dist/deliver.js"
-    }
+    },
+    "./manifest.json": "./manifest.json",
+    "./prompts/analyze.md": "./prompts/analyze.md"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
