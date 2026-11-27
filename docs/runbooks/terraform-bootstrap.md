@@ -84,10 +84,12 @@ only web and API. Nobody receives human tokenCreator on runtime accounts.
 
 The GitHub pool accepts only yu-iskw/agent-works and pins `job_workflow_ref` on
 `refs/heads/main`. The dev principalSet requires environment `dev`, `refs/heads/main`
-and `.github/workflows/deploy-dev.yml@refs/heads/main` (including `workflow_dispatch`);
+and either `.github/workflows/deploy-dev.yml@refs/heads/main` (including `workflow_dispatch`)
+or `.github/workflows/build-dev-images.yml@refs/heads/main`. The mapping is live in GCP only
+after `identity/dev` is applied;
 the separate plan principalSet requires `.github/workflows/infra-plan.yml` (`@refs/pull/*` on
 `pull_request`, `@refs/heads/main` on `workflow_dispatch`) and is never satisfied
-by `deploy-dev.yml` jobs. Review WIF outputs before handing them to issue #24.
+by `deploy-dev.yml` or `build-dev-images.yml` jobs. Review WIF outputs before handing them to issue #24.
 Bootstrap owns the conditioned dev projectIamAdmin grant; identity/dev never writes project IAM. The conditional dev projectIamAdmin permits only the single runtime role allowlist,
 including the exact workflow adapter custom role. Never add Owner, Editor or any
 IAM administrator role. Review the condition in the console when the operator

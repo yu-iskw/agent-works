@@ -7,7 +7,7 @@ output "wif_provider" {
   value       = module.github_wif.provider_name
 }
 output "wif_attribute_mapping" {
-  description = "Reviewable WIF attribute mapping separating deploy-dev.yml and infra-plan.yml."
+  description = "Reviewable WIF attribute mapping separating deploy-dev.yml and build-dev-images.yml (dev) from infra-plan.yml (plan)."
   value       = module.github_wif.attribute_mapping
 }
 output "wif_attribute_condition" {

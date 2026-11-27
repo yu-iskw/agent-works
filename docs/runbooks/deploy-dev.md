@@ -116,15 +116,13 @@ manually on `main` with `environment` = `dev` and `sha` = the 40-hex commit on
    (`asia-northeast1-docker.pkg.dev/<TF_PROJECT_ID>/aw-images/aw-{api,web}@sha256:<64-hex>`)
    as job outputs and in the job summary, ready for **Deploy Dev**.
 
-> **Blocked until the WIF mapping allows this workflow.** The `aw-github`
-> provider in `infra/terraform/modules/github_wif/main.tf` maps
-> `attribute.access` to `dev` only for
-> `.github/workflows/deploy-dev.yml@refs/heads/main`. Any other workflow gets
-> `denied` and cannot impersonate `aw-deployer`, so **Build Dev Images** fails
-> at the WIF step until that mapping also admits
-> `.github/workflows/build-dev-images.yml@refs/heads/main` and
-> `infra/terraform/identity/dev` is re-applied. That change widens who can act
-> as `aw-deployer`, so it needs its own reviewed change.
+> **The WIF mapping must be applied.** The `aw-github` provider in
+> `infra/terraform/modules/github_wif/main.tf` maps `attribute.access` to `dev`
+> for `.github/workflows/deploy-dev.yml@refs/heads/main` and
+> `.github/workflows/build-dev-images.yml@refs/heads/main` (environment `dev`,
+> `refs/heads/main`). Any other workflow gets `denied`. The mapping is live in
+> GCP only after `infra/terraform/identity/dev` is applied; until then **Build
+> Dev Images** fails at the WIF step.
 
 To build the same images locally (for example on an operator workstation):
 
